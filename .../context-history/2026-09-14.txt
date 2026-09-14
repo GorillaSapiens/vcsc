@@ -1,0 +1,62 @@
+2026-09-14 09:10:15 PDT, correct split-RAM bus semantics
+Audited A5/A7 and detached speculative memory semantics after repeated mapper
+regression whack-a-mole. The prior split-RAM model was electrically wrong:
+writes to a read alias are legal ignored cycles, while reads from a write alias
+return an unpredictable read-from-write-port value and overwrite the backing RAM
+byte. RMW is therefore legal on either alias and is now diagnostic/neutral--it
+neither vetoes nor proves Superchip, FA/FA2, CV, WD/WDSW, E7, or 3E. Only pure
+direction-correct split-RAM accesses may contribute positive mapper evidence.
+
+Separated A5 bus legality from detached-island usefulness. Writes to mapped ROM
+remain legal for mapper viability but are not meaningful speculative write sinks;
+this fixes the plain-F8 speculative Superchip-store regression without restoring
+the false ROM-write contradiction. Added a direct established ROM-RMW legality
+regression instead of using speculative-island promotion as a proxy for bus
+validity.
+
+Cartridge-RAM provenance now models the hardware side effect: an exact read from
+a write alias destroys the prior backing-byte source; unknown absolute indexing
+enumerates all 256 possible aliases, and unresolved indirect reads conservatively
+drop split-RAM provenance. Writes to read aliases preserve the old backing source.
+New FA regressions pin exact RWP destruction, unknown-index destruction, and
+ignored read-alias writes.
+
+Removed obsolete split-RAM-RMW hard-failure contracts and renamed stale fixtures.
+The complete current generated disassembler corpus round-trips 206/206 byte-exact,
+the full assertion tail reports `vcsc-disas regression suite ok`, and the
+hardening suite passes. Also corrected two buried JANE/F6 hypothesis-count checks
+from 6 to 7 after CM became a legitimate 16K hypothesis.
+
+2026-09-14 09:58:00 PDT, finish split-RAM provenance and graphics audit
+Closed two remaining abstraction leaks after re-reading the project instruction
+contract. Unknown absolute-index stores now enumerate possible effective
+addresses and invalidate any split-RAM backing-byte provenance they can alter;
+unresolved destructive reads remain conservative. CM read-mode upper-RAM writes
+are legal no-ops and therefore are not meaningful detached speculative sinks.
+
+Static graphics/color recovery now requires the source address to be definitely
+ROM under the selected mapper. This prevents Superchip/native split RAM and
+configuration-dependent E7/3E/GL/CM overlays from misclassifying hidden physical
+ROM bytes as GRP/PF graphics. Added regressions for exact and indexed destructive
+write-port reads, ignored read-alias writes, unknown-index RAM stores, and an SC
+hidden-ROM-to-GRP false positive.
+
+The generated disassembler corpus is now 208/208 exact round trips. The complete
+main assertion tail reports `vcsc-disas regression suite ok`; the intentional
+`speculative_without_reset.bin` hard failure remains expected.
+
+2026-09-14 10:28:00 PDT, Perl requirement and disassembler timeout
+Perl is an ordinary VCSC source-build requirement. Removed the accidental
+special treatment of compiler/coverage_map.h as if it supported a partial
+Perl-free bootstrap: coverage_map.h is generated from parser.y by coverage.pl,
+is ignored as generated output, make clean removes it, and the Linux/Windows
+package targets no longer regenerate it after their final clean. README.md,
+LINUX.md, and WINDOWS.md now list Perl explicitly among build prerequisites.
+
+The main vcsc_disassembler.pl regression had grown far beyond the generic
+45-second per-test budget because it generates and round-trips more than 200 ROM
+fixtures plus mapper/speculation/presentation assertions. A standalone measured
+run completed successfully in 139.54 seconds, so the test now declares a
+600-second test-local timeout. The global 45-second default is unchanged; the
+larger ceiling is intentionally isolated to this heavyweight integration test
+so parallel-suite CPU contention does not create false timeouts.

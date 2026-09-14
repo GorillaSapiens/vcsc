@@ -57,7 +57,7 @@ without a VCSC installation.
 ## Building the package
 
 The build host needs the ordinary VCSC build tools: a C compiler, a C++
-compiler, GNU make, `bison`, `flex`, `strip`, `readelf`, and `tar`. It also needs
+compiler, GNU make, Perl, `bison`, `flex`, `strip`, `readelf`, and `tar`. It also needs
 the static versions of any host compiler runtimes required by the selected C/C++
 toolchain.
 

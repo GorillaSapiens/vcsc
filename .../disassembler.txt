@@ -45,22 +45,19 @@ Durable invariants
   unless the surviving models are observationally equivalent for presentation.
 * Mapper inference is a hardware-state problem, not merely a file-size/name
   lookup. Keep mapper context separate when following code across selectors.
-* Detached speculative validation uses a local sparse fixed point keyed by
-  physical instruction byte, runtime PC, and mapper context. Arrivals in the
-  same context meet successor-relevant abstract CPU/ZP facts and requeue only
-  when knowledge decreases. Viability is edge/path based: one dead arm of a
-  conditional branch is allowed when another feasible arm remains live; all
-  feasible dead arms reject backward, while JSR requires both callee and return
-  continuation. JAM/KIL/HLT and impossible execution/hardware accesses are dead
-  speculative edges. A speculative memory write must also have a real sink in
-  the established hardware model (RAM/write port, valid device register, or a
-  direction-valid mapper/peripheral side effect); plain ROM/unclaimed writes are
-  dead, with the structural prefilter conservative about unresolved mapper-RAM
-  state. Official/stable-unofficial/unstable-unofficial opcodes and
-  canonical/mirrored TIA/RIOT accesses provide graded promotion evidence; known
-  direction-sensitive mapper hotspots override the generic hardware score. There
-  is no traversal/node cap; allocation failure is inconclusive and may never
-  strengthen promotion or rejection.
+* Detached speculative validation and mapper viability are different rules.
+  A5 asks whether bus cycles are legal: mapped-ROM writes and split-RAM
+  read-alias writes are legal no-ops; split-RAM write-alias reads are legal
+  unpredictable reads that overwrite the backing byte; RMW is legal on either
+  alias. Split-RAM RMW is diagnostic only, neither mapper proof nor veto. The
+  provenance engine destroys a backing source after read-from-write-port,
+  including conservative unknown-index/indirect cases. Detached pure stores,
+  however, need a meaningful sink (RAM write alias, valid device/peripheral, or
+  mapper side effect); a legal no-op store cannot validate an island. JAM/KIL/HLT
+  and impossible execution/hardware edges remain dead. The sparse fixed point
+  forks unknown branches, requires both JSR legs, and accepts coherent loops.
+  The structural prefilter remains conservative about unresolved mapper state.
+  Opcode and TIA/RIOT evidence is graded; allocation failure is inconclusive.
 * RESET is the only stock-6507 initial hardware execution root. Reachable `BRK`
   may promote IRQ/BRK; NMI is never rooted merely from `$FFFA/$FFFB`. For a
   deliberate `RESET=$0000`, the reset-vector high-byte fetch leaves `$00` on
@@ -212,11 +209,10 @@ Unfinished mapper support
       `download_rom.bin` / `ramdata_rom.bin` images.
     * If those real fixtures pass, close GL and make CM the current mapper item.
 
-24. [ ] CM mapper
-    * Model CompuMate as ROM/RAM mapping controlled through SWCHA, not a normal
-      hotspot mapper.
-    * Carry bank-select, RAM-enable, and RAM-direction state; add exact fixtures
-      and controller-state transition tests.
+24. [x] CM mapper
+    * Four 4K banks use SWCHA D1:D0; bank 3 powers up, D4 overlays upper 2K RAM,
+      and D5 selects RAM direction. Per-bit SWCHA state preserves masked updates;
+      repeated SWCHA/SWACNT protocol is family evidence. Real CM images round-trip.
 
 25. [ ] DPC+
     * Treat DPC+ as a distinct ARM-assisted format.
@@ -233,25 +229,20 @@ Unfinished mapper support
 
 Current direction
 -----------------
-A1-A8, post-A8 hardening, and G1-G5 are complete. GL real-corpus closeout is
-next, then CM, DPC+, and CDF-family support. Genuine mapper ties stay raw. Keep
-real-ROM narratives in history; keep tests synthetic.
+A1-A8, post-A8 hardening, G1-G5, and CM are complete. Next: GL corpus closeout,
+then DPC+ and CDF-family support. Genuine mapper ties stay raw; tests stay synthetic.
 
 Post-A8 corpus hardening
 -------------------------
-A viable conventional topology is not tied by special hardware that has no
-independent family evidence; a hypothetical decoder cannot prove itself. This
-removes plain 2K/CV, 4K/CV-or-FC, F6/FC, and F8/WD-TIA-mirror false ties. Strong
-complete 4IN1/8IN1/32IN1 constituent structure is positive container evidence
-and the finest such partition wins after real selector/RAM/signature evidence.
-2IN1 remains ambiguous with F8 without actual F8 evidence.
+Evidence-free special hardware cannot tie a viable conventional topology; a
+hypothetical decoder cannot prove itself. Strong complete 4IN1/8IN1/32IN1
+constituents are positive container evidence after real selector/RAM/signature
+evidence. 2IN1 remains ambiguous with F8 without actual F8 evidence.
 
-Quarantine established unsupported CDF-family and 32K two-`DPC+`-marker
-fingerprints as exact unknown/raw; a recognized unsupported format may preserve
-a zero-instruction image raw. This is not semantic support. A lone A5 survivor
-with no independent evidence also stays raw when a detector-signed alternative
-was hard-rejected. Exact duplicate F8/F6/F4/F0 wrappers use VCSC's
-smallest-unique-image normalization for Stella differential comparison.
+Quarantine established unsupported CDF-family and two-`DPC+`-marker fingerprints
+as exact unknown/raw, even with zero decoded instructions. A lone evidence-free
+A5 survivor stays raw when a detector-signed alternative was hard-rejected. Exact
+duplicate F8/F6/F4/F0 wrappers are reduced before Stella differential comparison.
 
 Model-created overlap evidence needs corroboration. CV/WD/E7/GL RAM traffic and
 broad 0840/UA/UASW/0FA0 coverage are diagnostic until detector/explicit metadata,
@@ -260,4 +251,6 @@ multi-access protocol fingerprints are independent evidence when A5-live. Shared
 8K E0/E7 $1FE4-$1FEB selectors are not family-specific. FE JSR target-high
 activity needs independent FE evidence; `FE\0\0` is explicit metadata.
 Structural Superchip evidence activates SC during A5; writes through its read
-alias are harmless bus writes, not RAM writes or contradictions.
+alias are harmless bus writes, not RAM writes or contradictions. Static graphics
+may use only addresses definitely ROM under the selected mapper; RAM overlays
+never expose hidden physical ROM. Unknown-index RAM writes invalidate provenance.

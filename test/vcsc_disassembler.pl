@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
+# timeout: 600
 # expectstdout: vcsc-disas regression suite ok
 # expectexit: 0
 
@@ -409,18 +410,21 @@ my $a5_known_branch = make_rom(4096, 0xF000, 0x0100,
 write_bin(File::Spec->catfile($in, 'a5_known_branch.bin'), $a5_known_branch);
 
 # Hard path rejection: execution cannot continue in non-executable hardware
-# space and cannot store into plain cartridge ROM when no mapper/peripheral/RAM
-# sink consumes the write.  An undefined TIA read is a legal bus cycle with an
-# unknown/open-bus-like value, so A5 must not kill an established RESET path.
+# space.  Undefined TIA reads remain legal unknown/open-bus-like cycles, and
+# writes to ordinary cartridge ROM are electrically legal bus cycles that the
+# ROM simply ignores; neither case should kill an established RESET path.
 my $a5_bad_jump = make_rom(4096, 0xF000, 0x0100,
    pack('C*', 0x4C,0x00,0x20));  # $2000 aliases non-executable hardware space
 write_bin(File::Spec->catfile($in, 'a5_bad_jump.bin'), $a5_bad_jump);
 my $a5_bad_read = make_rom(4096, 0xF000, 0x0100,
    pack('C*', 0xA5,0x3E,0x60));  # undefined TIA read: legal bus cycle, unknown value
 write_bin(File::Spec->catfile($in, 'a5_bad_read.bin'), $a5_bad_read);
-my $a5_bad_write = make_rom(4096, 0xF000, 0x0100,
-   pack('C*', 0x8D,0x00,0xF2,0x60)); # plain ROM has no write sink
-write_bin(File::Spec->catfile($in, 'a5_bad_write.bin'), $a5_bad_write);
+my $a5_rom_write_ignored = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0x8D,0x00,0xF2,0x60)); # ordinary cartridge ROM ignores writes
+write_bin(File::Spec->catfile($in, 'a5_rom_write_ignored.bin'), $a5_rom_write_ignored);
+my $a5_rom_rmw_ignored = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0xEE,0x00,0xF2,0x60)); # ROM read is real; RMW write is ignored
+write_bin(File::Spec->catfile($in, 'a5_rom_rmw_ignored.bin'), $a5_rom_rmw_ignored);
 
 # Infinite coherent loops are viable hypothesis execution, not failed paths.
 # A5 therefore uses a greatest fixed point for RESET execution while detached
@@ -441,12 +445,13 @@ my $a5_jsr_ram_good_return = make_rom(4096, 0xF000, 0x0100,
 write_bin(File::Spec->catfile($in, 'a5_jsr_ram_good_return.bin'),
    $a5_jsr_ram_good_return);
 
-# Native split cartridge RAM is directional.  FA's $1000-$10FF port accepts
-# writes but supplies no read value; $1100-$11FF is the read source.
-my $a5_fa_bad_read = make_rom(12288, 0xF000, 0x0300, "\x60");
-substr($a5_fa_bad_read, 2 * 4096 + 0x0300, 4,
+# Native split cartridge RAM is directional but both aliases are legal reads.
+# FA's $1000-$10FF write alias returns an unpredictable read value and
+# overwrites the backing RAM byte; $1100-$11FF returns the stored RAM value.
+my $a5_fa_write_port_read = make_rom(12288, 0xF000, 0x0300, "\x60");
+substr($a5_fa_write_port_read, 2 * 4096 + 0x0300, 4,
    pack('C*', 0xAD,0x00,0x10,0x60));
-write_bin(File::Spec->catfile($in, 'a5_fa_bad_read.bin'), $a5_fa_bad_read);
+write_bin(File::Spec->catfile($in, 'a5_fa_write_port_read.bin'), $a5_fa_write_port_read);
 my $a5_fa_good_ports = make_rom(12288, 0xF000, 0x0300, "\x60");
 substr($a5_fa_good_ports, 2 * 4096 + 0x0300, 7,
    pack('C*', 0xAD,0x00,0x11, 0x8D,0x00,0x10, 0x60));
@@ -636,6 +641,103 @@ for my $b (0 .. 2) {
           pack('C*', 0x30 + $b, 0xC0 + $b));
 }
 write_bin(File::Spec->catfile($in, 'g1_fa_multi_origin.bin'), $g1_fa_multi);
+
+# Split-RAM side effects must affect provenance, not merely mapper viability.
+# Reading FA's write alias returns an unpredictable value and overwrites the
+# backing byte, so a later normal read must not retain the original ROM source.
+my $fa_rwp_destroy_code = pack('C*',
+   0xAD,0x00,0xF5,       # LDA $F500 -- known ROM source
+   0x8D,0x00,0x10,       # STA $1000 -- seed FA RAM byte 0
+   0xAD,0x00,0x10,       # LDA $1000 -- RWP read randomizes backing byte 0
+   0xAD,0x00,0x11,       # LDA $1100 -- source must now be unknown
+   0x85,0x1B,             # STA GRP0
+   0x60);
+my $fa_rwp_destroy = make_rom(12288, 0xF000, 0x0300, $fa_rwp_destroy_code);
+substr($fa_rwp_destroy, 2 * 4096 + 0x0300, length($fa_rwp_destroy_code),
+       $fa_rwp_destroy_code);
+for my $b (0 .. 2) {
+   substr($fa_rwp_destroy, $b * 4096 + 0x0500, 1, chr(0x50 + $b));
+}
+write_bin(File::Spec->catfile($in, 'fa_rwp_destroy_provenance.bin'),
+          $fa_rwp_destroy);
+
+# The same destruction must be conservative when the absolute index is
+# unknown: $1000,X can touch any FA write-alias byte, including byte 0.
+my $fa_rwp_indexed_code = pack('C*',
+   0xAD,0x00,0xF5,       # LDA $F500
+   0x8D,0x00,0x10,       # STA $1000
+   0xA6,0x80,             # LDX $80 -- unknown path input
+   0xBD,0x00,0x10,       # LDA $1000,X -- possible RWP side effect on byte 0
+   0xAD,0x00,0x11,       # LDA $1100
+   0x85,0x1B,             # STA GRP0
+   0x60);
+my $fa_rwp_indexed = make_rom(12288, 0xF000, 0x0300, $fa_rwp_indexed_code);
+substr($fa_rwp_indexed, 2 * 4096 + 0x0300, length($fa_rwp_indexed_code),
+       $fa_rwp_indexed_code);
+for my $b (0 .. 2) {
+   substr($fa_rwp_indexed, $b * 4096 + 0x0500, 1, chr(0x58 + $b));
+}
+write_bin(File::Spec->catfile($in, 'fa_rwp_indexed_destroy_provenance.bin'),
+          $fa_rwp_indexed);
+
+# Writing FA's read alias is a legal ignored write.  It must not destroy the
+# source previously stored through the write alias.
+my $fa_read_alias_ignore_code = pack('C*',
+   0xAD,0x00,0xF5,       # LDA $F500 -- known ROM source
+   0x8D,0x00,0x10,       # STA $1000 -- seed FA RAM byte 0
+   0xA9,0x00,             # unrelated value
+   0x8D,0x00,0x11,       # STA $1100 -- ignored by hardware
+   0xAD,0x00,0x11,       # LDA $1100 -- original source survives
+   0x85,0x1B,             # STA GRP0
+   0x60);
+my $fa_read_alias_ignore = make_rom(12288, 0xF000, 0x0300,
+                                    $fa_read_alias_ignore_code);
+substr($fa_read_alias_ignore, 2 * 4096 + 0x0300,
+       length($fa_read_alias_ignore_code), $fa_read_alias_ignore_code);
+for my $b (0 .. 2) {
+   substr($fa_read_alias_ignore, $b * 4096 + 0x0500, 1, chr(0x68 + $b));
+}
+write_bin(File::Spec->catfile($in, 'fa_read_alias_write_ignored_provenance.bin'),
+          $fa_read_alias_ignore);
+
+# An unknown absolute index on a cartridge-RAM store can overwrite any byte in
+# the indexed write-alias range.  Exact provenance for every possibly targeted
+# backing byte must therefore be discarded rather than surviving by accident.
+my $fa_unknown_index_store_code = pack('C*',
+   0xAD,0x00,0xF5,       # LDA $F500 -- known ROM source
+   0x8D,0x00,0x10,       # STA $1000 -- seed FA RAM byte 0
+   0xA6,0x80,             # LDX $80 -- unknown path input
+   0xA9,0x00,             # unrelated replacement value
+   0x9D,0x00,0x10,       # STA $1000,X -- may overwrite byte 0
+   0xAD,0x00,0x11,       # LDA $1100
+   0x85,0x1B,             # STA GRP0
+   0x60);
+my $fa_unknown_index_store = make_rom(12288, 0xF000, 0x0300,
+                                      $fa_unknown_index_store_code);
+substr($fa_unknown_index_store, 2 * 4096 + 0x0300,
+       length($fa_unknown_index_store_code), $fa_unknown_index_store_code);
+for my $b (0 .. 2) {
+   substr($fa_unknown_index_store, $b * 4096 + 0x0500, 1, chr(0x70 + $b));
+}
+write_bin(File::Spec->catfile($in,
+   'fa_unknown_index_store_destroys_provenance.bin'), $fa_unknown_index_store);
+
+# Superchip's write alias hides physical ROM just as surely as native split
+# RAM.  Reading it is an unpredictable/destructive RWP access; neither the
+# hidden byte at $F000 nor the hidden duplicate at $F080 may become graphics
+# merely because the loaded value is then written to GRP0/GRP1.
+my $sc_rwp_hidden_rom = make_rom(4096, 0xF000, 0x0100, pack('C*',
+   0xAD,0x00,0xF5,       # LDA $F500
+   0x8D,0x00,0xF0,       # STA $F000 -- seed SC RAM byte 0
+   0xAD,0x00,0xF0,       # LDA $F000 -- destructive write-port read
+   0x85,0x1B,             # STA GRP0
+   0xAD,0x80,0xF0,       # LDA $F080 -- normal RAM read after destruction
+   0x85,0x1C,             # STA GRP1
+   0x60));
+substr($sc_rwp_hidden_rom, 0x0000, 1, "\x3C");
+substr($sc_rwp_hidden_rom, 0x0500, 1, "\x7E");
+write_bin(File::Spec->catfile($in, 'sc_rwp_hidden_rom_not_graphics.bin'),
+          $sc_rwp_hidden_rom);
 # Multi-game images are containers, not one bankswitched CPU address space.
 # Four distinct, independently rooted 2K components must be split/analyzed
 # separately while the outer source preserves the exact concatenation.
@@ -845,12 +947,12 @@ for my $v (0, 2, 4) {
 write_bin(File::Spec->catfile($in, 'threee.bin'), $threee);
 
 # A 3E RAM bank exposes distinct read and write aliases, so an RMW against
-# either half cannot be a normal RAM RMW.  Keep the RMW in the fixed final 2K
-# after selecting RAM so a forced 3E analysis must record the contradiction.
+# either half has alias-dependent RMW semantics.  Keep the RMW in the fixed
+# final 2K after selecting RAM so a forced 3E analysis records the access.
 my $threee_rmw = chr(0xEA) x 8192;
 substr($threee_rmw, 3 * 2048 + 0x0100, 17,
    "\xA9\x02\x85\x3E" .       # select RAM bank 2
-   "\xEE\x00\xF0" .            # INC read alias: split-RAM contradiction
+   "\xEE\x00\xF0" .            # INC read alias: legal RMW; write phase ignored
    "\xA9\x01\x85\x3F" .       # restore ROM bank 1
    "\xA9\x01\x85\x3F" .       # repeated ROM selector signature
    "\x60");
@@ -920,13 +1022,13 @@ for my $v (0, 2, 4) {
 write_bin(File::Spec->catfile($in, 'e7_16k.bin'), $e7_16k);
 
 # Both E7 RAM regions are split read/write aliases.  A single-address 6502
-# RMW is contradictory in either region; pin both halves in one forced case.
+# RMW is legal in either region with alias-dependent side effects; pin both.
 my $e7_rmw = chr(0xEA) x 16384;
 substr($e7_rmw, 7 * 2048 + 0x0200, 18,
    "\xAD\xE7\xFF" .          # lower RAM selected
-   "\xEE\x00\xF4" .          # INC lower read alias: contradiction
+   "\xEE\x00\xF4" .          # INC lower read alias: write phase ignored
    "\xAD\xE9\xFF" .          # fixed RAM block 1 selected
-   "\xEE\x00\xF9" .          # INC fixed read alias: contradiction
+   "\xEE\x00\xF9" .          # INC fixed read alias: write phase ignored
    "\xAD\xE5\xFF" .          # restore ROM bank 5
    "\x60");
 for my $v (0, 2, 4) {
@@ -1213,20 +1315,21 @@ write_bin(File::Spec->catfile($in, 'f8sc_disjoint_offsets.bin'),
    make_rom(8192, 0xF000, 0x0100,
       "\x8D\x20\xF0\xAD\xA1\xF0\xAD\xF8\x1F\x60"));
 
-# RMW instructions cannot be valid Superchip RAM operations because the read
-# and write aliases are different addresses.  Any reachable RMW anywhere in
-# $F000-$F0FF is therefore negative SC evidence, not merely "not positive".
+# RMW instructions are legal on either Superchip alias.  On the write alias
+# the read phase randomizes the backing byte before the write phase; on the
+# read alias the read is real and the write phase is ignored.  RMW is therefore
+# diagnostic/neutral evidence, not a mapper contradiction or positive SC proof.
 write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_only.bin'),
    make_rom(4096, 0xF000, 0x0100, "\x0E\x00\xF0\x60"));
-write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_write_conflict.bin'),
+write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_write_alias.bin'),
    make_rom(4096, 0xF000, 0x0100,
-      "\x8D\x20\xF0" .      # otherwise-positive SC write
-      "\xEE\x40\xF0" .      # RMW in write port: contradiction
+      "\x8D\x20\xF0" .      # SC-looking write evidence
+      "\xEE\x40\xF0" .      # legal RMW on write alias
       "\x60"));
-write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_read_conflict.bin'),
+write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_read_alias.bin'),
    make_rom(4096, 0xF000, 0x0100,
-      "\x8D\x20\xF0" .      # otherwise-positive SC write
-      "\xEE\x80\xF0" .      # RMW in read port: contradiction
+      "\x8D\x20\xF0" .      # SC-looking write evidence
+      "\xEE\x80\xF0" .      # legal RMW on read alias
       "\x60"));
 
 # Even paired semantic SC evidence must not override established RESET/control
@@ -1243,6 +1346,49 @@ substr($stella_4ksc_marker, 0x0080, 1, "\x18"); # do not rely on prefix duplicat
 substr($stella_4ksc_marker, 0x0FFA, 2, "SC");
 write_bin(File::Spec->catfile($in, 'stella_4ksc_marker.bin'), $stella_4ksc_marker);
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
+
+# SpectraVideo CompuMate: four 4K ROM banks are selected through SWCHA D1:D0.
+# Bank 3 powers up with RAM disabled.  The startup write selects bank 0, where
+# the continuation returns; without the CM switch the bank-3 continuation is a
+# HLT.  Repeated SWCHA/SWACNT byte patterns provide independent CM-family
+# evidence without relying on the 16K size.
+my $cm = chr(0xEA) x 16384;
+for my $b (0 .. 3) {
+   my $base = $b * 4096;
+   substr($cm, $base + 0x80, 1, chr(0x20 + $b));
+   for my $v (0, 2, 4) {
+      put16(\$cm, $base + 0x0FFA + $v, 0xF100);
+   }
+}
+substr($cm, 3 * 4096 + 0x0100, 6, "\xA9\x10\x8D\x80\x02\x02");
+substr($cm, 0 * 4096 + 0x0105, 1, "\x60");
+my $cm_protocol = ("\x8D\x80\x02" x 4) .
+                  ("\xAD\x80\x02" x 4) .
+                  "\x8D\x81\x02";
+substr($cm, 1 * 4096 + 0x0300, length($cm_protocol), $cm_protocol);
+write_bin(File::Spec->catfile($in, 'cm.bin'), $cm);
+
+# CM software commonly preserves controller-input bits while changing only the
+# bank-select bits.  This leaves a partially-known SWCHA value: D1:D0 are known
+# after AND #$FC, while the upper input bits remain unknown.  Execution in the
+# lower 2K needs only D1:D0, so the analysis must still follow the switch to
+# bank 0 instead of requiring all eight SWCHA bits to be known.
+my $cm_masked = chr(0xEA) x 16384;
+for my $b (0 .. 3) {
+   my $base = $b * 4096;
+   substr($cm_masked, $base + 0x80, 1, chr(0x30 + $b));
+   for my $v (0, 2, 4) {
+      put16(\$cm_masked, $base + 0x0FFA + $v, 0xF100);
+   }
+}
+substr($cm_masked, 3 * 4096 + 0x0100, 9,
+   "\xAD\x80\x02" .      # LDA SWCHA: controller bits unknown
+   "\x29\xFC" .          # bank D1:D0 become known zero
+   "\x8D\x80\x02" .   # STA SWCHA: select bank 0
+   "\x02");               # old bank continuation must not execute
+substr($cm_masked, 0 * 4096 + 0x0108, 1, "\x60");
+substr($cm_masked, 1 * 4096 + 0x0300, length($cm_protocol), $cm_protocol);
+write_bin(File::Spec->catfile($in, 'cm_masked.bin'), $cm_masked);
 
 # A wrong mapper must not win merely because it traces less code.  Both F6 and
 # JANE are viable here: the ordinary 16K/F6 reset path in bank 3 exits the
@@ -1305,11 +1451,9 @@ substr($fa, 0x0000 + 0x020B, 3, "\xAD\xF9\x1F"); # bank0 -> bank1
 substr($fa, 0x1000 + 0x020E, 1, "\x60");             # bank1 RTS
 write_bin(File::Spec->catfile($in, 'fa.bin'), $fa);
 
-# All native split-address cartridge RAM has the same RMW impossibility as
-# Superchip: one effective address cannot be both the read alias and write
-# alias.  FA's split is $F000-$F0FF write / $F100-$F1FF read.  These remain FA
-# by their unique 12K shape, but the contradiction must be reported rather
-# than mistaken for meaningful RAM access.
+# Native split-address cartridge RAM has alias-dependent but legal RMW
+# behavior.  FA's split is $F000-$F0FF write / $F100-$F1FF read.  Exercise
+# both aliases so the diagnostic count stays pinned without vetoing FA.
 my $fa_rmw_write = $fa;
 substr($fa_rmw_write, 2 * 4096 + 0x0208, 4, "\xEE\x20\xF0\x60");
 write_bin(File::Spec->catfile($in, 'fa_rmw_write.bin'), $fa_rmw_write);
@@ -1318,8 +1462,8 @@ substr($fa_rmw_read, 2 * 4096 + 0x0208, 4, "\xEE\x20\xF1\x60");
 write_bin(File::Spec->catfile($in, 'fa_rmw_read.bin'), $fa_rmw_read);
 
 # CV competes with ordinary mirrored 2K ROM.  A deliberate CV tail signature
-# is not allowed to override contradictory executable semantics: reachable RMW
-# against either half of CV's split RAM window eliminates CV and leaves 2K.
+# plus legal RMW on either split-RAM alias must remain viable CV; RMW itself is
+# diagnostic rather than positive or contradictory mapper evidence.
 for my $case ([cv_rmw_read => 0xF020], [cv_rmw_write => 0xF420]) {
    my ($name, $addr) = @$case;
    my $rom = make_rom(2048, 0xF800, 0x0100, pack('C v C', 0xEE, $addr, 0x60));
@@ -2182,22 +2326,16 @@ substr($spec_sc_freeze, 0x0200, 15,
 write_bin(File::Spec->catfile($in, 'speculative_sc_hardware_freeze.bin'),
    $spec_sc_freeze);
 
-# Plain cartridge ROM is not a meaningful store destination for detached-code
-# discovery.  Both a pure store and a read-modify-write must therefore kill the
-# candidate unless mapper/peripheral/RAM semantics provide a real write sink.
+# Plain cartridge ROM is not a meaningful destination for a detached pure
+# store, but an RMW still performs a real ROM read before its ignored write.
+# The pure store remains weak; the RMW must not be rejected solely for lacking
+# a state-changing write sink.
 my $island_plain_rom_write = make_rom(4096, 0xF000, 0x0100, "\x60");
 substr($island_plain_rom_write, 0x0200, 14,
    "\x02\x12\x22" .
    "\xA9\x42\x8D\x34\xF2\xAA\xE8\xCA\xA8\xC8\x60");
 write_bin(File::Spec->catfile($in, 'speculative_plain_rom_write.bin'),
    $island_plain_rom_write);
-
-my $island_plain_rom_rmw = make_rom(4096, 0xF000, 0x0100, "\x60");
-substr($island_plain_rom_rmw, 0x0200, 13,
-   "\x02\x12\x22" .
-   "\xA9\x01\xEE\x34\xF2\xAA\xE8\xCA\xA8\x60");
-write_bin(File::Spec->catfile($in, 'speculative_plain_rom_rmw.bin'),
-   $island_plain_rom_rmw);
 
 # The same store pattern is valid when it really targets writable memory.
 my $island_riot_ram_write = make_rom(4096, 0xF000, 0x0100, "\x60");
@@ -2705,21 +2843,8 @@ write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
 my %a7_hard_failure = map { $_ => 1 } qw(
    a5_all_jam_arms.bin
    a5_bad_jump.bin
-   a5_bad_write.bin
    a5_jsr_ram_bad_return.bin
-   cv_rmw_read.bin
-   cv_rmw_write.bin
-   e7_rmw.bin
-   fa_rmw_read.bin
-   fa_rmw_write.bin
-   plain4k_sc_rmw_only.bin
-   plain4k_sc_rmw_read_conflict.bin
-   plain4k_sc_rmw_write_conflict.bin
-   plain4k_sc_write_port_exec.bin
    reachable_jam.bin
-   threee_rmw.bin
-   wdsw_rmw_read.bin
-   wdsw_rmw_write.bin
 );
 my $roundtrip_in = File::Spec->catdir($tmp, 'disas-roundtrip-in');
 remove_tree($roundtrip_in);
@@ -2763,20 +2888,14 @@ for my $case (
    [a5_all_jam_arms => '4k'],
    [a5_bad_jump => '4k'],
    [a5_bad_read => '4k'],
-   [a5_bad_write => '4k'],
+   [a5_rom_write_ignored => '4k'],
    [a5_jsr_ram_bad_return => '4k'],
-   [cv_rmw_read => 'cv'],
-   [cv_rmw_write => 'cv'],
-   [fa_rmw_read => 'fa'],
-   [fa_rmw_write => 'fa'],
    [hardware => '4k'],
    [plain4k_sc_rmw_only => '4k'],
-   [plain4k_sc_rmw_read_conflict => '4k'],
-   [plain4k_sc_rmw_write_conflict => '4k'],
+   [plain4k_sc_rmw_read_alias => '4k'],
+   [plain4k_sc_rmw_write_alias => '4k'],
    [plain4k_sc_write_port_exec => '4k'],
    [reachable_jam => '4k'],
-   [wdsw_rmw_read => 'wdsw'],
-   [wdsw_rmw_write => 'wdsw'],
 ) {
    my ($stem, $mapper) = @$case;
    run_ok($disas, '--mapper', $mapper, '-o',
@@ -2841,10 +2960,14 @@ my $a5_bad_read_out = slurp(File::Spec->catfile($out, 'a5_bad_read.s26'));
 require_re($a5_bad_read_out,
    qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
    'A5 keeps RESET viable across an undefined TIA read whose bus value is unknown');
-my $a5_bad_write_out = slurp(File::Spec->catfile($out, 'a5_bad_write.s26'));
-require_re($a5_bad_write_out,
-   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
-   'A5 rejects a write with no RAM/peripheral/mapper sink');
+my $a5_rom_write_ignored_out = slurp(File::Spec->catfile($out, 'a5_rom_write_ignored.s26'));
+require_re($a5_rom_write_ignored_out,
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 permits a write to ordinary cartridge ROM because the ROM ignores it');
+my $a5_rom_rmw_ignored_out = slurp(File::Spec->catfile($out, 'a5_rom_rmw_ignored.s26'));
+require_re($a5_rom_rmw_ignored_out,
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 permits ROM RMW: the read is real and the write phase is ignored');
 my $a5_loop_out = slurp(File::Spec->catfile($out, 'a5_closed_loop.s26'));
 require_re($a5_loop_out,
    qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
@@ -2857,10 +2980,10 @@ my $a5_jsr_good_out = slurp(File::Spec->catfile($out, 'a5_jsr_ram_good_return.s2
 require_re($a5_jsr_good_out,
    qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=1 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
    'A5 retains executable-RAM JSR as weak only when the return continuation is viable');
-my $a5_fa_bad_out = slurp(File::Spec->catfile($out, 'a5_fa_bad_read.s26'));
-require_re($a5_fa_bad_out,
-   qr/^; hypothesis viability: FA live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
-   'A5 rejects read from FA write-only RAM alias');
+my $a5_fa_rwp_out = slurp(File::Spec->catfile($out, 'a5_fa_write_port_read.s26'));
+require_re($a5_fa_rwp_out,
+   qr/^; hypothesis viability: FA live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 permits FA read from write alias; hardware randomizes the backing byte');
 my $a5_fa_good_out = slurp(File::Spec->catfile($out, 'a5_fa_good_ports.s26'));
 require_re($a5_fa_good_out,
    qr/^; hypothesis viability: FA live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
@@ -2962,6 +3085,48 @@ my $g1_fa_multi_out = slurp(
 require_re($g1_fa_multi_out,
    qr/^; hypothesis provenance: FA RAM-insns=0 RAM-ROM-sources=0 GRP-sources=2$/m,
    'G1 retains both feasible ROM origins through split FA cartridge RAM');
+
+
+my $fa_rwp_destroy_out = slurp(
+   File::Spec->catfile($out, 'fa_rwp_destroy_provenance.s26'));
+require_re($fa_rwp_destroy_out,
+   qr/^B2_F500:\n\s*\.byte \$52(?:,|$)/m,
+   'FA read-from-write-port destroys prior cartridge-RAM source provenance');
+die "FA RWP-destroyed source was still presented as GRP graphics\n"
+   if $fa_rwp_destroy_out =~ /^B2_F500:\n\s*\.byte %[01]{8}.*sprite data/m;
+
+my $fa_rwp_indexed_out = slurp(
+   File::Spec->catfile($out, 'fa_rwp_indexed_destroy_provenance.s26'));
+require_re($fa_rwp_indexed_out,
+   qr/^B2_F500:\n\s*\.byte \$5A(?:,|$)/m,
+   'unknown absolute index conservatively destroys possible FA RWP provenance');
+die "indexed FA RWP-destroyed source was still presented as GRP graphics\n"
+   if $fa_rwp_indexed_out =~ /^B2_F500:\n\s*\.byte %[01]{8}.*sprite data/m;
+
+my $fa_read_alias_ignore_out = slurp(
+   File::Spec->catfile($out, 'fa_read_alias_write_ignored_provenance.s26'));
+require_re($fa_read_alias_ignore_out,
+   qr/^; hypothesis provenance: FA RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
+   'ignored write to FA read alias preserves prior cartridge-RAM provenance');
+require_re($fa_read_alias_ignore_out,
+   qr/^B2_F500:\n\s*\.byte %01101010\s+; \.XX\.X\.X\.\s+sprite data -> GRP0$/m,
+   'ignored FA read-alias write leaves original ROM source feeding GRP0');
+
+my $fa_unknown_index_store_out = slurp(
+   File::Spec->catfile($out, 'fa_unknown_index_store_destroys_provenance.s26'));
+require_re($fa_unknown_index_store_out,
+   qr/^B2_F500:\n\s*\.byte \$72(?:,|$)/m,
+   'unknown absolute-index FA store destroys possible backing-byte provenance');
+die "unknown-index FA store left a possible overwritten source as GRP graphics\n"
+   if $fa_unknown_index_store_out =~
+      /^B2_F500:\n\s*\.byte %[01]{8}.*sprite data/m;
+
+my $sc_rwp_hidden_out = slurp(
+   File::Spec->catfile($out, 'sc_rwp_hidden_rom_not_graphics.s26'));
+require_re($sc_rwp_hidden_out, qr/^; mapper: 4KSC\b/m,
+   'paired established SC accesses activate the Superchip overlay');
+die "Superchip RWP/read-alias loads falsely exposed hidden physical ROM as graphics\n"
+   if $sc_rwp_hidden_out =~ /sprite data -> GRP[01]/;
 
 my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
 require_re($multicart_out,
@@ -3328,6 +3493,26 @@ require_re($fill_f6_out,
 require_re($fill_f6_out, qr/^;   bank 0: .*fill.*$/m,
    'A6 reports fill-bank evidence explicitly');
 
+my $cm_out = slurp(File::Spec->catfile($out, 'cm.s26'));
+require_re($cm_out, qr/^; mapper: CM \(high confidence;/m,
+   'CM automatic mapper inference from SWCHA protocol and live switch');
+require_re($cm_out,
+   qr/^; reset\/power-on bank: 3 \(CM hardware bank 3; RAM disabled\)$/m,
+   'CM power-on bank and RAM state annotation');
+require_re($cm_out,
+   qr/^;   CM: survives; 1 viable bank switch avoid HLT\/JAM\/KIL; 1 viable mapper-specific selector access; all 1 legal startup state strong; established mapper detector signature present$/m,
+   'CM state-space records selector and switch-save evidence');
+require_re($cm_out, qr/^B3_F100:\s*$/m,
+   'CM startup code emitted from hardware bank 3');
+require_re($cm_out, qr/^B0_F105:\s*$/m,
+   'CM SWCHA bank switch follows execution into bank 0');
+
+my $cm_masked_out = slurp(File::Spec->catfile($out, 'cm_masked.s26'));
+require_re($cm_masked_out, qr/^; mapper: CM \(high confidence;/m,
+   'CM inference survives a masked controller-preserving SWCHA write');
+require_re($cm_masked_out, qr/^B0_F108:\s*$/m,
+   'CM follows a bank switch when only the address-relevant SWCHA bits are known');
+
 my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
 require_re($f8_out,
    qr/^; hypothesis bank coverage: F8 complete required=2 explained=2 unexplained=0 bank-size=4096$/m,
@@ -3368,15 +3553,15 @@ for my $case (
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: FA \(override;.*1 native split-RAM RMW conflict\)/m,
-      "$which RMW recorded as split-RAM contradiction");
+   require_re($text, qr/^; mapper: FA \([^)]*1 native split-RAM RMW access\)/m,
+      "$which legal RMW retained as a neutral split-RAM diagnostic");
 }
 
 my $sc_disjoint = slurp(File::Spec->catfile($out, 'f8sc_disjoint_offsets.s26'));
 require_re($sc_disjoint, qr/^; mapper: F8SC\b/m,
    'F8SC semantic inference accepts disjoint established read/write offsets');
 require_re($sc_disjoint,
-   qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 0 SC paired offsets/,
+   qr/1 SC write, 0 SC RMW accesses, 1 SC read, 0 SC paired offsets/,
    'disjoint SC aliases are diagnostic evidence without an artificial byte-pair requirement');
 my $cv_doubled_out = slurp(File::Spec->catfile($out, 'cv_doubled_4k.s26'));
 require_re($cv_doubled_out, qr/^; mapper: CV \(high confidence;/m,
@@ -3395,8 +3580,8 @@ for my $case (
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: CV \(override;.*1 native split-RAM RMW conflict\)/m,
-      "$which forced CV run records its split-RAM contradiction");
+   require_re($text, qr/^; mapper: CV \([^)]*1 native split-RAM RMW access\)/m,
+      "$which legal RMW keeps CV viable and is reported diagnostically");
 }
 
 my $dpc_out = slurp(File::Spec->catfile($out, 'dpc.s26'));
@@ -3455,8 +3640,8 @@ for my $case (
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: WDSW \(override;.*1 native split-RAM RMW conflict\)/m,
-      "$which RMW recorded as split-RAM contradiction");
+   require_re($text, qr/^; mapper: WDSW \([^)]*1 native split-RAM RMW access\)/m,
+      "$which legal RMW retained as a neutral split-RAM diagnostic");
 }
 
 my $fc_out = slurp(File::Spec->catfile($out, 'fc.s26'));
@@ -4023,7 +4208,7 @@ my $spec_sc_freeze_out = slurp(File::Spec->catfile($out,
 require_re($spec_sc_freeze_out, qr/^; mapper: unknown\/raw \(/m,
    'speculative SC-looking traffic cannot resolve the otherwise ambiguous F8\/2IN1 mapper choice');
 require_re($spec_sc_freeze_out,
-   qr/^; mapper: unknown\/raw \(unknown confidence; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
+   qr/^; mapper: unknown\/raw \(unknown confidence; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW accesses, 0 SC reads,/m,
    'speculative SC accesses do not become automatic hardware evidence');
 
 my $spec_sc_freeze_forced_path = File::Spec->catfile($tmp,
@@ -4032,7 +4217,7 @@ run_ok($disas, '--mapper', 'f8', '-o', $spec_sc_freeze_forced_path,
    File::Spec->catfile($in, 'speculative_sc_hardware_freeze.bin'));
 my $spec_sc_freeze_forced = slurp($spec_sc_freeze_forced_path);
 require_re($spec_sc_freeze_forced,
-   qr/^; mapper: F8 \(override; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
+   qr/^; mapper: F8 \(override; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW accesses, 0 SC reads,/m,
    'forced-F8 run keeps speculative SC accesses out of hardware evidence');
 die "plain-F8 speculative SC store was promoted without a write sink\n"
    if $spec_sc_freeze_forced =~ /^B0_F203:/m ||
@@ -4043,12 +4228,6 @@ my $spec_plain_rom_write = slurp(File::Spec->catfile($out,
 die "plain-ROM speculative store was promoted\n"
    if $spec_plain_rom_write =~ /^L_F203:/m ||
       $spec_plain_rom_write =~ /speculative instruction island.*\nL_F203:/i;
-
-my $spec_plain_rom_rmw = slurp(File::Spec->catfile($out,
-   'speculative_plain_rom_rmw.s26'));
-die "plain-ROM speculative RMW was promoted\n"
-   if $spec_plain_rom_rmw =~ /^L_F203:/m ||
-      $spec_plain_rom_rmw =~ /speculative instruction island.*\nL_F203:/i;
 
 my $spec_riot_ram_write = slurp(File::Spec->catfile($out,
    'speculative_riot_ram_write.s26'));
@@ -4162,7 +4341,7 @@ require_re($reachable_jam_out, qr/^L_F100:\n\s*op02\b/im,
 my $f8_read_only = slurp(File::Spec->catfile($out, 'f8_sc_read_only.s26'));
 require_re($f8_read_only, qr/^; mapper: F8 \(/m,
    'plain F8 read in Superchip read window stays F8');
-require_re($f8_read_only, qr/0 SC writes, 0 SC RMW conflicts, 1 SC read, 0 SC paired offsets/,
+require_re($f8_read_only, qr/0 SC writes, 0 SC RMW accesses, 1 SC read, 0 SC paired offsets/,
    'read-only Superchip-looking access remains unpaired evidence');
 die "read-only Superchip-window access hid ordinary F8 ROM bytes\n"
    if $f8_read_only =~ /sc-hidden=[1-9]/ ||
@@ -4178,7 +4357,7 @@ for my $case (
    require_re($text, qr/^; mapper: \Q$mapper\E \(/m,
       "$mapper write-only Superchip-looking access stays plain");
    require_re($text,
-      qr/1 SC write, 0 SC RMW conflicts, 0 SC reads, 0 SC paired offsets/,
+      qr/1 SC write, 0 SC RMW accesses, 0 SC reads, 0 SC paired offsets/,
       "$mapper write-only evidence is recorded but not paired");
    die "$mapper write-only access incorrectly promoted Superchip\n"
       if $text =~ /^; mapper: \Q${mapper}SC\E\b/m ||
@@ -4189,23 +4368,23 @@ for my $case (
 my $sc_rmw_only = slurp(File::Spec->catfile($out, 'plain4k_sc_rmw_only.s26'));
 require_re($sc_rmw_only, qr/^; mapper: unbanked 4K \(/m,
    'plain 4K RMW access in Superchip write window stays 4K');
-require_re($sc_rmw_only, qr/1 SC RMW conflict/,
-   'write-port RMW recorded as negative Superchip evidence');
+require_re($sc_rmw_only, qr/1 SC RMW access/,
+   'write-port RMW recorded as neutral Superchip diagnostic evidence');
 die "RMW-only Superchip candidate hid ordinary 4K ROM bytes\n"
    if $sc_rmw_only =~ /sc-hidden=[1-9]/ ||
       $sc_rmw_only =~ /hidden by Superchip RAM window/i;
 
 for my $case (
-   ['plain4k_sc_rmw_write_conflict.s26', 'write-port'],
-   ['plain4k_sc_rmw_read_conflict.s26',  'read-port'],
+   ['plain4k_sc_rmw_write_alias.s26', 'write-port'],
+   ['plain4k_sc_rmw_read_alias.s26',  'read-port'],
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
    require_re($text, qr/^; mapper: unbanked 4K \(/m,
-      "$which RMW vetoes otherwise-positive Superchip write evidence");
-   require_re($text, qr/1 SC write, 1 SC RMW conflict/,
-      "$which RMW conflict reported alongside SC write evidence");
-   die "$which RMW conflict still promoted Superchip\n"
+      "$which RMW does not by itself complete Superchip read/write evidence");
+   require_re($text, qr/1 SC write, 1 SC RMW access/,
+      "$which legal RMW reported alongside SC-looking write evidence");
+   die "$which RMW plus unpaired write evidence incorrectly promoted Superchip\n"
       if $text =~ /sc-hidden=[1-9]/ ||
          $text =~ /hidden by Superchip RAM window/i;
 }
@@ -4214,13 +4393,13 @@ my $stella_4ksc_marker_out = slurp(File::Spec->catfile($out, 'stella_4ksc_marker
 require_re($stella_4ksc_marker_out, qr/^; mapper: 4KSC \(high confidence;/m,
    'historical Stella SC marker at $FFFA-$FFFB identifies 4KSC');
 require_re($stella_4ksc_marker_out,
-   qr/0 SC writes, 0 SC RMW conflicts, 0 SC reads, 0 SC paired offsets/,
+   qr/0 SC writes, 0 SC RMW accesses, 0 SC reads, 0 SC paired offsets/,
    'historical Stella 4KSC marker does not require semantic SC evidence');
 
 my $sc_write_exec = slurp(File::Spec->catfile($out, 'plain4k_sc_write_port_exec.s26'));
 require_re($sc_write_exec, qr/^; mapper: unbanked 4K \(/m,
    'RESET execution in Superchip write port vetoes paired automatic 4KSC promotion');
-require_re($sc_write_exec, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+require_re($sc_write_exec, qr/1 SC write, 0 SC RMW accesses, 1 SC read, 1 SC paired offset/,
    'write-port execution fixture contains otherwise-positive paired SC evidence');
 require_re($sc_write_exec, qr/^L_F000:
 \s*STA\s+\$F020/m,
@@ -4303,8 +4482,8 @@ run_ok($disas, '--mapper', '3e', '-o', $forced_threee_rmw_s26,
    File::Spec->catfile($in, 'threee_rmw.bin'));
 my $forced_threee_rmw = slurp($forced_threee_rmw_s26);
 require_re($forced_threee_rmw,
-   qr/^; mapper: 3E \(override;.*1 native split-RAM RMW conflict\)/m,
-   '3E RMW against selected RAM read alias recorded as contradiction');
+   qr/^; mapper: 3E \(override;.*1 native split-RAM RMW access\)/m,
+   '3E legal RMW against selected RAM read alias recorded diagnostically');
 
 my $fe_out = slurp(File::Spec->catfile($out, 'fe_flow.s26'));
 require_re($fe_out, qr/^; mapper: FE \(high confidence;/m,
@@ -4359,8 +4538,8 @@ run_ok($disas, '--mapper', 'e7', '-o', $forced_e7_rmw_s26,
    File::Spec->catfile($in, 'e7_rmw.bin'));
 my $forced_e7_rmw = slurp($forced_e7_rmw_s26);
 require_re($forced_e7_rmw,
-   qr/^; mapper: E7 \(override;.*2 native split-RAM RMW conflicts\)/m,
-   'E7 lower and fixed RAM RMW aliases recorded as contradictions');
+   qr/^; mapper: E7 \(override;.*2 native split-RAM RMW accesses\)/m,
+   'E7 lower and fixed RAM RMW aliases recorded diagnostically');
 
 my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));
 require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
@@ -4527,7 +4706,7 @@ require_re($e0_spec_out, qr/B0_F206:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
 
 my $f8sc = slurp(File::Spec->catfile($out, 'f8sc.s26'));
 require_re($f8sc, qr/^; mapper: F8SC\b/m, 'F8SC mapper inference');
-require_re($f8sc, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+require_re($f8sc, qr/1 SC write, 0 SC RMW accesses, 1 SC read, 1 SC paired offset/,
    'F8SC semantic inference requires paired write/read alias evidence');
 require_re($f8sc, qr/physical ROM bytes hidden by Superchip RAM window/i,
    'Superchip-hidden physical ROM annotation');
@@ -4537,7 +4716,7 @@ my $f6_jane_tie_out = slurp(File::Spec->catfile($out, 'f6_jane_exit_tie.s26'));
 require_re($f6_jane_tie_out, qr/^; mapper: F6 \(medium confidence;/m,
    'F6/JANE ambiguity does not reward truncated control flow');
 require_re($f6_jane_tie_out,
-   qr/^; mapper hypothesis comparison: 6 tested, 1 remain after execution\/signature comparison$/m,
+   qr/^; mapper hypothesis comparison: 7 tested, 1 remain after execution\/signature comparison$/m,
    'JANE requires positive family evidence instead of mere coherent startup flow');
 
 
@@ -4546,7 +4725,7 @@ my $f6_jane_no_evidence_out =
 require_re($f6_jane_no_evidence_out, qr/^; mapper: F6 \(medium confidence;/m,
    'evidence-free special 16K hardware does not force a RAW tie against baseline F6');
 require_re($f6_jane_no_evidence_out,
-   qr/^; mapper hypothesis comparison: 6 tested, 1 remain after execution\/signature comparison$/m,
+   qr/^; mapper hypothesis comparison: 7 tested, 1 remain after execution\/signature comparison$/m,
    'evidence-free special 16K hypotheses are removed from the baseline F6 comparison');
 require_re($f6_jane_no_evidence_out,
    qr/^; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated$/m,
@@ -4558,7 +4737,7 @@ require_re($f6_jane_no_evidence_out,
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
 require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');
-require_re($f6sc_out, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+require_re($f6sc_out, qr/1 SC write, 0 SC RMW accesses, 1 SC read, 1 SC paired offset/,
    'F6SC semantic inference requires paired write/read alias evidence');
 my $f6sc_layout_out = slurp(File::Spec->catfile($out, 'f6sc_layout.s26'));
 require_re($f6sc_layout_out, qr/^; mapper: F6SC\b/m,
@@ -4571,11 +4750,11 @@ my $f8sc_signature_out = slurp(File::Spec->catfile($out, 'f8sc_signature.s26'));
 require_re($f8sc_signature_out, qr/^; mapper: F8SC\b/m,
    'explicit VCSC F8SC tail signature is authoritative');
 require_re($f8sc_signature_out,
-   qr/0 SC writes, 0 SC RMW conflicts, 0 SC reads, 0 SC paired offsets/,
+   qr/0 SC writes, 0 SC RMW accesses, 0 SC reads, 0 SC paired offsets/,
    'explicit F8SC signature does not require invented semantic evidence');
 my $f4sc_out = slurp(File::Spec->catfile($out, 'f4sc.s26'));
 require_re($f4sc_out, qr/^; mapper: F4SC\b/m, 'F4SC mapper inference');
-require_re($f4sc_out, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+require_re($f4sc_out, qr/1 SC write, 0 SC RMW accesses, 1 SC read, 1 SC paired offset/,
    'F4SC semantic inference requires paired write/read alias evidence');
 
 

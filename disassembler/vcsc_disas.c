@@ -65,7 +65,8 @@ typedef enum {
    MAP_AR = VCSC_VIDEO_MAP_AR,
    MAP_FA2 = VCSC_VIDEO_MAP_FA2,
    MAP_F0 = VCSC_VIDEO_MAP_F0,
-   MAP_GL = VCSC_VIDEO_MAP_GL
+   MAP_GL = VCSC_VIDEO_MAP_GL,
+   MAP_CM = VCSC_VIDEO_MAP_CM
 } mapper_t;
 
 #define MAPPER_HYPOTHESIS_MAX 32u
@@ -89,7 +90,6 @@ typedef enum {
    MAPPER_REJECT_INIT_FAILED,
    MAPPER_REJECT_TRACE_FAILED,
    MAPPER_REJECT_NO_RESET_CODE,
-   MAPPER_REJECT_SPLIT_RAM_RMW,
    MAPPER_REJECT_NO_FAMILY_EVIDENCE,
    MAPPER_REJECT_HALT_WITHOUT_SWITCH,
    MAPPER_REJECT_SUBSUMED_BY_3E,
@@ -142,7 +142,7 @@ typedef struct {
    int hotspots;
    size_t cross_bank_switches;
    size_t switch_avoided_halts;
-   int split_ram_rmw_conflicts;
+   int split_ram_rmw_accesses;
    int threee_ram_select_refs;
    int e7_specific_refs;
    size_t three_specific_switches;
@@ -259,10 +259,13 @@ static unsigned opcode_memory_access(uint8_t opcode);
 typedef struct {
    uint8_t a_known;
    uint8_t a;
+   uint8_t a_known_mask;
    uint8_t x_known;
    uint8_t x;
+   uint8_t x_known_mask;
    uint8_t y_known;
    uint8_t y;
+   uint8_t y_known_mask;
    uint8_t sp_known;
    uint8_t sp;
    uint8_t carry_known;
@@ -456,9 +459,9 @@ typedef struct {
    int superchip_read_refs;
    uint8_t superchip_write_offsets[0x80];
    uint8_t superchip_read_offsets[0x80];
-   int superchip_rmw_conflicts;
+   int superchip_rmw_accesses;
    int superchip_exec_conflicts;
-   int split_ram_rmw_conflicts;
+   int split_ram_rmw_accesses;
    int threee_ram_select_refs;
    int e7_specific_refs;
    size_t three_specific_switches;
@@ -538,9 +541,9 @@ typedef struct {
    int superchip_read_refs;
    uint8_t superchip_write_offsets[0x80];
    uint8_t superchip_read_offsets[0x80];
-   int superchip_rmw_conflicts;
+   int superchip_rmw_accesses;
    int superchip_exec_conflicts;
-   int split_ram_rmw_conflicts;
+   int split_ram_rmw_accesses;
    int threee_ram_select_refs;
    int e7_specific_refs;
    size_t three_specific_switches;
@@ -563,9 +566,9 @@ static void save_established_evidence(const analysis_t *a,
           sizeof(s->superchip_write_offsets));
    memcpy(s->superchip_read_offsets, a->superchip_read_offsets,
           sizeof(s->superchip_read_offsets));
-   s->superchip_rmw_conflicts = a->superchip_rmw_conflicts;
+   s->superchip_rmw_accesses = a->superchip_rmw_accesses;
    s->superchip_exec_conflicts = a->superchip_exec_conflicts;
-   s->split_ram_rmw_conflicts = a->split_ram_rmw_conflicts;
+   s->split_ram_rmw_accesses = a->split_ram_rmw_accesses;
    s->threee_ram_select_refs = a->threee_ram_select_refs;
    s->e7_specific_refs = a->e7_specific_refs;
    s->three_specific_switches = a->three_specific_switches;
@@ -588,9 +591,9 @@ static void restore_established_evidence(analysis_t *a,
           sizeof(a->superchip_write_offsets));
    memcpy(a->superchip_read_offsets, s->superchip_read_offsets,
           sizeof(a->superchip_read_offsets));
-   a->superchip_rmw_conflicts = s->superchip_rmw_conflicts;
+   a->superchip_rmw_accesses = s->superchip_rmw_accesses;
    a->superchip_exec_conflicts = s->superchip_exec_conflicts;
-   a->split_ram_rmw_conflicts = s->split_ram_rmw_conflicts;
+   a->split_ram_rmw_accesses = s->split_ram_rmw_accesses;
    a->threee_ram_select_refs = s->threee_ram_select_refs;
    a->e7_specific_refs = s->e7_specific_refs;
    a->three_specific_switches = s->three_specific_switches;
@@ -796,6 +799,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "fc") == 0) *mapper = MAP_FC;
    else if (strcmp(s, "f0") == 0) *mapper = MAP_F0;
    else if (strcmp(s, "gl") == 0) *mapper = MAP_GL;
+   else if (strcmp(s, "cm") == 0) *mapper = MAP_CM;
    else if (strcmp(s, "e0") == 0) *mapper = MAP_E0;
    else if (strcmp(s, "e7") == 0) *mapper = MAP_E7;
    else if (strcmp(s, "3f") == 0) *mapper = MAP_3F;
@@ -847,7 +851,7 @@ static void usage(const char *argv0)
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
       "       --container <name>   force 2IN1|4IN1|8IN1|32IN1 outer container topology\n"
-      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|f0|e0|e7|3e|3f|gl|cv|jane|0840|ua|uasw|0fa0|fe|ar\n"
+      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|f0|e0|e7|3e|3f|gl|cm|cv|jane|0840|ua|uasw|0fa0|fe|ar\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -1342,6 +1346,7 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_F0: *bank_size = 4096u; *bank_count = 16u; return rom_size == 65536u;
    case MAP_GL: *bank_size = 1024u; *bank_count = 4u;
       return rom_size == 4096u || rom_size == 6144u;
+   case MAP_CM: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
    case MAP_E0: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
    case MAP_E7: *bank_size = 2048u; *bank_count = rom_size / 2048u;
       return rom_size == 8192u || rom_size == 12288u || rom_size == 16384u;
@@ -1481,6 +1486,22 @@ static int is_probably_e7(const uint8_t *rom, size_t size)
    for (i = 0; i < sizeof(sig) / sizeof(sig[0]); ++i)
       if (count_signature(rom, size, sig[i], sizeof(sig[i]))) return 1;
    return 0;
+}
+
+static int is_probably_cm(const uint8_t *rom, size_t size)
+{
+   static const uint8_t sta_swcha[]  = { 0x8du, 0x80u, 0x02u }; /* STA SWCHA */
+   static const uint8_t lda_swcha[]  = { 0xadu, 0x80u, 0x02u }; /* LDA SWCHA */
+   static const uint8_t sta_swacnt[] = { 0x8du, 0x81u, 0x02u }; /* STA SWACNT */
+   if (size != 16384u) return 0;
+   /* CompuMate uniquely drives controller-port A as a mapper/control bus.
+    * Require a repeated read/write protocol, not a lone ordinary SWCHA access:
+    * released NTSC/PAL images contain 14 STA SWCHA, 34 LDA SWCHA and two
+    * STA SWACNT sites.  The deliberately lower threshold tolerates variants
+    * without turning a normal joystick poll into CM evidence. */
+   return count_signature(rom, size, sta_swcha, sizeof(sta_swcha)) >= 4 &&
+          count_signature(rom, size, lda_swcha, sizeof(lda_swcha)) >= 4 &&
+          count_signature(rom, size, sta_swacnt, sizeof(sta_swacnt)) >= 1;
 }
 
 static int is_probably_3e(const uint8_t *rom, size_t size)
@@ -1711,10 +1732,11 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
       break;
    case 12288u: mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_FA; break;
    case 24576u: case 28672u: mapper = MAP_FA2; break;
-   case 16384u: mapper = is_probably_e7(rom, size) ? MAP_E7 :
+   case 16384u: mapper = is_probably_cm(rom, size) ? MAP_CM :
+                         (is_probably_e7(rom, size) ? MAP_E7 :
                          (is_probably_fc(rom, size) ? MAP_FC :
                          (is_probably_3e(rom, size) ? MAP_3E :
-                         (is_probably_jane(rom, size) ? MAP_JANE : MAP_F6))); break;
+                         (is_probably_jane(rom, size) ? MAP_JANE : MAP_F6)))); break;
    case 32768u: mapper = is_probably_3e(rom, size) ? MAP_3E :
                          (is_probably_3f(rom, size) ? MAP_3F :
                          (is_probably_fc(rom, size) ? MAP_FC : MAP_F4)); break;
@@ -1758,6 +1780,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_FC: return "FC";
    case MAP_F0: return "F0";
    case MAP_GL: return "GL";
+   case MAP_CM: return "CM";
    case MAP_E0: return "E0";
    case MAP_E7: return "E7";
    case MAP_3F: return "3F";
@@ -2235,6 +2258,79 @@ static int gl_ram_port(mapper_config_t config, uint16_t address)
    return segment < 4u && gl_config_bank(config, segment) >= 4u;
 }
 
+/* CompuMate's SWCHA latch may be only partly known: input bits can remain
+ * unknown while software masks/sets the bank and RAM-control bits exactly.
+ * Keep the byte value in bits 0..7 and a per-bit known mask in bits 8..15. */
+#define CM_CONFIG_VALUE_MASK ((mapper_config_t)0x00ffu)
+#define CM_CONFIG_KNOWN_SHIFT 8u
+#define CM_RESET_CONFIG ((mapper_config_t)0xffffu)
+#define CM_CONFIG_UNKNOWN ((mapper_config_t)0x0000u)
+
+static mapper_config_t cm_config_make(uint8_t value, uint8_t known_mask)
+{
+   return (mapper_config_t)value | ((mapper_config_t)known_mask << CM_CONFIG_KNOWN_SHIFT);
+}
+
+static uint8_t cm_config_value(mapper_config_t config)
+{
+   return (uint8_t)(config & CM_CONFIG_VALUE_MASK);
+}
+
+static uint8_t cm_config_mask(mapper_config_t config)
+{
+   return (uint8_t)((config >> CM_CONFIG_KNOWN_SHIFT) & 0xffu);
+}
+
+static int cm_config_bits_known(mapper_config_t config, uint8_t bits)
+{
+   return (cm_config_mask(config) & bits) == bits;
+}
+
+static int cm_ram_enabled(mapper_config_t config)
+{
+   return cm_config_bits_known(config, 0x10u) &&
+          (cm_config_value(config) & 0x10u) == 0u;
+}
+
+static int cm_ram_write_enabled(mapper_config_t config)
+{
+   return cm_config_bits_known(config, 0x30u) &&
+          (cm_config_value(config) & 0x30u) == 0x20u;
+}
+
+/* CompuMate's controller-port latch selects one of four complete 4K ROM
+ * banks with SWCHA D1:D0.  SWCHA D4 overlays the upper 2K with cartridge RAM;
+ * the lower 2K remains ROM in every mode. */
+static int cm_map_address(const analysis_t *a, mapper_config_t config,
+                          uint16_t address, size_t *bank, size_t *off)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   if (a->mapper != MAP_CM || bus < 0x1000u ||
+       !cm_config_bits_known(config, 0x03u))
+      return 0;
+   if (bus >= 0x1800u) {
+      /* If D4 is unknown, this address may be RAM and cannot be claimed as a
+       * definite ROM fetch.  If D4 is known low, it definitely is RAM. */
+      if (!cm_config_bits_known(config, 0x10u) || cm_ram_enabled(config)) return 0;
+   }
+   *bank = (size_t)(cm_config_value(config) & 0x03u);
+   *off = (size_t)(bus & 0x0fffu);
+   return *bank < a->bank_count;
+}
+
+/* RIOT mirrors SWCHA through the A7/A9-selected I/O space.  The cartridge
+ * observes the same Port-A write that RIOT sees, so normalize the mirrors the
+ * same way as riot_symbol(). */
+static int cm_swcha_address(uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned reg;
+   if ((bus & 0x0280u) != 0x0280u) return 0;
+   reg = bus & 0x001fu;
+   return (reg & 0x04u) == 0u && (reg & 0x03u) == 0u;
+}
+
+
 #define E7_LOWER_MASK 0x000fu
 #define E7_RAM_SHIFT 4u
 #define E7_RAM_MASK 0x0030u
@@ -2679,6 +2775,13 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->origin_score = 100;
          b->reset_vector_evidence = i == 15u;
       }
+      else if (a->mapper == MAP_CM) {
+         /* CompuMate exposes one complete 4K ROM bank at $F000-$FFFF.
+          * SWCHA powers up as $FF, selecting bank 3 with RAM disabled. */
+         b->origin = 0xf000u;
+         b->origin_score = 100;
+         b->reset_vector_evidence = i == 3u;
+      }
       else if (a->mapper == MAP_GL) {
          /* GameLine maps four independently selected 1K windows.  At reset
           * ROM bank 0 is mirrored into all four; its final copy therefore
@@ -2733,6 +2836,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
                                (a->mapper != MAP_FC || i == 0u) &&
                                (a->mapper != MAP_F0 || i == 15u) &&
                                (a->mapper != MAP_GL || i == 0u) &&
+                               (a->mapper != MAP_CM || i == 3u) &&
                                (a->mapper != MAP_E7 || i + 1u == a->bank_count) &&
                                (a->mapper != MAP_FE || i == 0u) &&
                                (!mapper_is_three_family(a->mapper) ||
@@ -2753,6 +2857,13 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->reset_bank = 15u;
       a->banks[15].vector_tail_enabled = 1u;
       a->banks[15].reset_vector_evidence = 1;
+      return 1;
+   }
+
+   if (a->mapper == MAP_CM) {
+      a->reset_bank = 3u;
+      a->banks[3].vector_tail_enabled = 1u;
+      a->banks[3].reset_vector_evidence = 1;
       return 1;
    }
 
@@ -3288,9 +3399,27 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
          changed = 1;                                                          \
       }                                                                        \
    } while (0)
-   MERGE_SCALAR(a);
-   MERGE_SCALAR(x);
-   MERGE_SCALAR(y);
+   /* Registers retain per-bit knowledge across joins.  A bit survives only
+    * when every incoming path knows it and agrees on its value. */
+#define MERGE_REGISTER_BITS(name)                                               \
+   do {                                                                         \
+      uint8_t agree = (uint8_t)~(uint8_t)(dst->name ^ src->name);              \
+      uint8_t merged_mask = (uint8_t)(dst->name##_known_mask &                 \
+                                      src->name##_known_mask & agree);          \
+      uint8_t merged_value = (uint8_t)(dst->name & merged_mask);               \
+      if (merged_mask != dst->name##_known_mask ||                             \
+          (uint8_t)(dst->name & merged_mask) != merged_value) {                \
+         dst->name##_known_mask = merged_mask;                                 \
+         dst->name = (uint8_t)((dst->name & (uint8_t)~merged_mask) |           \
+                               merged_value);                                   \
+         changed = 1;                                                           \
+      }                                                                         \
+      dst->name##_known = (uint8_t)(merged_mask == 0xffu);                     \
+   } while (0)
+   MERGE_REGISTER_BITS(a);
+   MERGE_REGISTER_BITS(x);
+   MERGE_REGISTER_BITS(y);
+#undef MERGE_REGISTER_BITS
    MERGE_SCALAR(sp);
    MERGE_SCALAR(carry);
    MERGE_SCALAR(zero);
@@ -3488,9 +3617,10 @@ static int push_work_state(analysis_t *a, size_t bank, size_t offset,
    uint16_t pc = (uint16_t)(a->banks[bank].origin + (uint16_t)offset);
    mapper_config_t config = a->mapper == MAP_E0 ? e0_seed_config(bank, pc) :
                      (a->mapper == MAP_GL ? gl_seed_config(bank, pc) :
+                     (a->mapper == MAP_CM ? cm_config_make((uint8_t)(0x10u | (bank & 3u)), 0x13u) :
                      (a->mapper == MAP_E7 ? e7_seed_config(bank, pc, a->bank_count) :
                      (mapper_is_three_family(a->mapper) && (pc & 0x1fffu) < 0x1800u ?
-                        (uint16_t)bank : 0u)));
+                        (uint16_t)bank : 0u))));
    return push_work_state_ctx(a, bank, offset, state, pc, config);
 }
 
@@ -3540,6 +3670,16 @@ static int push_gl_address_state(analysis_t *a, mapper_config_t config,
     * for the static disassembly graph.  Concrete discovery may traverse seeded
     * 6K RAM and later return to ROM; the static path simply stops here. */
    if (!gl_map_address(a, config, address, &bank, &off)) return 1;
+   return push_work_state_ctx(a, bank, off, state, address, config);
+}
+
+static int push_cm_address_state(analysis_t *a, mapper_config_t config,
+                                 uint16_t address,
+                                 const abstract_state_t *state)
+{
+   size_t bank, off;
+   /* RAM-selected upper 2K has no ROM instruction byte to enqueue. */
+   if (!cm_map_address(a, config, address, &bank, &off)) return 1;
    return push_work_state_ctx(a, bank, off, state, address, config);
 }
 
@@ -3855,6 +3995,41 @@ static int threef_store_value(const abstract_state_t *state, uint8_t opcode,
    }
 }
 
+static int cm_instruction_transition(const analysis_t *a,
+                                     const abstract_state_t *state,
+                                     uint8_t opcode, address_mode_t mode,
+                                     uint16_t operand,
+                                     mapper_config_t *next_config)
+{
+   uint16_t effective;
+   uint8_t value = 0u, mask = 0u;
+   if (a->mapper != MAP_CM || instruction_flow(opcode) != FLOW_NEXT ||
+       !(opcode_memory_access(opcode) & ACCESS_WRITE) ||
+       !resolve_effective_address(state, mode, operand, &effective) ||
+       !cm_swcha_address(effective))
+      return 0;
+   switch (opcode) {
+   case 0x81: case 0x85: case 0x8d: case 0x91: case 0x95: case 0x99: case 0x9d:
+      value = state->a; mask = state->a_known_mask; break;
+   case 0x86: case 0x8e: case 0x96:
+      value = state->x; mask = state->x_known_mask; break;
+   case 0x84: case 0x8c: case 0x94:
+      value = state->y; mask = state->y_known_mask; break;
+   case 0x83: case 0x87: case 0x8f: case 0x97: /* SAX */
+      value = (uint8_t)(state->a & state->x);
+      /* A known zero or X known zero fixes a result bit at zero; a one is
+       * known only when both source bits are known ones. */
+      mask = (uint8_t)((state->a_known_mask & state->x_known_mask) |
+                       (state->a_known_mask & (uint8_t)~state->a) |
+                       (state->x_known_mask & (uint8_t)~state->x));
+      break;
+   default:
+      break;
+   }
+   *next_config = cm_config_make(value, mask);
+   return 1;
+}
+
 /* FC has a two-stage target latch.  Writes to $1FF8 replace the low two
  * bits; writes to $1FF9 add the high contribution when it is representable,
  * matching Stella's special fallback for oversized high values.  Nothing
@@ -4018,11 +4193,11 @@ static int superchip_active(const analysis_t *a)
    if (superchip_tail_signature(a)) return 1;
 
    /* Only established control flow contributes contradictions, so these cannot
-    * be manufactured by a speculative interpretation of detached data.  A real
-    * RMW in either split alias, or real instruction fetch through the write
-    * alias, is incompatible with automatic Superchip inference and therefore
-    * outranks heuristic structural/semantic evidence. */
-   if (a->superchip_rmw_conflicts != 0 || a->superchip_exec_conflicts != 0)
+    * be manufactured by a speculative interpretation of detached data.  Code
+    * execution through the SC write alias is incompatible with an active RAM
+    * overlay.  RMW is deliberately *not* contradictory: real split RAM permits
+    * it, with alias-dependent side effects described below. */
+   if (a->superchip_exec_conflicts != 0)
       return 0;
 
    /* The conventional duplicated hidden-window dump layout is strong raw-image
@@ -4091,6 +4266,111 @@ static int fa_ram_address(const analysis_t *a, uint16_t address)
           split_ram_port_contains(&ram, address);
 }
 
+typedef enum {
+   CARTRAM_PORT_NONE,
+   CARTRAM_PORT_READ_ALIAS,
+   CARTRAM_PORT_WRITE_ALIAS,
+   CARTRAM_PORT_SYMMETRIC
+} cartram_port_kind_t;
+
+/* Describe the physical cartridge-RAM byte selected by an address, independent
+ * of the CPU operation currently using that address.  Split read/write aliases
+ * collapse onto one backing key.  This is intentionally more precise than
+ * cartram_provenance_key(): callers that model read-side effects need to know
+ * whether the CPU touched the write alias even though the operation itself was
+ * a read. */
+static cartram_port_kind_t cartram_port_info(const analysis_t *a,
+                                             mapper_config_t mapper_config,
+                                             uint16_t address,
+                                             uint32_t *key)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   uint32_t region = 0u, bank = 0u, off = 0u;
+   split_ram_layout_t ram;
+   cartram_port_kind_t kind = CARTRAM_PORT_NONE;
+
+   if (superchip_active(a)) {
+      if (bus >= 0x1000u && bus <= 0x107fu) {
+         region = 2u; off = (uint32_t)(bus - 0x1000u);
+         kind = CARTRAM_PORT_WRITE_ALIAS;
+      }
+      else if (bus >= 0x1080u && bus <= 0x10ffu) {
+         region = 2u; off = (uint32_t)(bus - 0x1080u);
+         kind = CARTRAM_PORT_READ_ALIAS;
+      }
+   }
+
+   if (kind == CARTRAM_PORT_NONE && native_split_ram_layout(a, &ram)) {
+      if (bus >= ram.write_start &&
+          (uint32_t)bus < (uint32_t)ram.write_start + ram.size) {
+         region = 1u; off = (uint32_t)(bus - ram.write_start);
+         kind = CARTRAM_PORT_WRITE_ALIAS;
+      }
+      else if (bus >= ram.read_start &&
+               (uint32_t)bus < (uint32_t)ram.read_start + ram.size) {
+         region = 1u; off = (uint32_t)(bus - ram.read_start);
+         kind = CARTRAM_PORT_READ_ALIAS;
+      }
+   }
+
+   if (kind == CARTRAM_PORT_NONE && a->mapper == MAP_E7) {
+      if (e7_lower_is_ram(a, mapper_config)) {
+         if (bus >= 0x1000u && bus < 0x1400u) {
+            region = 3u; off = (uint32_t)(bus - 0x1000u);
+            kind = CARTRAM_PORT_WRITE_ALIAS;
+         }
+         else if (bus >= 0x1400u && bus < 0x1800u) {
+            region = 3u; off = (uint32_t)(bus - 0x1400u);
+            kind = CARTRAM_PORT_READ_ALIAS;
+         }
+      }
+      if (kind == CARTRAM_PORT_NONE) {
+         if (bus >= 0x1800u && bus < 0x1900u) {
+            region = 4u; bank = e7_config_ram(mapper_config);
+            off = (uint32_t)(bus - 0x1800u);
+            kind = CARTRAM_PORT_WRITE_ALIAS;
+         }
+         else if (bus >= 0x1900u && bus < 0x1a00u) {
+            region = 4u; bank = e7_config_ram(mapper_config);
+            off = (uint32_t)(bus - 0x1900u);
+            kind = CARTRAM_PORT_READ_ALIAS;
+         }
+      }
+   }
+
+   if (kind == CARTRAM_PORT_NONE && a->mapper == MAP_3E &&
+       threee_config_is_ram(mapper_config)) {
+      if (bus >= 0x1400u && bus < 0x1800u) {
+         region = 5u; bank = (uint32_t)(mapper_config & 0x7fffu);
+         off = (uint32_t)(bus - 0x1400u);
+         kind = CARTRAM_PORT_WRITE_ALIAS;
+      }
+      else if (bus >= 0x1000u && bus < 0x1400u) {
+         region = 5u; bank = (uint32_t)(mapper_config & 0x7fffu);
+         off = (uint32_t)(bus - 0x1000u);
+         kind = CARTRAM_PORT_READ_ALIAS;
+      }
+   }
+
+   /* GL's selected RAM segment is not modeled as a split-direction alias in
+    * the provenance engine.  Preserve its existing symmetric behavior. */
+   if (kind == CARTRAM_PORT_NONE && a->mapper == MAP_GL && bus >= 0x1000u) {
+      unsigned segment = (unsigned)((bus - 0x1000u) >> 10);
+      if (segment < 4u) {
+         unsigned selection = gl_config_bank(mapper_config, segment);
+         if (selection >= 4u) {
+            region = 6u; bank = (uint32_t)(selection - 4u);
+            off = (uint32_t)(bus & 0x03ffu);
+            kind = CARTRAM_PORT_SYMMETRIC;
+         }
+      }
+   }
+
+   if (kind == CARTRAM_PORT_NONE) return kind;
+   if (key) *key = 1u + (region << 20) + (bank << 10) + off;
+   return kind;
+}
+
 static size_t rom_hidden_prefix(const analysis_t *a)
 {
    if (a->mapper == MAP_FA || a->mapper == MAP_FA2) return 0x200u;
@@ -4147,79 +4427,10 @@ static int cartram_provenance_key(const analysis_t *a,
                                   uint16_t address, int write,
                                   uint32_t *key)
 {
-   uint16_t bus = (uint16_t)(address & 0x1fffu);
-   uint32_t region = 0u, bank = 0u, off = 0u;
-   split_ram_layout_t ram;
-
-   if (superchip_active(a)) {
-      if (write && bus >= 0x1000u && bus <= 0x107fu) {
-         region = 2u; off = (uint32_t)(bus - 0x1000u);
-      }
-      else if (!write && bus >= 0x1080u && bus <= 0x10ffu) {
-         region = 2u; off = (uint32_t)(bus - 0x1080u);
-      }
-   }
-
-   if (region == 0u && native_split_ram_layout(a, &ram)) {
-      if (write && bus >= ram.write_start &&
-          (uint32_t)bus < (uint32_t)ram.write_start + ram.size) {
-         region = 1u; off = (uint32_t)(bus - ram.write_start);
-      }
-      else if (!write && bus >= ram.read_start &&
-               (uint32_t)bus < (uint32_t)ram.read_start + ram.size) {
-         region = 1u; off = (uint32_t)(bus - ram.read_start);
-      }
-   }
-
-   if (region == 0u && a->mapper == MAP_E7) {
-      if (e7_lower_is_ram(a, mapper_config)) {
-         if (write && bus >= 0x1000u && bus < 0x1400u) {
-            region = 3u; off = (uint32_t)(bus - 0x1000u);
-         }
-         else if (!write && bus >= 0x1400u && bus < 0x1800u) {
-            region = 3u; off = (uint32_t)(bus - 0x1400u);
-         }
-      }
-      if (region == 0u) {
-         if (write && bus >= 0x1800u && bus < 0x1900u) {
-            region = 4u; bank = e7_config_ram(mapper_config);
-            off = (uint32_t)(bus - 0x1800u);
-         }
-         else if (!write && bus >= 0x1900u && bus < 0x1a00u) {
-            region = 4u; bank = e7_config_ram(mapper_config);
-            off = (uint32_t)(bus - 0x1900u);
-         }
-      }
-   }
-
-   if (region == 0u && a->mapper == MAP_3E &&
-       threee_config_is_ram(mapper_config)) {
-      if (write && bus >= 0x1400u && bus < 0x1800u) {
-         region = 5u; bank = (uint32_t)(mapper_config & 0x7fffu);
-         off = (uint32_t)(bus - 0x1400u);
-      }
-      else if (!write && bus >= 0x1000u && bus < 0x1400u) {
-         region = 5u; bank = (uint32_t)(mapper_config & 0x7fffu);
-         off = (uint32_t)(bus - 0x1000u);
-      }
-   }
-
-   if (region == 0u && a->mapper == MAP_GL && bus >= 0x1000u) {
-      unsigned segment = (unsigned)((bus - 0x1000u) >> 10);
-      if (segment < 4u) {
-         unsigned selection = gl_config_bank(mapper_config, segment);
-         if (selection >= 4u) {
-            region = 6u; bank = (uint32_t)(selection - 4u);
-            off = (uint32_t)(bus & 0x03ffu);
-         }
-      }
-   }
-
-   if (region == 0u) return 0;
-   /* region <= 6, bank <= 31, off <= 1023.  Add one so zero remains the
-    * sparse-slot sentinel. */
-   *key = 1u + (region << 20) + (bank << 10) + off;
-   return 1;
+   cartram_port_kind_t kind = cartram_port_info(a, mapper_config, address, key);
+   if (write)
+      return kind == CARTRAM_PORT_WRITE_ALIAS || kind == CARTRAM_PORT_SYMMETRIC;
+   return kind == CARTRAM_PORT_READ_ALIAS || kind == CARTRAM_PORT_SYMMETRIC;
 }
 
 
@@ -4240,8 +4451,15 @@ static provenance_t state_operand_provenance(const analysis_t *a, size_t bank,
    bus = (uint16_t)(address & 0x1fffu);
    {
       uint32_t ram_key;
-      if (cartram_provenance_key(a, mapper_config, address, 0, &ram_key))
+      cartram_port_kind_t ram_port =
+         cartram_port_info(a, mapper_config, address, &ram_key);
+      if (ram_port == CARTRAM_PORT_READ_ALIAS ||
+          ram_port == CARTRAM_PORT_SYMMETRIC)
          return state_cartram_get_source(state, ram_key);
+      /* A read from a split-RAM write alias is an RWP side effect, not a
+       * fall-through ROM read.  Its value is unpredictable and the backing
+       * RAM provenance is invalidated separately by the transfer step. */
+      if (ram_port == CARTRAM_PORT_WRITE_ALIAS) return PROVENANCE_NONE;
    }
    if (dpc_register_address(a, address) || fa_ram_address(a, address))
       return PROVENANCE_NONE;
@@ -4277,8 +4495,13 @@ static display_provenance_t state_operand_display_provenance(
    bus = (uint16_t)(address & 0x1fffu);
    {
       uint32_t ram_key;
-      if (cartram_provenance_key(a, mapper_config, address, 0, &ram_key))
+      cartram_port_kind_t ram_port =
+         cartram_port_info(a, mapper_config, address, &ram_key);
+      if (ram_port == CARTRAM_PORT_READ_ALIAS ||
+          ram_port == CARTRAM_PORT_SYMMETRIC)
          return state_cartram_get_display_source(state, ram_key);
+      if (ram_port == CARTRAM_PORT_WRITE_ALIAS)
+         return display_provenance_none();
    }
    if (dpc_register_address(a, address) || fa_ram_address(a, address))
       return display_provenance_none();
@@ -4297,6 +4520,7 @@ static display_provenance_t state_operand_display_provenance(
 }
 
 static int state_read_byte(const analysis_t *a, size_t bank,
+                           mapper_config_t mapper_config,
                            const abstract_state_t *state, uint16_t address,
                            uint8_t *value)
 {
@@ -4306,6 +4530,15 @@ static int state_read_byte(const analysis_t *a, size_t bank,
       return 0;
    if (state_riot_ram_alias(address, &ram_address))
       return state_zp_get(state, ram_address, value);
+   /* Cartridge RAM values are not tracked here.  In particular, a split-RAM
+    * write alias must never fall through to physical ROM hidden beneath it:
+    * an RWP read is unpredictable and destructive. */
+   if (cartram_port_info(a, mapper_config, address, NULL) != CARTRAM_PORT_NONE)
+      return 0;
+   if (a->mapper == MAP_CM && (address & 0x1fffu) >= 0x1800u &&
+       (!cm_config_bits_known(mapper_config, 0x10u) ||
+        cm_ram_enabled(mapper_config)))
+      return 0;
    if (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
        a->mapper == MAP_E0 || a->mapper == MAP_GL || a->mapper == MAP_E7 ||
        mapper_is_three_family(a->mapper)) return 0;
@@ -4321,6 +4554,7 @@ static int state_read_byte(const analysis_t *a, size_t bank,
 }
 
 static int state_read_operand(const analysis_t *a, size_t bank,
+                              mapper_config_t mapper_config,
                               const abstract_state_t *state,
                               address_mode_t mode, uint16_t operand,
                               uint8_t *value)
@@ -4331,7 +4565,7 @@ static int state_read_operand(const analysis_t *a, size_t bank,
       return 1;
    }
    if (!resolve_effective_address(state, mode, operand, &address)) return 0;
-   return state_read_byte(a, bank, state, address, value);
+   return state_read_byte(a, bank, mapper_config, state, address, value);
 }
 
 static int known_store_value(uint8_t opcode, const abstract_state_t *state,
@@ -4376,6 +4610,71 @@ static display_provenance_t known_store_display_provenance(
    return display_provenance_none();
 }
 
+static int cartram_has_read_from_write_side_effect(const analysis_t *a,
+                                                   mapper_config_t mapper_config)
+{
+   split_ram_layout_t ram;
+   if (superchip_active(a)) return 1;
+   if (native_split_ram_layout(a, &ram)) return 1;
+   if (a->mapper == MAP_E7) return 1;
+   if (a->mapper == MAP_3E && threee_config_is_ram(mapper_config)) return 1;
+   return 0;
+}
+
+/* Reading a split-RAM write alias is not a harmless alternate spelling.  Real
+ * hardware returns an unpredictable read-from-write-port value and stores that
+ * value into the addressed RAM byte.  The read value therefore has no usable
+ * provenance, and the previous backing-byte provenance is destroyed.  Writes
+ * to the read alias are handled separately as ignored writes.
+ *
+ * If an absolute index is unknown, enumerate all 256 possible effective
+ * addresses and invalidate only backing bytes whose write aliases are in that
+ * range.  Unknown indirect addressing can reach any cartridge address, so an
+ * active split-RAM mapper must conservatively lose all sparse cartridge-RAM
+ * provenance. */
+static void state_apply_memory_read_side_effect(const analysis_t *a,
+                                                mapper_config_t mapper_config,
+                                                const abstract_state_t *input,
+                                                abstract_state_t *output,
+                                                uint8_t opcode,
+                                                address_mode_t mode,
+                                                uint16_t operand)
+{
+   uint16_t address;
+   uint32_t key;
+   cartram_port_kind_t kind;
+   unsigned access = opcode_memory_access(opcode);
+   unsigned i;
+
+   if (!(access & ACCESS_READ)) return;
+   if (resolve_effective_address(input, mode, operand, &address)) {
+      kind = cartram_port_info(a, mapper_config, address, &key);
+      if (kind != CARTRAM_PORT_WRITE_ALIAS) return;
+      state_cartram_set_source(output, key, PROVENANCE_NONE);
+      state_cartram_set_display_source(output, key, display_provenance_none());
+      return;
+   }
+
+   if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+      for (i = 0u; i < 256u; ++i) {
+         address = (uint16_t)(operand + i);
+         kind = cartram_port_info(a, mapper_config, address, &key);
+         if (kind == CARTRAM_PORT_WRITE_ALIAS) {
+            state_cartram_set_source(output, key, PROVENANCE_NONE);
+            state_cartram_set_display_source(output, key,
+                                              display_provenance_none());
+         }
+      }
+      return;
+   }
+
+   if ((mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED) &&
+       cartram_has_read_from_write_side_effect(a, mapper_config)) {
+      state_cartram_clear_sources(output);
+      state_cartram_clear_display_sources(output);
+   }
+}
+
 static void state_apply_memory_write(const analysis_t *a,
                                      mapper_config_t mapper_config,
                                      const abstract_state_t *input,
@@ -4391,6 +4690,31 @@ static void state_apply_memory_write(const analysis_t *a,
    const char *m = opcode_mnemonics[opcode];
    if (!(access & ACCESS_WRITE)) return;
    if (!resolve_effective_address(input, mode, operand, &address)) {
+      if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+         unsigned i;
+         for (i = 0u; i < 256u; ++i) {
+            uint8_t possible_riot;
+            uint32_t possible_key;
+            cartram_port_kind_t possible_port;
+            uint16_t possible = (uint16_t)(operand + i);
+            if (state_riot_ram_alias(possible, &possible_riot)) {
+               state_zp_set_unknown(output, possible_riot);
+               state_zp_set_display_source(output, possible_riot,
+                                           display_provenance_none());
+            }
+            possible_port = cartram_port_info(a, mapper_config, possible,
+                                              &possible_key);
+            if (possible_port == CARTRAM_PORT_WRITE_ALIAS ||
+                possible_port == CARTRAM_PORT_SYMMETRIC) {
+               /* Exactly one unknown index is used at runtime; therefore no
+                * possibly targeted backing byte retains a certain old source. */
+               state_cartram_set_source(output, possible_key, PROVENANCE_NONE);
+               state_cartram_set_display_source(output, possible_key,
+                                                 display_provenance_none());
+            }
+         }
+         return;
+      }
       if (mode == AM_ZERO_PAGE_X || mode == AM_ZERO_PAGE_Y ||
           mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED) {
          memset(output->zp_known + (0x80u >> 3), 0,
@@ -4689,12 +5013,15 @@ static void transfer_state(const analysis_t *a, size_t bank,
    display_provenance_t display_source = state_operand_display_provenance(
       a, bank, mapper_config, input, mode, operand, immediate_source);
    *output = *input;
+   state_apply_memory_read_side_effect(a, mapper_config, input, output,
+                                       opcode, mode, operand);
    state_apply_memory_write(a, mapper_config, input, output, opcode, mode, operand);
 
    /* Unofficial encodings are deliberately treated as opaque for abstract
     * register state.  Exact disassembly still uses the generated opcode table. */
    if (strncmp(m, "op", 2) == 0) {
       output->a_known = output->x_known = output->y_known = 0;
+      output->a_known_mask = output->x_known_mask = output->y_known_mask = 0u;
       output->a_source = output->x_source = output->y_source = PROVENANCE_NONE;
       output->a_display_source = output->x_display_source =
          output->y_display_source = display_provenance_none();
@@ -4708,53 +5035,54 @@ static void transfer_state(const analysis_t *a, size_t bank,
    if (strcmp(m,"LDA") == 0) {
       output->a_source = source;
       output->a_display_source = display_source;
-      if (state_read_operand(a, bank, input, mode, operand, &value)) {
-         output->a_known = 1; output->a = value;
+      if (state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
+         output->a_known = 1; output->a_known_mask = 0xffu; output->a = value;
          state_set_nz(output, 1, value);
-      } else { output->a_known = 0; state_set_nz(output, 0, 0); }
+      } else { output->a_known = 0; output->a_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"LDX") == 0) {
       output->x_source = source;
       output->x_display_source = display_source;
-      if (state_read_operand(a, bank, input, mode, operand, &value)) {
-         output->x_known = 1; output->x = value;
+      if (state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
+         output->x_known = 1; output->x_known_mask = 0xffu; output->x = value;
          state_set_nz(output, 1, value);
-      } else { output->x_known = 0; state_set_nz(output, 0, 0); }
+      } else { output->x_known = 0; output->x_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"LDY") == 0) {
       output->y_source = source;
       output->y_display_source = display_source;
-      if (state_read_operand(a, bank, input, mode, operand, &value)) {
-         output->y_known = 1; output->y = value;
+      if (state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
+         output->y_known = 1; output->y_known_mask = 0xffu; output->y = value;
          state_set_nz(output, 1, value);
-      } else { output->y_known = 0; state_set_nz(output, 0, 0); }
+      } else { output->y_known = 0; output->y_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"TAX") == 0) {
-      output->x_known = input->a_known; output->x = input->a;
+      output->x_known = input->a_known; output->x_known_mask = input->a_known_mask; output->x = input->a;
       output->x_source = input->a_source;
       output->x_display_source = input->a_display_source;
       state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TAY") == 0) {
-      output->y_known = input->a_known; output->y = input->a;
+      output->y_known = input->a_known; output->y_known_mask = input->a_known_mask; output->y = input->a;
       output->y_source = input->a_source;
       output->y_display_source = input->a_display_source;
       state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TXA") == 0) {
-      output->a_known = input->x_known; output->a = input->x;
+      output->a_known = input->x_known; output->a_known_mask = input->x_known_mask; output->a = input->x;
       output->a_source = input->x_source;
       output->a_display_source = input->x_display_source;
       state_set_nz(output, input->x_known, input->x);
    }
    else if (strcmp(m,"TYA") == 0) {
-      output->a_known = input->y_known; output->a = input->y;
+      output->a_known = input->y_known; output->a_known_mask = input->y_known_mask; output->a = input->y;
       output->a_source = input->y_source;
       output->a_display_source = input->y_display_source;
       state_set_nz(output, input->y_known, input->y);
    }
    else if (strcmp(m,"TSX") == 0) {
       output->x_known = input->sp_known;
+      output->x_known_mask = input->sp_known ? 0xffu : 0u;
       output->x = input->sp;
       output->x_source = PROVENANCE_NONE;
       output->x_display_source = display_provenance_none();
@@ -4780,25 +5108,26 @@ static void transfer_state(const analysis_t *a, size_t bank,
       output->a_known = (uint8_t)state_stack_pop_source(
          output, &popped, &popped_source, &popped_display);
       output->a = popped;
+      output->a_known_mask = output->a_known ? 0xffu : 0u;
       output->a_source = popped_source;
       output->a_display_source = popped_display;
       state_set_nz(output, output->a_known, popped);
    }
    else if (strcmp(m,"INX") == 0) {
-      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x + 1u); state_set_nz(output, 1, output->x); }
-      else { output->x_known = 0; state_set_nz(output, 0, 0); }
+      if (input->x_known) { output->x_known = 1; output->x_known_mask = 0xffu; output->x = (uint8_t)(input->x + 1u); state_set_nz(output, 1, output->x); }
+      else { output->x_known = 0; output->x_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"DEX") == 0) {
-      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x - 1u); state_set_nz(output, 1, output->x); }
-      else { output->x_known = 0; state_set_nz(output, 0, 0); }
+      if (input->x_known) { output->x_known = 1; output->x_known_mask = 0xffu; output->x = (uint8_t)(input->x - 1u); state_set_nz(output, 1, output->x); }
+      else { output->x_known = 0; output->x_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"INY") == 0) {
-      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y + 1u); state_set_nz(output, 1, output->y); }
-      else { output->y_known = 0; state_set_nz(output, 0, 0); }
+      if (input->y_known) { output->y_known = 1; output->y_known_mask = 0xffu; output->y = (uint8_t)(input->y + 1u); state_set_nz(output, 1, output->y); }
+      else { output->y_known = 0; output->y_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"DEY") == 0) {
-      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y - 1u); state_set_nz(output, 1, output->y); }
-      else { output->y_known = 0; state_set_nz(output, 0, 0); }
+      if (input->y_known) { output->y_known = 1; output->y_known_mask = 0xffu; output->y = (uint8_t)(input->y - 1u); state_set_nz(output, 1, output->y); }
+      else { output->y_known = 0; output->y_known_mask = 0u; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"CLC") == 0) { output->carry_known = 1; output->carry = 0; }
    else if (strcmp(m,"SEC") == 0) { output->carry_known = 1; output->carry = 1; }
@@ -4827,27 +5156,45 @@ static void transfer_state(const analysis_t *a, size_t bank,
       output->a_source = provenance_combine(input->a_source, source);
       output->a_display_source = display_provenance_union(
          input->a_display_source, display_source);
-      if (input->a_known && state_read_operand(a, bank, input, mode, operand, &value)) {
-         output->a_known = 1;
-         if (strcmp(m,"AND") == 0) output->a = (uint8_t)(input->a & value);
-         else if (strcmp(m,"ORA") == 0) output->a = (uint8_t)(input->a | value);
-         else output->a = (uint8_t)(input->a ^ value);
-         state_set_nz(output, 1, output->a);
+      if (state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
+         uint8_t mask;
+         if (strcmp(m,"AND") == 0) {
+            output->a = (uint8_t)(input->a & value);
+            /* Constant zero bits are known zero even when the corresponding
+             * input bits are unknown. */
+            mask = (uint8_t)(input->a_known_mask | (uint8_t)~value);
+         }
+         else if (strcmp(m,"ORA") == 0) {
+            output->a = (uint8_t)(input->a | value);
+            /* Constant one bits are known one. */
+            mask = (uint8_t)(input->a_known_mask | value);
+         }
+         else {
+            output->a = (uint8_t)(input->a ^ value);
+            mask = input->a_known_mask;
+         }
+         output->a_known_mask = mask;
+         output->a_known = (uint8_t)(mask == 0xffu);
+         state_set_nz(output, output->a_known, output->a);
       }
-      else { output->a_known = 0; state_set_nz(output, 0, 0); }
+      else {
+         output->a_known = 0;
+         output->a_known_mask = 0u;
+         state_set_nz(output, 0, 0);
+      }
    }
    else if (strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0) {
       output->a_source = provenance_combine(input->a_source, source);
       output->a_display_source = display_provenance_union(
          input->a_display_source, display_source);
       if (input->a_known && input->carry_known && input->decimal_known &&
-          !input->decimal && state_read_operand(a, bank, input, mode, operand, &value)) {
+          !input->decimal && state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
          unsigned sum;
          if (strcmp(m,"ADC") == 0)
             sum = (unsigned)input->a + (unsigned)value + (unsigned)input->carry;
          else
             sum = (unsigned)input->a + (unsigned)(uint8_t)~value + (unsigned)input->carry;
-         output->a_known = 1; output->a = (uint8_t)sum;
+         output->a_known = 1; output->a_known_mask = 0xffu; output->a = (uint8_t)sum;
          output->carry_known = 1; output->carry = sum > 0xffu;
          state_set_nz(output, 1, output->a);
          output->overflow_known = 1;
@@ -4856,7 +5203,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
          else
             output->overflow = (uint8_t)((((input->a ^ value) & (input->a ^ output->a)) & 0x80u) != 0u);
       }
-      else { output->a_known = 0; output->carry_known = 0; output->overflow_known = 0; state_set_nz(output, 0, 0); }
+      else { output->a_known = 0; output->a_known_mask = 0u; output->carry_known = 0; output->overflow_known = 0; state_set_nz(output, 0, 0); }
    }
    else if ((strcmp(m,"ASL") == 0 || strcmp(m,"LSR") == 0 ||
              strcmp(m,"ROL") == 0 || strcmp(m,"ROR") == 0) &&
@@ -4865,6 +5212,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
           ((strcmp(m,"ROL") != 0 && strcmp(m,"ROR") != 0) || input->carry_known)) {
          uint8_t old = input->a;
          output->a_known = 1;
+         output->a_known_mask = 0xffu;
          output->carry_known = 1;
          if (strcmp(m,"ASL") == 0) { output->carry = old >> 7; output->a = (uint8_t)(old << 1); }
          else if (strcmp(m,"LSR") == 0) { output->carry = old & 1u; output->a = (uint8_t)(old >> 1); }
@@ -4872,7 +5220,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
          else { output->carry = old & 1u; output->a = (uint8_t)((old >> 1) | (input->carry << 7)); }
          state_set_nz(output, 1, output->a);
       }
-      else { output->a_known = 0; output->carry_known = 0; state_set_nz(output, 0, 0); }
+      else { output->a_known = 0; output->a_known_mask = 0u; output->carry_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"CMP") == 0 || strcmp(m,"CPX") == 0 || strcmp(m,"CPY") == 0) {
       uint8_t reg = 0;
@@ -4881,7 +5229,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
       if (strcmp(m,"CMP") == 0) reg = input->a;
       else if (strcmp(m,"CPX") == 0) reg = input->x;
       else reg = input->y;
-      if (known && state_read_operand(a, bank, input, mode, operand, &value)) {
+      if (known && state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
          uint8_t diff = (uint8_t)(reg - value);
          output->carry_known = 1; output->carry = reg >= value;
          output->zero_known = 1; output->zero = reg == value;
@@ -4890,7 +5238,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
       else state_set_nz(output, 0, 0);
    }
    else if (strcmp(m,"BIT") == 0) {
-      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+      if (state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
          output->negative_known = 1; output->negative = (uint8_t)((value & 0x80u) != 0u);
          output->overflow_known = 1; output->overflow = (uint8_t)((value & 0x40u) != 0u);
          if (input->a_known) { output->zero_known = 1; output->zero = (uint8_t)((input->a & value) == 0u); }
@@ -4899,7 +5247,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
       else output->zero_known = output->negative_known = output->overflow_known = 0;
    }
    else if (strcmp(m,"INC") == 0 || strcmp(m,"DEC") == 0) {
-      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+      if (state_read_operand(a, bank, mapper_config, input, mode, operand, &value)) {
          uint8_t changed = strcmp(m,"INC") == 0 ? (uint8_t)(value + 1u) : (uint8_t)(value - 1u);
          state_set_nz(output, 1, changed);
       }
@@ -5349,6 +5697,9 @@ static int speculative_direct_mapper_hardware_access(const analysis_t *a,
          return 1;
    }
 
+   if (a->mapper == MAP_CM && (access & ACCESS_WRITE) && cm_swcha_address(effective))
+      return 1;
+
    if (a->mapper == MAP_E7) {
       uint16_t next_config;
       int specific = 0;
@@ -5400,7 +5751,7 @@ static int speculative_nonmapper_read_source(const analysis_t *a,
 {
    uint16_t bus = (uint16_t)(address & 0x1fffu);
    uint8_t riot_ram;
-   split_ram_layout_t ram;
+   cartram_port_kind_t cart_port;
 
    if (state_riot_ram_alias(address, &riot_ram)) return 1;
 
@@ -5424,32 +5775,18 @@ static int speculative_nonmapper_read_source(const analysis_t *a,
 
    if (a->mapper == MAP_AR) return 1;
 
-   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x10ffu)
-      return bus >= 0x1080u;
-
-   if (native_split_ram_layout(a, &ram) && split_ram_port_contains(&ram, address))
-      return split_ram_read_port_contains(&ram, address);
+   /* Both aliases are readable bus sources.  A read through the normal read
+    * alias returns RAM.  A read through the write alias returns an
+    * unpredictable RWP value and also overwrites that RAM byte; provenance
+    * destruction is modeled separately in transfer_state(). */
+   cart_port = cartram_port_info(a, mapper_config, address, NULL);
+   if (cart_port != CARTRAM_PORT_NONE) return 1;
 
    if (a->mapper == MAP_DPC && bus >= 0x1000u && bus <= 0x107fu)
       return bus <= 0x103fu;
 
-   if (a->mapper == MAP_E7) {
-      if (bus >= 0x1800u && bus < 0x1a00u) return bus >= 0x1900u;
-      if (bus >= 0x1000u && bus < 0x1800u) {
-         if (!config_known) return 1;
-         if (!e7_lower_is_ram(a, mapper_config)) return 1;
-         return bus >= 0x1400u;
-      }
-   }
-
-   if (a->mapper == MAP_3E && bus >= 0x1000u && bus < 0x1800u) {
-      if (!config_known) return 1;
-      if (!threee_config_is_ram(mapper_config)) return 1;
-      return bus < 0x1400u;
-   }
-
-   if (a->mapper == MAP_GL && gl_ram_port(mapper_config, address))
-      return 1; /* Stella-compatible: retain direction but do not enforce it. */
+   if (a->mapper == MAP_CM && bus >= 0x1800u && cm_ram_enabled(mapper_config))
+      return 1;
 
    /* Anything still mapped as cartridge ROM has a real read source. */
    {
@@ -5467,6 +5804,7 @@ static int speculative_nonmapper_read_source(const analysis_t *a,
  * possible sink rather than manufacturing negative evidence from missing
  * runtime state. */
 static int speculative_nonmapper_write_sink(const analysis_t *a,
+                                            size_t active_bank,
                                             mapper_config_t mapper_config,
                                             int config_known,
                                             uint16_t address)
@@ -5491,8 +5829,8 @@ static int speculative_nonmapper_write_sink(const analysis_t *a,
     * so do not turn cartridge-space writes into false negative evidence. */
    if (a->mapper == MAP_AR) return 1;
 
-   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x10ffu)
-      return 1; /* write alias stores RAM; read-alias writes are harmless */
+   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x107fu)
+      return 1;
 
    if (native_split_ram_layout(a, &ram) &&
        split_ram_write_port_contains(&ram, address))
@@ -5507,20 +5845,30 @@ static int speculative_nonmapper_write_sink(const analysis_t *a,
       return gl_ram_port(mapper_config, address);
    }
 
+   if (a->mapper == MAP_CM && bus >= 0x1800u) {
+      if (!config_known) return 1;
+      if (cm_ram_write_enabled(mapper_config)) return 1;
+   }
+
    if (a->mapper == MAP_E7) {
       if (bus >= 0x1800u && bus < 0x1900u) return 1;
-      if (bus >= 0x1000u && bus < 0x1400u) {
-         if (!config_known) return 1;
-         return e7_lower_is_ram(a, mapper_config);
-      }
-      return 0;
+      if (bus >= 0x1000u && bus < 0x1800u &&
+          config_known && e7_lower_is_ram(a, mapper_config))
+         return bus < 0x1400u;
    }
 
-   if (a->mapper == MAP_3E && bus >= 0x1400u && bus < 0x1800u) {
-      if (!config_known) return 1;
-      return threee_config_is_ram(mapper_config);
-   }
+   if (a->mapper == MAP_3E && bus >= 0x1000u && bus < 0x1800u &&
+       config_known && threee_config_is_ram(mapper_config))
+      return bus >= 0x1400u;
 
+   /* This helper answers whether a detached store has a meaningful effect,
+    * not whether the CPU bus cycle is legal.  Writes to mapped ROM (and to the
+    * read aliases handled above) are electrically legal no-ops, so they must
+    * not validate an otherwise detached speculative island.  A5 hypothesis
+    * viability deliberately bypasses this sink requirement.  The structural
+    * prefilter lacks mapper state and therefore stays conservative. */
+   if (!config_known) return (bus & 0x1000u) != 0u;
+   (void)active_bank;
    return 0;
 }
 
@@ -5537,27 +5885,45 @@ static int mapper_specific_cart_ram_access(const analysis_t *a,
    uint16_t bus = (uint16_t)(address & 0x1fffu);
    split_ram_layout_t ram;
 
+   /* Split-RAM RMW is legal but neutral: one phase is meaningful and the
+    * other has alias-specific side effects/no-op behavior, so it must neither
+    * prove nor disprove a mapper.  Only pure direction-correct accesses count
+    * as positive cartridge-RAM evidence. */
    if (superchip_active(a)) {
-      if ((access & ACCESS_READ) && bus >= 0x1080u && bus <= 0x10ffu) return 1;
-      if ((access & ACCESS_WRITE) && bus >= 0x1000u && bus <= 0x107fu) return 1;
+      if ((access & ACCESS_READ) && !(access & ACCESS_WRITE) &&
+          bus >= 0x1080u && bus <= 0x10ffu) return 1;
+      if ((access & ACCESS_WRITE) && !(access & ACCESS_READ) &&
+          bus >= 0x1000u && bus <= 0x107fu) return 1;
    }
    if (native_split_ram_layout(a, &ram)) {
-      if ((access & ACCESS_READ) && split_ram_read_port_contains(&ram, address)) return 1;
-      if ((access & ACCESS_WRITE) && split_ram_write_port_contains(&ram, address)) return 1;
+      if ((access & ACCESS_READ) && !(access & ACCESS_WRITE) &&
+          split_ram_read_port_contains(&ram, address)) return 1;
+      if ((access & ACCESS_WRITE) && !(access & ACCESS_READ) &&
+          split_ram_write_port_contains(&ram, address)) return 1;
    }
    if (a->mapper == MAP_E7) {
-      if ((access & ACCESS_READ) && bus >= 0x1900u && bus < 0x1a00u) return 1;
-      if ((access & ACCESS_WRITE) && bus >= 0x1800u && bus < 0x1900u) return 1;
+      if ((access & ACCESS_READ) && !(access & ACCESS_WRITE) &&
+          bus >= 0x1900u && bus < 0x1a00u) return 1;
+      if ((access & ACCESS_WRITE) && !(access & ACCESS_READ) &&
+          bus >= 0x1800u && bus < 0x1900u) return 1;
       if (e7_lower_is_ram(a, mapper_config)) {
-         if ((access & ACCESS_READ) && bus >= 0x1400u && bus < 0x1800u) return 1;
-         if ((access & ACCESS_WRITE) && bus >= 0x1000u && bus < 0x1400u) return 1;
+         if ((access & ACCESS_READ) && !(access & ACCESS_WRITE) &&
+             bus >= 0x1400u && bus < 0x1800u) return 1;
+         if ((access & ACCESS_WRITE) && !(access & ACCESS_READ) &&
+             bus >= 0x1000u && bus < 0x1400u) return 1;
       }
    }
    if (a->mapper == MAP_3E && threee_config_is_ram(mapper_config)) {
-      if ((access & ACCESS_READ) && bus >= 0x1000u && bus < 0x1400u) return 1;
-      if ((access & ACCESS_WRITE) && bus >= 0x1400u && bus < 0x1800u) return 1;
+      if ((access & ACCESS_READ) && !(access & ACCESS_WRITE) &&
+          bus >= 0x1000u && bus < 0x1400u) return 1;
+      if ((access & ACCESS_WRITE) && !(access & ACCESS_READ) &&
+          bus >= 0x1400u && bus < 0x1800u) return 1;
    }
    if (a->mapper == MAP_GL && gl_ram_port(mapper_config, address)) return 1;
+   if (a->mapper == MAP_CM && bus >= 0x1800u && cm_ram_enabled(mapper_config)) {
+      if (access & ACCESS_READ) return 1;
+      if ((access & ACCESS_WRITE) && cm_ram_write_enabled(mapper_config)) return 1;
+   }
    return 0;
 }
 
@@ -5670,6 +6036,8 @@ static int mapped_rom_byte(const analysis_t *a, size_t active_bank,
       mapped = e0_map_address(a, mapper_config, address, &bank, &off);
    else if (a->mapper == MAP_GL)
       mapped = gl_map_address(a, mapper_config, address, &bank, &off);
+   else if (a->mapper == MAP_CM)
+      mapped = cm_map_address(a, mapper_config, address, &bank, &off);
    else if (a->mapper == MAP_E7)
       mapped = e7_map_address(a, mapper_config, address, &bank, &off);
    else if (mapper_is_three_family(a->mapper))
@@ -5913,6 +6281,8 @@ static int ram_exec_push_target(analysis_t *a, ram_exec_fp_t *fp,
       return push_e0_address_state(a, (uint16_t)mapper_config, address, state);
    if (a->mapper == MAP_GL)
       return push_gl_address_state(a, mapper_config, address, state);
+   if (a->mapper == MAP_CM)
+      return push_cm_address_state(a, mapper_config, address, state);
    if (a->mapper == MAP_E7)
       return push_e7_address_state(a, (uint16_t)mapper_config, address, state);
    if (mapper_is_three_family(a->mapper))
@@ -6115,8 +6485,8 @@ static int trace_riot_ram_code(analysis_t *a, size_t start_bank,
          uint16_t ptr = operand;
          uint16_t hiaddr = (uint16_t)((ptr & 0xff00u) | ((ptr + 1u) & 0x00ffu));
          uint8_t lo, hi;
-         if (state_read_byte(a, next_bank, &output, ptr, &lo) &&
-             state_read_byte(a, next_bank, &output, hiaddr, &hi) &&
+         if (state_read_byte(a, next_bank, next_config, &output, ptr, &lo) &&
+             state_read_byte(a, next_bank, next_config, &output, hiaddr, &hi) &&
              !ram_exec_push_target(a, &fp, next_bank, next_config,
                                    (uint16_t)(lo | ((uint16_t)hi << 8)), &output)) goto oom;
       }
@@ -6553,6 +6923,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       uint16_t e0_successor_config;
       int gl_switched = 0, gl_access = 0;
       mapper_config_t gl_successor_config;
+      int cm_changed = 0, cm_mapping_changed = 0;
+      mapper_config_t cm_successor_config;
       int e7_switched = 0, e7_specific = 0;
       uint16_t e7_successor_config;
       int threef_switched = 0, threef_value_known = 0;
@@ -6643,7 +7015,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       if (len >= 3u) operand |= (uint16_t)a->rom[node + 2u] << 8;
       canonical_pc = (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
                       a->mapper == MAP_E0 || a->mapper == MAP_GL ||
-                      a->mapper == MAP_E7 || mapper_is_three_family(a->mapper))
+                      a->mapper == MAP_CM || a->mapper == MAP_E7 ||
+                      mapper_is_three_family(a->mapper))
                         ? runtime_pc
                         : (uint16_t)(b->origin + (uint16_t)off);
       transfer_state(a, bi, mapper_config, &item.state, &output_state, opcode, mode, operand,
@@ -6654,6 +7027,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       fc_successor_config = mapper_config;
       e0_successor_config = mapper_config;
       gl_successor_config = mapper_config;
+      cm_successor_config = mapper_config;
       e7_successor_config = mapper_config;
       threef_successor_config = mapper_config;
 
@@ -6714,6 +7088,18 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             }
          }
       }
+      else if (flow == FLOW_NEXT && a->mapper == MAP_CM &&
+               cm_instruction_transition(a, &item.state, opcode, mode, operand,
+                                         &cm_successor_config)) {
+         size_t old_bank, old_off, new_bank, new_off;
+         uint16_t next_pc = (uint16_t)(canonical_pc + len);
+         cm_changed = 1;
+         if (cm_map_address(a, mapper_config, next_pc, &old_bank, &old_off) &&
+             cm_map_address(a, cm_successor_config, next_pc, &new_bank, &new_off) &&
+             old_bank != new_bank)
+            cm_mapping_changed = 1;
+         if (ctx->counted) ++ctx->mapper_switches;
+      }
       else if (flow == FLOW_NEXT && a->mapper == MAP_E7 &&
                (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
          uint16_t effective;
@@ -6764,7 +7150,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       }
 
       mapper_access = wd_switched || fc_changed || e0_switched || gl_access ||
-                      e7_switched || threef_switched || switched ||
+                      cm_changed || e7_switched || threef_switched || switched ||
                       (broad_selector_ambiguous && !broad_selector_no_switch);
       if (mapper_access)
          fp.states[si].mapper_evidence |= SPEC_MAPPER_EVIDENCE_ACTIVITY;
@@ -6790,12 +7176,14 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
           (e0_switched == 1 && mode == AM_ABSOLUTE &&
            e0_successor_config != mapper_config) ||
           (e7_switched && e7_specific) ||
+          (cm_changed && is_probably_cm(a->rom, a->rom_size)) ||
           (threef_switched && (threef_explicit_ref || threee_ram_ref)))
          fp.states[si].mapper_evidence |= SPEC_MAPPER_EVIDENCE_SPECIFIC;
       if ((switched && successor_bank != bi) ||
           (wd_switched && wd_successor_config != (uint8_t)mapper_config) ||
           (e0_switched && e0_successor_config != mapper_config) ||
           (gl_switched && gl_successor_config != mapper_config) ||
+          (cm_changed && cm_mapping_changed) ||
           (e7_switched && e7_successor_config != mapper_config) ||
           (threef_switched && threef_value_known &&
            threef_successor_config != mapper_config))
@@ -6813,6 +7201,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             unsigned access = opcode_memory_access(opcode);
             spec_hw_class_t hc = speculative_hardware_access(
                effective, access);
+            int read_source = 1;
             if (hc == SPEC_HW_INVALID && !ctx->hypothesis_viability) {
                ctx->hit_invalid_hardware = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
@@ -6822,16 +7211,20 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
              * no-ops on real hardware.  They remain useful negative evidence
              * for detached-island discovery, but are not a hard contradiction
              * when reached from an established RESET hypothesis. */
-            if ((access & ACCESS_READ) && hc != SPEC_HW_INVALID &&
-                !speculative_nonmapper_read_source(a, bi, mapper_config, 1,
-                                                   effective)) {
+            if ((access & ACCESS_READ) && hc != SPEC_HW_INVALID)
+               read_source = speculative_nonmapper_read_source(
+                  a, bi, mapper_config, 1, effective);
+            if (!ctx->hypothesis_viability && (access & ACCESS_READ) &&
+                hc != SPEC_HW_INVALID && !read_source) {
                ctx->hit_invalid_hardware = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
                continue;
             }
-            if ((access & ACCESS_WRITE) && hc != SPEC_HW_INVALID &&
-                !speculative_nonmapper_write_sink(a, mapper_config, 1,
-                                                  effective)) {
+            if (!ctx->hypothesis_viability && (access & ACCESS_WRITE) &&
+                hc != SPEC_HW_INVALID &&
+                !speculative_nonmapper_write_sink(a, bi, mapper_config, 1,
+                                                  effective) &&
+                !((access & ACCESS_READ) && read_source)) {
                ctx->hit_invalid_hardware = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
                continue;
@@ -6948,6 +7341,27 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             }
             /* RAM-selected GameLine windows are valid but mutable; the local
              * speculative validator has no sound byte image for them. */
+         }
+         else if (a->mapper == MAP_CM) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            mapper_config_t next_config = cm_changed ? cm_successor_config : mapper_config;
+            size_t next_bank, next_off;
+            if (cm_map_address(a, next_config, next_pc, &next_bank, &next_off)) {
+               size_t old_bank, old_off;
+               if (cm_changed &&
+                   cm_map_address(a, mapper_config, next_pc, &old_bank, &old_off) &&
+                   old_bank != next_bank &&
+                   opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
+                   !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off])) {
+                  ++ctx->switch_avoided_halts;
+                  fp.states[si].mapper_evidence |= SPEC_MAPPER_EVIDENCE_SWITCH_SAVE;
+               }
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
+                                         next_config, &output_state, ctx))
+                  goto inconclusive;
+            }
+            /* RAM-selected upper 2K or unknown SWCHA values are valid hardware
+             * states but do not provide a trustworthy ROM byte continuation. */
          }
          else if (a->mapper == MAP_E7) {
             uint16_t next_pc = (uint16_t)(canonical_pc + len);
@@ -7090,6 +7504,14 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             }
             if ((!known || taken) && is_cart_address(target))
                ENQUEUE_BRANCH_EDGE(gl_map_address(a, mapper_config, target, &eb, &eo), target, 1);
+         }
+         else if (a->mapper == MAP_CM) {
+            if (!known || !taken) {
+               uint16_t ep = (uint16_t)(canonical_pc + 2u);
+               ENQUEUE_BRANCH_EDGE(cm_map_address(a, mapper_config, ep, &eb, &eo), ep, 0);
+            }
+            if ((!known || taken) && is_cart_address(target))
+               ENQUEUE_BRANCH_EDGE(cm_map_address(a, mapper_config, target, &eb, &eo), target, 1);
          }
          else if (a->mapper == MAP_E7) {
             if (!known || !taken) {
@@ -7299,6 +7721,7 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
    mapper_config_t config = a->mapper == MAP_FC ? FC_CONFIG_UNKNOWN : 0u;
    if (a->mapper == MAP_E0) config = e0_seed_config(bi, pc);
    else if (a->mapper == MAP_GL) config = gl_seed_config(bi, pc);
+   else if (a->mapper == MAP_CM) config = (mapper_config_t)(0xfcu | (bi & 3u));
    else if (a->mapper == MAP_E7) config = e7_seed_config(bi, pc, a->bank_count);
    else if (mapper_is_three_family(a->mapper) && ((pc & 0x1fffu) < 0x1800u)) config = (uint16_t)bi;
    return speculative_flow_ctx(a, bi, off, pc, config, input_state, ctx);
@@ -7809,11 +8232,12 @@ static uint8_t *speculative_dead_reachability(const analysis_t *a)
             if (resolve_effective_address(&unknown, mode, operand, &effective) &&
                 !speculative_direct_mapper_hardware_access(a, opcode, mode, operand)) {
                spec_hw_class_t hc = speculative_hardware_access(effective, access);
-               if (hc == SPEC_HW_INVALID ||
-                   ((access & ACCESS_READ) &&
-                    !speculative_nonmapper_read_source(a, bi, 0u, 0, effective)) ||
-                   ((access & ACCESS_WRITE) &&
-                    !speculative_nonmapper_write_sink(a, 0u, 0, effective))) {
+               int read_source = !(access & ACCESS_READ) ||
+                  speculative_nonmapper_read_source(a, bi, 0u, 0, effective);
+               int write_sink = !(access & ACCESS_WRITE) ||
+                  speculative_nonmapper_write_sink(a, bi, 0u, 0, effective);
+               if (hc == SPEC_HW_INVALID || !read_source ||
+                   (!write_sink && !((access & ACCESS_READ) && read_source))) {
                   if (!may[node]) {
                      may[node] = 1u;
                      queue[qtail++] = node;
@@ -8170,6 +8594,7 @@ static void abstract_state_from_concrete_start(
    memset(state, 0, sizeof(*state));
    if (!concrete || !concrete->valid) return;
    state->a_known = state->x_known = state->y_known = state->sp_known = 1u;
+   state->a_known_mask = state->x_known_mask = state->y_known_mask = 0xffu;
    state->a = concrete->a;
    state->x = concrete->x;
    state->y = concrete->y;
@@ -8335,7 +8760,28 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
     * code, even when NMI is unbonded and no reachable BRK exercises IRQ. */
    recognize_vcsc_vector_bridges(a);
 
-   if (a->mapper == MAP_GL) {
+   if (a->mapper == MAP_CM) {
+      bank_t *vb = &a->banks[3];
+      size_t voff = vb->size - 4u;
+      uint16_t target = read_word(a->rom + vb->file_offset + voff);
+      size_t tbank, toff;
+      int mapped;
+      int via_open_bus_brk = 0;
+      mapped = cm_map_address(a, CM_RESET_CONFIG, target, &tbank, &toff);
+      if (!mapped)
+         via_open_bus_brk = resolve_reset_open_bus_brk(
+            a, 3u, CM_RESET_CONFIG, target, &target, &tbank, &toff);
+      if (mapped || via_open_bus_brk) {
+         abstract_state_t state;
+         mark_label(&a->banks[tbank], toff);
+         memset(&state, 0, sizeof(state));
+         if (!push_work_state_ctx(a, tbank, toff, &state, target,
+                                  CM_RESET_CONFIG)) return 0;
+         reset_seeded = 1;
+         if (via_open_bus_brk) a->reset_open_bus_brk = 1;
+      }
+   }
+   else if (a->mapper == MAP_GL) {
       /* GameLine power-on mirrors ROM bank 0 into all four 1K windows.
        * The RESET vector is therefore bank 0's final two bytes as seen at
        * $FFFC/$FFFD, and its target resolves through the all-zero selection. */
@@ -8587,6 +9033,9 @@ drain_work:
       uint16_t e0_successor_config = item.mapper_config;
       int gl_switched = 0;
       mapper_config_t gl_successor_config = item.mapper_config;
+      int cm_changed = 0;
+      
+      mapper_config_t cm_successor_config = item.mapper_config;
       int e7_switched = 0;
       int e7_specific = 0;
       uint16_t e7_successor_config = item.mapper_config;
@@ -8611,8 +9060,8 @@ drain_work:
       if (off + len > b->size) continue;
       mark_instruction(b, off, opcode, len);
       canonical_pc = (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
-                      a->mapper == MAP_E0 || a->mapper == MAP_GL || a->mapper == MAP_E7 ||
-                      mapper_is_three_family(a->mapper)) ? item.pc
+                      a->mapper == MAP_E0 || a->mapper == MAP_GL || a->mapper == MAP_CM ||
+                      a->mapper == MAP_E7 || mapper_is_three_family(a->mapper)) ? item.pc
                        : (uint16_t)(b->origin + (uint16_t)off);
       if (!reset_only && !speculative_done &&
           !h2_record_static_seed(a, &item, canonical_pc, &input_state))
@@ -8645,8 +9094,8 @@ drain_work:
        * evidence.  Record established use of both aliases and exact offsets;
        * superchip_active() requires both aliases, while matching offsets provide
        * an additional diagnostic strength signal.  Speculative islands must not
-       * decide mapper hardware.  Established RMW remains contradictory because
-       * one effective address cannot supply both split-alias phases. */
+       * decide mapper hardware.  RMW is legal on either alias but has
+       * alias-dependent side effects, so it is diagnostic rather than a veto. */
       if (!speculative_done) {
          unsigned access = opcode_memory_access(opcode);
          uint16_t effective;
@@ -8667,17 +9116,15 @@ drain_work:
             if ((access & (ACCESS_READ | ACCESS_WRITE)) ==
                    (ACCESS_READ | ACCESS_WRITE) &&
                 bus >= 0x1000u && bus <= 0x10ffu)
-               ++a->superchip_rmw_conflicts;
+               ++a->superchip_rmw_accesses;
          }
       }
 
-      /* FA/RAM Plus, CommaVid CV, and WD also use disjoint read/write RAM
-       * aliases.  No effective address in either alias can have meaningful RAM
-       * semantics for both phases of a 6502 read-modify-write instruction.
-       * Treat a reachable RMW in either native split-RAM port as negative mapper
-       * evidence.  Pure reads are deliberately neutral, and plain stores are not
-       * compared across mapper families because writes to cartridge ROM are also
-       * legal bus activity on ordinary carts. */
+      /* FA/RAM Plus, CommaVid CV, and WD use disjoint read/write RAM aliases.
+       * A 6502 RMW is legal on either alias: reading a write alias randomizes the
+       * backing byte before the write phase, while writing a read alias is
+       * ignored.  Count established RMW only as a diagnostic; it is not negative
+       * mapper evidence. */
       {
          split_ram_layout_t ram;
          unsigned access = opcode_memory_access(opcode);
@@ -8687,13 +9134,13 @@ drain_work:
                 (ACCESS_READ | ACCESS_WRITE) &&
              resolve_effective_address(&input_state, mode, operand, &effective) &&
              split_ram_port_contains(&ram, effective))
-            ++a->split_ram_rmw_conflicts;
+            ++a->split_ram_rmw_accesses;
       }
 
       /* 3E RAM is conditional on the current lower-window selection.  While
        * a RAM bank is mapped, $F000-$F3FF is its read alias and $F400-$F7FF
-       * is its write alias.  No one effective address can support both phases
-       * of a 6502 RMW, so a reachable RMW in either half contradicts 3E. */
+       * is its write alias.  RMW on either half is legal but alias-dependent,
+       * so retain it only as a diagnostic access count. */
       if (a->mapper == MAP_3E && threee_config_is_ram(item.mapper_config)) {
          unsigned access = opcode_memory_access(opcode);
          uint16_t effective;
@@ -8701,13 +9148,13 @@ drain_work:
                 (ACCESS_READ | ACCESS_WRITE) &&
              resolve_effective_address(&input_state, mode, operand, &effective) &&
              threee_ram_port(item.mapper_config, effective))
-            ++a->split_ram_rmw_conflicts;
+            ++a->split_ram_rmw_accesses;
       }
 
       /* E7 has two split-RAM regions: the conditional 1K lower window and a
-       * fixed 256-byte upper-window block.  An RMW against either alias is
-       * incompatible with normal RAM semantics because read and write ports
-       * are distinct addresses. */
+       * fixed 256-byte upper-window block.  RMW on either alias is legal with
+       * the same read-from-write / ignored-write side effects as other split
+       * RAM, so count it as diagnostic rather than contradictory evidence. */
       if (a->mapper == MAP_E7) {
          unsigned access = opcode_memory_access(opcode);
          uint16_t effective;
@@ -8715,7 +9162,7 @@ drain_work:
                 (ACCESS_READ | ACCESS_WRITE) &&
              resolve_effective_address(&input_state, mode, operand, &effective) &&
              e7_ram_port(a, item.mapper_config, effective))
-            ++a->split_ram_rmw_conflicts;
+            ++a->split_ram_rmw_accesses;
       }
 
       /* Definite ROM reads are independent from executable-byte roles.  Use
@@ -8780,6 +9227,13 @@ drain_work:
                else if (a->mapper == MAP_GL) {
                   size_t dbank;
                   if (gl_map_address(a, item.mapper_config, effective, &dbank, &doff)) {
+                     a->banks[dbank].roles[doff] |= ROLE_DATA_READ;
+                     mark_label(&a->banks[dbank], doff);
+                  }
+               }
+               else if (a->mapper == MAP_CM) {
+                  size_t dbank;
+                  if (cm_map_address(a, item.mapper_config, effective, &dbank, &doff)) {
                      a->banks[dbank].roles[doff] |= ROLE_DATA_READ;
                      mark_label(&a->banks[dbank], doff);
                   }
@@ -8896,6 +9350,12 @@ drain_work:
                gl_switched = gl_successor_config != item.mapper_config;
          }
       }
+      if (a->mapper == MAP_CM && flow == FLOW_NEXT &&
+          cm_instruction_transition(a, &input_state, opcode, mode, operand,
+                                    &cm_successor_config)) {
+         cm_changed = 1;
+         ++a->hotspot_refs;
+      }
       if (a->mapper == MAP_E7 && flow == FLOW_NEXT &&
           (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
          uint16_t effective;
@@ -9000,6 +9460,29 @@ drain_work:
                   ++a->cross_bank_switches;
             }
             if (!push_gl_address_state(a, next_config, next_pc, &output_state))
+               return 0;
+         }
+         else if (a->mapper == MAP_CM) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            mapper_config_t next_config = cm_changed ? cm_successor_config
+                                                     : item.mapper_config;
+            if (cm_changed) {
+               size_t old_bank, old_off, next_bank, next_off;
+               int old_rom = cm_map_address(a, item.mapper_config, next_pc,
+                                            &old_bank, &old_off);
+               int new_rom = cm_map_address(a, next_config, next_pc,
+                                            &next_bank, &next_off);
+               if (old_rom && new_rom && old_bank != next_bank) {
+                  ++a->cross_bank_switches;
+                  mark_label(&a->banks[next_bank], next_off);
+                  if (opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
+                      !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
+                     ++a->flow_switch_avoided_halts;
+               }
+               else if (old_rom != new_rom)
+                  ++a->cross_bank_switches;
+            }
+            if (!push_cm_address_state(a, next_config, next_pc, &output_state))
                return 0;
          }
          else if (a->mapper == MAP_E7) {
@@ -9562,6 +10045,11 @@ static int sampled_concrete_presentation_safe(const analysis_t *a)
        * structure/bytes or control flow; a forced mapper gets the same helper
        * behavior because this decision never inspects mapper_overridden. */
       return 1;
+   case MAP_CM:
+      /* CompuMate's controller-port-driven bank/RAM state is modeled by the
+       * abstract mapper tracer.  Keep sampled concrete presentation disabled
+       * until the concrete machine carries the same SWCHA latch semantics. */
+      return 0;
    case MAP_DPC:
       /* DPC's data-fetcher/register window still needs a faithful coprocessor
        * model before sampled execution is safe presentation evidence. */
@@ -9638,7 +10126,7 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
       ADD_MAPPER(MAP_FA); ADD_MAPPER(MAP_E7);
       break;
    case 16384u:
-      ADD_MAPPER(MAP_F6); ADD_MAPPER(MAP_JANE); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FC);
+      ADD_MAPPER(MAP_F6); ADD_MAPPER(MAP_CM); ADD_MAPPER(MAP_JANE); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FC);
       break;
    case 24576u: case 28672u:
       ADD_MAPPER(MAP_FA2);
@@ -9717,6 +10205,7 @@ static int mapper_detector_signature(const uint8_t *rom, size_t size,
    case MAP_FC: return is_probably_fc(rom, size);
    case MAP_F0: return is_probably_f0(rom, size);
    case MAP_GL: return is_probably_gl(rom, size);
+   case MAP_CM: return is_probably_cm(rom, size);
    default: return 0;
    }
 }
@@ -9878,7 +10367,7 @@ static int enumerate_mapper_hypotheses(const uint8_t *physical_rom,
 {
    static const mapper_t cart_models[] = {
       MAP_1K, MAP_2K, MAP_4K, MAP_F8, MAP_F6, MAP_F4, MAP_FA, MAP_FA2,
-      MAP_DPC, MAP_WD, MAP_WDSW, MAP_FC, MAP_F0, MAP_GL, MAP_E0, MAP_E7,
+      MAP_DPC, MAP_WD, MAP_WDSW, MAP_FC, MAP_F0, MAP_GL, MAP_CM, MAP_E0, MAP_E7,
       MAP_3F, MAP_3E, MAP_CV, MAP_JANE, MAP_0840, MAP_UA, MAP_UASW,
       MAP_0FA0, MAP_FE, MAP_AR
    };
@@ -10002,7 +10491,16 @@ static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
    if (a->bank_count == 0u || a->mapper == MAP_RAW || a->mapper == MAP_AR)
       return 0;
 
-   if (a->mapper == MAP_GL) {
+   if (a->mapper == MAP_CM) {
+      vb = &a->banks[3];
+      config = CM_RESET_CONFIG;
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (!cm_map_address(a, config, target, &bank, &off) &&
+          !resolve_reset_open_bus_brk(a, 3u, config, target,
+                                      &target, &bank, &off)) return 0;
+   }
+   else if (a->mapper == MAP_GL) {
       vb = &a->banks[0];
       config = GL_RESET_CONFIG;
       if (vb->size < 4u) return 0;
@@ -10181,7 +10679,7 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
    h->hotspots = 0;
    h->cross_bank_switches = 0u;
    h->switch_avoided_halts = 0u;
-   h->split_ram_rmw_conflicts = 0;
+   h->split_ram_rmw_accesses = 0;
    h->threee_ram_select_refs = 0;
    h->e7_specific_refs = 0;
    h->three_specific_switches = 0u;
@@ -10310,7 +10808,7 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
             h->cross_bank_switches += vctx.viable_bank_changes;
             h->switch_avoided_halts += vctx.viable_switch_saves;
             h->generated_mapper_selectors += probe.generated_mapper_selectors;
-            h->split_ram_rmw_conflicts += probe.split_ram_rmw_conflicts;
+            h->split_ram_rmw_accesses += probe.split_ram_rmw_accesses;
             h->threee_ram_select_refs += probe.threee_ram_select_refs;
             h->e7_specific_refs += probe.e7_specific_refs;
             h->three_specific_switches += probe.three_specific_switches;
@@ -10735,21 +11233,6 @@ static int mapper_a7_credible_complete_coverage(const mapper_hypothesis_t *h)
  * the last A5-live size topology is not affirmative mapper evidence, especially
  * when a rejected alternative still carries a well-established family
  * fingerprint. */
-static int mapper_a7_has_independent_positive_evidence(const mapper_hypothesis_t *h)
-{
-   return h->state_space_switch_saves != 0u ||
-          mapper_a7_specific_semantics(h) ||
-          mapper_a7_cart_ram_semantics(h) ||
-          mapper_a7_credible_complete_coverage(h) ||
-          h->explicit_signature ||
-          h->detector_signature;
-}
-
-/* The ordinary size-topology families are the least-assumptive hardware
- * explanations for their physical sizes.  They are not automatically winners:
- * a special mapper with independent family evidence still competes normally.
- * But a special mapper may not keep itself alive merely because its own
- * hypothetical address decoder makes some RESET path executable. */
 static int mapper_a7_is_baseline_topology(const mapper_hypothesis_t *h)
 {
    if (h->kind != MAPPER_HYPOTHESIS_CART) return 0;
@@ -10785,7 +11268,8 @@ static int mapper_a7_strong_nin1_structure(const mapper_hypothesis_t *h)
 
 static int mapper_a7_has_family_evidence(const mapper_hypothesis_t *h)
 {
-   if (h->kind == MAPPER_HYPOTHESIS_NIN1) return 1;
+   if (h->kind == MAPPER_HYPOTHESIS_NIN1)
+      return mapper_a7_strong_nin1_structure(h);
    if (h->explicit_signature || h->detector_signature ||
        h->generated_mapper_selectors != 0u ||
        h->state_space_switch_saves != 0u)
@@ -10795,6 +11279,20 @@ static int mapper_a7_has_family_evidence(const mapper_hypothesis_t *h)
       return mapper_a7_cart_ram_semantics(h);
    return h->state_space_specific_selectors != 0u ||
           mapper_a7_cart_ram_semantics(h);
+}
+
+/* Positive evidence must come from the surviving mapper itself.  Merely being
+ * the last A5-live size topology is not affirmative mapper evidence, especially
+ * when a rejected alternative still carries a well-established family
+ * fingerprint. */
+static int mapper_a7_has_independent_positive_evidence(const mapper_hypothesis_t *h)
+{
+   return h->state_space_switch_saves != 0u ||
+          mapper_a7_specific_semantics(h) ||
+          mapper_a7_cart_ram_semantics(h) ||
+          mapper_a7_credible_complete_coverage(h) ||
+          h->explicit_signature ||
+          h->detector_signature;
 }
 
 static int mapper_a7_has_rejected_detector_conflict(const mapper_refinement_t *detail)
@@ -10927,7 +11425,12 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
     * have independent evidence for its family before it can participate in the
     * final comparison.  This removes pathological ties such as plain 2K vs CV,
     * plain 4K vs CV/FC, F6 vs evidence-free FC, and F8 vs WD triggered only by
-    * ordinary TIA-mirror traffic. */
+    * ordinary TIA-mirror traffic.  A two-way container is likewise not
+    * independently identifiable from an ordinary F8 image: two valid 4K
+    * RESET vectors are common in real F8 banks.  Do not prune N-in-1
+    * hypotheses in this special-hardware pass: 2IN1 must remain tied with F8
+    * until real selector evidence resolves it, while strong >=4-way constituent
+    * structure can establish itself later as positive container evidence. */
    if (survivors > 1u) {
       int have_baseline = 0;
       for (i = 0u; i < detail->hypothesis_count; ++i)
@@ -10944,18 +11447,30 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                removed_special = 1;
             }
          survivors = mapper_a7_survivor_count(detail);
-         if (removed_special && survivors == 1u)
+         if (removed_special && survivors == 1u) {
+            mapper_hypothesis_t *only = mapper_a7_unique_survivor(detail);
+            if (only && !mapper_a7_has_independent_positive_evidence(only) &&
+                mapper_a7_has_rejected_detector_conflict(detail)) {
+               detail->winner = MAP_RAW;
+               detail->winner_kind = MAPPER_HYPOTHESIS_CART;
+               detail->winner_games = 0u;
+               detail->survived = 1u;
+               detail->selection_reason = MAPPER_SELECTION_A7_CONFLICT_RAW;
+               detail->refined = 1;
+               return MAP_RAW;
+            }
             return mapper_a7_finish_unique(detail,
                MAPPER_SELECTION_A7_BASELINE_TOPOLOGY, legacy);
+         }
       }
    }
 
    if (survivors == 1u) {
       mapper_hypothesis_t *only = mapper_a7_unique_survivor(detail);
-      /* A hard contradiction still removes a mapper.  But when that rejected
-       * mapper carries an established family signature and the lone survivor
-       * has no independent mapper evidence of its own, "last one standing" is
-       * not enough to turn a conflicting image into a confident size fallback. */
+      /* A hard contradiction removes that mapper, but it does not magically
+       * prove an otherwise evidence-free size fallback.  When an established
+       * detector fingerprint conflicts with a weak lone survivor, preserve the
+       * disagreement as RAW instead of manufacturing confidence. */
       if (only && !mapper_a7_has_independent_positive_evidence(only) &&
           mapper_a7_has_rejected_detector_conflict(detail)) {
          detail->winner = MAP_RAW;
@@ -11624,6 +12139,33 @@ static int analysis_uses_hardware_symbols(const analysis_t *a)
 #define COLOR_SINK_COLUP1 0x02u
 #define COLOR_SINK_OTHER  0x04u
 
+/* Presentation-only table recovery does not carry a mapper configuration for
+ * every merged instruction site.  Never let that lack of state turn a RAM or
+ * coprocessor overlay into apparent ROM graphics.  Returning false here may
+ * lose an optional annotation; returning true for an overlay would invent a
+ * source that the 6507 cannot actually read as ROM.
+ *
+ * Context-sensitive mappers are therefore conservative in windows that can be
+ * RAM in any legal configuration.  The execution/provenance engine can still
+ * recover graphics there when a concrete mapper state proves a ROM source. */
+static int graphics_definite_rom_offset(const analysis_t *a, const bank_t *b,
+                                        uint16_t address, size_t *off)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   split_ram_layout_t ram;
+   if (!cart_target_offset(b, address, off)) return 0;
+   if (a->mapper == MAP_AR) return 0;
+   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x10ffu) return 0;
+   if (native_split_ram_layout(a, &ram) && split_ram_port_contains(&ram, address))
+      return 0;
+   if (dpc_register_address(a, address)) return 0;
+   if (a->mapper == MAP_E7 && bus < 0x1a00u) return 0;
+   if (a->mapper == MAP_3E && bus < 0x1800u) return 0;
+   if (a->mapper == MAP_GL) return 0;
+   if (a->mapper == MAP_CM && bus >= 0x1800u) return 0;
+   return 1;
+}
+
 static unsigned graphics_store_source(const analysis_t *a, size_t bi,
                                       size_t off, unsigned *sink_kind)
 {
@@ -11978,7 +12520,7 @@ static void graphics_collect_pointer_block_seeds(
                (int8_t)a->rom[b->file_offset + branch + 1u]);
       if (target != (uint16_t)(b->origin + (uint16_t)loop)) continue;
       table_addr = read_word(a->rom + b->file_offset + loop + 1u);
-      if (!cart_target_offset(b, table_addr, &table_off) ||
+      if (!graphics_definite_rom_offset(a, b, table_addr, &table_off) ||
           table_off + (size_t)count >= b->size)
          continue;
       zp_base = a->rom[b->file_offset + store + 1u];
@@ -12330,7 +12872,7 @@ static graphics_byte_domain_t graphics_finite_indexed_rom_domain(
    for (i = 0u; i < indices.count; ++i) {
       uint16_t effective = (uint16_t)(operand + indices.value[i]);
       size_t source_off;
-      if (!cart_target_offset(b, effective, &source_off)) {
+      if (!graphics_definite_rom_offset(a, b, effective, &source_off)) {
          out.overflow = 1u;
          out.count = 0u;
          return out;
@@ -12453,7 +12995,7 @@ static graphics_byte_domain_t graphics_finite_operand_domain(
                                               (uint8_t)operand, off);
    }
    if (off < b->size && b->state_seen[off] &&
-       state_read_operand(a, bi, &b->states[off], mode, operand, &value)) {
+       state_read_operand(a, bi, 0u, &b->states[off], mode, operand, &value)) {
       graphics_byte_domain_add(&d, value);
       return d;
    }
@@ -12465,7 +13007,7 @@ static graphics_byte_domain_t graphics_finite_operand_domain(
       return d;
    if (state_riot_ram_alias(effective, &ram_address))
       return graphics_zp_static_domain_before(a, bi, seed, ram_address, off);
-   if (cart_target_offset(b, effective, &source_off))
+   if (graphics_definite_rom_offset(a, b, effective, &source_off))
       graphics_byte_domain_add(&d, a->rom[b->file_offset + source_off]);
    return d;
 }
@@ -12748,7 +13290,7 @@ static void detect_graphics_low_pointer_tables(analysis_t *a, size_t bi)
       if (mode != AM_ABSOLUTE_X && mode != AM_ABSOLUTE_Y) continue;
       table_addr = (uint16_t)(a->rom[b->file_offset + off + 1u] |
                     ((uint16_t)a->rom[b->file_offset + off + 2u] << 8));
-      if (!cart_target_offset(b, table_addr, &table_off)) continue;
+      if (!graphics_definite_rom_offset(a, b, table_addr, &table_off)) continue;
 
       p1 = off + 3u;
       if (p1 >= b->size || !(b->roles[p1] & ROLE_CODE_START) ||
@@ -12795,7 +13337,7 @@ static void detect_graphics_low_pointer_tables(analysis_t *a, size_t bi)
          uint8_t low = a->rom[b->file_offset + table_off + i];
          uint16_t target = (uint16_t)(low | ((uint16_t)high << 8));
          size_t target_off;
-         if (!cart_target_offset(b, target, &target_off)) continue;
+         if (!graphics_definite_rom_offset(a, b, target, &target_off)) continue;
          mark_label(b, target_off);
          mark_graphics_count_sink(b, target_off, stride ? stride : 8u,
                                   pointer_sinks);
@@ -12936,7 +13478,7 @@ static void detect_composite_sprite_groups(
          }
          address = (uint16_t)(((uint16_t)high << 8) |
                               (uint8_t)(first_low + stride * i));
-         if (!cart_target_offset(b, address, &source_off) ||
+         if (!graphics_definite_rom_offset(a, b, address, &source_off) ||
              source_off + stride > b->size) {
             valid = 0;
             break;
@@ -12951,7 +13493,7 @@ static void detect_composite_sprite_groups(
          uint16_t address = (uint16_t)(((uint16_t)high << 8) |
                             (uint8_t)(first_low + stride * i));
          size_t source_off;
-         if (!cart_target_offset(b, address, &source_off)) break;
+         if (!graphics_definite_rom_offset(a, b, address, &source_off)) break;
          mark_label(b, source_off);
          mark_graphics_count_sink(b, source_off, stride,
                                   sinks & GRAPHICS_SINK_SPRITE);
@@ -13413,7 +13955,7 @@ static void detect_graphics_data(analysis_t *a)
           * loop as a whole consumes N rows. */
          if (span.known && (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y)) {
             uint16_t target = (uint16_t)(operand + span.first_index);
-            if (cart_target_offset(b, target, &source_off)) {
+            if (graphics_definite_rom_offset(a, b, target, &source_off)) {
                if (sink_kind & GRAPHICS_SINK_SPRITE)
                   mark_sprite_count(b, source_off, span.count, off, sink_kind);
                else
@@ -13427,7 +13969,7 @@ static void detect_graphics_data(analysis_t *a)
             unsigned pi;
             for (pi = 0u; pi < pointers.count; ++pi) {
                uint16_t target = (uint16_t)(pointers.value[pi] + span.first_index);
-               if (!cart_target_offset(b, target, &source_off)) continue;
+               if (!graphics_definite_rom_offset(a, b, target, &source_off)) continue;
                mark_label(b, source_off);
                if (sink_kind & GRAPHICS_SINK_SPRITE)
                   mark_sprite_count(b, source_off, span.count, off, sink_kind);
@@ -13439,13 +13981,13 @@ static void detect_graphics_data(analysis_t *a)
 
          exact = resolve_effective_address(&b->states[off], mode, operand, &effective);
          if (mode == AM_ABSOLUTE) { exact = 1; effective = operand; }
-         if (exact && cart_target_offset(b, effective, &source_off)) {
+         if (exact && graphics_definite_rom_offset(a, b, effective, &source_off)) {
             b->graphics[source_off] = 1u;
             b->graphics_sink[source_off] |= (uint8_t)sink_kind;
             continue;
          }
          if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
-            if (cart_target_offset(b, operand, &source_off))
+            if (graphics_definite_rom_offset(a, b, operand, &source_off))
                mark_graphics_range_sink(b, source_off, 32u, sink_kind);
          }
          else if (mode == AM_INDIRECT_INDEXED) {
@@ -13457,7 +13999,7 @@ static void detect_graphics_data(analysis_t *a)
                uint16_t target = pointer;
                if (b->states[off].y_known)
                   target = (uint16_t)(pointer + b->states[off].y);
-               if (!cart_target_offset(b, target, &source_off)) continue;
+               if (!graphics_definite_rom_offset(a, b, target, &source_off)) continue;
                mark_label(b, source_off);
                if (b->states[off].y_known) {
                   b->graphics[source_off] = 1u;
@@ -13573,8 +14115,9 @@ static void detect_color_tables(analysis_t *a)
          graphics_span = infer_graphics_index_span(a, bi, off, mode);
          if (!graphics_span.known) continue;
          span = graphics_span.count;
-         if (!cart_target_offset(b, (uint16_t)(operand + graphics_span.first_index),
-                                 &source_off))
+         if (!graphics_definite_rom_offset(
+                a, b, (uint16_t)(operand + graphics_span.first_index),
+                &source_off))
             continue;
          if (span < 3u || span > 32u || source_off + span > b->size) continue;
          if (b->roles[source_off] & (ROLE_CODE_START | ROLE_VECTOR)) continue;
@@ -15282,11 +15825,6 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
       case MAPPER_REJECT_NO_RESET_CODE:
          fprintf(fp, "; no reachable RESET instructions");
          break;
-      case MAPPER_REJECT_SPLIT_RAM_RMW:
-         fprintf(fp, "; %d native split-RAM RMW contradiction%s",
-                 h->split_ram_rmw_conflicts,
-                 h->split_ram_rmw_conflicts == 1 ? "" : "s");
-         break;
       case MAPPER_REJECT_NONE:
          fprintf(fp, "; remains execution-viable but is not the selected presentation");
          break;
@@ -15511,18 +16049,18 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper_overridden)
          fprintf(fp, "; mapper: %s (override; %d decoded hotspot access%s, "
-                     "%d SC write%s, %d SC RMW conflict%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW conflict%s)\n",
+                     "%d SC write%s, %d SC RMW access%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW access%s)\n",
                  mname, a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s",
-                 a->superchip_rmw_conflicts,
-                 a->superchip_rmw_conflicts == 1 ? "" : "s",
+                 a->superchip_rmw_accesses,
+                 a->superchip_rmw_accesses == 1 ? "" : "es",
                  a->superchip_read_refs, a->superchip_read_refs == 1 ? "" : "s",
                  superchip_paired_offsets(a), superchip_paired_offsets(a) == 1u ? "" : "s",
-                 a->split_ram_rmw_conflicts,
-                 a->split_ram_rmw_conflicts == 1 ? "" : "s");
+                 a->split_ram_rmw_accesses,
+                 a->split_ram_rmw_accesses == 1 ? "" : "es");
       else
          fprintf(fp, "; mapper: %s (%s confidence; %d decoded hotspot access%s, "
-                     "%d SC write%s, %d SC RMW conflict%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW conflict%s)\n",
+                     "%d SC write%s, %d SC RMW access%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW access%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
                     (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_FA2 || mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 ||
@@ -15535,12 +16073,12 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s",
-                 a->superchip_rmw_conflicts,
-                 a->superchip_rmw_conflicts == 1 ? "" : "s",
+                 a->superchip_rmw_accesses,
+                 a->superchip_rmw_accesses == 1 ? "" : "es",
                  a->superchip_read_refs, a->superchip_read_refs == 1 ? "" : "s",
                  superchip_paired_offsets(a), superchip_paired_offsets(a) == 1u ? "" : "s",
-                 a->split_ram_rmw_conflicts,
-                 a->split_ram_rmw_conflicts == 1 ? "" : "s");
+                 a->split_ram_rmw_accesses,
+                 a->split_ram_rmw_accesses == 1 ? "" : "es");
    }
    emit_mapper_refinement_evidence(fp, a);
    if (a->container_ambiguous) {
@@ -15611,13 +16149,14 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                (a->mapper == MAP_0FA0 ? "0FA0 hardware default" :
                 (a->mapper == MAP_E0 ? "E0 fixed vector bank" :
                  (a->mapper == MAP_GL ? "GL ROM bank 0 mirrored into all four 1K segments" :
+                 (a->mapper == MAP_CM ? "CM hardware bank 3; RAM disabled" :
                  (a->mapper == MAP_E7 ? "E7 fixed final-2K vector bank; lower ROM bank 0 and RAM block 0 at power-on" :
                  (a->mapper == MAP_3E ? "3E fixed final-2K vector bank; lower ROM bank 0 at power-on" :
                   (a->mapper == MAP_3F ? "3F fixed final-2K vector bank; lower bank 0 at power-on" :
                    (a->mapper == MAP_FE ? "FE deterministic bank 0" :
                     (a->mapper == MAP_FC ? "FC hardware bank 0; pending target 0" :
                      (a->mapper == MAP_F0 ? "F0 hardware bank 15" :
-                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic"))))))))))))))));
+                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic")))))))))))))))));
       if (a->reset_open_bus_brk)
          fprintf(fp, "; reset bootstrap: RESET=$0000 leaves $00 on the data bus; opcode fetch from write-only TIA $0000 returns open-bus $00 (BRK), so startup continues through the IRQ/BRK vector\n");
       for (i = 0; i < a->bank_count; ++i) {

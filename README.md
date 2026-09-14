@@ -60,6 +60,11 @@ The normal build flow is:
 
 ## Building
 
+Building VCSC from source requires a C compiler, a C++ compiler, GNU make,
+Perl, `bison`, and `flex`. Perl is a normal build requirement; generated source
+artifacts are regenerated from their authoritative inputs rather than shipped
+as a partial Perl-free bootstrap set.
+
 Build the tools without running the complete suite:
 
 ```sh

@@ -76,12 +76,12 @@ invoke `vcsc.cmd` directly as shown above.
 ## Building the package
 
 The build host needs the ordinary VCSC build tools (a native C compiler, `make`,
-`bison`, and `flex`), a MinGW-w64 cross C compiler and C++ compiler, matching
+Perl, `bison`, and `flex`), a MinGW-w64 cross C compiler and C++ compiler, matching
 binutils (`strip` and `objdump`), and `zip`. On a 64-bit Void Linux host, the
 additional packages are normally installed with:
 
 ```sh
-sudo xbps-install -S cross-x86_64-w64-mingw32 bison flex zip
+sudo xbps-install -S cross-x86_64-w64-mingw32 bison flex perl zip
 ```
 
 With the default triplet, the cross tools must be available as:

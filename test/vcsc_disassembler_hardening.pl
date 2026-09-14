@@ -94,8 +94,11 @@ if ($ARGV[1] =~ /multicart4\.bin\z/) {
    print "  Bankswitch Type: 4IN1 [G2] (2K)\n";
 } else {
    print "  Cart MD5:        ",md5_hex($rom),"\n";
+   my $sta3f = () = $rom =~ /\x85\x3f/g;
    print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" :
-      ($size == 16384 ? "F6* (F6)" : "4K* (4K)")),"\n";
+      ($size == 8192 ? "F8* (F8)" :
+      ($size == 16384 ? "F6* (F6)" :
+      ($size == 32768 && $sta3f >= 2 ? "3F* (32K)" : "4K* (4K)")))),"\n";
 }
 FAKE_STELLA
 chmod(0755,$fake_stella) or die "chmod $fake_stella: $!\n";
@@ -115,6 +118,22 @@ substr($f8_bank0,4090,6,pack('v3',0xF000,0xF000,0xF000));
 substr($f8_bank1,4090,6,pack('v3',0xF000,0xF000,0xF000));
 my $f8_unique = $f8_bank0 . $f8_bank1;
 write_raw(File::Spec->catfile($stella_in,'dup_f8_16k.bin'),$f8_unique . $f8_unique);
+
+# Exact duplicate storage must be removed *before* asking Stella, not merely
+# normalized after Stella chooses a mapper.  Otherwise one incidental STA $3F
+# in a 16K F6 image becomes two in the doubled 32K wrapper and falsely trips
+# Stella's literal 3F detector.
+my $f6_false3f = '';
+for my $bank (0 .. 3) {
+   my $part = chr(0xEA) x 4096;
+   substr($part,0x80,1,chr(0x20 + $bank));
+   substr($part,0x100,1,"\x60");
+   substr($part,4090,6,pack('v3',0xF100,0xF100,0xF100));
+   $f6_false3f .= $part;
+}
+substr($f6_false3f,0x300,2,"\x85\x3F");
+write_raw(File::Spec->catfile($stella_in,'dup_false3f_32k.bin'),
+   $f6_false3f . $f6_false3f);
 my $multi4 = '';
 for my $game (0 .. 3) {
    my $part = chr(0xEA) x 2048;
@@ -131,10 +150,12 @@ $socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
 $socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
    or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
 $socmp =~ /dup_f8_16k\.bin: mapper vcsc=F8 stella=F8 MATCH\n/
-   or die "Stella mapper comparison did not normalize duplicated 16K F6 storage to VCSC's unique 8K F8 topology:\n$socmp";
+   or die "Stella mapper comparison did not query the unique 8K image behind duplicated 16K storage:\n$socmp";
+$socmp =~ /dup_false3f_32k\.bin: mapper vcsc=F6 stella=F6 MATCH\n/
+   or die "duplicated storage manufactured a false Stella 3F signature instead of comparing the unique 16K image:\n$socmp";
 $socmp =~ /multicart4\.bin: mapper vcsc=4IN1 stella=4IN1 MATCH\n/
    or die "strong 4IN1 structure was not reported as a Stella mapper match:\n$socmp";
-$socmp =~ /Stella mapper comparison: 4 match, 0 mismatch, 0 errors, 0 unresolved, 4 compared\n\z/
+$socmp =~ /Stella mapper comparison: 5 match, 0 mismatch, 0 errors, 0 unresolved, 5 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to

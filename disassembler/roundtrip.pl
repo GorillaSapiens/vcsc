@@ -93,38 +93,45 @@ sub vcsc_mapper_from_source {
     return uc($1);
 }
 
-sub normalize_stella_duplicate_default {
-    my ($mapper, $image) = @_;
-    my %default_for_size = (
-        4096  => '4K',
-        8192  => 'F8',
-        16384 => 'F6',
-        32768 => 'F4',
-        65536 => 'F0',
-    );
+sub reduce_exact_duplicate_storage {
+    my ($image) = @_;
     my $size = length($image);
-    return $mapper if !exists($default_for_size{$size}) ||
-                      $mapper ne $default_for_size{$size};
-
-    # vcsc-disas deliberately strips exact duplicate storage wrappers before
-    # mapper inference.  Stella's default F8/F6/F4/F0 classification is based
-    # on the physical image size, so normalize only those default families when
-    # the larger image is byte-for-byte repeated halves.  Exotic mapper names
-    # are never rewritten by this comparison helper.
-    while ($size > 4096 && ($size % 2) == 0) {
+    while ($size > 1 && ($size % 2) == 0) {
         my $half = int($size / 2);
         last if substr($image, 0, $half) ne substr($image, $half, $half);
         $image = substr($image, 0, $half);
         $size = $half;
     }
-    return exists($default_for_size{$size}) ? $default_for_size{$size} : $mapper;
+    return $image;
 }
+
+my $stella_reduced_serial = 0;
 
 sub stella_mapper_for_rom {
     my ($exe, $path, $expected_md5) = @_;
+    my $physical = slurp_raw($path);
+    my $image = reduce_exact_duplicate_storage($physical);
+    my $query_path = $path;
+    my $reduced_path;
+
+    # VCSC performs mapper inference on the smallest exact repeated-half view.
+    # Ask Stella about that same logical image instead of letting duplicated
+    # storage manufacture mapper signatures (for example one STA $3F becoming
+    # two and falsely satisfying Stella's 3F detector).
+    if (length($image) < length($physical)) {
+        $reduced_path = File::Spec->catfile(
+            $output_dir, sprintf('.stella-reduced-%d-%d.bin', $$, ++$stella_reduced_serial));
+        open(my $rfh, '>:raw', $reduced_path) or die "$reduced_path: $!\n";
+        print {$rfh} $image or die "$reduced_path: write failed: $!\n";
+        close($rfh) or die "$reduced_path: close failed: $!\n";
+        $query_path = $reduced_path;
+        $expected_md5 = md5_hex($image);
+    }
+
     local $ENV{SDL_AUDIODRIVER} = 'dummy' if !defined($ENV{SDL_AUDIODRIVER});
     local $ENV{SDL_VIDEODRIVER} = 'dummy' if !defined($ENV{SDL_VIDEODRIVER});
-    my ($rc, $sig, $stdout, $stderr) = capture_command($exe, '-rominfo', $path);
+    my ($rc, $sig, $stdout, $stderr) = capture_command($exe, '-rominfo', $query_path);
+    unlink($reduced_path) if defined($reduced_path);
     $sig == 0 or die "Stella -rominfo terminated by signal $sig\n";
     $rc == 0 or die "Stella -rominfo failed (status $rc): $stderr";
     my $text = $stdout . $stderr;
@@ -145,9 +152,6 @@ sub stella_mapper_for_rom {
         or die "cannot normalize Stella Bankswitch Type '$reported'\n";
     my $mapper = $1;
     $mapper =~ s/\*+\z//;
-
-    my $image = slurp_raw($path);
-    $mapper = normalize_stella_duplicate_default($mapper, $image);
 
     # Multi-game images are containers, not one CPU-visible mapper.  Stella
     # selects a component before cartridge creation and reports the MD5 of

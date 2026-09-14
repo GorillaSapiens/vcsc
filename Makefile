@@ -212,6 +212,7 @@ windows:
 	@command -v "$(WINDOWS_ZIP)" >/dev/null || { echo "missing zip tool: $(WINDOWS_ZIP)" >&2; exit 1; }
 	@command -v bison >/dev/null || { echo "missing build tool: bison" >&2; exit 1; }
 	@command -v flex >/dev/null || { echo "missing build tool: flex" >&2; exit 1; }
+	@command -v perl >/dev/null || { echo "missing build tool: perl" >&2; exit 1; }
 	rm -rf $(WINDOWS_STAGING) $(WINDOWS_HOST_TOOLS)
 	$(MAKE) --no-print-directory -C ./assembler clean all CC="$(WINDOWS_HOST_CC)" EXEEXT= LDFLAGS=
 	$(MAKE) --no-print-directory -C ./archiver clean all CC="$(WINDOWS_HOST_CC)" EXEEXT= LDFLAGS=
@@ -257,7 +258,6 @@ windows:
 	echo "created $$out"
 	@rm -rf $(WINDOWS_HOST_TOOLS) $(WINDOWS_STAGING)
 	@$(MAKE) --no-print-directory clean
-	@cd compiler && ./coverage.pl > coverage_map.h
 
 linux:
 	@command -v "$(LINUX_CC)" >/dev/null || { echo "missing Linux C compiler: $(LINUX_CC)" >&2; exit 1; }
@@ -267,6 +267,7 @@ linux:
 	@command -v "$(LINUX_TAR)" >/dev/null || { echo "missing tar tool: $(LINUX_TAR)" >&2; exit 1; }
 	@command -v bison >/dev/null || { echo "missing build tool: bison" >&2; exit 1; }
 	@command -v flex >/dev/null || { echo "missing build tool: flex" >&2; exit 1; }
+	@command -v perl >/dev/null || { echo "missing build tool: perl" >&2; exit 1; }
 	rm -rf $(LINUX_STAGING)
 	$(MAKE) --no-print-directory clean
 	$(MAKE) --no-print-directory tools \
@@ -320,7 +321,6 @@ linux:
 	echo "created $$out"
 	@rm -rf $(LINUX_STAGING)
 	@$(MAKE) --no-print-directory clean
-	@cd compiler && ./coverage.pl > coverage_map.h
 
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)

@@ -118,11 +118,12 @@ Open workstreams
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
-   work only. Mapper-hypothesis migration A1-A8, both post-A8 hardening passes,
-   and graphics/provenance G1-G5 are complete. G5 emits `probable 8xN sprite`
-   for proven GRP0/GRP1 spans while preserving overlapping code/data roles and
-   exact round trips; never use `player sprite`. GL real-corpus closeout is next,
-   followed by CM, DPC+, and CDF-family support unless explicitly reprioritized.
+   work only. Mapper-hypothesis A1-A8, hardening, and graphics/provenance G1-G5
+   are complete. Split cartridge-RAM semantics are now hardware-accurate:
+   read-from-write-port destroys backing provenance, write-to-read-port is an
+   ignored legal cycle, and RMW is legal/neutral mapper evidence. Detached-code
+   sink validation is separate from A5 bus legality. CM is modeled; DPC+/CDF
+   remain unsupported/raw. See 2026-09-14 history for the semantic audit.
 
 5. **Zero static initializer placement**
    Mutable all-zero link-time static initializers are emitted directly as
@@ -177,13 +178,16 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-The current post-A8 disassembler tree passes 365/365 e2e and 537/537 compile-only.
-The second supplied Stella-mismatch corpus is 11/11 byte-exact, 8 matches,
-0 mismatches, 3 intentionally unresolved/raw. G5 is closed: focused disassembler,
-opcode, hardening, and deterministic-fuzz regressions pass; the supplied Pitfall
-lineage round-trips byte-exact and expands recovered visual rows from 285 to 538,
-including object-pattern families beyond Harry/digits. GL real-corpus closeout is
-next.
+The current disassembler semantic-audit corpus round-trips 208/208 byte-exact;
+the complete `vcsc_disassembler.pl` assertion tail and hardening suite pass.
+The heavyweight disassembler regression now has an explicit 600-second local
+timeout (measured standalone runtime about 140 seconds); the suite-wide default
+remains 45 seconds. Perl is a required source-build tool, and generated
+`compiler/coverage_map.h` is not a source-distribution bootstrap artifact.
+Split-RAM read/write/RMW behavior and provenance are regression-locked, including
+unknown-index destruction and exclusion of RAM-overlay bytes from static graphics. The intentionally negative
+`speculative_without_reset.bin` diagnostic still fails by design. Broader project
+e2e/compile-only counts below predate this focused disassembler checkpoint.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 

@@ -111,3 +111,47 @@ through to F4. Recognized unsupported DPC+ may emit a byte-preserving zero-code
 source, matching the existing CDF-family quarantine principle. The main
 disassembler regression and disassembler hardening suites pass after these
 changes.
+
+2026-09-13 16:14:53 PDT, mapper residue and CompuMate support
+The 17-ROM mapper residue now round-trips 17/17 with Stella differential results
+of 12 matches, zero mismatches, and five intentional unresolved images. Three
+32K Stella 3E/3F mismatches were exact repeated 16K dumps: duplication doubled
+incidental STA $3F signatures. `roundtrip.pl` now gives Stella the same proven
+smallest exact repeated-half image VCSC analyzes, eliminating those false
+comparisons without changing mapper inference.
+
+CompuMate (CM) is now modeled as four 4K ROM banks selected by SWCHA D1:D0, with
+bank 3 at power-up, D4 controlling the upper 2K RAM overlay, and D5 controlling
+RAM direction. SWCHA state tracks per-bit knowledge, so masked controller-port
+updates can switch banks when the relevant bits are definite even if unrelated
+input bits remain unknown. Synthetic direct and masked-switch tests plus both
+real CM residue images validate the model and exact reconstruction.
+
+A7's detector-conflict guard was restored and applied before weak baseline early
+selection. The partially duplicated 497aa2... and 6af0a3... images therefore
+remain honest unknown/raw results: Stella's static 3E/3F fingerprints exist, but
+those hardware models fail RESET execution and the conventional fallback lacks
+independent mapper evidence. CDF/CDFJ and DPC+ remain explicitly unsupported/raw.
+
+2026-09-13 16:26:12 PDT, fix stale ROM-write A5 regressions
+The unresolved-mapper cleanup correctly made writes to currently ROM-mapped
+cartridge space legal: a 6507 write cycle occurs, but ordinary ROM simply
+ignores it. The regression suite still treated those cycles as "no write sink"
+hard failures. Renamed the synthetic plain-ROM case to `a5_rom_write_ignored`,
+made it require live=1/invalid-bus=0, and removed CV/SC/E7/3E fixtures from the
+all-hypotheses-hard-failure set when a conventional alternative remains viable.
+Forced-mapper runs still pin split-RAM RMW contradictions for CV/E7/3E/etc.
+The focused disassembler suite progressed beyond these assertions with no new
+failure before the local five-minute execution cap; syntax, hygiene, and
+branding checks pass.
+
+2026-09-13 16:44:00 PDT, restore F8/2IN1 ambiguity
+The mapper-residue cleanup accidentally broadened A7 baseline pruning from
+special cartridge mapper hypotheses to every non-baseline hypothesis. That
+silently deleted an evidence-free 2IN1 candidate before the final tie check,
+allowing F8 to win despite zero F8 hotspot/selector evidence. Restored the
+cartridge-only guard: evidence-free special hardware may be pruned, but N-in-1
+container hypotheses remain in comparison. Thus two independently executable
+4K halves remain honestly F8/2IN1 ambiguous and use exact unknown/raw unless
+positive F8 evidence resolves the tie; strong 4IN1+ structure can still win at
+the later container-evidence stage.

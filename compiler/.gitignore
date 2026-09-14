@@ -7,3 +7,4 @@ parser.tab.h
 lex.yy.c
 parser.output
 version.h
+coverage_map.h

@@ -1,4 +1,8 @@
-We’re working on this VCSC tarball. This is a toolchain for a retrocomputing project: a compiler, assembler/linker support, and disassembler for the 1970s-era Atari 2600 game console.
+VCSC is a compiler, assembler/linker, simulator, and disassembler for the Atari 2600 and its 6507 processor.
+
+Unless otherwise stated, numeric addresses and memory reads/writes in the compiler, simulator, and disassembler refer to the simulated Atari 2600 address space and cartridge hardware.
+
+The disassembler may speculatively execute 6507 code and fork execution state when branch conditions are unknown. This is used to identify executable code, data, and cartridge mapper behavior.
 
 Unpack it and first read `.../README.md`, then read all of `.../context.txt` once. Do not reread `context.txt` wholesale on later turns unless it materially changed. Read another `.../*.txt` file only when the current task actually needs that workstream. Never read `.../context-history/` wholesale; search/open only the specific date needed for an older decision, regression, measurement, or discarded approach. The `.deb` files are there in case you need them to build or test in your container.
 
