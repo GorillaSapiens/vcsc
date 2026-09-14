@@ -9,11 +9,14 @@
 
 # Heart score
 
-This 2K example instantiates `heart_score_component.c26` as a fixed-footprint
-0..11 health meter. Eleven eight-pixel hearts are centered across the screen at
+This 4K example instantiates `heart_score_component.c26` as a fixed-footprint
+0..11.5 health meter. Eleven eight-pixel hearts are centered across the screen at
 a 12-pixel pitch. Smaller values are exact left-justified prefixes, so changing
 health never moves an already-visible heart.
 
-The example advances from zero through eleven full hearts every 30 frames and
-then wraps to zero. The component consumes seven visible scanlines; its setup
-and self-modifying renderer execute from ordinary 128-byte RIOT RAM.
+The example advances in half-heart steps from zero through eleven-and-a-half
+hearts every 30 frames and then wraps to zero. The component consumes seven visible scanlines. Its twelve
+prepatched renderer variants execute directly from ROM; the component itself
+uses only eight bytes of RIOT RAM, including public score, half-state, and color bytes.
+A zero-full-heart half state is a single P0 half-heart sprite; later half states
+use Ball plus M0 while leaving every full-heart position unchanged.

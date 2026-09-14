@@ -29,7 +29,7 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(test fixtures heart_score golden.c26));
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
-my @wanted=(
+my @wanted_full=(
 '320 x 228 886f3e370499d568119b2e5958a2b778abbc45cda3e050ecd5f4051cab830ec6',
 '320 x 228 5720092920966b0bbcaf357f7981e8192f3724c652551c6a8e796e444334bf02',
 '320 x 228 5fa062f652de8b43875a1f15b1105f31ba5ab269da3907fe0780d385c55f2896',
@@ -43,6 +43,20 @@ my @wanted=(
 '320 x 228 906203811de9cc3a39ae0e68a8acf5b1fbb3fd5e8384a7955917c3aec3886c5f',
 '320 x 228 8f6a51ac3e0df1b1683758cbfe7dcf13c965b2ce6565bc864734cf132f501eac',
 );
+my @wanted_half=(
+'320 x 228 e8dd104f65263ec394fbb4b8c243ba036fc88547d6859980603bca1bf3a41223',
+'320 x 228 c418c932835ad430772356b1bc83354741c227a9158a917f11d7301320a61c62',
+'320 x 228 e4b93cd9165bc0e02145e043945ecbe223dbe04f46cff0b50c30a92cb51236c0',
+'320 x 228 a2386a163f8f4ba05f3a08a8bceb8bd9fbb59c0aa13ba1cd4a5565c08c9340d9',
+'320 x 228 ce204045fede13027e12a84e8943bff16cbccaef4595cda3a31aae6dba032765',
+'320 x 228 908620e4c91053fa8e1a299d823ac29f3764d60747efce79c544c659fe9dc901',
+'320 x 228 6ec431ab8b8071d50ce3551a0f14a35822ea2e869d1b460b78d8c6c9e0358278',
+'320 x 228 2d918001521fe1ce886bc04b43aa24ad62c2b921c8fd4b1a5a02f5cc1acc3e19',
+'320 x 228 f8c31bd3d0b2603f2258b4570d5ef245d38d94b5ef4487d8536124d28c597ddd',
+'320 x 228 91ee013c2cae2beaf9758e4805998592070eb26dac15f01347b9e2923d4ed7df',
+'320 x 228 e044082b57bc4b7d66b315c170668aea3efb477f59d8e2cb1689bab0bad679be',
+'320 x 228 44f304e95c48a28a86183294d73eed6c4d01b87a2647d3c6681bb8271a3d072d',
+);
 
 my $display=180+($$%50); $display++ while -e "/tmp/.X11-unix/X$display";
 my $d=":$display";
@@ -52,21 +66,25 @@ select undef,undef,undef,.2;
 local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user);
 
-for my $score (0..11) {
-   my $rom=File::Spec->catfile($tmp,"heart_score_$score.bin");
-   ok("build heart score $score",$driver,'-I',$vcs,"-DHEART_SCORE=$score",$source,'-o',$rom);
-   unlink glob("$snap/*.png");
-   my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-      '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
-      '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
-   my $pid=fork(); defined$pid or die "fork Stella\n";
-   if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_$score.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-   ok("snapshot heart score $score",$perl,$keys);
-   my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
-   terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for score $score\n";
-   my($actual,$ae)=ok("digest heart score $score",$perl,$digest,$png[0]);
-   $ae eq '' or die $ae; chomp $actual;
-   $actual eq $wanted[$score] or die "heart score $score raster differs: actual=$actual wanted=$wanted[$score]\n";
+for my $half (0,1) {
+   my $wanted=$half ? \@wanted_half : \@wanted_full;
+   for my $score (0..11) {
+      my $label=$half ? "$score.5" : "$score";
+      my $rom=File::Spec->catfile($tmp,"heart_score_${score}_${half}.bin");
+      ok("build heart score $label",$driver,'-I',$vcs,"-DHEART_SCORE=$score","-DHEART_HALF=$half",$source,'-o',$rom);
+      unlink glob("$snap/*.png");
+      my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+         '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+         '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+      my $pid=fork(); defined$pid or die "fork Stella\n";
+      if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${score}_${half}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+      ok("snapshot heart score $label",$perl,$keys,'--fast');
+      my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+      terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for score $label\n";
+      my($actual,$ae)=ok("digest heart score $label",$perl,$digest,$png[0]);
+      $ae eq '' or die $ae; chomp $actual;
+      $actual eq $wanted->[$score] or die "heart score $label raster differs: actual=$actual wanted=$wanted->[$score]\n";
+   }
 }
 terminate($xpid);
 print "vcs_heart_score_stella ok\n";

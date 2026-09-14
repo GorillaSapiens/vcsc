@@ -3,30 +3,38 @@ HEART SCORE COMPONENT
 
 Stable state
 ------------
-`libraries/vcs/heart_score_component.c26` is the maintained 0..11 full-heart
-component. Thomas Jentzsch's supplied 11-Invaders binary remains the hardware
-oracle: the component copies a 45-byte renderer to RIOT RAM, patches enabled
-logical RESP slots versus equal-cycle reads, and uses centered setup index 5.
+`libraries/vcs/heart_score_component.c26` is the maintained fixed-footprint
+0..11.5-heart component. `score` is the full-heart count (clamped at 11),
+`half` adds the right half of the next slot, and `color` selects the heart color.
+The 11 full slots are fixed at TIA X=16,28,...,136; smaller values are exact
+left prefixes and never move an already-visible heart.
 
-Eleven hearts define the fixed footprint. Smaller values are exact left-prefixes
-at the same positions; values above 11 clamp to 11. The singleton P0 path needs
-one extra VBLANK HMOVE correction, and P0 must be zero-motion while a following
-P1 singleton setup HMOVE runs. Do not remove either correction as an apparent
-cleanup: Stella 7.0 all-count coverage locks scores 0..11 pixel-for-pixel.
+All 24 visible states execute from hard-page ROM renderers. The 12 full-heart
+renderers are the exact 45-byte prepatched Jentzsch streams. `0.5` is a single
+P0 right-half sprite at slot zero. `1.5` through `11.5` use Ball plus M0: Ball
+supplies the variable-width left edge of the right half and M0 supplies its
+fixed two-clock strip. From three full hearts onward M0's first repeated copy is
+buried entirely inside lit pixels of the preceding full heart and its second
+copy forms the new half heart.
 
-The component consumes seven visible scanlines and 58 bytes of instance RIOT
-RAM. The public 2K example is `examples/01_basic/14_heart_score/`.
+Ball/M0 positioning uses the maintained divide-by-15 RESP/HMxx algorithm at its
+correct WSYNC phase: the score clamp/table lookup occurs before WSYNC, then the
+post-WSYNC sequence matches the standard positioner. Do not move that lookup
+back after WSYNC; doing so reintroduces coarse-position discontinuities.
+
+One instance uses 8 RIOT-RAM bytes total: public `score`, `half`, and `color`, a
+two-byte ROM-renderer pointer, and three cached TIA setup bytes. It consumes 7
+visible scanlines. Full 0..11 Stella hashes are unchanged from the full-heart
+ROM implementation. Independent pixel-oracle validation proves each half state
+is exactly N full hearts plus the 32-pixel right half of the next slot, with no
+stray M0/Ball pixels.
+
+Half states use M0, Ball, `COLUPF`, and the Ball-width bits of `CTRLPF`; M0 and
+Ball are disabled on return but their horizontal geometry is not restored. A
+following gameplay renderer that owns those objects must reposition them.
 
 Next work
 ---------
-Replace the 45-byte self-modifying RIOT-RAM renderer with ROM-resident kernel
-variants while preserving the certified 0..11 full-heart footprint and timing.
-The goal is to trade ROM for scarce RIOT RAM rather than carrying executable
-code in the 128-byte RAM.
-
-Then add half-heart states without changing the full-heart positions. The
-preferred design is to synthesize the final half heart with M0/M1, using
-per-scanline missile enable/width/position as needed; do not add a separate
-player-graphics renderer merely for the half heart. Account for the fact that
-NUSIZ0/NUSIZ1 also affect missile copies. A natural public score representation
-is half-heart units 0..23 for 0 through 11.5 hearts.
+No heart-renderer implementation work is currently open. Keep the 24-state
+Stella regression and the 8-byte RAM/resource contract intact during unrelated
+changes.

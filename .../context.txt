@@ -133,10 +133,10 @@ Open workstreams
    semantics. Regression tests own the detailed placement/footprint expectations.
 
 6. **Heart score component**
-   `libraries/vcs/heart_score_component.c26` is complete for 0..11 full hearts.
-   Stella 7.0 locks every value as an exact prefix of the centered 11-heart
-   footprint. Read `.../heart_score.txt` only for its compact invariants or if
-   resuming the optional future half-heart enhancement.
+   `libraries/vcs/heart_score_component.c26` is complete for 0..11.5 hearts.
+   Twenty-four ROM renderers preserve the fixed 12-pixel-pitch footprint using
+   only 8 RIOT-RAM bytes; full-state Stella hashes remain unchanged and every
+   half state is pixel-validated. Read `.../heart_score.txt` for invariants.
 
 Startup selection
 -----------------

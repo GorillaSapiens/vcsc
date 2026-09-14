@@ -1,8 +1,8 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Fixed-footprint Zelda-style 0..11 heart meter.
+// Fixed-footprint Zelda-style 0..11.5 heart meter.
 
-include "2K/mapper.c26"
+include "4K/mapper.c26"
 include "frame_ntsc.c26"
 
 alias BACKGROUND_COLOR 0x84
@@ -23,6 +23,7 @@ void main(void) {
    VBLANK := 2;
 
    health_score := 0;
+   health_half := 0;
    health_color := HEART_COLOR;
    health_init();
 
@@ -41,8 +42,14 @@ void main(void) {
       frame_counter++;
       if (frame_counter == SCORE_PERIOD) {
          frame_counter := 0;
-         if (health_score == 11) { health_score := 0; }
-         else { health_score++; }
+         if (health_half) {
+            health_half := 0;
+            if (health_score == 11) { health_score := 0; }
+            else { health_score++; }
+         }
+         else {
+            health_half := 1;
+         }
       }
       health_overscan();
       vcs_ntsc_end_overscan();

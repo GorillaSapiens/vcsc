@@ -152,9 +152,11 @@ sub key_event {
 }
 
 my $reset=0;
+my $fast=0;
 for my $arg (@ARGV) {
    if ($arg eq '--reset') { $reset=1; }
-   else { die "usage: $0 [--reset]\n"; }
+   elsif ($arg eq '--fast') { $fast=1; }
+   else { die "usage: $0 [--reset] [--fast]\n"; }
 }
 
 my($x,$root)=x_connect();
@@ -165,14 +167,16 @@ for (1..100) {
    sleep(0.05);
 }
 defined($window) or die "no mapped Stella window appeared\n";
-my $f12=function_keycode('F12');
-my $f2=$reset ? function_keycode('F2') : undef;
+# The heart raster test owns a fresh stock Xvfb; --fast avoids spawning
+# xkbcomp for every capture by using its standard F2/F12 core keycodes.
+my $f12=$fast ? 96 : function_keycode('F12');
+my $f2=$reset ? ($fast ? 68 : function_keycode('F2')) : undef;
 
 # SetInputFocus: RevertToParent=2, CurrentTime=0.
 send_request($x,42,2,pack('VV',$window,0),0);
 # Complete-matrix bank diagnostics can execute for several video frames
 # before settling on their PASS/FAIL display, especially in F4/F4SC.
-sleep(1.00);
+sleep($fast ? 0.10 : 1.00);
 if ($reset) {
    for my $type (2,3) { # KeyPress, KeyRelease
       my $event=key_event($type,$f2,$root,$window);
@@ -190,4 +194,4 @@ for my $type (2,3) { # KeyPress, KeyRelease
    my $event=key_event($type,$f12,$root,$window);
    send_request($x,25,1,pack('VV',$window,0).$event,0);
 }
-sleep(0.35);
+sleep($fast ? 0.15 : 0.35);

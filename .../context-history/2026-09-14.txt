@@ -60,3 +60,39 @@ run completed successfully in 139.54 seconds, so the test now declares a
 600-second test-local timeout. The global 45-second default is unchanged; the
 larger ceiling is intentionally isolated to this heavyweight integration test
 so parallel-suite CPU contention does not create false timeouts.
+
+2026-09-14 11:17:27 PDT, finish ROM and half-heart score renderer
+Replaced the 58-byte self-modifying RIOT-RAM heart renderer with hard-page ROM
+renderers and reduced one component instance to 8 RIOT-RAM bytes. The twelve
+full-heart renderers preserve the certified 0..11 footprint and their existing
+Stella hashes. Added `half` state support through 11.5 hearts: 0.5 uses one P0
+right-half sprite, while 1.5..11.5 use Ball plus M0 without moving any full heart.
+
+Corrected the overlay positioner root cause rather than carrying score-specific
+phase hacks. Ball/M0 table lookup and clamping now happen before WSYNC so the
+post-WSYNC divide-by-15 RESP/HMxx sequence has the same beam phase as the
+maintained standard positioner. Independent pixel-oracle checks prove all twelve
+half states are exactly N full hearts plus the right half of the next slot, with
+no stray Ball/M0 pixels. Full-state hashes remain unchanged.
+
+Moved the public heart example to 4K and made it cycle through half-heart steps.
+The example currently links at 2540 ROM bytes and 20 total RAM bytes, of which 8
+belong to the heart component. Extended structural and Stella regressions to all
+24 states and added a fast private-Xvfb snapshot path so the 24-launch visual
+certification does not repeatedly invoke xkbcomp. Focused structural and public-example builds pass, the final Stella run passes all 24 states, and branding, source-tree hygiene, context-history format, and Perl syntax checks pass.
+
+2026-09-14 12:03:42 PDT, stabilize example-shard timeout budget
+The 0..11.5 heart example inserted early in the sorted editable-example list and
+therefore rotated every later `index % 8` round-robin assignment by one shard.
+That moved the previously heavyweight shard-1 mapper/diagnostic workload into
+shard 2, but only shard 1 had a 180-second ceiling; shards 2..8 still used 90
+seconds. A complete user suite consequently passed 365/366 with shard 2 timing
+out despite no build or round-trip failure.
+
+Kept the existing eight-way round-robin parallelism and made all eight shard
+descriptors use the same 180-second ceiling. This is intentionally uniform:
+future example insertion/removal may rotate the heavy group to any shard number.
+Documented that contract in test/README.md and made source_tree_hygiene.pl lock
+the uniform ceiling. On the current tree shard 2 completes 14/106 editable
+examples plus byte-exact disassembler round trips in about 38 seconds in the
+container; the focused test-runner shard and source-tree hygiene both pass.

@@ -4,10 +4,12 @@ include "frame_ntsc.c26"
 
 instantiate "heart_score_component.c26" as health
 
+
 void main(void) {
    VBLANK := 2;
    COLUBK := 0x84;
    health_score := HEART_SCORE;
+   health_half := HEART_HALF;
    health_color := 0x46;
    health_init();
    while (1) {

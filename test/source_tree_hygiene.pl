@@ -587,6 +587,8 @@ for my $i (1..8) {
    my $body=slurp($path);
    index($body,"--shard $i/8")>=0
       or die "examples-build shard $i/8 has the wrong runner\n";
+   index($body,'# timeout: 180')>=0
+      or die "examples-build shard $i/8 lost the uniform 180-second ceiling\n";
 }
 my @score_shards=(
    ['player_color_181',1],
