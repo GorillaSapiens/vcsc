@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Authoritative Stella 7.0 raster certification for the heart-score component.
+# Authoritative Stella 7.0 raster certification for the 0..11 heart-score component.
 # This is an explicit Stella target rather than a default e2e dependency so the
 # normal suite remains runnable on hosts without Stella/Xvfb.
 
@@ -44,18 +44,18 @@ my @wanted_full=(
 '320 x 228 8f6a51ac3e0df1b1683758cbfe7dcf13c965b2ce6565bc864734cf132f501eac',
 );
 my @wanted_half=(
-'320 x 228 e8dd104f65263ec394fbb4b8c243ba036fc88547d6859980603bca1bf3a41223',
-'320 x 228 c418c932835ad430772356b1bc83354741c227a9158a917f11d7301320a61c62',
-'320 x 228 e4b93cd9165bc0e02145e043945ecbe223dbe04f46cff0b50c30a92cb51236c0',
-'320 x 228 a2386a163f8f4ba05f3a08a8bceb8bd9fbb59c0aa13ba1cd4a5565c08c9340d9',
-'320 x 228 ce204045fede13027e12a84e8943bff16cbccaef4595cda3a31aae6dba032765',
-'320 x 228 908620e4c91053fa8e1a299d823ac29f3764d60747efce79c544c659fe9dc901',
-'320 x 228 6ec431ab8b8071d50ce3551a0f14a35822ea2e869d1b460b78d8c6c9e0358278',
-'320 x 228 2d918001521fe1ce886bc04b43aa24ad62c2b921c8fd4b1a5a02f5cc1acc3e19',
-'320 x 228 f8c31bd3d0b2603f2258b4570d5ef245d38d94b5ef4487d8536124d28c597ddd',
-'320 x 228 91ee013c2cae2beaf9758e4805998592070eb26dac15f01347b9e2923d4ed7df',
-'320 x 228 e044082b57bc4b7d66b315c170668aea3efb477f59d8e2cb1689bab0bad679be',
-'320 x 228 44f304e95c48a28a86183294d73eed6c4d01b87a2647d3c6681bb8271a3d072d',
+'320 x 228 b10182e48eca7d97d8f42cccaf46b97be080eba511f69b2766fb34265b6f046d',
+'320 x 228 6d5a17fcafeb39cea2da9f7291be02c706e51363d97aa17ef48d629c4010cb8d',
+'320 x 228 e4500ca971b8ed323609013cca2b4d42ada83512ebd976dbbab6a1d04fa960b4',
+'320 x 228 3526eec635bc924451c891215886fb352c4d64da72ca23a8df65307d9065e1b7',
+'320 x 228 d1200de65fe09bf2295bb75ed9abbfac218dc6d76aad80ad5b7aa502e56cb11a',
+'320 x 228 62a828766ef7260961fdc0afd07273891f0dfa11cced7a96b54e0e2a01464d45',
+'320 x 228 b8e8ef7ed4d70e613523987933d37a990133161da7d3e7a30f4561df4cb1fdbf',
+'320 x 228 0e7dd85d818be161a1e0c318df241dc4ceb2e17f70cc4bdfa286c4ac8de2304f',
+'320 x 228 f339284c0ad2ab05bf1912d03d115f58a4b278145e48372254581a8a1eee68e1',
+'320 x 228 f66e0f4904d9ae5ec9dbf33b4f532dfca5bc0c3ef25410e14b626786ada46f67',
+'320 x 228 61acf0d5927fda0bcd2cb29353ce9a9a75a9a47d22751736d4ce27c92323bbb3',
+'320 x 228 8f6a51ac3e0df1b1683758cbfe7dcf13c965b2ce6565bc864734cf132f501eac',
 );
 
 my $display=180+($$%50); $display++ while -e "/tmp/.X11-unix/X$display";
@@ -69,7 +69,7 @@ my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'
 for my $half (0,1) {
    my $wanted=$half ? \@wanted_half : \@wanted_full;
    for my $score (0..11) {
-      my $label=$half ? "$score.5" : "$score";
+      my $label=$half ? ($score == 11 ? "11+half(max)" : "$score.5") : "$score";
       my $rom=File::Spec->catfile($tmp,"heart_score_${score}_${half}.bin");
       ok("build heart score $label",$driver,'-I',$vcs,"-DHEART_SCORE=$score","-DHEART_HALF=$half",$source,'-o',$rom);
       unlink glob("$snap/*.png");

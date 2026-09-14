@@ -45,9 +45,13 @@ $source =~ /recommend\s+uint8_t\s+TEMPLATE_half\s*:=\s*0/ or die "heart half-sta
 for my $score (0..11) {
    $source =~ /page\s+static\s+void\s+TEMPLATE_renderer_\Q$score\E\s*\(/
       or die "heart ROM renderer $score is missing or not page-contained\n";
+}
+for my $score (0..9,11) {
    $source =~ /page\s+static\s+void\s+TEMPLATE_half_renderer_\Q$score\E\s*\(/
       or die "heart half ROM renderer $score is missing or not page-contained\n";
 }
+$source =~ /static\s+void\s+TEMPLATE_half_renderer_10\s*\(/
+   or die "unrolled 10.5-heart renderer is missing\n";
 $source =~ /\.byte\s+\$[0-9a-fA-F]{2},\$2d/
    or die "centered Jentzsch setup-5 operand patch is missing\n";
 $source =~ /TEMPLATE_score == 10.*?return;.*?lda #<TEMPLATE_renderer_11/s
@@ -58,20 +62,16 @@ $source =~ /TEMPLATE_score == 2 \|\| TEMPLATE_score == 3.*?TEMPLATE_position_sin
    or die "P1 singleton fixed-footprint path changed\n";
 $source =~ /Single-copy NUSIZ places P0 two TIA pixels left.*?lda #\$a0;.*?sta HMP0;.*?lda #0;.*?sta HMP0;/s
    or die "P0 singleton fixed-footprint correction changed\n";
-$source =~ /TEMPLATE_half_heart\[7\].*?0x08,0x0c,0x0e,0x0f,0x0f,0x06/s
-   or die "half-heart player glyph changed\n";
-$source =~ /TEMPLATE_half_ball\[7\].*?0x02,0x12,0x12,0x22,0x22,0x00/s
-   or die "half-heart Ball control table changed\n";
-$source =~ /TEMPLATE_half_m0_x\[12\].*?28,40,52,48,60,72,84,96,108,120,132,144/s
-   or die "half-heart repeated-M0 hiding geometry changed\n";
-$source =~ /TEMPLATE_half_ball_x\[12\].*?27,39,51,63,75,87,99,111,123,135,147,159/s
-   or die "half-heart Ball geometry changed\n";
-$source =~ /lda\.ay TEMPLATE_half_m0_x,y;.*?sta WSYNC;.*?ldx #2;.*?bit\.z CXM0P;.*?nop;.*?sec;/s
-   or die "M0 positioner no longer resolves coordinates before WSYNC\n";
-$source =~ /lda\.ay TEMPLATE_half_ball_x,y;.*?sta WSYNC;.*?ldx #4;.*?bit\.z CXM0P;.*?nop;.*?sec;/s
-   or die "Ball positioner no longer resolves coordinates before WSYNC\n";
-$source =~ /TEMPLATE_reposition\[16\].*?0x70,0x60,0x50,0x40,0x30,0x20,0x10,0x00.*?0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80/s
-   or die "half-heart standard fine-motion table changed\n";
+$source =~ /TEMPLATE_half_heart\[7\].*?0x10,0x30,0x70,0xf0,0xf0,0x60/s
+   or die "left-half player glyph changed\n";
+$source =~ /\.byte\s+\$87,\$1c/ && $source =~ /\.byte\s+\$8f,\$(?:1b|1c),\$00/
+   or die "left-half SAX player writes changed\n";
+$source =~ /ldx #\$f0;.*?bne\.same \@TEMPLATE_dispatch_x_ready.*?ldx #0;.*?\@TEMPLATE_dispatch_x_ready/s
+   or die "half/full dispatcher X-mask balance changed\n";
+$source !~ /TEMPLATE_half_ball|TEMPLATE_half_m0|TEMPLATE_position_half_overlay/
+   or die "obsolete Ball/M0 half-heart overlay returned\n";
+$source =~ /State 11 deliberately draws the ordinary 11-heart maximum/
+   or die "11-heart half clamp contract is missing\n";
 
 my $bin=File::Spec->catfile($tmp,'heart_score.bin');
 my $map=File::Spec->catfile($tmp,'heart_score.map');
@@ -90,9 +90,14 @@ $mt !~ /RODATA\.__vcsc_object\$health_renderer_template\b/
 for my $score (0..11) {
    $mt =~ /^\s+CODE\.__vcsc_function\$health_renderer_\Q$score\E\s+load=\$[0-9A-Fa-f]+\s+size=\$002D\s+page=hard$/m
       or die "heart ROM renderer $score is not an exact 45-byte hard-page function\n";
-   my $half_size=$score==0 ? '002D' : '002E';
-   $mt =~ /^\s+CODE\.__vcsc_function\$health_half_renderer_\Q$score\E\s+load=\$[0-9A-Fa-f]+\s+size=\$\Q$half_size\E\s+page=hard$/m
-      or die "heart half ROM renderer $score has wrong size/page contract\n";
 }
+$mt =~ /^\s+CODE\.__vcsc_function\$health_half_renderer_0\s+load=\$[0-9A-Fa-f]+\s+size=\$002D\s+page=hard$/m
+   or die "0.5-heart renderer footprint changed\n";
+for my $score (1..9,11) {
+   $mt =~ /^\s+CODE\.__vcsc_function\$health_half_renderer_\Q$score\E\s+load=\$[0-9A-Fa-f]+\s+size=\$0037\s+page=hard$/m
+      or die "heart half ROM renderer $score footprint changed\n";
+}
+$mt =~ /^\s+CODE\.__vcsc_function\$health_half_renderer_10\s+load=\$[0-9A-Fa-f]+\s+size=\$0145\s+page=crossing$/m
+   or die "unrolled 10.5-heart renderer footprint changed\n";
 
 print "vcs_heart_score ok\n";

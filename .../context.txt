@@ -133,10 +133,10 @@ Open workstreams
    semantics. Regression tests own the detailed placement/footprint expectations.
 
 6. **Heart score component**
-   `libraries/vcs/heart_score_component.c26` is complete for 0..11.5 hearts.
-   Twenty-four ROM renderers preserve the fixed 12-pixel-pitch footprint using
-   only 8 RIOT-RAM bytes; full-state Stella hashes remain unchanged and every
-   half state is pixel-validated. Read `.../heart_score.txt` for invariants.
+   `libraries/vcs/heart_score_component.c26` is complete for 0..11 hearts with
+   half steps through 10.5. Player-only left-half renderers preserve the fixed
+   12-pixel-pitch footprint using 8 RIOT-RAM bytes; score 11 ignores `half`.
+   Full-state hashes are unchanged. Read `.../heart_score.txt` for invariants.
 
 Startup selection
 -----------------

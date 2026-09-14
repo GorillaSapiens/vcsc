@@ -1,22 +1,22 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
-// Reusable fixed-footprint 0..11.5 heart score component.
+// Reusable fixed-footprint 0..11 heart score component with half-heart steps.
 //
 // Thomas Jentzsch's 11-Invaders renderer is used as the hardware oracle.  The
 // twelve score-specific renderer variants live entirely in cartridge ROM.
 // They preserve the original instruction schedule while replacing the old
 // self-modifying 45-byte RIOT-RAM copy with prepatched ROM instructions.
 // Eleven hearts define one centered footprint; smaller scores are exact
-// left-justified prefixes of that same footprint.  TEMPLATE_half adds the right
-// half of the next heart without changing any certified full-heart geometry.
+// left-justified prefixes of that same footprint. TEMPLATE_half adds the left
+// half of the next heart through 10.5; at the 11-heart maximum it is ignored.
 //
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
 // VBLANK clear.  It consumes seven scanlines and returns at cycle zero after
 // its terminal WSYNC.  It owns P0/P1 graphics, color, reflection, VDEL, NUSIZ,
-// horizontal motion, RESP0/RESP1, and HMOVE while drawing.  Half states above
-// zero also own M0, Ball, CTRLPF Ball-width bits, and COLUPF; M0/Ball are left
-// disabled on return and callers that use them for gameplay must reposition
-// them after the score.  Setup HMOVEs neutralize unrelated objects first.
+// horizontal motion, RESP0/RESP1, and HMOVE while drawing. Half-heart pixels
+// use the same two players only; they do not consume M0/Ball, CTRLPF, or COLUPF.
+// VBLANK setup still neutralizes missile/Ball motion before global HMOVEs, and
+// terminal cleanup leaves M0 and Ball disabled.
 // It does not touch playfield graphics, VSYNC, VBLANK, RIOT timer, audio, or
 // collision latches. A/X/Y and arithmetic flags are clobbered; hardware stack
 // depth is unchanged at lifecycle boundaries.
@@ -45,8 +45,6 @@ recommend uint8_t TEMPLATE_half :=0;
 
 // Private RIOT-RAM state: selected ROM renderer plus the three score-dependent
 // TIA values needed by the fixed-cycle draw setup. HMP1 is always $80.
-// TEMPLATE_nusiz1 bit 7 is deliberately used as an internal half-overlay
-// marker: NUSIZ1 ignores it, while HMM0/HMBL consume its $80 high nibble.
 uint16_t TEMPLATE_renderer_ptr;
 uint8_t TEMPLATE_nusiz0;
 uint8_t TEMPLATE_nusiz1;
@@ -56,23 +54,9 @@ uint8_t TEMPLATE_final_hmp0;
 // guarantees absolute,Y loads stay four cycles for every glyph row.
 page const uint8_t TEMPLATE_heart[7] := {0,0x18,0x3c,0x7e,0xff,0xff,0x66};
 page const uint8_t TEMPLATE_blank[7] := {0,0,0,0,0,0,0};
-page const uint8_t TEMPLATE_half_heart[7] := {0,0x08,0x0c,0x0e,0x0f,0x0f,0x06};
-// Ball supplies columns 4..7 of the half heart; M0 supplies the fixed columns
-// 5..6 strip on rows 3..6. ENABL consumes bit 1 while CTRLPF consumes bits 4..5.
-page const uint8_t TEMPLATE_half_ball[7] := {0,0x02,0x12,0x12,0x22,0x22,0x00};
-// Standard-positioner inputs for the right half of the next 12-pixel slot.
-// Ball begins at column 4.  M0 is two clocks wide at columns 5..6.  Scores 1
-// and 2 use one M0 copy; from score 3 onward copy mode 1 puts the first M0
-// copy inside lit pixels of the preceding full heart and the second at the
-// half-heart position.  The +7 Ball / +7 M0 input biases compensate the
-// maintained RESP/HMxx positioner's object origins at this exact WSYNC phase.
-page const uint8_t TEMPLATE_half_ball_x[12] := {27,39,51,63,75,87,99,111,123,135,147,159};
-page const uint8_t TEMPLATE_half_m0_x[12] := {28,40,52,48,60,72,84,96,108,120,132,144};
-// Standard divide-by-15 fine-motion lookup, indexed by negative remainder.
-page const uint8_t TEMPLATE_reposition[16] := {
-   0x70,0x60,0x50,0x40,0x30,0x20,0x10,0x00,
-   0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
-};
+// High nibble of the normal heart glyph. The TIA shifts player graphics from
+// bit 7 toward bit 0, so this is the visible left half of the next heart.
+page const uint8_t TEMPLATE_half_heart[7] := {0,0x10,0x30,0x70,0xf0,0xf0,0x60};
 
 // These are byte-for-byte instruction-schedule equivalents of the patched
 // RAM renderer for scores 0..11.  Enabled logical RESP slots are stores;
@@ -390,9 +374,11 @@ page static void TEMPLATE_renderer_11(void) {
    asm bne.same @TEMPLATE_renderer_11_loop;
 }
 
-// Half-heart ROM renderers.  State 0 is deliberately trivial: one P0 half
-// sprite at slot zero.  States 1..11 retain the full-heart prefix and synthesize
-// the next right half with Ball + M0 without changing the 76-cycle row schedule.
+// Half-heart ROM renderers. State 0 is deliberately trivial: one P0 left-half
+// sprite at slot zero. States 1..9 preserve the full-heart prefix and use the
+// stable SAX opcode to write A&$F0 into the next P0/P1 copy on each row. State
+// 10 is unrolled because its Jentzsch row has no four-cycle slot left for SAX.
+// State 11 deliberately draws the ordinary 11-heart maximum: there is no 11.5.
 
 page static void TEMPLATE_half_renderer_0(void) {
    asm @TEMPLATE_half_renderer_0_loop:;
@@ -425,23 +411,23 @@ page static void TEMPLATE_half_renderer_1(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $24,$10;
-   asm sta ENAM0;
+   asm .byte $24,$2d;
    asm .byte $85,$1b;
-   asm .byte $24,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm .byte $87,$1c;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_1_loop;
 }
@@ -450,24 +436,24 @@ page static void TEMPLATE_half_renderer_2(void) {
    asm @TEMPLATE_half_renderer_2_loop:;
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
-   asm .byte $24,$10;
-   asm sta ENAM0;
+   asm .byte $85,$10;
+   asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $2c,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8f,$1b,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_2_loop;
 }
@@ -477,23 +463,23 @@ page static void TEMPLATE_half_renderer_3(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $b5,$11;
-   asm .byte $95,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8f,$1c,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_3_loop;
 }
@@ -503,23 +489,23 @@ page static void TEMPLATE_half_renderer_4(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8f,$1b,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_4_loop;
 }
@@ -529,23 +515,23 @@ page static void TEMPLATE_half_renderer_5(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8f,$1c,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_5_loop;
 }
@@ -555,23 +541,23 @@ page static void TEMPLATE_half_renderer_6(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8f,$1b,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_6_loop;
 }
@@ -581,23 +567,23 @@ page static void TEMPLATE_half_renderer_7(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8f,$1c,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_7_loop;
 }
@@ -607,23 +593,23 @@ page static void TEMPLATE_half_renderer_8(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $b5,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8f,$1b,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_8_loop;
 }
@@ -633,51 +619,165 @@ page static void TEMPLATE_half_renderer_9(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $b5,$11;
-   asm .byte $b5,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8f,$1c,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_9_loop;
 }
 
-page static void TEMPLATE_half_renderer_10(void) {
-   asm @TEMPLATE_half_renderer_10_loop:;
-   asm lda.ay TEMPLATE_heart,y;
+static void TEMPLATE_half_renderer_10(void) {
+   asm lda #$66;
+   asm nop;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $b5,$10;
-   asm dey;
-   asm bne.same @TEMPLATE_half_renderer_10_loop;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $87,$1b;
+   asm nop;
+   asm lda #$ff;
+   asm nop;
+   asm .byte $85,$2a;
+   asm .byte $85,$10;
+   asm .byte $24,$2d;
+   asm .byte $85,$1b;
+   asm .byte $85,$1c;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $87,$1b;
+   asm nop;
+   asm lda #$ff;
+   asm nop;
+   asm .byte $85,$2a;
+   asm .byte $85,$10;
+   asm .byte $24,$2d;
+   asm .byte $85,$1b;
+   asm .byte $85,$1c;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $87,$1b;
+   asm nop;
+   asm lda #$7e;
+   asm nop;
+   asm .byte $85,$2a;
+   asm .byte $85,$10;
+   asm .byte $24,$2d;
+   asm .byte $85,$1b;
+   asm .byte $85,$1c;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $87,$1b;
+   asm nop;
+   asm lda #$3c;
+   asm nop;
+   asm .byte $85,$2a;
+   asm .byte $85,$10;
+   asm .byte $24,$2d;
+   asm .byte $85,$1b;
+   asm .byte $85,$1c;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $87,$1b;
+   asm nop;
+   asm lda #$18;
+   asm nop;
+   asm .byte $85,$2a;
+   asm .byte $85,$10;
+   asm .byte $24,$2d;
+   asm .byte $85,$1b;
+   asm .byte $85,$1c;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8f,$1b,$00;
 }
 
 page static void TEMPLATE_half_renderer_11(void) {
@@ -685,23 +785,23 @@ page static void TEMPLATE_half_renderer_11(void) {
    asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
-   asm sta ENAM0;
+   asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.ay TEMPLATE_half_ball,y;
-   asm sta ENABL;
-   asm and #$30;
-   asm sta CTRLPF;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
-   asm .byte $95,$11;
-   asm .byte $95,$10;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_11_loop;
 }
@@ -712,22 +812,19 @@ static void TEMPLATE_select_kernel(void) {
    TEMPLATE_nusiz0 := 0x81;
    TEMPLATE_nusiz1 := 0x01;
    TEMPLATE_final_hmp0 := 0xb0;
-   if (TEMPLATE_score == 1 || TEMPLATE_score == 2 || (TEMPLATE_half && TEMPLATE_score == 0)) {
+   if ((!TEMPLATE_half && (TEMPLATE_score == 1 || TEMPLATE_score == 2)) ||
+       (TEMPLATE_half && (TEMPLATE_score == 0 || TEMPLATE_score == 1))) {
       TEMPLATE_nusiz0 := 0;
       TEMPLATE_final_hmp0 := 0x80;
    }
-   if (TEMPLATE_score == 2 || TEMPLATE_score == 3) {
+   if ((!TEMPLATE_half && (TEMPLATE_score == 2 || TEMPLATE_score == 3)) ||
+       (TEMPLATE_half && (TEMPLATE_score == 1 || TEMPLATE_score == 2))) {
       TEMPLATE_nusiz1 := 0;
    }
-   // Half states above zero use a two-clock M0.  Bit 7 is ignored by NUSIZ1
-   // and doubles as the $80 visible-phase hold value for M0 and Ball.
-   if (TEMPLATE_half && TEMPLATE_score > 0) {
-      TEMPLATE_nusiz0 |= 0x10;
-      TEMPLATE_nusiz1 |= 0x80;
-   }
 
-   // Half values select the corresponding ROM renderer.  Values above 11 clamp
-   // to 11.5 just as full values clamp to 11.
+   // Half values through 10 select the corresponding left-half renderer.
+   // Score 11 (and values above it) is already the maximum, so half is ignored
+   // visually by selecting the X-independent 11-heart half-path renderer.
    if (TEMPLATE_half) {
       if (TEMPLATE_score == 0) {
          asm lda #<TEMPLATE_half_renderer_0;
@@ -900,13 +997,20 @@ static void TEMPLATE_select_kernel(void) {
 
 // Fixed 22-cycle dispatcher body. Together with the 6-cycle JSR and the
 // draw prelude's 38 cycles, the selected ROM renderer begins at cycle 66 -- the
-// same centered phase as the certified RAM implementation.
+// same centered phase as the certified RAM implementation. Full renderers need
+// X=0 for their indexed RESP stores; half renderers use X=$F0 as the SAX mask.
+// The two branch paths are cycle-balanced at ten cycles.
 static void TEMPLATE_dispatch(void) {
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
+   asm lda.z TEMPLATE_half;
+   asm beq.same @TEMPLATE_dispatch_full;
+   asm ldx #$f0;
+   asm bne.same @TEMPLATE_dispatch_x_ready;
+   asm @TEMPLATE_dispatch_full:;
+   asm ldx #0;
+   asm nop;
+   asm @TEMPLATE_dispatch_x_ready:;
    asm bit.z TEMPLATE_score;
    asm nop;
-   asm ldx #0;
    asm ldy #6;
    asm jmp.i (TEMPLATE_renderer_ptr);
 }
@@ -927,7 +1031,7 @@ static inline void TEMPLATE_position_single_p0(void) {
    asm asl;
    asm asl;
    asm sta HMP0;
-   asm sta.a RESP0;
+   asm .byte $8d,$10,$00;
    asm sta WSYNC;
    asm sta HMOVE;
 
@@ -958,67 +1062,11 @@ static inline void TEMPLATE_position_single_p1(void) {
    asm asl;
    asm asl;
    asm sta HMP1;
-   asm sta.a RESP1;
+   asm .byte $8d,$11,$00;
    asm sta WSYNC;
    asm sta HMOVE;
    asm lda #$80;
    asm sta HMP1;
-}
-
-static inline void TEMPLATE_position_half_overlay(void) {
-   // Match the maintained divide-by-15 positioner exactly: resolve the public
-   // coordinate before WSYNC, then keep the post-WSYNC RESP/HMxx phase equal
-   // to paddleball_position_all().  Moving the table lookup after WSYNC makes
-   // some horizontal positions unreachable at coarse-position boundaries.
-   asm lda #0;
-   asm sta HMP0;
-   asm sta HMP1;
-   asm sta HMM1;
-
-   asm ldy.z TEMPLATE_score;
-   asm cpy #12;
-   asm bcc.flex @TEMPLATE_m0_index_ok;
-   asm ldy #11;
-   asm @TEMPLATE_m0_index_ok:;
-   asm lda.ay TEMPLATE_half_m0_x,y;
-   asm sta WSYNC;
-   asm ldx #2;
-   asm bit.z CXM0P;
-   asm nop;
-   asm sec;
-   asm @TEMPLATE_m0_divide:;
-   asm sbc #15;
-   asm bcs.same @TEMPLATE_m0_divide;
-   asm nop;
-   asm nop;
-   asm sta RESP0,x;
-   asm tay;
-   asm lda.ay TEMPLATE_reposition + 16 - 256,y;
-   asm sta HMP0,x;
-
-   asm ldy.z TEMPLATE_score;
-   asm cpy #12;
-   asm bcc.flex @TEMPLATE_ball_index_ok;
-   asm ldy #11;
-   asm @TEMPLATE_ball_index_ok:;
-   asm lda.ay TEMPLATE_half_ball_x,y;
-   asm sta WSYNC;
-   asm ldx #4;
-   asm bit.z CXM0P;
-   asm nop;
-   asm sec;
-   asm @TEMPLATE_ball_divide:;
-   asm sbc #15;
-   asm bcs.same @TEMPLATE_ball_divide;
-   asm nop;
-   asm nop;
-   asm sta RESP0,x;
-   asm tay;
-   asm lda.ay TEMPLATE_reposition + 16 - 256,y;
-   asm sta HMP0,x;
-
-   asm sta WSYNC;
-   asm sta HMOVE;
 }
 
 static inline void TEMPLATE_prepare_positions(void) {
@@ -1034,16 +1082,15 @@ static inline void TEMPLATE_prepare_positions(void) {
    asm sta HMM1;
    asm sta HMBL;
 
-   // P0 has exactly one logical copy at scores 1 and 2; 0.5 also uses one P0
-   // sprite. P1 has one logical copy at scores 2 and 3.
-   if (TEMPLATE_score == 1 || TEMPLATE_score == 2 || (TEMPLATE_half && TEMPLATE_score == 0)) {
+   // The half renderer for N hearts uses the copy geometry of the N+1 full
+   // renderer, because the next player copy carries the left-half sprite.
+   if ((!TEMPLATE_half && (TEMPLATE_score == 1 || TEMPLATE_score == 2)) ||
+       (TEMPLATE_half && (TEMPLATE_score == 0 || TEMPLATE_score == 1))) {
       TEMPLATE_position_single_p0();
    }
-   if (TEMPLATE_score == 2 || TEMPLATE_score == 3) {
+   if ((!TEMPLATE_half && (TEMPLATE_score == 2 || TEMPLATE_score == 3)) ||
+       (TEMPLATE_half && (TEMPLATE_score == 1 || TEMPLATE_score == 2))) {
       TEMPLATE_position_single_p1();
-   }
-   if (TEMPLATE_half && TEMPLATE_score > 0) {
-      TEMPLATE_position_half_overlay();
    }
 }
 
@@ -1054,9 +1101,6 @@ require inline void TEMPLATE_init(void) {
 require inline void TEMPLATE_vblank(void) {
    TEMPLATE_select_kernel();
    TEMPLATE_prepare_positions();
-   if (TEMPLATE_half && TEMPLATE_score > 0) {
-      COLUPF := TEMPLATE_color;
-   }
 }
 
 static inline void TEMPLATE_configure_tia(void) {

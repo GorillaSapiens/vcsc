@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Fixed-footprint Zelda-style 0..11.5 heart meter.
+// Fixed-footprint Zelda-style 0..11 heart meter with half-heart steps.
 
 include "4K/mapper.c26"
 include "frame_ntsc.c26"
@@ -44,11 +44,15 @@ void main(void) {
          frame_counter := 0;
          if (health_half) {
             health_half := 0;
-            if (health_score == 11) { health_score := 0; }
-            else { health_score++; }
+            health_score++;
          }
          else {
-            health_half := 1;
+            if (health_score == 11) {
+               health_score := 0;
+            }
+            else {
+               health_half := 1;
+            }
          }
       }
       health_overscan();

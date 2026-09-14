@@ -96,3 +96,29 @@ Documented that contract in test/README.md and made source_tree_hygiene.pl lock
 the uniform ceiling. On the current tree shard 2 completes 14/106 editable
 examples plus byte-exact disassembler round trips in about 38 seconds in the
 container; the focused test-runner shard and source-tree hygiene both pass.
+
+2026-09-14 15:14:56 PDT, left-half heart geometry and 11-heart cap
+The heart meter now exposes the conventional sequence 0, 0.5, ... 10.5, 11;
+11.5 is deliberately not a state. At score 11, `half` is ignored visually and
+the half-control path renders the same eleven-heart raster as the full path.
+The public example was changed to step directly from 10.5 to 11 to 0.
+
+Replaced the Ball/M0 right-half overlay with player-only left-half rendering.
+0.5 uses the high nibble of the normal P0 heart glyph. 1.5..9.5 preserve the
+Jentzsch row schedule and use stable SAX stores with X=$F0 to write A&$F0 into
+the next P0/P1 copy. 10.5 uses an unrolled six-row kernel because the ten-heart
+loop has no spare four-cycle slot for SAX. The fixed-cycle dispatcher now
+cycle-balances X=0 for full renderers against X=$F0 for half renderers. Obsolete
+Ball/M0 position/motion tables and overlay code were removed; one component
+instance remains 8 RIOT-RAM bytes.
+
+Stella 7.0 validation passed all twelve full states plus all twelve half-control
+combinations. The twelve historical full hashes are unchanged. Independent
+pixel comparison of every 0.5..10.5 screenshot against adjacent full-score
+screenshots proved each half raster is exactly N full hearts plus the left eight
+pixels of heart N+1, with zero mismatched pixels; score 11 with `half=1` hashes
+identically to ordinary score 11. Updated the structural regression, Stella
+golden hashes, library documentation, focused heart note, hot context, and the
+public example. `vcs_heart_score.pl`, `vcs_heart_score_stella.pl`, and the public
+example build all pass; the example currently uses 2812 ROM bytes and 20 total
+RAM bytes.

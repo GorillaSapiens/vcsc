@@ -1,40 +1,35 @@
 HEART SCORE COMPONENT
 =====================
 
-Stable state
-------------
-`libraries/vcs/heart_score_component.c26` is the maintained fixed-footprint
-0..11.5-heart component. `score` is the full-heart count (clamped at 11),
-`half` adds the right half of the next slot, and `color` selects the heart color.
-The 11 full slots are fixed at TIA X=16,28,...,136; smaller values are exact
-left prefixes and never move an already-visible heart.
+Maintained implementation
+-------------------------
+`libraries/vcs/heart_score_component.c26` is the fixed-footprint 0..11-heart
+component. `score` is the full-heart count (clamped at 11), `half` adds the left
+half of the next heart through 10.5, and `color` selects the heart color. At
+score 11, `half` is ignored visually. The 11 full slots remain fixed at TIA
+X=16,28,...,136; smaller values are exact left prefixes.
 
-All 24 visible states execute from hard-page ROM renderers. The 12 full-heart
-renderers are the exact 45-byte prepatched Jentzsch streams. `0.5` is a single
-P0 right-half sprite at slot zero. `1.5` through `11.5` use Ball plus M0: Ball
-supplies the variable-width left edge of the right half and M0 supplies its
-fixed two-clock strip. From three full hearts onward M0's first repeated copy is
-buried entirely inside lit pixels of the preceding full heart and its second
-copy forms the new half heart.
+The 12 full renderers remain the certified 45-byte Jentzsch streams. Half state
+0 uses a P0 high-nibble glyph. Half states 1..9 preserve Jentzsch row timing and
+use SAX with X=$F0 to write only the high nibble into the next player copy.
+10.5 is an unrolled six-row renderer because its loop has no spare four-cycle
+slot. The half-control renderer for score 11 draws exactly the normal 11-heart
+maximum, so no 11.5 geometry is required.
 
-Ball/M0 positioning uses the maintained divide-by-15 RESP/HMxx algorithm at its
-correct WSYNC phase: the score clamp/table lookup occurs before WSYNC, then the
-post-WSYNC sequence matches the standard positioner. Do not move that lookup
-back after WSYNC; doing so reintroduces coarse-position discontinuities.
+The dispatcher cycle-balances X selection: full renderers enter with X=0; half
+renderers enter with X=$F0. Half pixels use P0/P1 only. The old Ball/M0 overlay,
+position tables, and per-row Ball motion are gone. VBLANK still zeroes missile
+and Ball motion registers before global HMOVE setup so unrelated objects are not
+displaced.
 
 One instance uses 8 RIOT-RAM bytes total: public `score`, `half`, and `color`, a
-two-byte ROM-renderer pointer, and three cached TIA setup bytes. It consumes 7
-visible scanlines. Full 0..11 Stella hashes are unchanged from the full-heart
-ROM implementation. Independent pixel-oracle validation proves each half state
-is exactly N full hearts plus the 32-pixel right half of the next slot, with no
-stray M0/Ball pixels.
-
-Half states use M0, Ball, `COLUPF`, and the Ball-width bits of `CTRLPF`; M0 and
-Ball are disabled on return but their horizontal geometry is not restored. A
-following gameplay renderer that owns those objects must reposition them.
+two-byte renderer pointer, and three cached TIA setup bytes. It consumes seven
+visible scanlines. Stella 7.0 locks all 23 visible values plus the score-11 half
+clamp. Independent image comparison proves every 0.5..10.5 raster equals the
+unchanged N-heart raster plus exactly the left half of heart N+1; all twelve full
+hashes remain unchanged.
 
 Next work
 ---------
-No heart-renderer implementation work is currently open. Keep the 24-state
-Stella regression and the 8-byte RAM/resource contract intact during unrelated
-changes.
+No heart-renderer implementation work is open. Preserve the fixed footprint,
+8-byte RAM contract, full-state hashes, left-half geometry, and score-11 clamp.
