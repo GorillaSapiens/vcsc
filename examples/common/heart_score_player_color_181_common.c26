@@ -6,7 +6,7 @@
 // health control is supplied by heart_score_controls.c26. Left joystick moves
 // the selected gameplay object; SELECT cycles P0, P1, and Ball, matching the
 // other maintained player-color interactive examples. The sprites use one
-// static frame so the complete two-renderer diagnostic remains a plain 4K cart.
+// static frame; the heart component and application occupy separate F8 banks.
 
 page const uint8_t game_playfield[44] := {
    VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),

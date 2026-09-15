@@ -1,13 +1,13 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // Interactive heart score below the maintained 181-line player-color renderer.
-include "4K/mapper.c26"
+include "F8/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
 
 instantiate "renderers/player_color/player_color.c26" as game (lines:=181)
-instantiate "heart_score_component.c26" as score
+instantiate "heart_score_component.c26" as score (banked:=1)
 
 include "../../common/heart_score_controls.c26"
 

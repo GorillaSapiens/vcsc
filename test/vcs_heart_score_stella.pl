@@ -87,42 +87,86 @@ for my $half (0,1) {
    }
 }
 
+# Capacity-box certification: hide the zero-heart sprite and render the box
+# color visibly against the fixture background. One hash per 0..11 capacity
+# locks the asymmetric PF1/PF2 geometry and fixed 12-pixel slot pitch.
+my @wanted_boxes=(
+   '320 x 228 886f3e370499d568119b2e5958a2b778abbc45cda3e050ecd5f4051cab830ec6',
+   '320 x 228 b8fd09e14006a0bb98b7235c65bc06a17282d1d60d2b8aa9bb581cade0c92c8b',
+   '320 x 228 52ca493dea49d8af1140608060f2428a55960f903add13e895dfe2215e29e7d0',
+   '320 x 228 30574139c4228ec7d3c299144236ffda8317dba45fc9a3c28425bc170aa381a0',
+   '320 x 228 86033d331fcfa40dbebdb70b0bb4f2db68b2ea21cc76e652ba34af7a7d09db80',
+   '320 x 228 088e0327bc379923c62ffbb38192d98270da124790d4569abde35786114d3b00',
+   '320 x 228 02bae99ff18eaf8c7534870a73dfb6ee8a7c59d237ac04ec1b3deb05de4ddd04',
+   '320 x 228 ef4ab4e272bc6986a774eb065cdd3d54c8328df5817e0d9514916dc1d01bf72e',
+   '320 x 228 eb89d87587b87f654048a0b4b167230fb2f5b1d2614c967d8f27a737cd98b3cc',
+   '320 x 228 4a569bb9ce792f8de69c0aeb4c31f77648285828bd0592673f235147eee43cf2',
+   '320 x 228 751bdc8b29ccbb1edced06d806078bcd377455b115a4d5fe90c70c33fdb5dbf2',
+   '320 x 228 33e78af9f6b347e834d5e7ee4310e2ce2e45d9a2158d1cfadc47b601d2879bb2',
+);
+for my $boxes (0..11) {
+   my $rom=File::Spec->catfile($tmp,"heart_boxes_${boxes}.bin");
+   ok("build heart boxes $boxes",$driver,'-I',$vcs,'-DHEART_SCORE=0','-DHEART_HALF=0',
+      "-DHEART_BOXES=$boxes",'-DHEART_BOX_COLOR=46',$source,'-o',$rom);
+   unlink glob("$snap/*.png");
+   my $box_user=File::Spec->catdir($tmp,"user_boxes_${boxes}"); make_path($box_user);
+   my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+      '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+      '-exitlauncher','0','-confirmexit','0','-userdir',$box_user,$rom);
+   my $pid=fork(); defined$pid or die "fork Stella\n";
+   if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_boxes_${boxes}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+   ok("snapshot heart boxes $boxes",$perl,$keys,'--fast');
+   my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for boxes $boxes\n";
+   my($actual,$ae)=ok("digest heart boxes $boxes",$perl,$digest,$png[0]);
+   $ae eq '' or die $ae; chomp $actual;
+   $actual eq $wanted_boxes[$boxes]
+      or die "heart box raster $boxes differs: actual=$actual wanted=$wanted_boxes[$boxes]\n";
+}
+
 # Composition certification: the real 181-line player-color renderer and the
 # seven-line heart renderer must coexist in either visible order. The initial
 # 5.5 state plus held right-joystick UP/DOWN lock one health transition in each
-# direction (6.0 and 5.0). Held left-joystick RIGHT locks real gameplay motion
+# direction (6.0 and 5.0), while LEFT/RIGHT lock one capacity transition
+# (7 and 9 boxes). Held left-joystick RIGHT locks real gameplay motion
 # of the initially selected P0 so these cartridges cannot regress to static
 # "interactive" demos again.
 my %demo_wanted=(
    above=>{
-      neutral=>'320 x 228 e7c4ad08dab58982e519427730ee521e10f22f4559ce880759ab9e31385b9bf2',
-      score_up=>'320 x 228 e990766e5c3a72b66636a8fa6dc0b9f03c7e168118bb8c10c388bc9163c9b9be',
-      score_down=>'320 x 228 7f185d1dba6c0f630f42d0e08b2140f856d0ed4cd123a7d8019a616d1f412504',
-      move_right=>'320 x 228 7acfac858feb57d6b1daf666c0a0336d3aede1b67dc878b69178ffd65d6d6351',
+      neutral=>'320 x 228 e7956c278ee1a146de0e4f313be0eb91b11d5eeb332dbeaa6912d2e8d75d5ca1',
+      score_up=>'320 x 228 5b912aed8ed9fa87a36cd0cd358c904362ee5c8497d4f5c60e07a2a442bfc9fe',
+      score_down=>'320 x 228 dbb9bfb3f843a65a3c3accca35e540ea5f8a5c14ff7ab23f52b90561518e5082',
+      boxes_left=>'320 x 228 76dbc1c7dff4d1f11cb090e78c63139d2b4a90973f343b68703989bd27007db4',
+      boxes_right=>'320 x 228 8219cfd9543c5d6a9655cca14a3f849f0e5509975bd937256818e4062baac958',
+      move_right=>'320 x 228 57022ebd988f8f6ac4e59c126d96f9e44bd98a4b457821f0d37d5816ff490835',
    },
    below=>{
-      neutral=>'320 x 228 37f583c87535a6099d7b9c916de8abacd53d768fb3a94b0b2c3a6aa5ab715fd6',
-      score_up=>'320 x 228 1480a0544803c5afbacd635e79ee968ca80c4dce81296dd1c2af7ce9ce5a4de3',
-      score_down=>'320 x 228 3e335dbe9805188cab1ce1a9d29e72a745749d599c83d559c395e2a193de677e',
-      move_right=>'320 x 228 3bee9ad675144951b87a48afe8c2c5def455e45fa0ed7cfbb12bbda0bb5f3442',
+      neutral=>'320 x 228 e2045597687c3b4b583b0e62793efcaae77e78e178811c29b9d95019f56c9005',
+      score_up=>'320 x 228 e8aecda62efe1c19232f01ea0aa2b80089270ff70ba0de3281d1a04da55ea5d9',
+      score_down=>'320 x 228 6b5755a968ddb7433f862fd194729bf53bd768171053540459cebdbd045f89df',
+      boxes_left=>'320 x 228 66bf72249036aa0ca953860daf5f9064320e91cb2fedeb8d4c6058c033b4c50c',
+      boxes_right=>'320 x 228 b61ebaa7d3be1a16fe48634ff38d532d90f4d2df1058753dc92613cec96cfeea',
+      move_right=>'320 x 228 0c2f30107ef62ae610b80f9eb0a2a05fabb1f0bc5650086b12be843ba9b06359',
    },
 );
 my @demo_inputs=(
    [neutral=>[]],
    [score_up=>['-holdjoy1','U']],
    [score_down=>['-holdjoy1','D']],
+   [boxes_left=>['-holdjoy1','L']],
+   [boxes_right=>['-holdjoy1','R']],
    [move_right=>['-holdjoy0','R']],
 );
 for my $kind (qw(above below)) {
    my $demo_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),"heart_score_${kind}_interactive.c26");
    my $rom=File::Spec->catfile($tmp,"heart_score_${kind}_interactive.bin");
    ok("build heart score $kind composition",$driver,'-I',$vcs,$demo_source,'-o',$rom);
-   -s $rom==4096 or die "heart score $kind composition is not a 4K ROM\n";
+   -s $rom==8192 or die "heart score $kind composition is not an 8K F8 ROM\n";
    for my $case (@demo_inputs) {
       my($label,$joy)=@$case;
       unlink glob("$snap/*.png");
       my $demo_user=File::Spec->catdir($tmp,"user_${kind}_${label}"); make_path($demo_user);
-      my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+      my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','F8',
          @$joy,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$demo_user,$rom);
       my $pid=fork(); defined$pid or die "fork Stella\n";
@@ -143,23 +187,23 @@ for my $kind (qw(above below)) {
 # footprint.  Mask everything except the six score rows so unrelated scene
 # pixels cannot make a bad heart placement look valid.
 my @below_low=(
-   [0,1,'0.5','320 x 228 b602f9750d4cfe22c587495f54ed231e71903a659faea0733587e6141011cfef'],
-   [1,0,'1.0','320 x 228 bfd918d2ccc6bb2d56aeef63fdbb15a236ac0bf2c7926cac8bee2ea966070845'],
-   [1,1,'1.5','320 x 228 fc8be92aab18f7b20f9d2f6526948699a97ba55637f2e22c549939a299f0eac3'],
-   [2,0,'2.0','320 x 228 a438f06da3b5d876a136bebb78956a4af03fe8b512558eb57ab843108664a695'],
-   [2,1,'2.5','320 x 228 f29aa8e23eb00b91b07747562c3a9bd640f545db04822c1aa5b9143c3a9986f3'],
-   [3,0,'3.0','320 x 228 45c2ebd6f0c285ae9967c199b0495bed32286494c04aaf725fa7814d26578af9'],
+   [0,1,'0.5','320 x 228 b25472103fcf50a4a46fc12517a68e5299c54a4fb735f5ad0ac1e2314cd7dcf3'],
+   [1,0,'1.0','320 x 228 09e78490daa36994d0ca4e61b77693d369f31d4415c079b7b0764adabb7f4f6d'],
+   [1,1,'1.5','320 x 228 47a29d570b03080496714da93cf697a72cffda25f3c0657d625d3b32a88c143a'],
+   [2,0,'2.0','320 x 228 42f079299882a4e4a95ded6532b18aa9519d2cc3544ace4d7de2b12e74c4c7d1'],
+   [2,1,'2.5','320 x 228 eab0285bf407c30090402fc923204ef47dc28be567e4e355eb603068647d3c57'],
+   [3,0,'3.0','320 x 228 716cbb9adc3222933f24e7efe95fca4b9dde7607b32dbbac7d78b499f08a4697'],
 );
 my $below_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),'heart_score_below_interactive.c26');
 for my $case (@below_low) {
    my($score,$half,$label,$wanted)=@$case;
    my $rom=File::Spec->catfile($tmp,"heart_score_below_low_${score}_${half}.bin");
    ok("build bottom composition $label",$driver,'-I',$vcs,
-      "-DHEART_SCORE_INITIAL_SCORE=$score","-DHEART_SCORE_INITIAL_HALF=$half",
+      "-DHEART_SCORE_INITIAL_SCORE=$score","-DHEART_SCORE_INITIAL_HALF=$half","-DHEART_SCORE_INITIAL_BOX_COLOR=130",
       $below_source,'-o',$rom);
    unlink glob("$snap/*.png");
    my $low_user=File::Spec->catdir($tmp,"user_below_low_${score}_${half}"); make_path($low_user);
-   my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+   my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','F8',
       '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
       '-exitlauncher','0','-confirmexit','0','-userdir',$low_user,$rom);
    my $pid=fork(); defined$pid or die "fork Stella\n";
