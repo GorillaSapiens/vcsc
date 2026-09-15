@@ -108,7 +108,7 @@ Build the blank-screen example through the high-level driver:
 
 ```sh
 ./driver/vcsc -I libraries/vcs \
-  examples/01_basic/01_blank_screen/blank_screen.c26 \
+  examples/01_basics/blank_screen/blank_screen.c26 \
   -o blank_screen.bin
 ```
 
@@ -310,7 +310,7 @@ and is licensed separately under the MIT License; see
 `simulator/mos6502/LICENSE.txt`. Everything under `libraries/` and, by default,
 `examples/` is covered under CC0-1.0 so cartridge authors may freely reuse that
 material. The animated-sprite example at
-`examples/03_player_color_192/02_animated_sprites/` is the sole exception and is
+`examples/04_renderers/player_color/animated_sprites/` is the sole exception and is
 covered by its local CC BY-NC-SA 4.0 `LICENSE.txt`. See `COPYING`,
 `simulator/mos6502/LICENSE.txt`, `libraries/LICENSE.txt`, and
 `examples/LICENSE.txt` for the governing texts.

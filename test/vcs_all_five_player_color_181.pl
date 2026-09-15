@@ -60,7 +60,7 @@ $source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw
 
 my$interactive_common=File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26));
 my$interactive_common_text=read_file($interactive_common);
-my$canonical_181_common=read_file(File::Spec->catfile($repo,qw(examples common all_five_181_interactive_common.c26)));
+my$canonical_181_common=read_file(File::Spec->catfile($repo,qw(examples _common all_five_181_interactive_common.c26)));
 sub playfield_rows {
    my($text)=@_;
    my@rows=($text =~ /(VCS_PLAYFIELD_ROW\([^\n]+\))/g);

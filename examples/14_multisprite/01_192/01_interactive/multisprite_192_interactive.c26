@@ -5,7 +5,7 @@ include "vcs.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 instantiate "renderers/multisprite/multisprite.c26" as game (lines:=192)
-include "../../../common/multisprite_interactive_common.c26"
+include "../../../_common/multisprite_interactive_common.c26"
 
 inline void initialize_192_scene(void) {
    initialize_multisprite_scene();

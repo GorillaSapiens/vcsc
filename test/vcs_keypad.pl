@@ -22,7 +22,7 @@ my$repo=shift@ARGV//usage();my$tmp=shift@ARGV//usage();usage()if@ARGV;
 $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$example_dir=File::Spec->catdir($repo,qw(examples 01_basic 11_keypad));
+my$example_dir=File::Spec->catdir($repo,qw(examples 03_controllers keypad));
 my$example=File::Spec->catfile($example_dir,'keypad.c26');
 my$component=File::Spec->catfile($vcs,'keypad_controller.c26');
 my$left_fixture=File::Spec->catfile($repo,qw(test fixtures keypad_left keypad_left.c26));

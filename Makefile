@@ -306,13 +306,13 @@ linux:
 	"$$package/bin/vcsc" -V >/dev/null; \
 	"$$package/bin/vcsc-disas" -V >/dev/null; \
 	cd "$$package"; \
-	./bin/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o linux-package-smoke.bin; \
+	./bin/vcsc -I libraries/vcs examples/01_basics/blank_screen/blank_screen.c26 -o linux-package-smoke.bin; \
 	test `wc -c < linux-package-smoke.bin` -eq 4096; \
 	rm -f linux-package-smoke.bin linux-package-smoke.hex linux-package-smoke.map \
 	  linux-package-smoke.sym linux-package-smoke.lst linux-package-smoke.cfg; \
-	$(MAKE) --no-print-directory -C examples/01_basic/13_tanks clean all; \
-	test `wc -c < examples/01_basic/13_tanks/tanks.bin` -eq 4096; \
-	$(MAKE) --no-print-directory -C examples/01_basic/13_tanks clean
+	$(MAKE) --no-print-directory -C examples/06_games/tanks clean all; \
+	test `wc -c < examples/06_games/tanks/tanks.bin` -eq 4096; \
+	$(MAKE) --no-print-directory -C examples/06_games/tanks clean
 	@set -e; \
 	stamp=$$(date -u "+%Y%m%d_%H%M%S"); \
 	out="$(CURDIR)/vcsc.linux.$$stamp.tar.gz"; \
@@ -342,10 +342,10 @@ installcheck: tools
 	test ! -e "$$stage/share"; test ! -e "$$stage/include"; test ! -e "$$stage/lib"; \
 	"$$stage/bin/vcsc" -V >/dev/null; \
 	"$$stage/bin/vcsc-disas" -V >/dev/null; \
-	$(MAKE) --no-print-directory -C "$$stage/examples/01_basic/01_blank_screen" clean all; \
-	test `wc -c < "$$stage/examples/01_basic/01_blank_screen/blank_screen.bin"` -eq 4096; \
-	$(MAKE) --no-print-directory -C "$$stage/examples/01_basic/13_tanks" clean all; \
-	test `wc -c < "$$stage/examples/01_basic/13_tanks/tanks.bin"` -eq 4096; \
+	$(MAKE) --no-print-directory -C "$$stage/examples/01_basics/blank_screen" clean all; \
+	test `wc -c < "$$stage/examples/01_basics/blank_screen/blank_screen.bin"` -eq 4096; \
+	$(MAKE) --no-print-directory -C "$$stage/examples/06_games/tanks" clean all; \
+	test `wc -c < "$$stage/examples/06_games/tanks/tanks.bin"` -eq 4096; \
 	$(MAKE) --no-print-directory -C "$$stage/examples/09_bankswitching/01_f864" clean f8.bin; \
 	test `wc -c < "$$stage/examples/09_bankswitching/01_f864/f8.bin"` -eq 8192
 	rm -rf $(INSTALLCHECK_STAGING)

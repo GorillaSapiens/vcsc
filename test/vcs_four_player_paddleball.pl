@@ -22,7 +22,7 @@ my$repo=shift@ARGV//usage();my$tmp=shift@ARGV//usage();usage()if@ARGV;
 $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$source=File::Spec->catfile($repo,qw(examples 01_basic 10_four_player_paddleball four_player_paddleball.c26));
+my$source=File::Spec->catfile($repo,qw(examples 06_games four_player_paddleball four_player_paddleball.c26));
 my$component=File::Spec->catfile($vcs,'four_paddles.c26');
 my$two=File::Spec->catfile($vcs,'two_paddles.c26');
 my$bin=File::Spec->catfile($tmp,'four_player_paddleball.bin');
@@ -78,7 +78,7 @@ $p =~ /paddles_button0 \|\| paddles_button1/ && $p =~ /paddles_button2 \|\| padd
    or die "four-player team serve buttons changed\n";
 $p !~ /\bbank[0-9]+\b/ or die "four-player example unexpectedly requires bankswitching\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 10_four_player_paddleball)),'-Map',$mapfile,$source,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 06_games four_player_paddleball)),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "four-player Paddleball build failed\n$out$err";
 $err eq '' or die "four-player Paddleball build stderr: $err";
 -s$bin==4096 or die "four-player Paddleball ROM is not 4096 bytes\n";

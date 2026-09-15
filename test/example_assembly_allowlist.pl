@@ -28,7 +28,7 @@ for my $line (split /\n/,slurp($fixture)) {
    next if $line eq '' || $line =~ /^#/;
    my($path,$count,$digest,$policies,$regressions,$reason)=split /\t/,$line,6;
    defined($reason) or die "malformed assembly allowlist line: $line\n";
-   $path =~ m{^examples/(?:common/|\d\d_[^/]+/)} or die "non-example allowlist path: $path\n";
+   $path =~ m{^examples/(?:_common/|\d\d_[^/]+/)} or die "non-example allowlist path: $path\n";
    $count =~ /^\d+$/ && $count>0 or die "invalid asm count for $path\n";
    $digest =~ /^[0-9a-f]{64}$/ or die "invalid asm digest for $path\n";
    length($reason)>=20 && $reason =~ /[.!?]\z/ or die "assembly reason for $path is not standalone prose\n";

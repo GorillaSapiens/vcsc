@@ -18,4 +18,4 @@ inline void draw_visible_components(void) {
    game_draw();
 }
 
-include "../../../common/all_five_181_interactive_common.c26"
+include "../../../_common/all_five_181_interactive_common.c26"

@@ -14,8 +14,8 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/renderers/poison_debug_score/poison_debug_score.c26 \
            $(VCS_DIR)/renderers/player_color_181_unofficial/player_color_181_unofficial.c26 \
-           $(ROOT)/examples/common/poison_score_controls.c26 \
-           $(ROOT)/examples/common/player_color_181_interactive_common.c26
+           $(ROOT)/examples/_common/poison_score_controls.c26 \
+           $(ROOT)/examples/_common/player_color_181_interactive_common.c26
 	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

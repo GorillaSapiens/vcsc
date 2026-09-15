@@ -79,8 +79,8 @@ for my $case (
       ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
       : qr/game_draw\(\);.*vcs_ntsc_component_handoff\(\);.*score_draw\(\);/s;
    $source_text =~ $draw_order or die "$sources[0] has the wrong $order draw order\n";
-   $source_text =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls\.c26"/
-      && $source_text =~ /include "\.\.\/\.\.\/\.\.\/common\/player_color_181_interactive_common\.c26"/
+   $source_text =~ /include "\.\.\/\.\.\/\.\.\/_common\/fixed_six_digit_controls\.c26"/
+      && $source_text =~ /include "\.\.\/\.\.\/\.\.\/_common\/player_color_181_interactive_common\.c26"/
       or die "$sources[0] does not use the shared high-level interactive controls\n";
 
    my $tag="wide_181_$order";

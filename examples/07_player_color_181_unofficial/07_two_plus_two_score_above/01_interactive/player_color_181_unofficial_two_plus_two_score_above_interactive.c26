@@ -10,7 +10,7 @@ include "two_plus_two_score_support.c26"
 instantiate "renderers/player_color_181_unofficial/player_color_181_unofficial.c26" as game
 instantiate "two_plus_two_score_component.c26" as score
 
-include "../../../common/two_plus_two_controls.c26"
+include "../../../_common/two_plus_two_controls.c26"
 
 inline void draw_visible_components(void) {
    score_draw();
@@ -18,4 +18,4 @@ inline void draw_visible_components(void) {
    game_draw();
 }
 
-include "../../../common/player_color_181_interactive_common.c26"
+include "../../../_common/player_color_181_interactive_common.c26"

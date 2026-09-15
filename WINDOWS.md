@@ -52,14 +52,14 @@ a PATH change.
 For example, in `cmd.exe`:
 
 ```bat
-vcsc.cmd -I libraries\vcs examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
+vcsc.cmd -I libraries\vcs examples\01_basics\blank_screen\blank_screen.c26 -o blank_screen.bin
 bin\vcsc-disas.exe blank_screen.bin
 ```
 
 In PowerShell:
 
 ```powershell
-.\vcsc.cmd -I .\libraries\vcs .\examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
+.\vcsc.cmd -I .\libraries\vcs .\examples\01_basics\blank_screen\blank_screen.c26 -o blank_screen.bin
 .\bin\vcsc-disas.exe blank_screen.bin
 ```
 

@@ -42,7 +42,7 @@ directory; no installation or PATH change is required:
 tar -xzf vcsc.linux.YYYYMMDD_HHMMSS.tar.gz
 cd vcsc
 ./bin/vcsc -V
-./bin/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o blank_screen.bin
+./bin/vcsc -I libraries/vcs examples/01_basics/blank_screen/blank_screen.c26 -o blank_screen.bin
 ./bin/vcsc-disas blank_screen.bin
 ```
 

@@ -619,7 +619,7 @@ For real source rather than toy syntax, start with:
   `require` lifecycle hooks, and `recommend` public state;
 - `examples/11_all_five_170/01_score_above_and_below/01_interactive/` for one
   renderer plus two independent instances of the same score component;
-- `examples/04_player_color_181/01_score_above/01_interactive/` for a typical
+- `examples/04_renderers/player_color/score_above/centered/` for a typical
   renderer-plus-score composition;
 - `test/fixtures/templates/lifecycle_component.c26` for the minimal maintained
   four-phase lifecycle fixture;

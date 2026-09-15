@@ -9,7 +9,7 @@ include "playfield.c26"
 instantiate "renderers/player_color_181_unofficial/player_color_181_unofficial.c26" as game
 instantiate "renderers/poison_debug_score/poison_debug_score.c26" as score
 
-include "../../../common/poison_score_controls.c26"
+include "../../../_common/poison_score_controls.c26"
 
 inline void draw_visible_components(void) {
    game_draw();
@@ -17,4 +17,4 @@ inline void draw_visible_components(void) {
    score_draw();
 }
 
-include "../../../common/player_color_181_interactive_common.c26"
+include "../../../_common/player_color_181_interactive_common.c26"

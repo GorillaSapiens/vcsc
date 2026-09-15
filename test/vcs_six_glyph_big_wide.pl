@@ -32,7 +32,7 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $component=File::Spec->catfile($vcs,'six_glyph_big_wide_component.c26');
-my $public=File::Spec->catfile($repo,qw(examples 01_basic 07_big_wide_score big_wide_score.c26));
+my $public=File::Spec->catfile($repo,qw(examples 02_components big_wide_score big_wide_score.c26));
 my $bin=File::Spec->catfile($tmp,'big_wide_score.bin');
 my $map=File::Spec->catfile($tmp,'big_wide_score.map');
 

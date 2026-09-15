@@ -10,7 +10,7 @@ include "4K/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game (lines:=192)
-include "../../../common/multisprite_interactive_common.c26"
+include "../../../_common/multisprite_interactive_common.c26"
 
 // Twelve 16-scanline diagnostic rows.  Each row is eight logical
 // two-scanline bands, so all 192 visible scanlines are covered.  The 40

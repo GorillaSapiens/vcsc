@@ -6,7 +6,7 @@ VCSC ?= $(ROOT)/driver/vcsc
 
 TARGET := multisprite_192_interactive.bin
 SOURCE := multisprite_192_interactive.c26
-COMMON := $(ROOT)/examples/common/multisprite_interactive_common.c26
+COMMON := $(ROOT)/examples/_common/multisprite_interactive_common.c26
 
 all: $(TARGET)
 

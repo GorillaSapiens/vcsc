@@ -197,7 +197,7 @@ Current Tanks cleanup is complete at the legitimate beam-asm boundary while pres
 
 Immediate TODO
 --------------
-Example reorg: `.../example_reorg.txt`.
+Example reorg: `.../example_reorg.txt`; ER12 is next.
 DRA is design-only; see `.../DRA.txt`. If selected, do DRA1 next.
 
 The incremental asm-to-C26 cleanup converted all ordinary game logic and position-control arithmetic. `tanks_move_object()` is C26 at exactly the old asm size ($56/86 bytes); `tanks_random()` is C26 at exactly 18 bytes; `tanks_process_knockback()` is C26 after general indexed-X/range/update codegen work; `tanks_prepare_graphics()` is C26 and is 11 ROM bytes smaller than the former asm; `tanks_compute_player_position()` is readable C26 at $2c/44 bytes, exactly matching the former register-crafted asm. Explicit Tanks asm is 167 reviewed statements, confined to the actual beam/cycle-sensitive `tanks_position_missiles()`, `tanks_position_players_after_score()`, and `tanks_draw()` paths. Do not force those remaining hardware-timing routines into C26 merely to reach zero asm.

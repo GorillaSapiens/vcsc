@@ -6,7 +6,7 @@ VCSC ?= $(ROOT)/driver/vcsc
 
 TARGET := enhanced_multisprite_192_asymmetric.bin
 SOURCE := enhanced_multisprite_192_asymmetric.c26
-COMMON := $(ROOT)/examples/common/multisprite_interactive_common.c26
+COMMON := $(ROOT)/examples/_common/multisprite_interactive_common.c26
 STARTUP := enhanced_multisprite_192_asymmetric_startup.s26
 
 all: $(TARGET)

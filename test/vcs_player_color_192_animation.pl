@@ -47,7 +47,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $dir=File::Spec->catdir($repo,qw(examples 03_player_color_192 02_animated_sprites));
+my $dir=File::Spec->catdir($repo,qw(examples 04_renderers player_color animated_sprites));
 my $source=File::Spec->catfile($dir,'player_color_192_animated_sprites.c26');
 my $license=File::Spec->catfile($dir,'LICENSE.txt');
 my $bin=File::Spec->catfile($tmp,'player_color_192_animated_sprites.bin');

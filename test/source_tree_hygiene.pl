@@ -70,12 +70,11 @@ find({no_chdir=>1,wanted=>sub {
 # notices. The animated-sprite example is the one deliberate exception: its
 # complete directory uses a local CC BY-NC-SA 4.0 license because its restored
 # artwork is derived from Quick's PICO-8 Free 8x8 Sprites cartridge.
-my $animated_rel=File::Spec->catdir(qw(examples 03_player_color_192 02_animated_sprites));
+my $animated_rel=File::Spec->catdir(qw(examples 04_renderers player_color animated_sprites));
 my $animated_root=File::Spec->catdir($repo,split('/', $animated_rel));
 my $animated_license=File::Spec->catfile($animated_root,'LICENSE.txt');
 my %animated_exception_docs=map { $_=>1 } (
    'examples/README.md',
-   'examples/03_player_color_192/README.md',
 );
 
 for my $tree (qw(libraries examples)) {
@@ -88,7 +87,7 @@ for my $tree (qw(libraries examples)) {
    $license_body =~ /use of the Work\.\s*\z/
       or die "$tree/LICENSE.txt is not the complete CC0-1.0 text\n";
    if ($tree eq 'examples') {
-      $license_body =~ /03_player_color_192\/02_animated_sprites/ &&
+      $license_body =~ /04_renderers\/player_color\/animated_sprites/ &&
       $license_body =~ /covered by its own `LICENSE\.txt` under CC BY-NC-SA 4\.0/
          or die "examples/LICENSE.txt does not scope the animated-sprite exception\n";
    }
@@ -115,8 +114,7 @@ for my $tree (qw(libraries examples)) {
       my $body=slurp($path);
       if ($body =~ /(?:BSD(?:-|\s)|GNU GENERAL PUBLIC LICENSE|\bGPL\b|CC BY(?:-|\b)|Attribution-NonCommercial|ShareAlike)/) {
          $tree eq 'examples' && $animated_exception_docs{$rel} &&
-         ($body =~ /03_player_color_192\/02_animated_sprites/ ||
-          ($rel eq 'examples/03_player_color_192/README.md' && $body =~ /02_animated_sprites/)) &&
+         $body =~ /04_renderers\/player_color\/animated_sprites/ &&
          $body =~ /CC BY-NC-SA 4\.0/
             or die "contradictory license reference remains in $rel\n";
       }
@@ -144,7 +142,7 @@ for my $path (sort @animated_files) {
    next if $path eq $animated_license;
    my $rel=File::Spec->abs2rel($path,$repo);
    next if basename($path) =~ /^\..*\.sw[pon]\z/;
-   next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
+   next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26|cfg)\z/;
    basename($path) !~ /(?:license|copying|copyright)/i
       or die "unexpected second license file remains in animated example: $rel\n";
    my $body=slurp($path);
@@ -358,7 +356,7 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'fixtures','faithful_legacy_multisprite','reference_diagnostic_stella_7.0.png') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','README.md') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','faithful_legacy_multisprite.c26') &&
--f File::Spec->catfile($repo,'examples','10_faithful_legacy_multisprite','01_diagnostic','faithful_legacy_multisprite_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','faithful_legacy_multisprite','faithful_legacy_multisprite_diagnostic.c26') &&
 -f File::Spec->catfile($test,'vcs_multisprite_profiles.pl') &&
 -f File::Spec->catfile($test,'vcs_multisprite_profiles.cpp') &&
 -f File::Spec->catfile($test,'vcs_multisprite_stella.pl') &&
@@ -532,8 +530,8 @@ index($vcs_2k_profile,'$vectors_offset:0x07fa')>=0
 my $vcs_4k_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','4K/mapper.c26'));
 index($vcs_4k_profile,'mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };')>=0
    or die "4K/mapper.c26 lost its allocatable-bytes-only ROM declaration\n";
-my $score_source=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','score.c26'));
-my $score_make=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','Makefile'));
+my $score_source=slurp(File::Spec->catfile($repo,'examples','02_components','six_digit_score','score.c26'));
+my $score_make=slurp(File::Spec->catfile($repo,'examples','02_components','six_digit_score','Makefile'));
 my $examples_build=slurp(File::Spec->catfile($test,'vcs_examples_build.pl'));
 index($score_source,'include "2K/mapper.c26"')>=0 &&
 index($score_make,'-T $(VCS_DIR)/vcs.cfg')<0 &&
@@ -607,8 +605,8 @@ for my $entry (@score_shards) {
    $has_mixed==$mixed
       or die "score-composition mixed-instance coverage is assigned incorrectly for $family\n";
 }
-my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','wide_score.c26'));
-my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','Makefile'));
+my $wide_source=slurp(File::Spec->catfile($repo,'examples','02_components','wide_score','wide_score.c26'));
+my $wide_make=slurp(File::Spec->catfile($repo,'examples','02_components','wide_score','Makefile'));
 index($wide_source,'include "2K/mapper.c26"')>=0 &&
 index($wide_source,'instantiate "six_glyph_wide_component.c26" as score')>=0 &&
 index($wide_make,'-T $(VCS_DIR)/vcs.cfg')<0 &&
@@ -622,8 +620,8 @@ index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_7.0.png')
    or die "widely spaced score example, tests, or oracle are incomplete
 ";
-my $big_wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','07_big_wide_score','big_wide_score.c26'));
-my $big_wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','07_big_wide_score','Makefile'));
+my $big_wide_source=slurp(File::Spec->catfile($repo,'examples','02_components','big_wide_score','big_wide_score.c26'));
+my $big_wide_make=slurp(File::Spec->catfile($repo,'examples','02_components','big_wide_score','Makefile'));
 index($big_wide_source,'include "fonts/big_decimal.c26"')>=0 &&
 index($big_wide_source,'instantiate "six_glyph_big_wide_component.c26" as score')>=0 &&
 index($big_wide_source,'vcs_ntsc_wait_component_scanlines(87)')>=0 &&
@@ -817,14 +815,15 @@ for my $moved (
    [qw(09_bankswitching 09_ua ua_diagnostic_common.c26)],
    [qw(16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
    [qw(06_all_five_181 three_plus_three_controls.c26)],
-   [qw(17_video_standards multisprite_228_interactive_common.c26)],
 ) {
    my $name=$moved->[-1];
    -f File::Spec->catfile($repo,'examples',@$moved)
       or die "example-local helper is missing: $name\n";
-   !-f File::Spec->catfile($repo,'examples','common',$name)
-      or die "narrow helper leaked back into examples/common: $name\n";
+   !-f File::Spec->catfile($repo,'examples','_common',$name)
+      or die "narrow helper leaked into examples/_common: $name\n";
 }
+-f File::Spec->catfile($repo,'examples','_common','multisprite_228_interactive_common.c26')
+   or die "cross-family 228-line multisprite helper is missing from examples/_common\n";
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/bankcall.s26') &&
@@ -1201,7 +1200,7 @@ index($superchip_diagnostic,'diagnostic_superchip_ram')<0
    or die "bankswitching diagnostic lost its mixed allocator-owned Superchip lifecycle probe\n";
 my $pc192_test=slurp(File::Spec->catfile($test,'vcs_player_color_192.pl'));
 my $pf_phase=slurp(File::Spec->catfile($test,'vcs_playfield_phase.cpp'));
-index($pc192_test,'03_player_color_192 01_interactive player_color_192_interactive.c26')>=0 &&
+index($pc192_test,'04_renderers player_color no_score player_color_192_interactive.c26')>=0 &&
 index($pc192_test,q{'diagonal-192'})>=0 &&
 index(slurp(File::Spec->catfile($test,'vcs_player_color_192_animation.pl')),q{'gallery-192'})>=0 &&
 index($pf_phase,'kDiagonalPlayfield192')>=0 &&

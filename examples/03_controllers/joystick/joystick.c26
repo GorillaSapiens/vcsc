@@ -1,0 +1,111 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Minimal left-joystick input monitor.
+//
+// The four direction inputs are active-low bits in SWCHA.  The left fire
+// button is active-low on INPT4 bit 7.  Five horizontal bands show, from top
+// to bottom, UP, DOWN, LEFT, RIGHT, and FIRE.  A direction band turns green
+// while held; the fire band turns red while pressed.
+
+include "vcs.c26"
+include "color_ntsc.c26"
+
+typedef int16_t int;
+typedef uint8_t char;
+typedef uint8_t bool;
+
+alias JOYSTICK_INACTIVE_COLOR VCS_NTSC_DARK_BLUE
+alias JOYSTICK_DIRECTION_COLOR VCS_NTSC_PALE_GREEN
+alias JOYSTICK_FIRE_COLOR VCS_NTSC_LIGHT_CORAL
+alias JOYSTICK_BLANK_COLOR 0x00
+
+void draw_input_band(uint8_t color) {
+   COLUBK := color;
+   for (uint8_t scanline := 38; scanline; scanline--) {
+      WSYNC := _;
+   }
+}
+
+void main(void) {
+   uint8_t directions := 0xff;
+   uint8_t fire_input := 0x80;
+   uint8_t color := JOYSTICK_INACTIVE_COLOR;
+
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := JOYSTICK_BLANK_COLOR;
+
+   while (1) {
+      // Exact 3-scanline VSYNC, followed by a timer-owned 37-line VBLANK.
+      WSYNC := _;
+      VSYNC := 2;
+      WSYNC := _;
+      WSYNC := _;
+      WSYNC := _;
+      VSYNC := 0;
+
+      VBLANK := 2;
+      TIM64T := 42;
+
+      // Read the left controller while the beam is blanked.  All five inputs
+      // are active-low on real Atari hardware.
+      directions := SWCHA;
+      fire_input := INPT4;
+
+      while (!(TIMINT & 0x80)) {
+      }
+      WSYNC := _;
+      VBLANK := 0;
+
+      color := JOYSTICK_INACTIVE_COLOR;
+      if (!(directions & 0x10)) {
+         color := JOYSTICK_DIRECTION_COLOR;
+      }
+      draw_input_band(color);
+
+      color := JOYSTICK_INACTIVE_COLOR;
+      if (!(directions & 0x20)) {
+         color := JOYSTICK_DIRECTION_COLOR;
+      }
+      draw_input_band(color);
+
+      color := JOYSTICK_INACTIVE_COLOR;
+      if (!(directions & 0x40)) {
+         color := JOYSTICK_DIRECTION_COLOR;
+      }
+      draw_input_band(color);
+
+      color := JOYSTICK_INACTIVE_COLOR;
+      if (!(directions & 0x80)) {
+         color := JOYSTICK_DIRECTION_COLOR;
+      }
+      draw_input_band(color);
+
+      color := JOYSTICK_INACTIVE_COLOR;
+      if (!(fire_input & 0x80)) {
+         color := JOYSTICK_FIRE_COLOR;
+      }
+      draw_input_band(color);
+
+      // Five 38-line bands are 190 visible lines.  Finish the 192-line NTSC
+      // visible region with two black scanlines.
+      COLUBK := JOYSTICK_BLANK_COLOR;
+      WSYNC := _;
+      WSYNC := _;
+
+      // Timer-owned 30-line overscan.  The next frame's leading WSYNC supplies
+      // the final blanked boundary, matching the basic no-assembly example.
+      VBLANK := 2;
+      TIM64T := 34;
+      while (!(TIMINT & 0x80)) {
+      }
+      WSYNC := _;
+      WSYNC := _;
+   }
+}

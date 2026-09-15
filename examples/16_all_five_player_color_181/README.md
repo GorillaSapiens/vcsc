@@ -27,7 +27,7 @@ selection advances the score hue. Both orders remain unbanked 4K cartridges at
 4051/4090 ROM and 124/128 RAM.
 
 Both cartridges use the same full-width eleven-row playfield pattern as
-`examples/common/all_five_181_interactive_common.c26`; the regression suite
+`examples/_common/all_five_181_interactive_common.c26`; the regression suite
 compares those source rows directly so sparse test data cannot mask reflected
 playfield timing bugs. The player positioning handoff is physically continuous
 across the old 15-pixel boundary plateau, and the terminal Ball latch is

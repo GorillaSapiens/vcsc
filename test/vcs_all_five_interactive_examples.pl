@@ -70,7 +70,7 @@ for my $case (@cases) {
       $text =~ /include "\.\.\/\.\.\/three_plus_three_controls\.c26"/
          or die "$dir does not use the shared three-plus-three score controls
 ";
-      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_181_interactive_common\.c26"/
+      $text =~ /include "\.\.\/\.\.\/\.\.\/_common\/all_five_181_interactive_common\.c26"/
          or die "$dir does not use the shared high-level all-five controls
 ";
       $text =~ /three_plus_three_score_component\.c26/
@@ -81,9 +81,9 @@ for my $case (@cases) {
       $text =~ /top_score_draw\(\).*game_draw\(\).*bottom_score_draw\(\)/s
          or die "$dir does not draw score/game/score in order\n";
    } else {
-      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls\.c26"/
+      $text =~ /include "\.\.\/\.\.\/\.\.\/_common\/fixed_six_digit_controls\.c26"/
          or die "$dir does not use the shared high-level score controls\n";
-      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_181_interactive_common\.c26"/
+      $text =~ /include "\.\.\/\.\.\/\.\.\/_common\/all_five_181_interactive_common\.c26"/
          or die "$dir does not use the shared high-level all-five controls\n";
    }
    if ($case->{score} && $case->{profile} ne 'all5_dual') {

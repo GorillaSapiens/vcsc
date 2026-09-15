@@ -165,7 +165,7 @@ the checked static cartridge leaves 30 RIOT bytes unallocated.
 
 Public componentized examples now live under renderer-specific paths:
 
-- `examples/03_player_color_192/` contains one full-height official-opcode
+- `examples/04_renderers/player_color/no_score/` contains one full-height official-opcode
   P0/P1/Ball positioning diagnostic.
 - `examples/04_player_color_181/` contains the official-opcode score-above and
   score-below positioning and score-editing diagnostics.
@@ -175,7 +175,7 @@ Public componentized examples now live under renderer-specific paths:
 
 Linked size is checked by the build and install tests but is not a stable public
 contract. The faithful legacy example is maintained separately under
-`examples/02_faithful_legacy_playercolors/` because it exercises the retained
+`examples/04_renderers/faithful_legacy_player_color/` because it exercises the retained
 compatibility profile rather than this componentized implementation.
 
 ## Timing and validation
@@ -187,9 +187,9 @@ Both ENAM registers are cleared before the visible field and never enabled.
 `test/vcs_standard_playercolors.pl` verifies the predecessor profile against
 private golden cartridges under `test/fixtures/vcs_examples/`.
 `test/vcs_faithful_legacy_example.pl` certifies the public example under
-`examples/02_faithful_legacy_playercolors/` against the independently built
+`examples/04_renderers/faithful_legacy_player_color/` against the independently built
 pristine BASIC 1.9 ROM; it does not certify this component profile. Public
-componentized examples are grouped under `examples/03_player_color_192/`,
+componentized examples are grouped under `examples/04_renderers/player_color/no_score/`,
 `examples/04_player_color_181/`, and
 `examples/07_player_color_181_unofficial/`; each maintained interactive diagnostic has
 initial-raster certification plus emulated switch, joystick, endpoint, score,
@@ -209,7 +209,7 @@ It verifies:
   including RESP cycles and HMxx values.
 
 The human-facing componentized multicolor diagnostics are grouped under
-`examples/03_player_color_192/`, `examples/04_player_color_181/`, and
+`examples/04_renderers/player_color/no_score/`, `examples/04_player_color_181/`, and
 `examples/07_player_color_181_unofficial/`. Their
 initial scenes have direct display certification and their controls run under
 emulation. Exact regressions

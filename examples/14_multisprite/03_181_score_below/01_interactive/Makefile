@@ -6,8 +6,8 @@ VCSC ?= $(ROOT)/driver/vcsc
 
 TARGET := multisprite_181_score_below_interactive.bin
 SOURCE := multisprite_181_score_below_interactive.c26
-COMMON := $(ROOT)/examples/common/multisprite_interactive_common.c26
-SCORE_CONTROLS := $(ROOT)/examples/common/fixed_six_digit_controls.c26
+COMMON := $(ROOT)/examples/_common/multisprite_interactive_common.c26
+SCORE_CONTROLS := $(ROOT)/examples/_common/fixed_six_digit_controls.c26
 
 all: $(TARGET)
 

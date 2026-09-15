@@ -32,22 +32,22 @@ $color_component =~ /parameter\s+mutable_color\s*:=\s*0/
    or die "mutable-color score mode lost its color or positioning contract\n";
 my @cases=(
  {
-   dir=>'02_faithful_legacy_playercolors/01_interactive',
+   dir=>'04_renderers/faithful_legacy_player_color',
    stem=>'faithful_legacy_playercolors_interactive', profile=>'legacy', prefix=>'legacy',
    score=>'legacy_score', color=>'legacy_score_color', extra=>['-Wa,--illegals'],
  },
  {
-   dir=>'03_player_color_192/01_interactive',
+   dir=>'04_renderers/player_color/no_score',
    stem=>'player_color_192_interactive', profile=>'192', prefix=>'game',
    score=>undef, color=>undef, extra=>[],
  },
  {
-   dir=>'04_player_color_181/01_score_above/01_interactive',
+   dir=>'04_renderers/player_color/score_above/centered',
    stem=>'player_color_181_score_above_interactive', profile=>'above', prefix=>'game',
    score=>'score_score', color=>'score_color', extra=>[],
  },
  {
-   dir=>'04_player_color_181/02_score_below/01_interactive',
+   dir=>'04_renderers/player_color/score_below/centered',
    stem=>'player_color_181_score_below_interactive', profile=>'below', prefix=>'game',
    score=>'score_score', color=>'score_color', extra=>[],
  },
@@ -89,7 +89,7 @@ for my $case (@cases) {
    my $text=read_file($src);
    my $behavior_text=$text;
    if ($profile ne 'legacy' && $profile ne '192') {
-      $behavior_text .= read_file(File::Spec->catfile($repo,qw(examples common player_color_181_interactive_common.c26)));
+      $behavior_text .= read_file(File::Spec->catfile($repo,qw(examples _common player_color_181_interactive_common.c26)));
    }
    $text =~ /^include "color_ntsc\.c26"$/m or die "$dir lacks named NTSC colors\n";
    $text =~ /^include "playfield\.c26"$/m or die "$dir lacks visual playfield rows\n";
@@ -130,7 +130,7 @@ for my $case (@cases) {
       $text =~ /vcs_ntsc_component_handoff\(\)/ or die "$dir lacks component handoff\n";
    }
    if (defined $case->{score}) {
-      $text =~ /include "(?:\.\.\/)+common\/fixed_six_digit_controls\.c26"/
+      $text =~ /include "(?:\.\.\/)+_common\/fixed_six_digit_controls\.c26"/
          or die "$dir does not use the shared high-level packed-BCD score controls\n";
    }
 

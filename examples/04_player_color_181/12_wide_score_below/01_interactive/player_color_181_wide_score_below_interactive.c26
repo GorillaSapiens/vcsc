@@ -10,7 +10,7 @@ include "fonts/default_decimal.c26"
 instantiate "renderers/player_color/player_color.c26" as game (lines:=181)
 instantiate "six_glyph_wide_component.c26" as score
 
-include "../../../common/fixed_six_digit_controls.c26"
+include "../../../_common/fixed_six_digit_controls.c26"
 
 inline void draw_visible_components(void) {
    game_draw();
@@ -18,4 +18,4 @@ inline void draw_visible_components(void) {
    score_draw();
 }
 
-include "../../../common/player_color_181_interactive_common.c26"
+include "../../../_common/player_color_181_interactive_common.c26"

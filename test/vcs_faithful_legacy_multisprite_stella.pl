@@ -25,8 +25,8 @@ my $perl=findexe('perl') or die "perl required\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_multisprite));
-my $source=File::Spec->catfile($repo,qw(examples 10_faithful_legacy_multisprite 01_diagnostic faithful_legacy_multisprite_diagnostic.c26));
-my $fixture=File::Spec->catfile($repo,qw(examples 10_faithful_legacy_multisprite 01_diagnostic faithful_legacy_multisprite_diagnostic_data.s26));
+my $source=File::Spec->catfile($repo,qw(examples 04_renderers faithful_legacy_multisprite faithful_legacy_multisprite_diagnostic.c26));
+my $fixture=File::Spec->catfile($repo,qw(examples 04_renderers faithful_legacy_multisprite faithful_legacy_multisprite_diagnostic_data.s26));
 my $renderer=File::Spec->catfile($profile,'faithful_legacy_multisprite_renderer.s26');
 my $startup=File::Spec->catfile($profile,'faithful_legacy_multisprite_startup.s26');
 my $reference=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_multisprite reference_diagnostic_stella_7.0.png));
@@ -34,7 +34,7 @@ my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 my $rom=File::Spec->catfile($tmp,'faithful_legacy_multisprite_diagnostic.bin');
 ok('build faithful multisprite diagnostic',$driver,'-nostdlib','-I',$vcs,'-Wa,--illegals',
-   '-T',$cfg,$source,$fixture,$renderer,$startup,'-o',$rom);
+   $source,$fixture,$renderer,$startup,'-o',$rom);
 
 my $display=250+($$%20); $display++ while -e "/tmp/.X11-unix/X$display";
 my $d=":$display";

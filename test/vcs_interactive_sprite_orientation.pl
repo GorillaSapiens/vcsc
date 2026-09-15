@@ -68,7 +68,7 @@ sub same {
 }
 
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
-my $faithful_path=File::Spec->catfile($repo,qw(examples 02_faithful_legacy_playercolors 01_interactive faithful_legacy_playercolors_interactive.c26));
+my $faithful_path=File::Spec->catfile($repo,qw(examples 04_renderers faithful_legacy_player_color faithful_legacy_playercolors_interactive.c26));
 my $faithful=read_file($faithful_path);
 my $p0_frames=frames(initializer($faithful,'p0_animation',32),'legacy_SPRITE_GLYPH');
 my $p1_frames=frames(initializer($faithful,'p1_animation',32),'legacy_SPRITE_GLYPH');
@@ -85,10 +85,10 @@ $faithful =~ /legacy_player1_graphics\s*\+=\s*\(\(legacy_PLAYER1_X\s*\^\s*legacy
    or die "faithful legacy P1 animation selector changed\n";
 
 my @definitions=(
-   [qw(examples 03_player_color_192 01_interactive player_color_192_interactive.c26)],
+   [qw(examples 04_renderers player_color no_score player_color_192_interactive.c26)],
    [qw(examples 05_all_five_192 01_interactive all_five_192_interactive.c26)],
-   [qw(examples common player_color_181_interactive_common.c26)],
-   [qw(examples common all_five_181_interactive_common.c26)],
+   [qw(examples _common player_color_181_interactive_common.c26)],
+   [qw(examples _common all_five_181_interactive_common.c26)],
    [qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
    [qw(examples 11_all_five_170 01_score_above_and_below 01_interactive all_five_170_score_above_and_below_interactive.c26)],
 );
@@ -139,8 +139,10 @@ for my $path (@animation_sources) {
 
 my @leaves;
 find(sub {
-   return unless -f $_ && /\.c26\z/ && $File::Find::name =~ m{/\d+_interactive/};
-   push @leaves,$File::Find::name;
+   return unless -f $_ && /\.c26\z/;
+   my $path=$File::Find::name;
+   return unless $path =~ m{/\d+_interactive/} || $path eq $faithful_path;
+   push @leaves,$path;
 },File::Spec->catdir($repo,'examples'));
 @leaves or die "found no interactive sources\n";
 my $faithful_seen=grep { $_ eq $faithful_path } @leaves;
@@ -151,7 +153,7 @@ for my $path (@leaves) {
    my $text=read_file($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
                $text =~ /\bp0_animation\s*\[32\]/ ||
-               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/common\/(?:player_color|all_five)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/ ||
+               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/_common\/(?:player_color|all_five)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/ ||
                $text =~ /include\s+"\.\.\/\.\.\/all_five_player_color_181_interactive_common\.c26"/;
    $covered or die "$path does not use a normalized interactive sprite definition\n";
 }

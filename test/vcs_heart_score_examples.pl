@@ -22,9 +22,10 @@ my $repo=abs_path($ARGV[0]) or die "resolve repo\n";
 my $tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp) or die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $dir=File::Spec->catdir($repo,qw(examples 01_basic 14_heart_score));
-my $controls=read_file(File::Spec->catfile($repo,qw(examples common heart_score_controls.c26)));
-my $common=read_file(File::Spec->catfile($repo,qw(examples common heart_score_player_color_181_common.c26)));
+my $above_dir=File::Spec->catdir($repo,qw(examples 04_renderers player_color score_above heart));
+my $below_dir=File::Spec->catdir($repo,qw(examples 04_renderers player_color score_below heart));
+my $controls=read_file(File::Spec->catfile($repo,qw(examples _common heart_score_controls.c26)));
+my $common=read_file(File::Spec->catfile($repo,qw(examples _common heart_score_player_color_181_common.c26)));
 
 $controls =~ /right_joystick_ready\s*:=\s*0x0f/ or die "right joystick edge latch is missing\n";
 $controls =~ /SWCHA\s*&\s*0x0f/ or die "right joystick does not read the low SWCHA nibble\n";
@@ -49,6 +50,7 @@ $common =~ /SWCHA\s*&\s*0x10/ && $common =~ /SWCHA\s*&\s*0x20/
    or die "heart composition demo does not read the left joystick directions\n";
 
 for my $kind (qw(above below)) {
+   my $dir=$kind eq 'above' ? $above_dir : $below_dir;
    my $src=File::Spec->catfile($dir,"heart_score_${kind}_interactive.c26");
    my $text=read_file($src);
    $text =~ /^include "4K\/mapper\.c26"$/m or die "$kind demo is not a plain 4K cartridge\n";

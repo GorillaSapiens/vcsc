@@ -41,7 +41,7 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
-my $source=File::Spec->catfile($repo,qw(examples 02_faithful_legacy_playercolors 01_interactive faithful_legacy_playercolors_interactive.c26));
+my $source=File::Spec->catfile($repo,qw(examples 04_renderers faithful_legacy_player_color faithful_legacy_playercolors_interactive.c26));
 my $bin=File::Spec->catfile($tmp,'faithful_legacy_playercolors.bin');
 my $map=File::Spec->catfile($tmp,'faithful_legacy_playercolors.map');
 

@@ -22,7 +22,7 @@ my$repo=shift@ARGV//usage();my$tmp=shift@ARGV//usage();usage()if@ARGV;
 $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$dir=File::Spec->catdir($repo,qw(examples 01_basic 13_tanks));
+my$dir=File::Spec->catdir($repo,qw(examples 06_games tanks));
 my$source=File::Spec->catfile($dir,'tanks.c26');
 my$bin=File::Spec->catfile($tmp,'tanks.bin');my$mapfile=File::Spec->catfile($tmp,'tanks.map');
 my$s=read_file($source);

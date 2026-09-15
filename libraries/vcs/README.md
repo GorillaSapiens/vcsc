@@ -73,21 +73,21 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `fonts/` ... eight shared 8x8 score-font families, the Big 8x16 decimal/hex/ASCII family, plus the six-slice `logo_font.c26` VCSC mark
 - `../../examples/README.md` ... renderer-grouped public example index
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
-- `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic
-- `../../examples/03_player_color_192/` ... full-height scoreless interactive player-color diagnostic
+- `../../examples/04_renderers/faithful_legacy_player_color/` ... faithful legacy interactive compatibility diagnostic
+- `../../examples/04_renderers/player_color/no_score/` ... full-height scoreless interactive player-color diagnostic
 - `../../examples/04_player_color_181/` ... official-opcode twelve-cartridge centered/left/right/two-plus-two/poison/wide matrix for 181-line player-color gameplay
 - `../../examples/05_all_five_192/` ... official-opcode full-height interactive diagnostic using `all_five (lines:=192)`
 - `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix using `all_five (lines:=181)`
 - `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/09_bankswitching/` ... F8/F6/F4/SC complete transition diagnostics plus the CBS FA/RAM Plus complete ordered-call PASS/FAIL diagnostic
-- `../../examples/10_faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28
+- `../../examples/04_renderers/faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28
 - `../../examples/14_multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions, all with horizontal/vertical P0/P1..P5 movement
 - `../../examples/15_all_five_player_color_192/` ... full-height interactive combined all-five/per-row-player-color diagnostic
 - `../../examples/16_all_five_player_color_181/` ... fixed centered score-above and score-below compositions for the 181-line combined all-five/per-row-player-color profile
 - `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
-- `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
+- `../../examples/04_renderers/player_color/score_above_and_below/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/17_video_standards/` ... separate `pal/` and `secam/` 50 Hz example trees with minimal frames and native interactive 228-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
 - `../../examples/18_enhanced_multisprite/` ... maintained asymmetric-playfield enhanced multisprite diagnostic; the renderer is line-parameterized for 192 and native PAL/SECAM 228 active lines
 
@@ -293,14 +293,14 @@ uses the 2/3 contract; the field diagnostic uses the simultaneous four-channel
 form.
 
 The public four-player cartridge at
-`examples/01_basic/10_four_player_paddleball/` assigns the left-port blue team
+`examples/06_games/four_player_paddleball/` assigns the left-port blue team
 to P0/M0 and the right-port red team to P1/M1, with the TIA Ball shared between
 them. P0/P1 are time-multiplexed: the score owns them at the top of the frame,
 then the three blank lines below the score reposition them as outer gameplay
 paddles. Paddle rebounds use the P0-Ball/M0-Ball/P1-Ball/M1-Ball TIA collision
 latches, any teammate may serve, and scoring remains blue-versus-red.
 
-The public Paddleball example in `examples/01_basic/09_paddleball/` demonstrates a complete
+The public Paddleball example in `examples/06_games/paddleball/` demonstrates a complete
 composition. Its 11-line `three_plus_three_score_component.c26` owns P0/P1;
 M0/M1 are the blue/red paddles and Ball is white. The 181 gameplay lines include
 four-scanline white top and bottom walls and a reflected dashed center line on a
@@ -336,7 +336,7 @@ auto-detection. INPT reads use recognized BIT/branch idioms, while SWCHA is
 preserved with a detector-safe indexed read so the keypad ROM is not
 misclassified as Joy2BPlus merely because it preserves the opposite port.
 
-The public example at `examples/01_basic/11_keypad/` instantiates one keypad on
+The public example at `examples/03_controllers/keypad/` instantiates one keypad on
 each port. A custom 13-glyph subset of the Big 8x16 font is drawn with P0 in the
 left half and P1 in the right half: the twelve key labels plus an empty rectangle
 when no key is held, white on the project's blue background.
@@ -364,7 +364,7 @@ rather than inventing a direction. Larger unsampled motion is intrinsically
 ambiguous, so callers that expect fast rotation should sample repeatedly during
 VBLANK and overscan.
 
-The public example at `examples/01_basic/12_drive/` instantiates one controller
+The public example at `examples/03_controllers/driving/` instantiates one controller
 on each port and samples both three times in VBLANK plus three times in overscan.
 Each side displays an independent Big-font hexadecimal digit centered in its
 half of the screen. Clockwise increments, counterclockwise decrements, and the
@@ -441,7 +441,7 @@ configure. This self-positioning makes the heart geometry safe both before and
 after another P0/P1 renderer in the same visible frame.
 
 The public example directory
-[`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/)
+[`examples/02_components/heart_score`](../../examples/02_components/heart_score/)
 contains the automatic default-profile meter plus two 4K interactive
 composition cartridges. The interactive carts instantiate `line_markers:=1`
 and place the ten-line heart profile above and below the maintained 181-line
@@ -512,7 +512,7 @@ row. Thus all four displayed diagnostic values share identical sampling phase
 rather than merely identical nominal elapsed units.
 
 The complete public example is
-[`examples/01_basic/08_dual_score`](../../examples/01_basic/08_dual_score/).
+[`examples/02_components/three_plus_three_score`](../../examples/02_components/three_plus_three_score/).
 The boundary regression simultaneously exercises `098 -> 099 -> 100` on the
 left and `998 -> 999 -> 000` on the right while locking the exact P0/P1 raster
 write schedule, independent colors, stable 262-line Stella frames, and the

@@ -59,7 +59,7 @@ this faithful profile must be assembled with `-Wa,--illegals`.
 
 ## Fixed diagnostic baseline
 
-`examples/10_faithful_legacy_multisprite/01_diagnostic/` is intentionally a
+`examples/04_renderers/faithful_legacy_multisprite/` is intentionally a
 fixed reference cartridge rather than the final application API.  Its C
 `main` has zero activation RAM; a small assembly fixture installs known test
 state once, then `main` repeatedly calls the faithful `drawscreen` entry.

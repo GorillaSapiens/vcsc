@@ -55,3 +55,35 @@ previously added `.../DRA.txt`; no DRA/compiler behavior changed here.
   owns relative includes/Makefiles plus affected tests, fixtures, packaging,
   licensing paths, documentation, and byte/raster validation; no code or public
   path is changed in this planning turn.
+
+2026-09-15 11:24:43 PDT, execute example reorg through ER11
+----------------------------------------------------------
+Implemented the example-tree migration through ER11. ER1 added an executable
+old-to-new runnable-leaf inventory plus an exact stale-retired-path checklist;
+ER2 established `examples/_common`. ER3-ER5 moved strict basics, standalone
+components, heart compositions, keypad, and driving. ER6/ER7 added focused
+joystick and paddle tutorials, with the paddle example using the maintained
+`two_paddles` lifecycle and explicit cross-frame VSYNC gap accounting. ER8 moved
+Paddleball, four-player Paddleball, and Tanks to `06_games`; all three ROMs were
+byte-identical before/after. ER9 flattened the faithful legacy player-color and
+multisprite renderers into peer `04_renderers` leaves; both ROMs stayed exact,
+the oracle tests passed, and the multisprite Stella raster passed. ER10 moved
+player-color no-score, animated-sprites, and dual-score leaves while preserving
+the animated local-license exception and RAM golden; all three ROMs stayed
+exact and focused non-Stella regressions passed. ER11 moved the eight official
+centered/left/right/two-plus-two 181-line score leaves into the new
+`player_color/score_{above,below}` matrix; all eight ROMs stayed exact and the
+full public score-control matrix passed. ER12 (wide + poison) is next.
+
+The reorg exposed and fixed two independent test-infrastructure defects. The
+faithful multisprite Stella test still passed obsolete `-T $cfg` state after VCS
+linker cfg profiles were removed, so that dead argument was deleted. Source-tree
+hygiene now ignores generated `.cfg` sidecars inside the animated-sprites local
+license subtree just as it already did for ordinary examples. The player-color
+192 Stella PNG certification currently produces stable digest
+`4093a6bcb808a710638b1fc01891b6cd15e8a44d7891566fd75904be80c137ab`
+while its checked-in reference digest is
+`8046bf5c73b3e5a8f519d24f47e81c26e5d2e79077312d6b2e8a2e501aa0c250`.
+The moved ROM is byte-identical to its pre-ER10 baseline, so this is a preexisting
+certification mismatch, not a relocation behavior change; do not update that
+golden as part of a path-only move without separately diagnosing it.

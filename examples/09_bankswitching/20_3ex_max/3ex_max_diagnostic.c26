@@ -75,7 +75,7 @@ bank255 void draw_wait(void) {
    spinner_index := 0;
    load_mapper_type();
    status_result_color := 0x0E;
-   COLUBK := 0x84; // Same blue as 01_basic/01_blank_screen.
+   COLUBK := 0x84; // Same blue as 01_basics/blank_screen.
    COLUP0 := 0x0E; COLUP1 := 0x0E;
    PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
    ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;

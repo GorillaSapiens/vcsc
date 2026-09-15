@@ -43,12 +43,12 @@ find({no_chdir=>1,wanted=>sub {
 }},$examples);
 @direct=sort @direct;
 my @expected=(
-   'examples/01_basic/01_blank_screen/blank_screen.c26',
-   'examples/01_basic/02_blank_noasm/blank_noasm.c26',
-   'examples/01_basic/03_ode_to_joy/ode_to_joy.c26',
+   'examples/01_basics/blank_screen/blank_screen.c26',
+   'examples/01_basics/blank_noasm/blank_noasm.c26',
+   'examples/01_basics/ode_to_joy/ode_to_joy.c26',
    'examples/19_diagnostic/01_diagnostic/vcsc_diagnostic.c26',
 );
-join("\n",@direct) eq join("\n",@expected)
+join("\n",@direct) eq join("\n",sort @expected)
    or die "direct example VSYNC writers changed:\n".join("\n",@direct)."\n";
 
 for my $rel ($expected[0]) {

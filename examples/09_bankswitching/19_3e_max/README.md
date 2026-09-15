@@ -57,7 +57,7 @@ compiler with a raw `$3E` mapper access.
 
 While either the ROM or RAM torture is running, the cartridge keeps a stable
 262-scanline NTSC frame with the `$84` blue background from
-`01_basic/01_blank_screen`. The big status line reads `wait ` plus a spinner
+`01_basics/blank_screen`. The big status line reads `wait ` plus a spinner
 cycling `/`, `-`, `\`, `|` every 15 frames (one quarter second). Work is sliced
 only into VBLANK and overscan. ROM batches are 10/8 operations; RAM batches are
 2/2 bytes.  The compiler-managed RAM path is substantially more expensive than

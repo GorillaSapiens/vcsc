@@ -161,7 +161,7 @@ my @demo_inputs=(
    [move_right=>['-holdjoy0','R']],
 );
 for my $kind (qw(above below)) {
-   my $demo_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),"heart_score_${kind}_interactive.c26");
+   my $demo_source=File::Spec->catfile($repo, qw(examples 04_renderers player_color), "score_${kind}", "heart", "heart_score_${kind}_interactive.c26");
    my $rom=File::Spec->catfile($tmp,"heart_score_${kind}_interactive.bin");
    ok("build heart score $kind composition",$driver,'-I',$vcs,$demo_source,'-o',$rom);
    -s $rom==4096 or die "heart score $kind composition is not a 4K ROM\n";
@@ -197,7 +197,7 @@ my @below_low=(
    [2,1,'2.5','320 x 228 1632b26a264bc83ccb06a3f2e19f1bb40fbddc0edb76dd6bb6a6d854b21f6a7d'],
    [3,0,'3.0','320 x 228 3c5f3543cafcd697abe6ad591c8232a078e32ae9ac49b82f2cb23160752ab014'],
 );
-my $below_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),'heart_score_below_interactive.c26');
+my $below_source=File::Spec->catfile($repo,qw(examples 04_renderers player_color score_below heart),'heart_score_below_interactive.c26');
 for my $case (@below_low) {
    my($score,$half,$label,$wanted)=@$case;
    my $rom=File::Spec->catfile($tmp,"heart_score_below_low_${score}_${half}.bin");

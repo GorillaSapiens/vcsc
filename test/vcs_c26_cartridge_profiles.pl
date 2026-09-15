@@ -39,7 +39,7 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $testlib=File::Spec->catdir($repo,'test');
-my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
+my $blank=File::Spec->catfile($repo,'examples','01_basics','blank_screen','blank_screen.c26');
 
 my @profiles=(
    ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        2, 1, 0,  8192],   ['3F',   '3F/mapper.c26',           4, 0, 0,  8192],   ['3E',   '3E/mapper.c26',           4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);

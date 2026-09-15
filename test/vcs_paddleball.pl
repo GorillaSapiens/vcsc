@@ -22,7 +22,7 @@ my$repo=shift@ARGV//usage();my$tmp=shift@ARGV//usage();usage()if@ARGV;
 $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$source=File::Spec->catfile($repo,qw(examples 01_basic 09_paddleball paddleball.c26));
+my$source=File::Spec->catfile($repo,qw(examples 06_games paddleball paddleball.c26));
 my$component=File::Spec->catfile($vcs,'two_paddles.c26');
 my$bin=File::Spec->catfile($tmp,'paddleball.bin');my$mapfile=File::Spec->catfile($tmp,'paddleball.map');
 
@@ -72,7 +72,7 @@ $p =~ /CXCLR := _/ &&
 $p !~ /overlaps_paddle/ && $p !~ /PADDLEBALL_(?:LEFT|RIGHT)_COLLISION_X/
    or die "Paddleball must use TIA M0-Ball and M1-Ball collision latches\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 09_paddleball)),'-Map',$mapfile,$source,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 06_games paddleball)),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Paddleball build failed\n$out$err";
 $err eq '' or die "Paddleball build stderr: $err";
 -s$bin==4096 or die "Paddleball ROM is not 4096 bytes\n";

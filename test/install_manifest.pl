@@ -52,7 +52,7 @@ run_ok($^X, $helper, 'install', '--manifest', $manifest, '--scope', 'examples',
     '--source-root', $repo, '--dest-root', $examples, '--vcsc-name', 'vcsc.exe');
 run_ok($^X, $helper, 'verify', '--manifest', $manifest, '--scope', 'examples',
     '--source-root', $repo, '--dest-root', $examples, '--vcsc-name', 'vcsc.exe');
-my $mk = File::Spec->catfile($examples, qw(01_basic 01_blank_screen Makefile));
+my $mk = File::Spec->catfile($examples, qw(01_basics blank_screen Makefile));
 open my $fh, '<', $mk or die "$mk: $!\n";
 local $/;
 my $text = <$fh>;
@@ -62,9 +62,9 @@ index($text, '$(ROOT)/libraries/vcs') >= 0 or die "installed example lost shared
 index($text, '$(ROOT)/driver/vcsc') < 0 or die "source-tree driver path survived example install\n";
 
 for my $rel (
-    [qw(01_basic 13_tanks Makefile)],
-    [qw(01_basic 11_keypad Makefile)],
-    [qw(01_basic 12_drive Makefile)],
+    [qw(06_games tanks Makefile)],
+    [qw(03_controllers keypad Makefile)],
+    [qw(03_controllers driving Makefile)],
 ) {
     my $direct = File::Spec->catfile($examples, @$rel);
     open my $dfh, '<', $direct or die "$direct: $!\n";

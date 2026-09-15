@@ -737,7 +737,7 @@
       },
       "useful_game_state_margin" : true
    },
-   "program" : "examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26",
+   "program" : "examples/04_renderers/player_color/animated_sprites/player_color_192_animated_sprites.c26",
    "protected_oracles" : [
       "test/vcs_player_color_192_animation.pl",
       "test/vcs_player_color_192_animation.cpp",

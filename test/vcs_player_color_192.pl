@@ -192,7 +192,7 @@ $err eq '' or die "player-color 192 playfield timing stderr: $err";
 # interactive example too and require every one of its 192 scanlines to emit
 # the empirically Stella-safe PF byte/order/phase schedule.  This specifically
 # rejects the 15/22/51/54 row-ending schedule that visibly tore the playfield.
-my $interactive_src=File::Spec->catfile($repo,qw(examples 03_player_color_192 01_interactive player_color_192_interactive.c26));
+my $interactive_src=File::Spec->catfile($repo,qw(examples 04_renderers player_color no_score player_color_192_interactive.c26));
 my $interactive_bin=File::Spec->catfile($tmp,'player_color_192_interactive.bin');
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$interactive_src,'-o',$interactive_bin);
 $rc==0 && !$sig or die "player-color 192 interactive playfield fixture build failed\n$out$err";

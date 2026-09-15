@@ -22,7 +22,7 @@ my$repo=shift@ARGV//usage();my$tmp=shift@ARGV//usage();usage()if@ARGV;
 $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$example_dir=File::Spec->catdir($repo,qw(examples 01_basic 12_drive));
+my$example_dir=File::Spec->catdir($repo,qw(examples 03_controllers driving));
 my$example=File::Spec->catfile($example_dir,'drive.c26');
 my$component=File::Spec->catfile($vcs,'driving_controller.c26');
 my$left_fixture=File::Spec->catfile($repo,qw(test fixtures driving_left driving_left.c26));

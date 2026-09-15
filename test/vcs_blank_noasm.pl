@@ -43,7 +43,7 @@ $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $source=File::Spec->catfile($repo,qw(examples 01_basic 02_blank_noasm blank_noasm.c26));
+my $source=File::Spec->catfile($repo,qw(examples 01_basics blank_noasm blank_noasm.c26));
 my $bin=File::Spec->catfile($tmp,'blank_noasm.bin');
 my $asm=File::Spec->catfile($tmp,'blank_noasm.s26');
 my $timing_source=File::Spec->catfile($repo,qw(test vcs_frame_timing.cpp));

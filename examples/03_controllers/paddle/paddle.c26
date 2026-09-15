@@ -1,0 +1,132 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Minimal left-paddle timing/value monitor.
+//
+// The upper eight bands display the last completed raw paddle measurement as
+// bits 7..0. The bottom band displays the paddle button. While that stable
+// value is shown, the next RC measurement is sampled continuously in two-line
+// slots by the reusable two_paddles input component.
+
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+instantiate "two_paddles.c26" as paddles (port:=0)
+
+alias PADDLE_INACTIVE_COLOR VCS_NTSC_DARK_BLUE
+alias PADDLE_VALUE_COLOR VCS_NTSC_PALE_GREEN
+alias PADDLE_BUTTON_COLOR VCS_NTSC_LIGHT_CORAL
+
+uint8_t display_position := 0;
+uint8_t display_button := 0;
+uint8_t bit7_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit6_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit5_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit4_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit3_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit2_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit1_color := PADDLE_INACTIVE_COLOR;
+uint8_t bit0_color := PADDLE_INACTIVE_COLOR;
+uint8_t button_color := PADDLE_INACTIVE_COLOR;
+
+inline void sample_pair(void) {
+   paddles_sample0();
+   WSYNC := _;
+   paddles_sample1();
+   paddles_advance_pair();
+   WSYNC := _;
+}
+
+void draw_value_band(uint8_t color) {
+   COLUBK := color;
+   for (uint8_t pair := 11; pair; pair--) {
+      sample_pair();
+   }
+}
+
+void draw_button_band(void) {
+   COLUBK := button_color;
+   for (uint8_t pair := 8; pair; pair--) {
+      sample_pair();
+   }
+}
+
+inline uint8_t value_color(uint8_t mask) {
+   if (display_position & mask) {
+      return PADDLE_VALUE_COLOR;
+   }
+   return PADDLE_INACTIVE_COLOR;
+}
+
+void prepare_display(void) {
+   // Capture the last completed measurement before this frame's sampling can
+   // change the public paddle state. Precompute all visible colors during
+   // VBLANK so input-dependent branches cannot move the live RC sample phase.
+   display_position := paddles_position0;
+   display_button := paddles_button0;
+   bit7_color := value_color(0x80);
+   bit6_color := value_color(0x40);
+   bit5_color := value_color(0x20);
+   bit4_color := value_color(0x10);
+   bit3_color := value_color(0x08);
+   bit2_color := value_color(0x04);
+   bit1_color := value_color(0x02);
+   bit0_color := value_color(0x01);
+   button_color := PADDLE_INACTIVE_COLOR;
+   if (display_button) {
+      button_color := PADDLE_BUTTON_COLOR;
+   }
+}
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := PADDLE_INACTIVE_COLOR;
+   paddles_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      // A high-resistance measurement may remain active across frames. VSYNC
+      // is three scanlines where this tutorial does not probe INPT0, so count
+      // that fixed gap before the next sampled phase. A freshly dumped paddle
+      // has not started charging yet and therefore must not count the gap.
+      if (!paddles_dumped) {
+         paddles_account_gap(2);
+      }
+
+      // begin_vblank() clears VBLANK.7. If the previous measurement completed
+      // and paddles_dump() grounded the capacitor, that release starts the next
+      // RC charge measurement here.
+      vcs_ntsc_begin_vblank();
+      prepare_display();
+      paddles_vblank();
+      vcs_ntsc_end_vblank();
+
+      // Eight 22-line binary-value bands plus one 16-line button band make the
+      // complete 192-line visible region. sample_pair() probes INPT0/INPT1 once
+      // per two scanlines while the previous stable value remains on screen.
+      draw_value_band(bit7_color);
+      draw_value_band(bit6_color);
+      draw_value_band(bit5_color);
+      draw_value_band(bit4_color);
+      draw_value_band(bit3_color);
+      draw_value_band(bit2_color);
+      draw_value_band(bit1_color);
+      draw_value_band(bit0_color);
+      draw_button_band();
+
+      vcs_ntsc_begin_overscan();
+      paddles_overscan();
+      vcs_ntsc_end_overscan();
+
+      // Completed readings are discharged across VSYNC. A high-resistance
+      // reading that is still active is allowed to continue into another frame.
+      paddles_dump();
+   }
+}

@@ -91,7 +91,7 @@ find({
    wanted=>sub {
       return unless -f $_ && /\.c26\z/;
       my $source=$File::Find::name;
-      return if $source =~ m{[\/]examples[\/]common[\/]};
+      return if $source =~ m{[\/]examples[\/]_common[\/]};
       push @example_sources,$source;
    },
 },$examples_root);

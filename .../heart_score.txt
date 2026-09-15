@@ -49,9 +49,11 @@ full hashes remain unchanged. Separate marker-profile goldens lock every 0..11
 marker prefix; zero markers is raster-identical to the ordinary centered 5.5
 fixture.
 
-`examples/01_basic/14_heart_score` also contains 4K interactive composition
-cartridges with the maintained 181-line player-color renderer both below and
-above the heart meter. Those demos instantiate `line_markers:=1`, use a one-line
+`examples/02_components/heart_score` contains the standalone component demo.
+The 4K interactive compositions live under
+`examples/04_renderers/player_color/score_above/heart` and
+`examples/04_renderers/player_color/score_below/heart`, using the maintained
+181-line player-color renderer on the opposite side of the heart meter. Those demos instantiate `line_markers:=1`, use a one-line
 separator, start at 5.5 hearts / 8 markers, and remain plain 4K. Right joystick
 UP/DOWN changes health in half-heart steps across 0..11; RIGHT/LEFT changes the
 independent marker prefix across 0..11. A neutral-required edge latch applies to

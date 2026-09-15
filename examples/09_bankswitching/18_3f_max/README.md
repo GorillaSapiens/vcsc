@@ -48,7 +48,7 @@ subsets.
 
 The exhaustive matrix is resumable. While it runs, the cartridge keeps a normal
 262-scanline NTSC frame on screen using the blue background from
-`01_basic/01_blank_screen`. The big status line reads `wait ` followed by a
+`01_basics/blank_screen`. The big status line reads `wait ` followed by a
 spinner cycling `/`, `-`, `\`, `|` every 15 frames (one quarter second). Torture
 work is limited to VBLANK and overscan batches; after all 65,535 calls complete,
 the display switches to the normal PASS/FAIL result.
