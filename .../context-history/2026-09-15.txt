@@ -22,3 +22,17 @@ lone `_` remains unchanged for now and is planned for hard migration to `$A`
 or `(void)` only after DRA codegen exists. The implementation roadmap is split
 into twelve focused slices sized for one short execution window each; DRA1 is
 lexer/parser/AST scaffolding and rejection tests only.
+
+2026-09-15 08:35:00 PDT, audit multi-ROM example play targets
+Audited every example Makefile and independently expanded the GNU make target
+database to identify directories that build more than one cartridge image. There
+are three: `01_basic/14_heart_score`, `09_bankswitching/01_f864`, and
+`09_bankswitching/09_ua`. F864 already launched each `.bin` sequentially from a
+shell `for` loop. Heart-score now loops over its three `TARGETS` instead of
+passing `*.bin` to one Stella process. UA/UASW now loops over two bin/mapper
+specifications while preserving the explicit `-bs UA` and `-bs UASW` choices;
+the individual `play-ua` and `play-uasw` convenience targets remain.
+Added `example_play_makefiles.pl`, which walks all example Makefiles and requires
+any declaratively multi-bin example to put Stella inside a shell `for` loop.
+Also corrected the developer-record branding inventory to recognize the
+previously added `.../DRA.txt`; no DRA/compiler behavior changed here.

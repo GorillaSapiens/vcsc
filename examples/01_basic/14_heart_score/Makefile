@@ -23,7 +23,9 @@ heart_score_below_interactive.bin: heart_score_below_interactive.c26 $(VCS_DIR)/
 clean:
 	rm -f $(TARGETS) *.hex *.map *.s26 *.o26 *.sym *.lst *.cfg
 
-play:
-	stella *.bin
+play: $(TARGETS)
+	for bin in $(TARGETS); do \
+		stella "$$bin"; \
+	done;
 
 .PHONY: all clean play

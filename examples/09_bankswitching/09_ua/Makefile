@@ -10,6 +10,7 @@ FONT_SUBSET_DIR ?= .
 COMMITTED_FONT_SUBSETS := ua_status_font.c26 ua_cart_type_font.c26
 FONT_SUBSET_FLAGS := --license examples/LICENSE.txt --bank bank0
 TARGETS := ua_diagnostic.bin uasw_diagnostic.bin
+PLAY_SPECS := ua_diagnostic.bin:UA uasw_diagnostic.bin:UASW
 
 all: $(TARGETS)
 
@@ -29,7 +30,12 @@ clean:
 	rm -f ua_diagnostic.bin ua_diagnostic.map ua_diagnostic.hex ua_diagnostic.sym ua_diagnostic.lst ua_diagnostic.cfg
 	rm -f uasw_diagnostic.bin uasw_diagnostic.map uasw_diagnostic.hex uasw_diagnostic.sym uasw_diagnostic.lst uasw_diagnostic.cfg
 
-play: play-ua play-uasw
+play: $(TARGETS)
+	for spec in $(PLAY_SPECS); do \
+		bin=$${spec%%:*}; \
+		mapper=$${spec##*:}; \
+		stella -bs "$$mapper" "$$bin"; \
+	done;
 
 play-ua: ua_diagnostic.bin
 	stella -bs UA ua_diagnostic.bin
@@ -37,4 +43,4 @@ play-ua: ua_diagnostic.bin
 play-uasw: uasw_diagnostic.bin
 	stella -bs UASW uasw_diagnostic.bin
 
-.PHONY: all clean play-ua play-uasw fonts
+.PHONY: all clean play play-ua play-uasw fonts
