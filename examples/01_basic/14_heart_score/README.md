@@ -21,10 +21,11 @@ four-line blank separator makes the visible field exactly 192 scanlines:
 
 Both interactive demos start at 5.5 hearts. Right joystick UP adds half a heart
 and DOWN removes half a heart, clamped to 0..11. A held direction changes health
-only once; return the stick fully to neutral before the next change. The gameplay
-scene is intentionally static so these examples spend their ROM budget on the
-real `player_color_181` and heart renderers rather than unrelated controls. Reset
-restarts the scene.
+only once; return the stick fully to neutral before the next change. The left
+joystick moves the selected gameplay object exactly like the other maintained
+`player_color_181` interactive examples; SELECT cycles P0, P1, and Ball. The
+sprites keep one static animation frame so the complete two-renderer diagnostic
+still fits in a plain 4K cartridge. Reset restarts the scene.
 
 The heart component consumes seven visible scanlines and eight bytes of RIOT
 RAM. Eleven eight-pixel hearts occupy a fixed 12-pixel-pitch footprint; smaller

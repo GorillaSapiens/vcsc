@@ -32,10 +32,15 @@ $controls =~ /right_joystick_ready\s*&\s*0x01/ or die "right joystick UP handlin
 $controls =~ /right_joystick_ready\s*&\s*0x02/ or die "right joystick DOWN handling is missing\n";
 $controls =~ /score_score\s*<\s*11/ or die "heart increment is not capped at 11\n";
 $common =~ /game_PLAYER0_X\s*:=\s*44/ && $common =~ /game_PLAYER1_X\s*:=\s*108/
-   or die "static player-color composition scene is missing\n";
+   or die "player-color composition scene is missing\n";
 $common =~ /update_score_controls\(\);/ or die "composition scene does not update heart controls\n";
-$common !~ /move_selected_object|update_object_selection/
-   or die "heart composition demo unexpectedly carries unrelated gameplay controls\n";
+$common =~ /update_object_selection\(\);/ && $common =~ /move_selected_object\(\);/
+   or die "heart composition demo lacks left-joystick object controls\n";
+$common =~ /SELECTED_PLAYER0/ && $common =~ /SELECTED_PLAYER1/ && $common =~ /SELECTED_BALL/
+   or die "heart composition demo does not cycle P0, P1, and Ball\n";
+$common =~ /SWCHA\s*&\s*0x40/ && $common =~ /SWCHA\s*&\s*0x80/ &&
+$common =~ /SWCHA\s*&\s*0x10/ && $common =~ /SWCHA\s*&\s*0x20/
+   or die "heart composition demo does not read the left joystick directions\n";
 
 for my $kind (qw(above below)) {
    my $src=File::Spec->catfile($dir,"heart_score_${kind}_interactive.c26");

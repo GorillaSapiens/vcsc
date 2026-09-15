@@ -39,8 +39,11 @@ hashes remain unchanged.
 cartridges with the maintained 181-line player-color renderer both below and
 above the heart meter. Four blank lines complete the 192-line visible field.
 Right joystick UP/DOWN changes health in half-heart steps across 0..11, with a
-neutral-required edge latch. Stella snapshots lock both composition orders and
-one UP/DOWN transition from the initial 5.5 state. The bottom composition also
+neutral-required edge latch. Left joystick moves the selected P0/P1/Ball and
+SELECT cycles the selected object, matching the maintained player-color
+interactive convention; the heart demos keep static sprite frames to remain 4K.
+Stella snapshots lock both composition orders, one UP/DOWN transition from the
+initial 5.5 state, and visible left-stick P0 motion. The bottom composition also
 locks 0.5, 1.0, 1.5, 2.0, 2.5, and 3.0 after the preceding player renderer;
 these are the singleton-sensitive states that exposed inherited-X bugs.
 

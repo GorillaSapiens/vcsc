@@ -88,42 +88,52 @@ for my $half (0,1) {
 }
 
 # Composition certification: the real 181-line player-color renderer and the
-# seven-line heart renderer must coexist in either visible order.  The initial
-# 5.5 state plus Stella's held right-joystick UP/DOWN options also lock one
-# interactive transition in each direction (6.0 and 5.0 respectively).
+# seven-line heart renderer must coexist in either visible order. The initial
+# 5.5 state plus held right-joystick UP/DOWN lock one health transition in each
+# direction (6.0 and 5.0). Held left-joystick RIGHT locks real gameplay motion
+# of the initially selected P0 so these cartridges cannot regress to static
+# "interactive" demos again.
 my %demo_wanted=(
    above=>{
       neutral=>'320 x 228 e7c4ad08dab58982e519427730ee521e10f22f4559ce880759ab9e31385b9bf2',
-      U=>'320 x 228 e990766e5c3a72b66636a8fa6dc0b9f03c7e168118bb8c10c388bc9163c9b9be',
-      D=>'320 x 228 7f185d1dba6c0f630f42d0e08b2140f856d0ed4cd123a7d8019a616d1f412504',
+      score_up=>'320 x 228 e990766e5c3a72b66636a8fa6dc0b9f03c7e168118bb8c10c388bc9163c9b9be',
+      score_down=>'320 x 228 7f185d1dba6c0f630f42d0e08b2140f856d0ed4cd123a7d8019a616d1f412504',
+      move_right=>'320 x 228 7acfac858feb57d6b1daf666c0a0336d3aede1b67dc878b69178ffd65d6d6351',
    },
    below=>{
       neutral=>'320 x 228 37f583c87535a6099d7b9c916de8abacd53d768fb3a94b0b2c3a6aa5ab715fd6',
-      U=>'320 x 228 1480a0544803c5afbacd635e79ee968ca80c4dce81296dd1c2af7ce9ce5a4de3',
-      D=>'320 x 228 3e335dbe9805188cab1ce1a9d29e72a745749d599c83d559c395e2a193de677e',
+      score_up=>'320 x 228 1480a0544803c5afbacd635e79ee968ca80c4dce81296dd1c2af7ce9ce5a4de3',
+      score_down=>'320 x 228 3e335dbe9805188cab1ce1a9d29e72a745749d599c83d559c395e2a193de677e',
+      move_right=>'320 x 228 3bee9ad675144951b87a48afe8c2c5def455e45fa0ed7cfbb12bbda0bb5f3442',
    },
+);
+my @demo_inputs=(
+   [neutral=>[]],
+   [score_up=>['-holdjoy1','U']],
+   [score_down=>['-holdjoy1','D']],
+   [move_right=>['-holdjoy0','R']],
 );
 for my $kind (qw(above below)) {
    my $demo_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),"heart_score_${kind}_interactive.c26");
    my $rom=File::Spec->catfile($tmp,"heart_score_${kind}_interactive.bin");
    ok("build heart score $kind composition",$driver,'-I',$vcs,$demo_source,'-o',$rom);
    -s $rom==4096 or die "heart score $kind composition is not a 4K ROM\n";
-   for my $hold (qw(neutral U D)) {
+   for my $case (@demo_inputs) {
+      my($label,$joy)=@$case;
       unlink glob("$snap/*.png");
-      my $demo_user=File::Spec->catdir($tmp,"user_${kind}_${hold}"); make_path($demo_user);
-      my @joy=$hold eq 'neutral' ? () : ('-holdjoy1',$hold);
+      my $demo_user=File::Spec->catdir($tmp,"user_${kind}_${label}"); make_path($demo_user);
       my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-         @joy,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+         @$joy,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$demo_user,$rom);
       my $pid=fork(); defined$pid or die "fork Stella\n";
-      if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${kind}_${hold}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-      ok("snapshot heart score $kind $hold",$perl,$keys,'--fast');
+      if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${kind}_${label}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+      ok("snapshot heart score $kind $label",$perl,$keys,'--fast');
       my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
-      terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $hold\n";
-      my($actual,$ae)=ok("digest heart score $kind $hold",$perl,$digest,$png[0]);
+      terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
+      my($actual,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
       $ae eq '' or die $ae; chomp $actual;
-      $actual eq $demo_wanted{$kind}{$hold}
-         or die "heart score $kind $hold raster differs: actual=$actual wanted=$demo_wanted{$kind}{$hold}\n";
+      $actual eq $demo_wanted{$kind}{$label}
+         or die "heart score $kind $label raster differs: actual=$actual wanted=$demo_wanted{$kind}{$label}\n";
    }
 }
 

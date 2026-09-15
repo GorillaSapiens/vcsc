@@ -169,3 +169,19 @@ composition snapshots. Added bottom-order Stella regressions for 0.5, 1.0, 1.5,
 2.0, 2.5, and 3.0; their score rows are masked and hashed independently of the
 gameplay scene. The two interactive examples now permit compile-time initial
 score/half overrides solely to make those deterministic composition checks easy.
+
+2026-09-14 18:40:37 PDT, restore heart demo gameplay controls
+The heart-score above/below cartridges were labeled interactive but their
+heart-specific application body had deliberately removed the normal gameplay
+controls to save ROM. Restored the maintained player-color interaction model:
+left joystick moves the selected P0/P1/Ball and SELECT cycles the selected
+object, while the right joystick remains dedicated to half-heart health changes.
+The sprites intentionally keep a single static frame so both real renderers plus
+both controller paths still fit in ordinary 4K.
+
+To recover ROM without deleting behavior, the non-beam object-selection,
+movement, and aggregate control helpers are ordinary overscan functions rather
+than one large inline expansion. Both top and bottom carts now link at 3974/4090
+ROM bytes with the same 47-byte total RAM use. Existing neutral and right-stick
+Stella hashes are unchanged. New Stella hashes pin held left-stick RIGHT visibly
+moving the initially selected P0 in both composition orders.
