@@ -29,6 +29,13 @@ clamp. Independent image comparison proves every 0.5..10.5 raster equals the
 unchanged N-heart raster plus exactly the left half of heart N+1; all twelve full
 hashes remain unchanged.
 
+`examples/01_basic/14_heart_score` also contains 4K interactive composition
+cartridges with the maintained 181-line player-color renderer both below and
+above the heart meter. Four blank lines complete the 192-line visible field.
+Right joystick UP/DOWN changes health in half-heart steps across 0..11, with a
+neutral-required edge latch. Stella snapshots lock both composition orders and
+one UP/DOWN transition from the initial 5.5 state.
+
 Next work
 ---------
 No heart-renderer implementation work is open. Preserve the fixed footprint,

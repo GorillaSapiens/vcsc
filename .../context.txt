@@ -136,7 +136,9 @@ Open workstreams
    `libraries/vcs/heart_score_component.c26` is complete for 0..11 hearts with
    half steps through 10.5. Player-only left-half renderers preserve the fixed
    12-pixel-pitch footprint using 8 RIOT-RAM bytes; score 11 ignores `half`.
-   Full-state hashes are unchanged. Read `.../heart_score.txt` for invariants.
+   Full-state hashes are unchanged. 4K interactive examples compose it above
+   and below `player_color_181` with right-stick half-heart control. Read
+   `.../heart_score.txt` for invariants.
 
 Startup selection
 -----------------

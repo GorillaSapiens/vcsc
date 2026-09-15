@@ -122,3 +122,25 @@ golden hashes, library documentation, focused heart note, hot context, and the
 public example. `vcs_heart_score.pl`, `vcs_heart_score_stella.pl`, and the public
 example build all pass; the example currently uses 2812 ROM bytes and 20 total
 RAM bytes.
+
+
+2026-09-14 16:32:26 PDT, heart composition demos
+Added two interactive 4K cartridges under `examples/01_basic/14_heart_score`
+that compose the seven-line heart meter with the maintained 181-line
+`player_color` renderer in both visible orders. A four-line blank separator
+makes 181 + 4 + 7 = 192 visible scanlines. The gameplay scene is intentionally
+static so the actual renderers fit together in plain 4K rather than introducing
+bankswitching solely for a composition diagnostic. Both images currently link
+at 3876/4090 ROM bytes and 43/128 RAM bytes.
+
+Right joystick UP/DOWN changes the meter by one half-heart per neutral-separated
+press across 0, 0.5, ... 10.5, 11; endpoint input clamps. The examples start at
+5.5 and Reset restarts the scene. A new focused e2e regression builds both ROMs,
+checks composition order/handshake and the right-controller contract. The Stella
+7.0 certification now also snapshots both top/bottom compositions at neutral,
+held UP, and held DOWN; from 5.5 those held inputs produce exactly 6.0 and 5.0.
+The focused example, core heart, and extended Stella tests pass. Both new ROMs
+also disassemble/reassemble byte-exact (2/2). A broad e2e run reached 229/367
+with zero failures before the container's 300-second execution cutoff; a later
+all-example shard run completed shards 1-3 cleanly before its separate wall-time
+cutoff, so no source failure was observed in either interrupted broad run.

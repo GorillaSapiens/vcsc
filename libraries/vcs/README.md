@@ -413,8 +413,12 @@ The VBLANK positioning path still clears missile/Ball motion registers before
 its global `HMOVE`, so unrelated objects are not displaced by score setup; the
 terminal cleanup leaves M0 and Ball disabled.
 
-The complete public example is
-[`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/).
+The public example directory
+[`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/)
+contains the automatic meter plus two 4K interactive composition cartridges.
+They place the seven-line heart meter above and below the maintained 181-line
+`player_color` renderer with a four-line separator. Right joystick UP/DOWN
+changes health by half a heart from 0 through 11 with edge-triggered input.
 
 ## Left/right three-plus-three score component
 

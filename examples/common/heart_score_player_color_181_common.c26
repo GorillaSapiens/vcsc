@@ -1,0 +1,130 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Compact static player-color scene used by the heart-score composition demos.
+// The including cartridge must instantiate `game` (181 lines) and `score`, then
+// define draw_visible_components().  Right-joystick health control is supplied
+// by heart_score_controls.c26; the gameplay scene deliberately stays static so
+// these examples test visible-component composition without wasting ROM on
+// unrelated movement/animation diagnostics.
+
+page const uint8_t game_playfield[44] := {
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b...X...._.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b....X..._..X....._X.....X._....X...),
+   VCS_PLAYFIELD_ROW(0b.....X.._...X...._.X.....X_.....X..),
+   VCS_PLAYFIELD_ROW(0b......X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.......X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0bX......._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
+};
+
+page const uint8_t game_player0_graphics_data[8] := {
+   game_SPRITE_GLYPH(
+      0b.X....X.,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XX..XX.
+   )
+};
+
+page const uint8_t game_player1_graphics_data[8] := {
+   game_SPRITE_GLYPH(
+      0bX.X..X.X,
+      0b.X.XX.X.,
+      0b..X..X..,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   )
+};
+
+page const uint8_t game_player0_colors[8] := {
+   game_SPRITE_GLYPH(
+      VCS_NTSC_SKY_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_LIGHT_CORAL,
+      VCS_NTSC_SANDY_BROWN
+   )
+};
+
+page const uint8_t game_player1_colors[8] := {
+   game_SPRITE_GLYPH(
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_SKY_BLUE,
+      VCS_NTSC_AQUAMARINE,
+      VCS_NTSC_PALE_GREEN
+   )
+};
+
+inline void initialize_scene(void) {
+   VBLANK := 2;
+   game_PLAYER0_X := 44;
+   game_PLAYER1_X := 108;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_BALL_X := 78;
+   game_player0_y := 70;
+   game_player1_y := 42;
+   game_ball_y := 45;
+   game_player0_graphics := game_player0_graphics_data;
+   game_player1_graphics := game_player1_graphics_data;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+
+   initialize_score_state();
+   game_init();
+   score_init();
+}
+
+inline void configure_game_frame(void) {
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x21;
+}
+
+inline void update_controls(void) {
+   if (!(SWCHB & 0x01)) {
+      hard_reset();
+   }
+   update_score_controls();
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   initialize_scene();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      score_vblank();
+      configure_game_frame();
+      vcs_ntsc_end_vblank();
+      draw_visible_components();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      update_controls();
+      vcs_ntsc_end_overscan();
+   }
+}

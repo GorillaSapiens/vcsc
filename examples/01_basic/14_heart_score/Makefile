@@ -4,14 +4,24 @@ ROOT ?= ../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
-all: heart_score.bin
+TARGETS := heart_score.bin heart_score_above_interactive.bin heart_score_below_interactive.bin
+
+all: $(TARGETS)
 
 heart_score.bin: heart_score.c26 $(VCS_DIR)/heart_score_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/4K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26
 	$(VCSC) -I $(VCS_DIR) -I . -Map heart_score.map heart_score.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 
+heart_score_above_interactive.bin: heart_score_above_interactive.c26 $(VCS_DIR)/heart_score_component.c26 $(VCS_DIR)/renderers/player_color/player_color.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/playfield.c26 $(VCS_DIR)/4K/mapper.c26 $(ROOT)/examples/common/heart_score_controls.c26 $(ROOT)/examples/common/heart_score_player_color_181_common.c26
+	$(VCSC) -I $(VCS_DIR) -I . -Map heart_score_above_interactive.map heart_score_above_interactive.c26 -o $@
+	@test `wc -c < $@` -eq 4096
+
+heart_score_below_interactive.bin: heart_score_below_interactive.c26 $(VCS_DIR)/heart_score_component.c26 $(VCS_DIR)/renderers/player_color/player_color.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/playfield.c26 $(VCS_DIR)/4K/mapper.c26 $(ROOT)/examples/common/heart_score_controls.c26 $(ROOT)/examples/common/heart_score_player_color_181_common.c26
+	$(VCSC) -I $(VCS_DIR) -I . -Map heart_score_below_interactive.map heart_score_below_interactive.c26 -o $@
+	@test `wc -c < $@` -eq 4096
+
 clean:
-	rm -f heart_score.bin heart_score.hex heart_score.map heart_score.s26 heart_score.sym heart_score.lst heart_score.cfg
+	rm -f $(TARGETS) *.hex *.map *.s26 *.o26 *.sym *.lst *.cfg
 
 play:
 	stella *.bin

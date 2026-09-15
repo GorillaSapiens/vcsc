@@ -9,15 +9,24 @@
 
 # Heart score
 
-This 4K example instantiates `heart_score_component.c26` as a fixed-footprint
-0..11 health meter with half-heart steps. Eleven eight-pixel hearts are centered across the screen at
-a 12-pixel pitch. Smaller values are exact left-justified prefixes, so changing
-health never moves an already-visible heart.
+`heart_score.c26` is the automatic fixed-footprint 0..11 health-meter demo. It
+advances in half-heart steps every 30 frames and wraps after eleven hearts.
 
-The example advances in half-heart steps from zero through eleven hearts every
-30 frames and then wraps to zero. The component consumes seven visible scanlines. Its twelve
-prepatched renderer variants execute directly from ROM; the component itself
-uses only eight bytes of RIOT RAM, including public score, half-state, and color bytes.
-A zero-full-heart half state is a single P0 left-half sprite. Later half states
-use the next P0/P1 copy while leaving every full-heart position unchanged; no
-Ball or missile graphics are consumed.
+The two interactive 4K cartridges compose the seven-line heart component with
+the maintained 181-line `player_color` gameplay renderer in both orders. A
+four-line blank separator makes the visible field exactly 192 scanlines:
+
+- `heart_score_above_interactive.bin`: heart score, four blank lines, gameplay.
+- `heart_score_below_interactive.bin`: gameplay, four blank lines, heart score.
+
+Both interactive demos start at 5.5 hearts. Right joystick UP adds half a heart
+and DOWN removes half a heart, clamped to 0..11. A held direction changes health
+only once; return the stick fully to neutral before the next change. The gameplay
+scene is intentionally static so these examples spend their ROM budget on the
+real `player_color_181` and heart renderers rather than unrelated controls. Reset
+restarts the scene.
+
+The heart component consumes seven visible scanlines and eight bytes of RIOT
+RAM. Eleven eight-pixel hearts occupy a fixed 12-pixel-pitch footprint; smaller
+values are exact left-justified prefixes. Half states through 10.5 draw the left
+half of the next heart, while 11 is the maximum state.
