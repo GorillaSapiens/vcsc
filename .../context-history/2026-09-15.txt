@@ -1,0 +1,11 @@
+2026-09-15 00:10:24 PDT, use C26 discard-store for heart demo gap
+The line-marker interactive demos used a raw `asm sta WSYNC` only to consume
+the one blank composition scanline. Replaced both occurrences with the ordinary
+C26 discard-store `WSYNC := _`, which is the maintained source form for this
+hardware idiom. `example_assembly_allowlist.pl` now passes without adding a new
+allowlist exception. Rebuilt both 4K interactive ROMs and compared them against
+the pre-fix `070153` sources compiled with the same tools: above and below are
+byte-identical, so the beam timing and Stella raster are unchanged.
+A full `make test TEST_JOBS=8` checkpoint completed compile-only 537/537 and
+e2e 229/367 with no failures before the execution window terminated the run.
+The user's previously failing allowlist case is among the passing e2e prefix.
