@@ -18,9 +18,15 @@ maximum, so no 11.5 geometry is required.
 
 The dispatcher cycle-balances X selection: full renderers enter with X=0; half
 renderers enter with X=$F0. Half pixels use P0/P1 only. The old Ball/M0 overlay,
-position tables, and per-row Ball motion are gone. VBLANK still zeroes missile
-and Ball motion registers before global HMOVE setup so unrelated objects are not
-displaced.
+position tables, and per-row Ball motion are gone.
+
+Player positioning is now owned by `draw()` rather than being prepared in
+VBLANK and assumed to survive until visible output. The seven-line visible setup
+line clears inherited graphics, issues paired absolute RESP0/RESP1 strobes at a
+12-pixel pitch, applies a late $50 positioning HMOVE with M0/M1/Ball motion
+neutralized, then restores the score-dependent Jentzsch NUSIZ/HMP state before
+the first row. Therefore a renderer that ran immediately before the heart score
+may leave arbitrary P0/P1 X positions without displacing low heart counts.
 
 One instance uses 8 RIOT-RAM bytes total: public `score`, `half`, and `color`, a
 two-byte renderer pointer, and three cached TIA setup bytes. It consumes seven
@@ -34,9 +40,13 @@ cartridges with the maintained 181-line player-color renderer both below and
 above the heart meter. Four blank lines complete the 192-line visible field.
 Right joystick UP/DOWN changes health in half-heart steps across 0..11, with a
 neutral-required edge latch. Stella snapshots lock both composition orders and
-one UP/DOWN transition from the initial 5.5 state.
+one UP/DOWN transition from the initial 5.5 state. The bottom composition also
+locks 0.5, 1.0, 1.5, 2.0, 2.5, and 3.0 after the preceding player renderer;
+these are the singleton-sensitive states that exposed inherited-X bugs.
 
 Next work
 ---------
 No heart-renderer implementation work is open. Preserve the fixed footprint,
-8-byte RAM contract, full-state hashes, left-half geometry, and score-11 clamp.
+7-line self-positioning draw contract, 8-byte RAM contract, full-state hashes,
+left-half geometry, bottom-order low-state composition checks, and score-11
+clamp.

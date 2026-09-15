@@ -401,17 +401,22 @@ four-cycle slot left for that store. At score 11, `half` is ignored visually;
 there is no 11.5 state.
 
 One instance uses **eight RIOT-RAM bytes** total: public `score`, `half`, and
-`color`, a two-byte ROM-renderer pointer, and three cached TIA setup bytes. The
-singleton P0 path retains its extra VBLANK HMOVE correction, and P0 remains
-zero-motion while P1's singleton setup HMOVE runs. Stella 7.0 certification
-locks all 23 visible values (`0`, `0.5`, ... `10.5`, `11`) plus the `11+half`
-clamp case, and preserves the original twelve full-heart hashes unchanged.
+`color`, a two-byte ROM-renderer pointer, and three cached TIA setup bytes.
+Horizontal player placement is re-established by `draw()` itself, rather than
+being left as VBLANK state for a later visible component to preserve. The setup
+line uses paired RESP0/RESP1 strobes plus a late positioning HMOVE, then restores
+the normal Jentzsch NUSIZ/HMP values before the first heart row. Stella 7.0
+certification locks all 23 visible values (`0`, `0.5`, ... `10.5`, `11`) plus
+the `11+half` clamp case, and preserves the original twelve full-heart hashes
+unchanged.
 
 The component consumes exactly **seven visible scanlines**, enters `draw()` at
-cycle 3, and returns at cycle 0 after its terminal `WSYNC`. It owns P0/P1 while drawing. Half-heart pixels use no Ball or missile graphics.
-The VBLANK positioning path still clears missile/Ball motion registers before
-its global `HMOVE`, so unrelated objects are not displaced by score setup; the
-terminal cleanup leaves M0 and Ball disabled.
+cycle 3, and returns at cycle 0 after its terminal `WSYNC`. It owns P0/P1 while
+drawing. Half-heart pixels use no Ball or missile graphics. The visible setup
+line clears missile/Ball motion before its positioning `HMOVE`, so unrelated
+objects are not displaced; terminal cleanup leaves M0 and Ball disabled. This
+self-positioning makes the renderer safe both before and after another P0/P1
+renderer in the same visible frame.
 
 The public example directory
 [`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/)
@@ -419,6 +424,9 @@ contains the automatic meter plus two 4K interactive composition cartridges.
 They place the seven-line heart meter above and below the maintained 181-line
 `player_color` renderer with a four-line separator. Right joystick UP/DOWN
 changes health by half a heart from 0 through 11 with edge-triggered input.
+Stella composition coverage includes the bottom-mounted singleton-sensitive
+states 0.5 through 3.0, so a preceding player renderer cannot silently displace
+the first hearts.
 
 ## Left/right three-plus-three score component
 

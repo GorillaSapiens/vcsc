@@ -15,8 +15,8 @@
 // its terminal WSYNC.  It owns P0/P1 graphics, color, reflection, VDEL, NUSIZ,
 // horizontal motion, RESP0/RESP1, and HMOVE while drawing. Half-heart pixels
 // use the same two players only; they do not consume M0/Ball, CTRLPF, or COLUPF.
-// VBLANK setup still neutralizes missile/Ball motion before global HMOVEs, and
-// terminal cleanup leaves M0 and Ball disabled.
+// The visible setup line neutralizes missile/Ball motion before its positioning
+// HMOVE, and terminal cleanup leaves M0 and Ball disabled.
 // It does not touch playfield graphics, VSYNC, VBLANK, RIOT timer, audio, or
 // collision latches. A/X/Y and arithmetic flags are clobbered; hardware stack
 // depth is unchanged at lifecycle boundaries.
@@ -29,7 +29,7 @@ enum TEMPLATE_contract {
    TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES :=0,
    TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES :=0,
    TEMPLATE_DRAW_TERMINAL_WSYNC :=1,
-   TEMPLATE_DRAW_HMOVE_COUNT :=6,
+   TEMPLATE_DRAW_HMOVE_COUNT :=7,
    TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE :=1,
    TEMPLATE_VBLANK_MAX_CYCLES :=900,
    TEMPLATE_OVERSCAN_MAX_CYCLES :=0,
@@ -806,7 +806,7 @@ page static void TEMPLATE_half_renderer_11(void) {
    asm bne.same @TEMPLATE_half_renderer_11_loop;
 }
 
-static void TEMPLATE_select_kernel(void) {
+static void TEMPLATE_select_renderer(void) {
    // Cache the score-dependent TIA setup during init/VBLANK so TEMPLATE_draw
    // stays on the same pre-WSYNC schedule as the certified RAM version.
    TEMPLATE_nusiz0 := 0x81;
@@ -1015,92 +1015,18 @@ static void TEMPLATE_dispatch(void) {
    asm jmp.i (TEMPLATE_renderer_ptr);
 }
 
-// Jentzsch singleton coarse/fine positioning. Single-copy players are
-// positioned once during VBLANK; the visible renderer then uses the oracle
-// motion-register values without changing the established fixed footprint.
-static inline void TEMPLATE_position_single_p0(void) {
-   asm lda #16;
-   asm sta WSYNC;
-   asm sec;
-   asm @TEMPLATE_p0_pos_loop:;
-   asm sbc #$0f;
-   asm bcs.same @TEMPLATE_p0_pos_loop;
-   asm eor #$07;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta HMP0;
-   asm .byte $8d,$10,$00;
-   asm sta WSYNC;
-   asm sta HMOVE;
-
-   // Single-copy NUSIZ places P0 two TIA pixels left of the repeated-copy
-   // footprint. One additional setup HMOVE supplies that fixed correction.
-   asm lda #$a0;
-   asm sta HMP0;
-   asm lda #0;
-   asm sta HMP1;
-   asm sta WSYNC;
-   asm sta HMOVE;
-
-   // Keep P0 neutral across a following P1 singleton setup HMOVE.
-   asm lda #0;
-   asm sta HMP0;
-}
-
-static inline void TEMPLATE_position_single_p1(void) {
-   asm lda #28;
-   asm sta WSYNC;
-   asm sec;
-   asm @TEMPLATE_p1_pos_loop:;
-   asm sbc #$0f;
-   asm bcs.same @TEMPLATE_p1_pos_loop;
-   asm eor #$07;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta HMP1;
-   asm .byte $8d,$11,$00;
-   asm sta WSYNC;
-   asm sta HMOVE;
-   asm lda #$80;
-   asm sta HMP1;
-}
-
-static inline void TEMPLATE_prepare_positions(void) {
-   // Original centered row/setup-5 initial state.
-   asm lda #$b0;
-   asm sta HMP0;
-   asm lda #$80;
-   asm sta HMP1;
-
-   // Make setup HMOVEs harmless to missiles/Ball owned by surrounding code.
-   asm lda #0;
-   asm sta HMM0;
-   asm sta HMM1;
-   asm sta HMBL;
-
-   // The half renderer for N hearts uses the copy geometry of the N+1 full
-   // renderer, because the next player copy carries the left-half sprite.
-   if ((!TEMPLATE_half && (TEMPLATE_score == 1 || TEMPLATE_score == 2)) ||
-       (TEMPLATE_half && (TEMPLATE_score == 0 || TEMPLATE_score == 1))) {
-      TEMPLATE_position_single_p0();
-   }
-   if ((!TEMPLATE_half && (TEMPLATE_score == 2 || TEMPLATE_score == 3)) ||
-       (TEMPLATE_half && (TEMPLATE_score == 1 || TEMPLATE_score == 2))) {
-      TEMPLATE_position_single_p1();
-   }
-}
+// The visible setup line re-establishes P0/P1 horizontal state on every draw.
+// Back-to-back absolute RESP strobes preserve the 12-pixel heart pitch; the
+// late $50 setup HMOVE places singleton P0/P1 so the renderer's normal $80
+// row HMOVE yields the fixed X=16/X=28 slots. Higher-count streams issue their
+// own timed RESP strobes. This makes draw order independent of predecessor X.
 
 require inline void TEMPLATE_init(void) {
-   TEMPLATE_select_kernel();
+   TEMPLATE_select_renderer();
 }
 
 require inline void TEMPLATE_vblank(void) {
-   TEMPLATE_select_kernel();
-   TEMPLATE_prepare_positions();
+   TEMPLATE_select_renderer();
 }
 
 static inline void TEMPLATE_configure_tia(void) {
@@ -1108,15 +1034,34 @@ static inline void TEMPLATE_configure_tia(void) {
    asm sta GRP0;
    asm sta GRP1;
    asm sta ENABL;
+   asm bit.z TEMPLATE_score;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm lda #$50;
+   asm sta HMP0;
+   asm sta HMP1;
+   asm lda #0;
    asm sta VDELP0;
    asm sta VDELP1;
-   asm sta REFP0;
-   asm sta REFP1;
    asm sta HMM1;
-   asm lda.z TEMPLATE_nusiz1;
-   asm sta NUSIZ1;
    asm sta HMM0;
    asm sta HMBL;
+   asm sta HMOVE;
+}
+
+require inline void TEMPLATE_draw(void) {
+   TEMPLATE_configure_tia();
+   asm sta WSYNC;
+
+   // Restore score-dependent Jentzsch motion and color in exactly 38 cycles
+   // before JSR, preserving the certified cycle-66 renderer entry.
+   asm sta REFP0;
+   asm sta REFP1;
+   asm lda.z TEMPLATE_nusiz1;
+   asm sta NUSIZ1;
    asm lda.z TEMPLATE_nusiz0;
    asm sta NUSIZ0;
    asm lda.z TEMPLATE_final_hmp0;
@@ -1126,24 +1071,6 @@ static inline void TEMPLATE_configure_tia(void) {
    asm lda.z TEMPLATE_color;
    asm sta COLUP0;
    asm sta COLUP1;
-}
-
-require inline void TEMPLATE_draw(void) {
-   TEMPLATE_configure_tia();
-   asm sta WSYNC;
-
-   // 38 cycles before JSR. JSR (6) plus the dispatcher's fixed 22 cycles put
-   // the first ROM LDA at cycle 66, exactly matching the centered oracle row.
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm bit.a TEMPLATE_score;
-   asm nop;
    TEMPLATE_dispatch();
 
    asm lda #0;

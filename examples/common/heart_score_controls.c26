@@ -6,8 +6,16 @@
 uint8_t right_joystick_ready := 0x0f;
 
 inline void initialize_score_state(void) {
+#ifdef HEART_SCORE_INITIAL_SCORE
+   score_score := HEART_SCORE_INITIAL_SCORE;
+#else
    score_score := 5;
+#endif
+#ifdef HEART_SCORE_INITIAL_HALF
+   score_half := HEART_SCORE_INITIAL_HALF;
+#else
    score_half := 1;
+#endif
    score_color := VCS_NTSC_LIGHT_CORAL;
    right_joystick_ready := 0x0f;
 }

@@ -106,7 +106,7 @@ The public example was changed to step directly from 10.5 to 11 to 0.
 Replaced the Ball/M0 right-half overlay with player-only left-half rendering.
 0.5 uses the high nibble of the normal P0 heart glyph. 1.5..9.5 preserve the
 Jentzsch row schedule and use stable SAX stores with X=$F0 to write A&$F0 into
-the next P0/P1 copy. 10.5 uses an unrolled six-row kernel because the ten-heart
+the next P0/P1 copy. 10.5 uses an unrolled six-row renderer because the ten-heart
 loop has no spare four-cycle slot for SAX. The fixed-cycle dispatcher now
 cycle-balances X=0 for full renderers against X=$F0 for half renderers. Obsolete
 Ball/M0 position/motion tables and overlay code were removed; one component
@@ -144,3 +144,28 @@ also disassemble/reassemble byte-exact (2/2). A broad e2e run reached 229/367
 with zero failures before the container's 300-second execution cutoff; a later
 all-example shard run completed shards 1-3 cleanly before its separate wall-time
 cutoff, so no source failure was observed in either interrupted broad run.
+
+2026-09-14 17:46:19 PDT, make heart draw order independent
+The bottom-mounted interactive heart demo exposed a real integration defect in
+low states 0.5 through 3.0. Those states use singleton P0/P1 copies, and the
+component had positioned those copies during VBLANK. A visible player renderer
+running before the score legitimately rewrote RESP0/RESP1, so the later heart
+draw inherited gameplay X positions. States 3.5 and above happened to repair
+their positions with their own timed RESP stream, which hid the bad ownership
+assumption in the original composition snapshots.
+
+Moved the singleton base placement into the heart draw's existing visible setup
+line without increasing the seven-line footprint or RIOT-RAM use. The setup
+clears inherited graphics, issues absolute RESP0/RESP1 strobes four CPU cycles
+apart, applies a late $50 HMOVE with missile/Ball motion neutralized, and then
+restores the score-dependent Jentzsch NUSIZ/HMP state during the fixed 38-cycle
+prelude. The renderer therefore owns horizontal player placement at the point it
+is consumed instead of depending on VBLANK state surviving another renderer.
+The draw contract now records seven HMOVE strobes rather than six.
+
+All pre-existing Stella hashes still pass, including all twelve historical full
+states, every half-control state, and the existing above/below 5.0/5.5/6.0
+composition snapshots. Added bottom-order Stella regressions for 0.5, 1.0, 1.5,
+2.0, 2.5, and 3.0; their score rows are masked and hashed independently of the
+gameplay scene. The two interactive examples now permit compile-time initial
+score/half overrides solely to make those deterministic composition checks easy.

@@ -126,5 +126,43 @@ for my $kind (qw(above below)) {
          or die "heart score $kind $hold raster differs: actual=$actual wanted=$demo_wanted{$kind}{$hold}\n";
    }
 }
+
+# The bottom composition specifically certifies the low-count states that depend
+# on singleton P0/P1 geometry.  A preceding player renderer is allowed to leave
+# arbitrary horizontal player state; score_draw() must re-establish its own
+# footprint.  Mask everything except the six score rows so unrelated scene
+# pixels cannot make a bad heart placement look valid.
+my @below_low=(
+   [0,1,'0.5','320 x 228 b602f9750d4cfe22c587495f54ed231e71903a659faea0733587e6141011cfef'],
+   [1,0,'1.0','320 x 228 bfd918d2ccc6bb2d56aeef63fdbb15a236ac0bf2c7926cac8bee2ea966070845'],
+   [1,1,'1.5','320 x 228 fc8be92aab18f7b20f9d2f6526948699a97ba55637f2e22c549939a299f0eac3'],
+   [2,0,'2.0','320 x 228 a438f06da3b5d876a136bebb78956a4af03fe8b512558eb57ab843108664a695'],
+   [2,1,'2.5','320 x 228 f29aa8e23eb00b91b07747562c3a9bd640f545db04822c1aa5b9143c3a9986f3'],
+   [3,0,'3.0','320 x 228 45c2ebd6f0c285ae9967c199b0495bed32286494c04aaf725fa7814d26578af9'],
+);
+my $below_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),'heart_score_below_interactive.c26');
+for my $case (@below_low) {
+   my($score,$half,$label,$wanted)=@$case;
+   my $rom=File::Spec->catfile($tmp,"heart_score_below_low_${score}_${half}.bin");
+   ok("build bottom composition $label",$driver,'-I',$vcs,
+      "-DHEART_SCORE_INITIAL_SCORE=$score","-DHEART_SCORE_INITIAL_HALF=$half",
+      $below_source,'-o',$rom);
+   unlink glob("$snap/*.png");
+   my $low_user=File::Spec->catdir($tmp,"user_below_low_${score}_${half}"); make_path($low_user);
+   my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+      '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+      '-exitlauncher','0','-confirmexit','0','-userdir',$low_user,$rom);
+   my $pid=fork(); defined$pid or die "fork Stella\n";
+   if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_below_low_${score}_${half}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+   ok("snapshot bottom composition $label",$perl,$keys,'--fast');
+   my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for bottom composition $label\n";
+   my($actual,$ae)=ok("digest bottom composition $label",$perl,$digest,
+      '--mask-rows','0-199','--mask-rows','206-227',$png[0]);
+   $ae eq '' or die $ae; chomp $actual;
+   $actual eq $wanted
+      or die "bottom composition $label heart rows differ: actual=$actual wanted=$wanted\n";
+}
+
 terminate($xpid);
 print "vcs_heart_score_stella ok\n";
