@@ -44,6 +44,11 @@ every turn.
 Only unfinished main-project roadmap items and their acceptance criteria.
 Completed main-roadmap material is historical.
 
+### `DRA.txt`
+
+Design-only Direct Register Access contract and unfinished implementation roadmap.
+Read it only when the DRA workstream is selected.
+
 ### `enhanced_asymmetric.txt`
 
 Compact active handoff for the asymmetric-playfield enhanced multisprite WIP.

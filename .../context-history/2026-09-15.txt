@@ -9,3 +9,16 @@ byte-identical, so the beam timing and Stella raster are unchanged.
 A full `make test TEST_JOBS=8` checkpoint completed compile-only 537/537 and
 e2e 229/367 with no failures before the execution window terminated the run.
 The user's previously failing allowlist case is among the passing e2e prefix.
+
+2026-09-15 00:35:43 PDT, plan Direct Register Access
+Documented the proposed C26 Direct Register Access facility in `.../DRA.txt`
+without changing compiler behavior. The design uses `$A/$X/$Y` for direct
+physical-register access, narrowly exposes `$S` through TSX/TXS, uses direct
+condition tests for branchable `$C/$Z/$N/$V`, and permits only native
+single-instruction writes for C/I/D/V. `$P` is deliberately not an ordinary
+pseudo-register because whole-status access requires visible stack/A effects.
+There will be no `$_`: explicit discard uses `(void) expression`. The old
+lone `_` remains unchanged for now and is planned for hard migration to `$A`
+or `(void)` only after DRA codegen exists. The implementation roadmap is split
+into twelve focused slices sized for one short execution window each; DRA1 is
+lexer/parser/AST scaffolding and rejection tests only.

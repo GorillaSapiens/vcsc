@@ -1,0 +1,435 @@
+DIRECT REGISTER ACCESS (DRA) -- DESIGN AND ROADMAP
+==================================================
+
+Status
+------
+Design only. No Direct Register Access syntax or code generation is implemented
+at this checkpoint. The existing lone `_` discard token and all current compiler
+behavior remain unchanged until the roadmap below is executed deliberately.
+
+Purpose
+-------
+C26 sometimes needs exact access to the 6507's physical registers and status
+flags, especially in cycle-sensitive Atari code. Today this commonly requires
+small inline-assembly statements or the special `lvalue := _` spelling, whose
+RHS means "store whatever byte is currently in A". DRA should make those
+machine-level intentions explicit in C26 without turning the compiler into a
+register-allocation language.
+
+The source-level machine pseudo-object namespace will use `$` spellings, fitting
+the existing `$$` return object and avoiding collisions with ordinary C26
+identifiers.
+
+Proposed pseudo-objects
+-----------------------
+
+    $$      current function return object (existing semantics; unchanged)
+
+    $A      physical accumulator
+    $X      physical X register
+    $Y      physical Y register
+    $S      physical hardware stack pointer
+
+    $C      carry flag
+    $Z      zero flag
+    $I      interrupt-disable flag
+    $D      decimal-mode flag
+    $V      overflow flag
+    $N      negative flag
+
+There is intentionally no `$_`. Explicit result discard already has a normal
+C26 spelling:
+
+    (void) expression;
+
+A plain expression statement may also be sufficient when its value is naturally
+unused, but `(void)` remains the explicit "evaluate for effects; discard the
+value" form.
+
+There is intentionally no ordinary `$P` pseudo-register in the initial design.
+6502 status cannot be transferred as an ordinary byte without stack operations
+(`PHP`/`PLA` or `PHA`/`PLP`) and their associated A/stack effects. Hiding those
+side effects behind an innocent-looking assignment would violate DRA's exact,
+transparent machine model. Reserve `$P` for a possible future explicitly
+specified facility; do not silently synthesize stack traffic for it. Do not
+expose the synthetic B bit or status bit 5 as pseudo-flags.
+
+Core semantic rule
+------------------
+DRA pseudo-objects are views of the physical CPU state at that exact source
+point. They are not variables, they have no storage, their addresses cannot be
+taken, and the compiler does not preserve them across ordinary C26 statements.
+
+For example:
+
+    $X := 7;
+    foo := bar + baz;
+    WSYNC := $X;
+
+means "load physical X with 7; execute the normal generated code for the middle
+statement; then store whatever physical X contains at that point." The compiler
+must not treat `$X` as a long-lived source variable and silently save/restore it.
+If the middle statement clobbers X, the final store observes the clobbered X.
+
+Conversely, an explicit DRA operation is semantically observable machine state.
+The optimizer must not delete, reorder, or substitute it merely because it
+believes it already knows a register value. This matters especially because
+loads and transfers establish N/Z and those flags may immediately be tested via
+DRA.
+
+Initial register assignment surface
+-----------------------------------
+Keep the first implementation deliberately narrow. `$A`, `$X`, and `$Y` may be
+used only as one side of a simple assignment where the other side is a directly
+addressable one-byte non-bitfield object/absolute ref, an immediate byte
+constant where the target is a CPU register, or a supported physical-register
+transfer.
+
+Examples and required lowering:
+
+    $A := value;       LDA value
+    $X := value;       LDX value
+    $Y := value;       LDY value
+
+    $A := 7;           LDA #7
+    $X := 7;           LDX #7
+    $Y := 7;           LDY #7
+
+    value := $A;       STA value
+    value := $X;       STX value
+    value := $Y;       STY value
+
+"Exact" means the requested physical-register opcode class is guaranteed. The
+normal assembler/linker may still select the legal zero-page versus absolute
+encoding from placement, as it does for ordinary symbolic operands. Hardware
+read/write direction from absolute `ref` declarations remains authoritative: a
+load from a write-only ref and a store to a read-only ref are errors.
+
+Do not initially accept dynamic subscripts, pointer dereferences, bitfields,
+wider objects, arithmetic expressions, casts, function arguments, function
+returns, `++`/`--`, compound assignments, address-taking, or use of a CPU
+register pseudo-object as a general expression. Those can be considered later
+only if each spelling has a clear machine-level contract.
+
+Native register transfers
+-------------------------
+Support only transfers for which the NMOS 6502/6507 has a direct instruction:
+
+    $X := $A;          TAX
+    $Y := $A;          TAY
+    $A := $X;          TXA
+    $A := $Y;          TYA
+
+Do not initially synthesize `$X := $Y` or `$Y := $X`; there is no direct
+instruction and doing so through A would introduce an implicit A clobber. The
+programmer can spell that clobber explicitly when wanted.
+
+Self-assignment of a physical pseudo-register has no useful machine operation
+and should be rejected initially rather than becoming an undocumented optimizer
+barrier or an invented NOP.
+
+Stack pointer
+-------------
+`$S` is intentionally narrower than A/X/Y. Support only the two native stack
+pointer transfers:
+
+    $X := $S;          TSX
+    $S := $X;          TXS
+
+Do not initially support `$S` load/store to memory, `$A/$Y` transfers to/from
+`$S`, arithmetic on `$S`, or `$S` as a condition. Those would require hidden
+intermediate-register clobbers or a larger language contract.
+
+Flag conditions
+---------------
+The branchable status flags are useful as condition-only pseudo-values:
+
+    if ($C)  { ... }
+    if (!$C) { ... }
+    if ($Z)  { ... }
+    if ($N)  { ... }
+    if ($V)  { ... }
+
+They test the *current hardware flag directly*. Do not materialize a C26 byte.
+The compiler should select the inverse branch needed to skip/take the source
+block, e.g. a simple `if ($C)` naturally uses BCC to skip the true body and
+`if (!$C)` naturally uses BCS.
+
+Direct branch pairs are:
+
+    $C      BCC / BCS
+    $Z      BNE / BEQ
+    $N      BPL / BMI
+    $V      BVC / BVS
+
+The generated branches must use the compiler's normal branch-placement/timing
+contract, including `.same`/`.cross`/`.flex` decisions where applicable. A flag
+test itself changes no register or flag.
+
+Initially, support a bare flag and unary `!` in control-flow truth positions.
+Do not make `$C/$Z/$N/$V` ordinary `uint8_t` expressions; reject uses such as:
+
+    value := $C;
+    foo($Z);
+    return $N;
+    $C + 1;
+
+Once the simple condition form is proven, extend it through the normal
+short-circuit control-flow machinery (`&&`, `||`, nested `!`) without ever
+materializing the flag as a byte. The semantics remain point-in-time machine
+state: evaluation of an earlier subexpression may legitimately change the flag
+seen by a later flag pseudo-object.
+
+`$I` and `$D` are not directly branchable on the 6502 and therefore are not
+readable conditions in the initial design. Reject `if ($I)` and `if ($D)` rather
+than secretly using PHP/PLA or other hidden machinery.
+
+Flag writes
+-----------
+Expose only direct single-instruction flag mutations, with compile-time 0/1
+constants so the generated operation and side effects are obvious:
+
+    $C := 0;           CLC
+    $C := 1;           SEC
+
+    $I := 0;           CLI
+    $I := 1;           SEI
+
+    $D := 0;           CLD
+    $D := 1;           SED
+
+    $V := 0;           CLV
+
+Reject `$V := 1`; the 6502 has no direct set-overflow instruction. Reject direct
+writes to `$Z` and `$N`; they are results of ordinary ALU/load/transfer
+operations, not independently settable state. Reject runtime-valued flag
+assignments such as `$C := value`; silently generating a branch plus CLC/SEC
+would violate the exact-operation goal.
+
+Instruction side effects are part of DRA semantics
+--------------------------------------------------
+DRA exposes the real instruction effects rather than an abstract value model.
+The initial implementation and tests must lock at least these facts:
+
+* LDA/LDX/LDY set N and Z.
+* STA/STX/STY change no processor flags.
+* TAX/TAY/TXA/TYA set N and Z.
+* TSX sets N and Z.
+* TXS changes no processor flags.
+* CLC/SEC change C only; CLI/SEI change I only; CLD/SED change D only; CLV
+  clears V only.
+* BCC/BCS/BEQ/BNE/BPL/BMI/BVC/BVS do not change flags.
+
+Therefore this is intentionally meaningful:
+
+    $A := value;
+    if ($Z) {
+        ...
+    }
+
+The `$Z` test observes the Z flag established by that exact LDA. Compiler
+register-lifetime and live-flag optimizations must neither erase the load nor
+substitute stale facts across explicit DRA state changes.
+
+Relationship to inline assembly
+-------------------------------
+DRA is not intended to replace arbitrary inline assembly. It exists to remove
+trivial assembly whose only purpose is direct register/flag access while giving
+the compiler enough semantic knowledge to preserve correctness.
+
+Good eventual conversions include:
+
+    asm sta WSYNC;             ->  WSYNC := $A;
+    asm ldx foo;               ->  $X := foo;
+    asm txa;                   ->  $A := $X;
+    asm clc;                   ->  $C := 0;
+
+Cycle-sensitive renderer code may use DRA only when the generated opcode and
+placement are regression-locked to the same timing. Do not convert complex beam
+assembly merely to reduce an assembly count.
+
+Removal of lone `_`
+-------------------
+Once `$A` is available, the current two meanings of lone `_` are redundant and
+should be removed rather than retained as compatibility syntax.
+
+Current:
+
+    WSYNC := _;        // store current A
+    _ := foo();        // evaluate and discard result
+
+Replacement:
+
+    WSYNC := $A;
+    (void) foo();
+
+The migration is semantic, not textual in every context. Existing chained
+stores such as:
+
+    WSYNC := RESP1 := RESP0 := _;
+
+must become a DRA form that preserves the same A value and innermost-to-outermost
+store order. The implementation slice that removes `_` must explicitly prove
+that chain behavior before migrating such sources; if ordinary assignment-chain
+parsing cannot express `$A` as the terminal source without broadening DRA into a
+general expression, add a narrow direct-register chain production rather than
+materializing A or changing store order.
+
+Do not add `$_`. `(void)` already expresses discard and the compiler already has
+plain-void-cast handling. After migration, lone `_` should be rejected with a
+focused diagnostic explaining `$A` for accumulator stores and `(void)` for
+explicit result discard; it must not silently become an ordinary identifier.
+
+`$P` decision
+-------------
+Do not implement `$P` in this roadmap. If a future use case genuinely needs
+whole-status save/restore, design it around its real stack semantics and visible
+clobbers. Possible future facilities must state whether they mean PHP/PLA,
+PHA/PLP, RTI-compatible stacked status, or some higher-level snapshot. DRA must
+not hide any of those distinctions.
+
+Acceptance principles
+---------------------
+* Existing C26 programs behave identically until they opt into DRA or are
+  intentionally migrated from `_`.
+* Every accepted DRA spelling has a documented direct hardware meaning.
+* Unsupported spellings fail at compile time instead of introducing hidden
+  scratch storage, hidden stack traffic, or implicit register preservation.
+* DRA operations are visible to optimizer register/flag-state tracking.
+* Source provenance/listings show the DRA source statement against the generated
+  instruction just like ordinary C26 code.
+* Absolute `ref` read/write legality remains enforced.
+* No DRA feature weakens branch timing, renderer timing, or current ABI rules.
+* The full project migration from `_` preserves relevant exact-ROM/timing
+  oracles; changes in generated bytes require an explicit semantic reason.
+
+Roadmap -- one execution-window-sized slice at a time
+-----------------------------------------------------
+Do these in order. Each item is intentionally scoped to fit comfortably inside
+one roughly 25-minute execution window, including focused tests and a handoff
+archive. Do not combine adjacent items merely because implementation starts
+quickly; later slices depend on exact contracts proven by earlier ones.
+
+[ ] DRA1. Add lexer/parser/AST surface and rejection matrix only.
+
+    * Recognize dedicated `$A`, `$X`, `$Y`, `$S`, `$C`, `$Z`, `$I`, `$D`, `$V`,
+      and `$N` tokens/pseudo-nodes without treating them as identifiers.
+    * Reserve/reject `$P` and `$_` with intentional diagnostics.
+    * Define grammar locations for simple pseudo-register assignment and flag
+      truth tests, but do not emit functioning DRA machine code yet.
+    * Add parser/negative tests for forbidden address-taking, declarations,
+      arithmetic/general-expression use, unsupported assignments, and misuse
+      outside the explicitly planned surface.
+    * Preserve all existing `_` behavior during this slice.
+
+[ ] DRA2. Implement `$A` direct byte load/store.
+
+    * `$A := direct_byte` / `$A := immediate` emit LDA.
+    * `direct_byte := $A` emits STA.
+    * Enforce one-byte/non-bitfield/direct-address and absolute-ref access rules.
+    * Make each explicit DRA access non-elidable and reconcile live A/N/Z state.
+    * Add exact generated-assembly tests plus simulator tests proving values and
+      LDA-established N/Z behavior. Keep `_` unchanged for now.
+
+[ ] DRA3. Implement `$X` and `$Y` direct byte load/store.
+
+    * Add exact LDX/LDY and STX/STY lowering for the same deliberately narrow
+      operand class used by `$A`.
+    * Respect legal addressing constraints; reject source shapes that would
+      require an implicit transfer through another register.
+    * Add exact-code, absolute-ref legality, side-effect, and N/Z tests.
+
+[ ] DRA4. Implement native register transfers and `$S`.
+
+    * Add TAX/TAY/TXA/TYA for A<->X/Y.
+    * Add TSX/TXS for X<->S.
+    * Reject X<->Y, A/Y<->S, stack-pointer memory transfers, pseudo-register
+      self-assignment, and every form requiring a hidden intermediate clobber.
+    * Lock exact opcodes and the correct N/Z-versus-no-flag side effects.
+
+[ ] DRA5. Add simple direct flag conditions.
+
+    * Support bare and unary-negated `$C/$Z/$N/$V` in `if`, `while`, `do/while`,
+      and `for` condition positions using direct conditional branches.
+    * Do not materialize a byte and do not yet accept compound `&&`/`||` forms.
+    * Reject `$I/$D` reads and all value-producing uses of flag pseudo-objects.
+    * Add exact branch-direction tests, taken/not-taken simulator cases, and
+      branch-placement/timing coverage.
+
+[ ] DRA6. Add direct writable flags.
+
+    * Implement constant-only `$C/$I/$D := 0/1` and `$V := 0`.
+    * Reject `$V := 1`, `$Z/$N` writes, nonconstant RHS values, and compound
+      assignments.
+    * Add exact CLC/SEC/CLI/SEI/CLD/SED/CLV codegen and flag-state simulator
+      coverage.
+
+[ ] DRA7. Integrate DRA with control-flow/register-lifetime optimization.
+
+    * Teach existing live-register/live-N/Z machinery that explicit DRA reads
+      and writes observe/change physical state and are optimization barriers for
+      the affected facts.
+    * Extend `$C/$Z/$N/$V` through nested `!`, `&&`, and `||` using normal
+      short-circuit branch lowering without byte materialization.
+    * Prove point-in-time behavior when intervening ordinary expressions change
+      registers or flags.
+    * Add generic structural tests independent of source symbol names, plus
+      regressions around the existing direct-u8/register-lifetime optimizations.
+
+[ ] DRA8. Replace the compiler's `_` discard-store/result implementation.
+
+    * First add/verify direct-register assignment-chain support needed to replace
+      every `... := _` chain without changing store order or A.
+    * Convert compiler-specific positive tests from RHS `_` to `$A` and from LHS
+      `_` to `(void)`.
+    * Remove DISCARD codegen/grammar semantics and retain only an intentional
+      rejection diagnostic for obsolete lone `_`.
+    * Delete obsolete discard-specific compiler helpers/tests only after their
+      behavior is represented by DRA/(void) coverage.
+
+[ ] DRA9. Migrate libraries and ordinary examples from lone `_`.
+
+    * Convert non-diagnostic library/example `target := _` to `target := $A`.
+    * Convert `_ := expression` to `(void) expression` where explicit discard is
+      useful; use a plain expression statement only when that is clearer and
+      already legal.
+    * Build each touched example and compare byte-exact output against the
+      pre-migration baseline wherever the old spelling was intended to emit the
+      same STA/evaluation sequence.
+    * Keep this slice away from the large diagnostic cart to bound review time.
+
+[ ] DRA10. Migrate diagnostic/rendering sources and exact-timing guards.
+
+    * Convert the remaining maintained C26 sources, including the diagnostic
+      cart and timing-sensitive renderers, one reviewed group at a time.
+    * Require byte-identical ROM or instruction/timing equivalence for every
+      conversion whose purpose is purely syntactic cleanup.
+    * Update the example assembly allowlist only by removing assembly that DRA
+      genuinely replaces; do not weaken ceilings or add exceptions.
+    * Confirm the source tree contains no accepted lone-`_` C26 syntax.
+
+[ ] DRA11. Audit trivial inline assembly that DRA can now express.
+
+    * Search for isolated LDA/LDX/LDY, STA/STX/STY, TAX/TAY/TXA/TYA, TSX/TXS,
+      CLC/SEC/CLI/SEI/CLD/SED/CLV, and direct flag-branch idioms outside code
+      that truly needs opaque/tightly hand-scheduled assembly.
+    * Convert only cases that become clearer and whose exact instruction/timing
+      contract is proven by focused tests.
+    * Leave legitimate beam-path and other multi-instruction timing assembly in
+      assembly; zero inline asm is not a goal.
+
+[ ] DRA12. Final documentation and broad certification.
+
+    * Update `compiler/README.md`, root language summary, ABI-facing notes if
+      needed, examples, and test documentation with the final pseudo-object
+      matrix and explicit unsupported cases.
+    * Document `_` migration, absence of `$_`, and the deliberate `$P` decision.
+    * Run compile-only, e2e, source-tree hygiene, branding, staged installcheck,
+      and relevant Stella/timing suites. Resolve failures rather than weakening
+      unrelated guards.
+    * Keep this file as the compact unfinished DRA contract while work remains;
+      move completed implementation narrative to dated history as slices close.
+
+Immediate next step
+-------------------
+No implementation has started. When the user asks to begin DRA, do DRA1 only.
