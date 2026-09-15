@@ -51,7 +51,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
 - `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
-- `heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps and an optional separately colored 0..11 playfield-box capacity background; seven visible lines, 12-pixel heart pitch, exact full/half left-prefix geometry
+- `heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps derived from Thomas Jentzsch's 11-Invaders renderer; seven visible lines, 12-pixel heart pitch, exact full/half left-prefix geometry
 - `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers
 - `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
 - `driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
@@ -381,57 +381,52 @@ patterns, so select **Driving** manually for each port used by the cartridge.
 `heart_score_component.c26` draws a fixed-footprint health meter from zero to
 eleven hearts in half-heart steps. Half-hearts are available through 10.5; at
 11, `half` is ignored. The eleven full-heart positions are X=16,28,40,52,64,76,
-88,100,112,124,136 in 160-pixel TIA coordinates. Smaller values are exact
-left-justified prefixes; existing hearts never slide as the value changes.
-
-The same seven scanlines can optionally show a separately colored capacity box
-behind each heart slot. `boxes` is the capacity from 0 through 11 and
-`box_color` is the single playfield color used by all enabled boxes. Each box is
-8 pixels wide with the same 12-pixel pitch as the hearts. Health is clamped to
-capacity during VBLANK, so a half-heart is cleared when it would extend beyond
-the final box.
+88,100,112,124,136 in 160-pixel TIA coordinates. Smaller values are exact left-justified prefixes; existing
+hearts never slide as the value changes. `score` values above 11 clamp to 11.
 
 ```vcsc
 instantiate "heart_score_component.c26" as health
 
-health_score := 5;      // full hearts
-health_half := 1;       // add the left half of the next heart
-health_boxes := 8;      // capacity: 0..11
+health_score := 7; // full hearts
+health_half := 1;  // add the left half of the next heart (through 10.5)
 health_color := 0x46;
-health_box_color := 0xce;
 ```
 
-The renderer uses P0/P1 for hearts and the playfield for boxes. The playfield
-stream is asymmetric: each row loads box-count-specific PF1/PF2 bytes for the
-left half, then switches to the corresponding right-half bytes at fixed cycle
-positions. The heart pixel schedule remains the established Jentzsch-derived
-geometry. Half states through 7.5 use looped SAX-assisted player writes; the
-dense 8.5, 9.5, and 10.5 paths are unrolled so the half-heart write and
-playfield transition both fit without moving established pixels. Score 11 is
-the maximum; there is no 11.5 geometry.
+The twelve full-heart renderer variants and twelve half-control variants execute
+directly from ROM. Full renderers are the 45-byte prepatched Jentzsch streams.
+`0.5` uses one P0 left-half sprite. `1.5` through `9.5` keep the Jentzsch row
+schedule and use a stable `SAX` store to write `glyph & $F0` into the next P0/P1
+copy. `10.5` uses an unrolled six-row variant because the 10-heart loop has no
+four-cycle slot left for that store. At score 11, `half` is ignored visually;
+there is no 11.5 state.
 
-One instance uses **16 RIOT-RAM bytes** total, including public `score`, `half`,
-`color`, `boxes`, and `box_color`, the renderer pointer, cached TIA setup, and
-four cached asymmetric playfield bytes. Horizontal player placement is
-re-established by `draw()` itself rather than being left as VBLANK state for a
-later visible component to preserve.
+One instance uses **eight RIOT-RAM bytes** total: public `score`, `half`, and
+`color`, a two-byte ROM-renderer pointer, and three cached TIA setup bytes.
+Horizontal player placement is re-established by `draw()` itself, rather than
+being left as VBLANK state for a later visible component to preserve. The setup
+line uses paired RESP0/RESP1 strobes plus a late positioning HMOVE, then restores
+the normal Jentzsch NUSIZ/HMP values before the first heart row. Stella 7.0
+certification locks all 23 visible values (`0`, `0.5`, ... `10.5`, `11`) plus
+the `11+half` clamp case, and preserves the original twelve full-heart hashes
+unchanged.
 
 The component consumes exactly **seven visible scanlines**, enters `draw()` at
-cycle 3, and returns at cycle 0 after its terminal `WSYNC`. It owns P0/P1,
-PF0/PF1/PF2, `COLUPF`, and reflected `CTRLPF` while drawing. Terminal cleanup
-clears the playfield, but does not restore the caller's `COLUPF`/`CTRLPF`; a
-following visible component must establish its own playfield state. Half-heart
-pixels use no Ball or missile graphics.
+cycle 3, and returns at cycle 0 after its terminal `WSYNC`. It owns P0/P1 while
+drawing. Half-heart pixels use no Ball or missile graphics. The visible setup
+line clears missile/Ball motion before its positioning `HMOVE`, so unrelated
+objects are not displaced; terminal cleanup leaves M0 and Ball disabled. This
+self-positioning makes the renderer safe both before and after another P0/P1
+renderer in the same visible frame.
 
-Stella 7.0 certification preserves all historical full/half heart rasters when
-the box color is hidden against the background, and separately locks the
-visible box geometry for every capacity 0..11. The public example directory
+The public example directory
 [`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/)
-contains F8 composition cartridges with the maintained 181-line `player_color`
-renderer above and below the meter. Right joystick UP/DOWN changes health by a
-half-heart; LEFT/RIGHT changes capacity by one box. Left joystick moves the
-selected gameplay object and SELECT cycles P0, P1, and Ball. Four blank lines
-make 181 + 4 + 7 = 192 visible scanlines.
+contains the automatic meter plus two 4K interactive composition cartridges.
+They place the seven-line heart meter above and below the maintained 181-line
+`player_color` renderer with a four-line separator. Right joystick UP/DOWN
+changes health by half a heart from 0 through 11 with edge-triggered input.
+Stella composition coverage includes the bottom-mounted singleton-sensitive
+states 0.5 through 3.0, so a preceding player renderer cannot silently displace
+the first hearts.
 
 ## Left/right three-plus-three score component
 

@@ -185,26 +185,3 @@ than one large inline expansion. Both top and bottom carts now link at 3974/4090
 ROM bytes with the same 47-byte total RAM use. Existing neutral and right-stick
 Stella hashes are unchanged. New Stella hashes pin held left-stick RIGHT visibly
 moving the initially selected P0 in both composition orders.
-
-2026-09-14 22:15:00 PDT, heart capacity boxes and F8 composition
-Extended `heart_score_component.c26` with a separately colored playfield box
-background. Public `boxes` selects 0..11 capacity slots and `box_color` supplies
-one color for every enabled box; each box is 8 pixels wide on the heart meter's
-existing 12-pixel pitch. VBLANK clamps full/half health to capacity. The box
-stream uses asymmetric PF1/PF2 bytes with fixed-cycle left/right transitions,
-so capacity changes alter data rather than horizontal timing. Dense 8.5, 9.5,
-and 10.5 half-heart cases are unrolled to fit both the half-player write and
-playfield transition without moving established heart pixels. A component now
-uses 16 RIOT-RAM bytes and still consumes exactly seven visible scanlines.
-
-Stella 7.0 retained all 24 existing full/half heart-only raster hashes when box
-color is hidden. Separate visible-box snapshots lock every capacity from 0
-through 11. The interactive above/below demos now start at 5.5 hearts with eight
-boxes; right joystick UP/DOWN changes health by half-heart and LEFT/RIGHT changes
-capacity by one box with the existing neutral-required latch. Reducing capacity
-clamps health. Left-stick P0/P1/Ball movement and SELECT cycling remain intact.
-The expanded component plus fully interactive player-color application no longer
-fits honestly in 4K, so both composition diagnostics use F8: application/main in
-bank0, heart dispatcher and renderer targets in bank1 via `banked:=1`. The
-above-score gap restores gameplay COLUPF/CTRLPF after the heart component's
-playfield ownership. Both F8 ROMs disassemble/reassemble byte-exactly (2/2).

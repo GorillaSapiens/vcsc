@@ -30,11 +30,7 @@ $controls =~ /right_joystick_ready\s*:=\s*0x0f/ or die "right joystick edge latc
 $controls =~ /SWCHA\s*&\s*0x0f/ or die "right joystick does not read the low SWCHA nibble\n";
 $controls =~ /right_joystick_ready\s*&\s*0x01/ or die "right joystick UP handling is missing\n";
 $controls =~ /right_joystick_ready\s*&\s*0x02/ or die "right joystick DOWN handling is missing\n";
-$controls =~ /score_score\s*<\s*score_boxes/ or die "heart increment is not capped by box capacity\n";
-$controls =~ /right_joystick_ready\s*&\s*0x04/ or die "right joystick LEFT box handling is missing\n";
-$controls =~ /right_joystick_ready\s*&\s*0x08/ or die "right joystick RIGHT box handling is missing\n";
-$controls =~ /score_boxes\s*<\s*11/ or die "heart box increment is not capped at 11\n";
-$controls =~ /clamp_score_to_boxes\(\);/ or die "box decrement does not clamp health\n";
+$controls =~ /score_score\s*<\s*11/ or die "heart increment is not capped at 11\n";
 $common =~ /game_PLAYER0_X\s*:=\s*44/ && $common =~ /game_PLAYER1_X\s*:=\s*108/
    or die "player-color composition scene is missing\n";
 $common =~ /update_score_controls\(\);/ or die "composition scene does not update heart controls\n";
@@ -49,11 +45,11 @@ $common =~ /SWCHA\s*&\s*0x10/ && $common =~ /SWCHA\s*&\s*0x20/
 for my $kind (qw(above below)) {
    my $src=File::Spec->catfile($dir,"heart_score_${kind}_interactive.c26");
    my $text=read_file($src);
-   $text =~ /^include "F8\/mapper\.c26"$/m or die "$kind demo is not an F8 cartridge\n";
+   $text =~ /^include "4K\/mapper\.c26"$/m or die "$kind demo is not a plain 4K cartridge\n";
    $text =~ /instantiate "renderers\/player_color\/player_color\.c26" as game \(lines:=181\)/
       or die "$kind demo does not use maintained player_color_181\n";
-   $text =~ /instantiate "heart_score_component\.c26" as score \(banked:=1\)/
-      or die "$kind demo does not instantiate banked heart score\n";
+   $text =~ /instantiate "heart_score_component\.c26" as score/
+      or die "$kind demo does not instantiate heart score\n";
    $text =~ /vcs_ntsc_component_handoff\(\);/ && $text =~ /vcs_ntsc_wait_component_scanlines\(4\);/
       or die "$kind demo does not use the measured four-line component gap\n";
    my $score=index($text,'score_draw();');
@@ -66,14 +62,7 @@ for my $kind (qw(above below)) {
    my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$src,'-o',$bin);
    $rc==0 && !$sig or die "$kind demo build failed\n$out$err";
    without_usage($out) eq '' && $err eq '' or die "$kind demo build wrote output\n$out$err";
-   -s $bin == 8192 or die "$kind demo is not an 8192-byte F8 ROM\n";
-   my $mt=read_file($map);
-   $mt =~ /^\s+CODE\.bank1\.__vcsc_function\$score_dispatch\s+.*\bbank=bank1\b.*\bplacement=pinned\b/m
-      or die "$kind demo does not pin the heart dispatcher in F8 bank1\n";
-   $mt =~ /^\s+CODE\.__vcsc_function\$score_renderer_0\s+.*\bbank=bank1\b/m
-      or die "$kind demo heart renderer is not in F8 bank1\n";
-   $mt =~ /^\s+CODE\.__vcsc_function\$main\s+.*\bbank=bank0\b.*\bplacement=pinned\b/m
-      or die "$kind demo main is not pinned in F8 bank0\n";
+   -s $bin == 4096 or die "$kind demo is not a 4096-byte ROM\n";
 }
 
 print "vcs_heart_score_examples ok\n";

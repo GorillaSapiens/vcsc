@@ -7,7 +7,6 @@ include "frame_ntsc.c26"
 
 alias BACKGROUND_COLOR 0x84
 alias HEART_COLOR      0x46
-alias BOX_COLOR        0x2e
 alias SCORE_PERIOD     30
 
 instantiate "heart_score_component.c26" as health
@@ -25,9 +24,7 @@ void main(void) {
 
    health_score := 0;
    health_half := 0;
-   health_boxes := 11;
    health_color := HEART_COLOR;
-   health_box_color := BOX_COLOR;
    health_init();
 
    while (1) {

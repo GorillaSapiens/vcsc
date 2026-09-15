@@ -133,14 +133,15 @@ Open workstreams
    semantics. Regression tests own the detailed placement/footprint expectations.
 
 6. **Heart score component**
-   `heart_score_component.c26` supports 0..11 hearts, half steps through 10.5,
-   and 0..11 separately colored playfield capacity boxes. `boxes` clamps health;
-   `box_color` covers all enabled 8-pixel boxes on the 12-pixel slot pitch. The
-   component remains seven visible lines, uses 16 RIOT-RAM bytes, and owns the
-   playfield while drawing. Stella locks legacy heart hashes and all 12 box
-   capacities. F8 above/below examples use right UP/DOWN for health, RIGHT/LEFT
-   for capacity, left stick for P0/P1/Ball movement, and SELECT to cycle. See
-   `.../heart_score.txt`.
+   `libraries/vcs/heart_score_component.c26` is complete for 0..11 hearts with
+   half steps through 10.5. Player-only left-half renderers preserve the fixed
+   12-pixel-pitch footprint using 8 RIOT-RAM bytes; score 11 ignores `half`.
+   `draw()` now re-establishes P0/P1 horizontal placement itself, so bottom
+   composition does not inherit player X from a preceding renderer; Stella
+   locks the singleton-sensitive 0.5..3.0 bottom cases. Full-state hashes are
+   unchanged. 4K examples compose it above/below `player_color_181`; right
+   stick changes health, left stick moves P0/P1/Ball, and SELECT cycles it. Read
+   `.../heart_score.txt` for invariants.
 
 Startup selection
 -----------------

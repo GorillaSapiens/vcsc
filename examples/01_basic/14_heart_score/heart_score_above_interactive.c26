@@ -1,24 +1,19 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // Interactive heart score above the maintained 181-line player-color renderer.
-include "F8/mapper.c26"
+include "4K/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
 
 instantiate "renderers/player_color/player_color.c26" as game (lines:=181)
-instantiate "heart_score_component.c26" as score (banked:=1)
+instantiate "heart_score_component.c26" as score
 
 include "../../common/heart_score_controls.c26"
 
 inline void draw_visible_components(void) {
    score_draw();
    vcs_ntsc_component_handoff();
-   // score_draw owns playfield graphics/color/reflection. Re-establish the
-   // following renderer's playfield state during the blank component gap.
-   COLUBK := VCS_NTSC_DARK_BLUE;
-   COLUPF := VCS_NTSC_GOLDENROD;
-   CTRLPF := 0x21;
    vcs_ntsc_wait_component_scanlines(4);
    game_draw();
 }

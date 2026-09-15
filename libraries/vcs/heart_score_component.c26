@@ -1,16 +1,11 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 // Reusable fixed-footprint 0..11 heart score component with half-heart steps.
-// Optional playfield boxes form a separately colored capacity meter.
-// banked:=1 pins the indirect dispatcher to bank1 so F8 applications may keep
-// the renderer-pointer targets and dispatcher under the same active mapping.
-
-parameter banked := 0;
 //
 // Thomas Jentzsch's 11-Invaders renderer is used as the hardware oracle.  The
 // twelve score-specific renderer variants live entirely in cartridge ROM.
-// They preserve the original heart timing while using otherwise-dead row slots
-// for the asymmetric PF1/PF2 capacity-box stream.
+// They preserve the original instruction schedule while replacing the old
+// self-modifying 45-byte RIOT-RAM copy with prepatched ROM instructions.
 // Eleven hearts define one centered footprint; smaller scores are exact
 // left-justified prefixes of that same footprint. TEMPLATE_half adds the left
 // half of the next heart through 10.5; at the 11-heart maximum it is ignored.
@@ -19,14 +14,12 @@ parameter banked := 0;
 // VBLANK clear.  It consumes seven scanlines and returns at cycle zero after
 // its terminal WSYNC.  It owns P0/P1 graphics, color, reflection, VDEL, NUSIZ,
 // horizontal motion, RESP0/RESP1, and HMOVE while drawing. Half-heart pixels
-// use the same two players only; M0/Ball remain disabled. Boxes use PF1/PF2,
-// COLUPF, and reflected CTRLPF. The terminal cleanup clears PF0/PF1/PF2 but
-// does not restore the caller's COLUPF/CTRLPF values, so a following visible
-// component must establish its own playfield state. The visible setup line
-// neutralizes missile/Ball motion before its positioning HMOVE. It does not
-// touch VSYNC, VBLANK, RIOT timer, audio, or collision latches. A/X/Y and
-// arithmetic flags are clobbered; hardware stack depth is unchanged at
-// lifecycle boundaries.
+// use the same two players only; they do not consume M0/Ball, CTRLPF, or COLUPF.
+// The visible setup line neutralizes missile/Ball motion before its positioning
+// HMOVE, and terminal cleanup leaves M0 and Ball disabled.
+// It does not touch playfield graphics, VSYNC, VBLANK, RIOT timer, audio, or
+// collision latches. A/X/Y and arithmetic flags are clobbered; hardware stack
+// depth is unchanged at lifecycle boundaries.
 
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES :=7,
@@ -43,29 +36,19 @@ enum TEMPLATE_contract {
    TEMPLATE_MAX_HEARTS :=11,
    TEMPLATE_HEART_WIDTH :=8,
    TEMPLATE_HEART_PITCH :=12,
-   TEMPLATE_HALF_STATES :=2,
-   TEMPLATE_MAX_BOXES :=11
+   TEMPLATE_HALF_STATES :=2
 };
 
 recommend uint8_t TEMPLATE_score :=0;
 recommend uint8_t TEMPLATE_color :=0x46;
 recommend uint8_t TEMPLATE_half :=0;
-recommend uint8_t TEMPLATE_boxes :=11;
-recommend uint8_t TEMPLATE_box_color :=0x2e;
 
-// Private RIOT-RAM state: selected ROM renderer, score-dependent TIA setup,
-// and the asymmetric playfield bytes for the requested 0..11 box capacity.
-// HMP1 is always $80.  The box count is a capacity: VBLANK clamps health to it.
+// Private RIOT-RAM state: selected ROM renderer plus the three score-dependent
+// TIA values needed by the fixed-cycle draw setup. HMP1 is always $80.
 uint16_t TEMPLATE_renderer_ptr;
 uint8_t TEMPLATE_nusiz0;
 uint8_t TEMPLATE_nusiz1;
 uint8_t TEMPLATE_final_hmp0;
-uint8_t TEMPLATE_box_left_pf1;
-uint8_t TEMPLATE_box_left_pf2;
-uint8_t TEMPLATE_box_right_pf1;
-uint8_t TEMPLATE_box_right_pf2;
-uint8_t TEMPLATE_pf_prefetch;
-uint8_t TEMPLATE_y_prefetch;
 
 // Y runs 6..1. Index zero is deliberately unused.  Hard page containment
 // guarantees absolute,Y loads stay four cycles for every glyph row.
@@ -74,19 +57,6 @@ page const uint8_t TEMPLATE_blank[7] := {0,0,0,0,0,0,0};
 // High nibble of the normal heart glyph. The TIA shifts player graphics from
 // bit 7 toward bit 0, so this is the visible left half of the next heart.
 page const uint8_t TEMPLATE_half_heart[7] := {0,0x10,0x30,0x70,0xf0,0xf0,0x60};
-
-// Two playfield bits form each 8-pixel box and the following bit is the
-// 4-pixel gap.  The meter straddles the playfield midpoint, so the left and
-// right serialized halves need different bytes.  Renderer timing switches PF2
-// and PF1 at fixed horizontal phases; only these byte values depend on capacity.
-page const uint8_t TEMPLATE_box_left_pf1_table[12] :=
-   {0x00,0xc0,0xd8,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb};
-page const uint8_t TEMPLATE_box_left_pf2_table[12] :=
-   {0x00,0x00,0x00,0x00,0x06,0x36,0xb6,0xb6,0xb6,0xb6,0xb6,0xb6};
-page const uint8_t TEMPLATE_box_right_pf1_table[12] :=
-   {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x1b,0xdb};
-page const uint8_t TEMPLATE_box_right_pf2_table[12] :=
-   {0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xb0,0xb6,0xb6,0xb6,0xb6};
 
 // These are byte-for-byte instruction-schedule equivalents of the patched
 // RAM renderer for scores 0..11.  Enabled logical RESP slots are stores;
@@ -100,20 +70,20 @@ page static void TEMPLATE_renderer_0(void) {
    asm .byte $24,$2d;
    asm .byte $24,$1b;
    asm .byte $24,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_0_loop;
 }
@@ -126,20 +96,20 @@ page static void TEMPLATE_renderer_1(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $24,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $24,$2d;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_1_loop;
 }
@@ -152,20 +122,20 @@ page static void TEMPLATE_renderer_2(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $24,$2d;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_2_loop;
 }
@@ -178,20 +148,20 @@ page static void TEMPLATE_renderer_3(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm .byte $2c,$11,$00;
-   asm sta.a RESP0;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $b5,$11;
+   asm .byte $95,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_3_loop;
 }
@@ -204,20 +174,20 @@ page static void TEMPLATE_renderer_4(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_4_loop;
 }
@@ -230,20 +200,20 @@ page static void TEMPLATE_renderer_5(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_5_loop;
 }
@@ -256,20 +226,20 @@ page static void TEMPLATE_renderer_6(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_6_loop;
 }
@@ -282,20 +252,20 @@ page static void TEMPLATE_renderer_7(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_7_loop;
 }
@@ -308,20 +278,20 @@ page static void TEMPLATE_renderer_8(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_8_loop;
 }
@@ -334,20 +304,20 @@ page static void TEMPLATE_renderer_9(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm stx.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_9_loop;
 }
@@ -360,20 +330,20 @@ page static void TEMPLATE_renderer_10(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm stx.a PF1;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_10_loop;
 }
@@ -386,20 +356,20 @@ page static void TEMPLATE_renderer_11(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $85,$2d;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
+   asm .byte $95,$11;
+   asm .byte $95,$10;
    asm dey;
    asm bne.same @TEMPLATE_renderer_11_loop;
 }
@@ -418,20 +388,20 @@ page static void TEMPLATE_half_renderer_0(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $24,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm .byte $2c,$10,$00;
-   asm .byte $2c,$11,$00;
-   asm lda.a TEMPLATE_box_right_pf2;
-   asm sta.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
-   asm .byte $2c,$10,$00;
+   asm lda.ay TEMPLATE_blank,y;
+   asm .byte $85,$1f;
+   asm txa;
+   asm .byte $24,$2d;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
+   asm .byte $b5,$11;
+   asm .byte $b5,$10;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_0_loop;
 }
@@ -444,19 +414,19 @@ page static void TEMPLATE_half_renderer_1(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $87,$1c;
-   asm lda.z TEMPLATE_box_left_pf1;
-   asm sta PF1;
-   asm lda.z TEMPLATE_box_left_pf2;
-   asm sta PF2;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
    asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
    asm .byte $2c,$11,$00;
-   asm lda.a TEMPLATE_box_right_pf2;
-   asm sta.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_1_loop;
@@ -470,20 +440,19 @@ page static void TEMPLATE_half_renderer_2(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx.z TEMPLATE_box_left_pf2;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm bit.z $00;
-   asm sta.a RESP0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $2c,$11,$00;
+   asm .byte $8d,$10,$00;
    asm .byte $8f,$1b,$00;
-   asm ldx.a TEMPLATE_box_right_pf2;
+   asm .byte $2c,$10,$00;
    asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_2_loop;
@@ -497,20 +466,19 @@ page static void TEMPLATE_half_renderer_3(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx.z TEMPLATE_box_left_pf2;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm sta.z RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
    asm .byte $8f,$1c,$00;
-   asm ldx.a TEMPLATE_box_right_pf2;
+   asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_3_loop;
@@ -524,20 +492,19 @@ page static void TEMPLATE_half_renderer_4(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx.z TEMPLATE_box_left_pf2;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm sta.z RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
    asm .byte $8f,$1b,$00;
-   asm ldx.a TEMPLATE_box_right_pf2;
-   asm stx.a PF2;
-   asm lda.a TEMPLATE_box_right_pf1;
-   asm sta.a PF1;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
    asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_4_loop;
@@ -551,23 +518,20 @@ page static void TEMPLATE_half_renderer_5(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
    asm .byte $8f,$1c,$00;
-   asm lda.z TEMPLATE_box_right_pf2;
-   asm sta PF2;
-   asm nop;
-   asm lda.z TEMPLATE_box_right_pf1;
-   asm sta PF1;
-   asm nop;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_5_loop;
 }
@@ -580,22 +544,20 @@ page static void TEMPLATE_half_renderer_6(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
    asm .byte $8f,$1b,$00;
-   asm lda.z TEMPLATE_box_right_pf2;
-   asm sta PF2;
-   asm lda.z TEMPLATE_box_right_pf1;
-   asm sta PF1;
+   asm .byte $2c,$10,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_6_loop;
 }
@@ -608,39 +570,36 @@ page static void TEMPLATE_half_renderer_7(void) {
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm sta.a RESP0;
-   asm sta.a RESP1;
-   asm .byte $8f,$1c,$00;
-   asm lda.z TEMPLATE_box_right_pf1;
-   asm sta PF1;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
    asm nop;
+   asm .byte $24,$2d;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8d,$10,$00;
+   asm .byte $8d,$11,$00;
+   asm .byte $8f,$1c,$00;
+   asm .byte $2c,$11,$00;
+   asm .byte $2c,$10,$00;
    asm dey;
    asm bne.same @TEMPLATE_half_renderer_7_loop;
 }
 
-static void TEMPLATE_half_renderer_8(void) {
-   asm lda #$66;
-   asm nop;
+page static void TEMPLATE_half_renderer_8(void) {
+   asm @TEMPLATE_half_renderer_8_loop:;
+   asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -650,144 +609,23 @@ static void TEMPLATE_half_renderer_8(void) {
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8f,$1b,$00;
-   asm sty.a PF1;
-   asm bit.z TEMPLATE_score;
-   asm nop;
-   asm lda #$ff;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8f,$1b,$00;
-   asm sty.a PF1;
-   asm bit.z TEMPLATE_score;
-   asm nop;
-   asm lda #$ff;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8f,$1b,$00;
-   asm sty.a PF1;
-   asm bit.z TEMPLATE_score;
-   asm nop;
-   asm lda #$7e;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8f,$1b,$00;
-   asm sty.a PF1;
-   asm bit.z TEMPLATE_score;
-   asm nop;
-   asm lda #$3c;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8f,$1b,$00;
-   asm sty.a PF1;
-   asm bit.z TEMPLATE_score;
-   asm nop;
-   asm lda #$18;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8f,$1b,$00;
-   asm sty.a PF1;
-   asm nop;
-   asm nop;
+   asm .byte $2c,$10,$00;
+   asm dey;
+   asm bne.same @TEMPLATE_half_renderer_8_loop;
 }
 
-static void TEMPLATE_half_renderer_9(void) {
-   asm lda #$66;
-   asm nop;
+page static void TEMPLATE_half_renderer_9(void) {
+   asm @TEMPLATE_half_renderer_9_loop:;
+   asm lda.ay TEMPLATE_heart,y;
    asm .byte $85,$2a;
    asm .byte $85,$10;
    asm .byte $85,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -798,127 +636,8 @@ static void TEMPLATE_half_renderer_9(void) {
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
    asm .byte $8f,$1c,$00;
-   asm sty PF1;
-   asm nop;
-   asm lda #$ff;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8f,$1c,$00;
-   asm sty PF1;
-   asm nop;
-   asm lda #$ff;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8f,$1c,$00;
-   asm sty PF1;
-   asm nop;
-   asm lda #$7e;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8f,$1c,$00;
-   asm sty PF1;
-   asm nop;
-   asm lda #$3c;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8f,$1c,$00;
-   asm sty PF1;
-   asm nop;
-   asm lda #$18;
-   asm nop;
-   asm .byte $85,$2a;
-   asm .byte $85,$10;
-   asm .byte $85,$2d;
-   asm .byte $85,$1b;
-   asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8d,$10,$00;
-   asm .byte $8d,$11,$00;
-   asm .byte $8f,$1c,$00;
-   asm sty.a PF1;
+   asm dey;
+   asm bne.same @TEMPLATE_half_renderer_9_loop;
 }
 
 static void TEMPLATE_half_renderer_10(void) {
@@ -929,11 +648,10 @@ static void TEMPLATE_half_renderer_10(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -953,11 +671,10 @@ static void TEMPLATE_half_renderer_10(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -977,11 +694,10 @@ static void TEMPLATE_half_renderer_10(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -1001,11 +717,10 @@ static void TEMPLATE_half_renderer_10(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -1025,11 +740,10 @@ static void TEMPLATE_half_renderer_10(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -1049,11 +763,10 @@ static void TEMPLATE_half_renderer_10(void) {
    asm .byte $24,$2d;
    asm .byte $85,$1b;
    asm .byte $85,$1c;
-   asm ldx #$db;
-   asm stx PF1;
-   asm ldx #$b6;
-   asm stx PF2;
-   asm ldx #$f0;
+   asm bit.a TEMPLATE_blank;
+   asm .byte $24,$1f;
+   asm nop;
+   asm .byte $24,$2d;
    asm .byte $8d,$11,$00;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
@@ -1094,44 +807,6 @@ page static void TEMPLATE_half_renderer_11(void) {
 }
 
 static void TEMPLATE_select_renderer(void) {
-   // Boxes are the health capacity. Keep both public controls in-range during
-   // blanking so every visible renderer can rely on boxes >= displayed health.
-   if (TEMPLATE_boxes > TEMPLATE_MAX_HEARTS) {
-      TEMPLATE_boxes := TEMPLATE_MAX_HEARTS;
-   }
-   if (TEMPLATE_score > TEMPLATE_boxes) {
-      TEMPLATE_score := TEMPLATE_boxes;
-      TEMPLATE_half := 0;
-   }
-   if (TEMPLATE_half && TEMPLATE_score >= TEMPLATE_boxes) {
-      TEMPLATE_half := 0;
-   }
-
-   TEMPLATE_box_left_pf1 := TEMPLATE_box_left_pf1_table[TEMPLATE_boxes];
-   TEMPLATE_box_left_pf2 := TEMPLATE_box_left_pf2_table[TEMPLATE_boxes];
-   TEMPLATE_box_right_pf1 := TEMPLATE_box_right_pf1_table[TEMPLATE_boxes];
-   TEMPLATE_box_right_pf2 := TEMPLATE_box_right_pf2_table[TEMPLATE_boxes];
-
-   // Full-heart renderers use X as a preloaded right-half playfield byte.
-   // Scores through eight need PF2 first; the dense 9/10 streams instead need
-   // PF1 preloaded because their earlier logical slots are occupied by RESP.
-   TEMPLATE_pf_prefetch := TEMPLATE_box_right_pf2;
-   if (TEMPLATE_half) {
-      TEMPLATE_pf_prefetch := 0xf0;
-      if (TEMPLATE_score >= 8) {
-         TEMPLATE_pf_prefetch := 0xdb;
-      }
-   }
-   else {
-      if (TEMPLATE_score >= 9) {
-         TEMPLATE_pf_prefetch := TEMPLATE_box_right_pf1;
-      }
-   }
-   TEMPLATE_y_prefetch := 6;
-   if (TEMPLATE_half && TEMPLATE_score >= 8) {
-      TEMPLATE_y_prefetch := TEMPLATE_box_right_pf1;
-   }
-
    // Cache the score-dependent TIA setup during init/VBLANK so TEMPLATE_draw
    // stays on the same pre-WSYNC schedule as the certified RAM version.
    TEMPLATE_nusiz0 := 0x81;
@@ -1322,20 +997,21 @@ static void TEMPLATE_select_renderer(void) {
 
 // Fixed 22-cycle dispatcher body. Together with the 6-cycle JSR and the
 // draw prelude's 38 cycles, the selected ROM renderer begins at cycle 66 -- the
-// same centered phase as the certified RAM implementation. X is a VBLANK-cached
-// renderer prefetch: full streams use a right-half PF byte, low half streams use
-// the SAX $F0 mask, and dense half streams use their fixed left-PF1 value.
-#if TEMPLATE_banked == 1
-bank1 static void TEMPLATE_dispatch(void) {
-#else
+// same centered phase as the certified RAM implementation. Full renderers need
+// X=0 for their indexed RESP stores; half renderers use X=$F0 as the SAX mask.
+// The two branch paths are cycle-balanced at ten cycles.
 static void TEMPLATE_dispatch(void) {
-#endif
-   asm ldx.a TEMPLATE_pf_prefetch;
-   asm bit.a TEMPLATE_half;
+   asm lda.z TEMPLATE_half;
+   asm beq.same @TEMPLATE_dispatch_full;
+   asm ldx #$f0;
+   asm bne.same @TEMPLATE_dispatch_x_ready;
+   asm @TEMPLATE_dispatch_full:;
+   asm ldx #0;
    asm nop;
+   asm @TEMPLATE_dispatch_x_ready:;
    asm bit.z TEMPLATE_score;
    asm nop;
-   asm nop;
+   asm ldy #6;
    asm jmp.i (TEMPLATE_renderer_ptr);
 }
 
@@ -1358,11 +1034,10 @@ static inline void TEMPLATE_configure_tia(void) {
    asm sta GRP0;
    asm sta GRP1;
    asm sta ENABL;
-   // Clear the playfield in the old nine-cycle dead-time window. The row
-   // kernels establish PF1/PF2 only after the meter's left edge.
-   asm sta PF0;
-   asm sta PF1;
-   asm sta PF2;
+   asm bit.z TEMPLATE_score;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .byte $8d,$10,$00;
    asm .byte $8d,$11,$00;
    asm lda #$50;
@@ -1375,17 +1050,10 @@ static inline void TEMPLATE_configure_tia(void) {
    asm sta HMM0;
    asm sta HMBL;
    asm sta HMOVE;
-   asm lda #1;
-   asm sta CTRLPF;
-   asm lda.z TEMPLATE_box_color;
-   asm sta COLUPF;
 }
 
 require inline void TEMPLATE_draw(void) {
    TEMPLATE_configure_tia();
-   // Consume the historical three-cycle pre-WSYNC slack by preloading Y. Loop
-   // renderers receive 6; the dense unrolled half renderers receive right PF1.
-   asm ldy.z TEMPLATE_y_prefetch;
    asm sta WSYNC;
 
    // Restore score-dependent Jentzsch motion and color in exactly 38 cycles
@@ -1410,9 +1078,6 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm sta ENAM0;
    asm sta ENABL;
-   asm sta PF0;
-   asm sta PF1;
-   asm sta PF2;
    asm sta WSYNC;
 }
 
