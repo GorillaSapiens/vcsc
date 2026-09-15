@@ -36,3 +36,22 @@ Added `example_play_makefiles.pl`, which walks all example Makefiles and require
 any declaratively multi-bin example to put Stella inside a shell `for` loop.
 Also corrected the developer-record branding inventory to recognize the
 previously added `.../DRA.txt`; no DRA/compiler behavior changed here.
+
+2026-09-15 10:35:22 PDT, plan coherent example directory reorg
+--------------------------------------------------------------
+* Add `.../example_reorg.txt` as a design-only contract.  It reorganizes public
+  examples by purpose: basics, components, controllers, renderer identity,
+  video standard, games, and diagnostics, with shared support under `_common`.
+* Record that faithful legacy player-color, faithful legacy multisprite,
+  player_color, player_color_unofficial, all_five, all_five_unofficial,
+  all_five_player_color, multisprite, and enhanced_multisprite are distinct
+  renderer identities.  Heart score above/below move with player_color while the
+  standalone heart component remains under components.
+* Preserve every current runnable example and explicitly retain the existing
+  all-five-unofficial 170 dual-score composition that an earlier sketch omitted.
+  Plan eight new examples: joystick and paddle controller tutorials plus six
+  NTSC cells completing the PAL/SECAM standards matrix.
+* Split implementation into ER1-ER25 bounded migration slices.  Every move slice
+  owns relative includes/Makefiles plus affected tests, fixtures, packaging,
+  licensing paths, documentation, and byte/raster validation; no code or public
+  path is changed in this planning turn.

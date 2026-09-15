@@ -49,6 +49,11 @@ Completed main-roadmap material is historical.
 Design-only Direct Register Access contract and unfinished implementation roadmap.
 Read it only when the DRA workstream is selected.
 
+### `example_reorg.txt`
+
+Design-only examples-tree reorganization contract and bounded migration roadmap.
+Read it only when the example-reorganization workstream is selected.
+
 ### `enhanced_asymmetric.txt`
 
 Compact active handoff for the asymmetric-playfield enhanced multisprite WIP.

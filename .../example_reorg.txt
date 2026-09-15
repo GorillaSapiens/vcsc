@@ -1,0 +1,495 @@
+Example directory reorganization
+================================
+
+Status
+------
+Design/planning only.  No source, Makefile, test, packaging, or public example
+path has been changed yet.  This document defines the target organization and a
+bounded migration roadmap.
+
+Goals
+-----
+The public `examples/` tree should answer "what am I trying to learn or run?"
+rather than expose the historical order in which renderer families were added.
+Use these rules:
+
+* `01_basics` is strict: no reusable renderer and no reusable display component.
+  It demonstrates basic VCSC/TIA/audio/lifecycle functionality directly.
+* `02_components` contains standalone component demonstrations.  Do not add a
+  redundant `scores/` directory; score components live directly here.
+* `03_controllers` teaches controller input.  Games that happen to use a
+  controller do not belong here.
+* `04_renderers` is organized first by actual renderer identity.  Scanline count
+  (192/181/170/228) is an implementation/composition detail and normally does
+  not appear in the path.  `no_score`, `score_above`, `score_below`, and
+  `score_above_and_below` describe the visible composition instead.
+* Renderer identities remain peers.  In particular `faithful_legacy_player_color`
+  is not a subtype of `player_color`; `faithful_legacy_multisprite` is not a
+  subtype of `multisprite`; and `all_five_unofficial` is a different renderer
+  from `all_five`.  The same rule keeps `player_color_unofficial` separate from
+  `player_color`.
+* `05_video_standards` exists specifically to compare NTSC/PAL/SECAM behavior.
+  It is organized by demonstration first and standard second so the three
+  standards are adjacent.
+* `06_games` contains finished playable games regardless of which controller
+  they demonstrate.  Tanks, Paddleball, and four-player Paddleball belong
+  together.
+* `07_diagnostics` contains hardware/toolchain diagnostics.  Bankswitching is a
+  diagnostic family rather than a peer of renderers/games/components.
+* `_common` contains support source shared by multiple public examples and is
+  explicitly not a runnable example category.
+* Flatten directories whose only purpose is to contain one `01_interactive` or
+  similar child.  A leaf example should normally contain its `.c26`, Makefile,
+  README, and local assets directly.
+* Moving an example is not just a filesystem rename.  Relative includes,
+  Makefile `ROOT`, tests, golden metadata, build/install/package smokes, public
+  documentation, licensing paths, and example-count/layout assertions must all
+  be audited in the same migration slice.
+
+Target tree
+-----------
+Names below describe the intended public structure.  Ellipses under
+`bankswitching` mean the existing mapper diagnostics continue as individual
+leaves; they are not being deleted.
+
+examples/
+├── 01_basics/
+│   ├── blank_screen/
+│   ├── blank_noasm/
+│   └── ode_to_joy/
+│
+├── 02_components/
+│   ├── six_digit_score/
+│   ├── wide_score/
+│   ├── big_wide_score/
+│   ├── three_plus_three_score/
+│   └── heart_score/
+│
+├── 03_controllers/
+│   ├── joystick/                         [NEW]
+│   ├── paddle/                           [NEW]
+│   ├── keypad/
+│   └── driving/
+│
+├── 04_renderers/
+│   ├── faithful_legacy_player_color/
+│   ├── faithful_legacy_multisprite/
+│   │
+│   ├── player_color/
+│   │   ├── no_score/
+│   │   ├── animated_sprites/
+│   │   ├── score_above/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   ├── wide/
+│   │   │   ├── heart/
+│   │   │   └── poison/
+│   │   ├── score_below/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   ├── wide/
+│   │   │   ├── heart/
+│   │   │   └── poison/
+│   │   └── score_above_and_below/
+│   │
+│   ├── player_color_unofficial/
+│   │   ├── score_above/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   └── poison/
+│   │   └── score_below/
+│   │       ├── centered/
+│   │       ├── left/
+│   │       ├── right/
+│   │       ├── two_plus_two/
+│   │       └── poison/
+│   │
+│   ├── all_five/
+│   │   ├── no_score/
+│   │   ├── score_above/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   ├── three_plus_three/
+│   │   │   └── poison/
+│   │   ├── score_below/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   ├── three_plus_three/
+│   │   │   └── poison/
+│   │   └── score_above_and_below/
+│   │
+│   ├── all_five_unofficial/
+│   │   ├── score_above/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   └── poison/
+│   │   ├── score_below/
+│   │   │   ├── centered/
+│   │   │   ├── left/
+│   │   │   ├── right/
+│   │   │   ├── two_plus_two/
+│   │   │   └── poison/
+│   │   └── score_above_and_below/
+│   │
+│   ├── all_five_player_color/
+│   │   ├── no_score/
+│   │   ├── score_above/
+│   │   └── score_below/
+│   │
+│   ├── multisprite/
+│   │   ├── no_score/
+│   │   ├── score_above/
+│   │   └── score_below/
+│   │
+│   └── enhanced_multisprite/
+│       └── no_score_asymmetric/
+│
+├── 05_video_standards/
+│   ├── blank/
+│   │   ├── ntsc/                         [NEW]
+│   │   ├── pal/
+│   │   └── secam/
+│   ├── player_color/
+│   │   ├── ntsc/                         [NEW]
+│   │   ├── pal/
+│   │   └── secam/
+│   ├── all_five/
+│   │   ├── ntsc/                         [NEW]
+│   │   ├── pal/
+│   │   └── secam/
+│   ├── all_five_unofficial/
+│   │   ├── ntsc/                         [NEW]
+│   │   ├── pal/
+│   │   └── secam/
+│   ├── multisprite/
+│   │   ├── ntsc/                         [NEW]
+│   │   ├── pal/
+│   │   └── secam/
+│   └── enhanced_multisprite_asymmetric/
+│       ├── ntsc/                         [NEW]
+│       ├── pal/
+│       └── secam/
+│
+├── 06_games/
+│   ├── tanks/
+│   ├── paddleball/
+│   └── four_player_paddleball/
+│
+├── 07_diagnostics/
+│   ├── 6507_fingerprint/
+│   ├── field_diagnostic/
+│   └── bankswitching/
+│       ├── f864/
+│       ├── standard_renderer/
+│       ├── fa_ram_plus/
+│       ├── 4ksc/
+│       ├── omni/
+│       ├── cv/
+│       ├── jane/
+│       ├── 0840/
+│       ├── ua/
+│       ├── 0fa0/
+│       ├── e0/
+│       ├── 3f/
+│       ├── 3e/
+│       ├── fe/
+│       ├── wd/
+│       ├── dpc/
+│       ├── fa2/
+│       ├── 3f_max/
+│       ├── 3e_max/
+│       ├── 3ex_max/
+│       ├── fc/
+│       └── f0/
+│
+└── _common/
+    └── shared support sources only
+
+Existing-example mapping
+------------------------
+The reorganization is intended to preserve every existing runnable example.
+The following family-level mapping is authoritative enough to drive the move;
+individual source filenames need not be renamed merely because their directory
+moves.
+
+* `01_basic/01_blank_screen`, `02_blank_noasm`, `03_ode_to_joy`
+  -> `01_basics/`.
+* `01_basic/04_score`, `06_wide_score`, `07_big_wide_score`, `08_dual_score`
+  -> the corresponding direct children of `02_components/` (`dual_score`
+  becomes `three_plus_three_score` as a directory-purpose name).
+* `01_basic/14_heart_score/heart_score.c26` -> `02_components/heart_score/`.
+  The same current directory also contains the score-above and score-below
+  interactive cartridges; those do NOT stay with the standalone component.
+  Split them into `04_renderers/player_color/score_above/heart/` and
+  `04_renderers/player_color/score_below/heart/`.  This requires splitting the
+  current three-target Makefile/README rather than simply moving one directory.
+* `01_basic/11_keypad` -> `03_controllers/keypad`; `01_basic/12_drive`
+  -> `03_controllers/driving`.
+* `01_basic/09_paddleball`, `10_four_player_paddleball`, `13_tanks`
+  -> `06_games/`.  They are games, not controller tutorials.
+* `01_basic/05_fingerprint` -> `07_diagnostics/6507_fingerprint`.
+* `02_faithful_legacy_playercolors` ->
+  `04_renderers/faithful_legacy_player_color`.
+* `10_faithful_legacy_multisprite` ->
+  `04_renderers/faithful_legacy_multisprite`.
+* `03_player_color_192` -> `04_renderers/player_color/no_score` plus
+  `04_renderers/player_color/animated_sprites`.
+* `04_player_color_181` -> the official `player_color` score-above/score-below
+  matrix; eliminate the intermediate numbered layout and `01_interactive`
+  layers.
+* `13_player_color_170` -> `04_renderers/player_color/score_above_and_below`.
+* `07_player_color_181_unofficial` -> the peer
+  `04_renderers/player_color_unofficial` score matrix.
+* `05_all_five_192` -> `04_renderers/all_five/no_score`.
+* `06_all_five_181` -> the official `all_five` score-above/score-below matrix.
+* `11_all_five_170` -> `04_renderers/all_five/score_above_and_below`.
+* `08_all_five_181_unofficial` -> the peer `04_renderers/all_five_unofficial`
+  score matrix.
+* `12_all_five_170_unofficial` ->
+  `04_renderers/all_five_unofficial/score_above_and_below`.  This existing
+  example must not be lost; it was omitted from an early sketch of the tree.
+* `15_all_five_player_color_192` ->
+  `04_renderers/all_five_player_color/no_score`.
+* `16_all_five_player_color_181/{01_score_above,02_score_below}` -> the
+  corresponding `all_five_player_color` leaves.  There is currently no
+  three-plus-three leaf in this renderer family; do not invent one as part of
+  the move unless separately requested.
+* `14_multisprite/{01_192,02_181_score_above,03_181_score_below}` -> the three
+  `04_renderers/multisprite` leaves.
+* `18_enhanced_multisprite/01_192/01_asymmetric` ->
+  `04_renderers/enhanced_multisprite/no_score_asymmetric`.
+* `17_video_standards/pal/*` and `secam/*` -> the demonstration-first
+  `05_video_standards/<demo>/{pal,secam}` leaves.
+* `09_bankswitching/*` -> `07_diagnostics/bankswitching/*`, retaining the
+  mapper-specific leaf identities and multi-ROM F864/UA behavior.
+* `19_diagnostic/01_diagnostic` -> `07_diagnostics/field_diagnostic`.
+
+New examples deliberately required
+----------------------------------
+The new structure is allowed to expose useful holes rather than pretending the
+old tree was complete.  At present it deliberately calls for eight new examples:
+
+1. `03_controllers/joystick`: a minimal controller tutorial whose primary job is
+   to show SWCHA direction and INPT4 fire handling.  Keep it small and avoid a
+   reusable renderer/component dependency when practical.
+2. `03_controllers/paddle`: a minimal paddle tutorial showing paddle timing/value
+   plus the paddle button, distinct from the complete Paddleball games.
+3-8. Six `05_video_standards/*/ntsc` examples, one matching each existing
+   PAL/SECAM demonstration family: blank, player_color, all_five,
+   all_five_unofficial, multisprite, and enhanced_multisprite_asymmetric.  These
+   are dedicated standards-comparison cells even where another NTSC renderer
+   demo already exists elsewhere.  Share source/support where useful so the
+   comparison does not drift, but keep the standards matrix explicit.
+
+No other new example is implied by this document.  In particular there is no
+planned scoreless `player_color_unofficial` example and no new
+`all_five_player_color` score layout beyond its existing centered above/below
+examples.
+
+Shared support policy
+---------------------
+Rename `examples/common` to `examples/_common` and consolidate genuinely shared
+support there where doing so removes awkward family-local helper placement.
+Likely candidates include the existing fixed-score controls, two-plus-two,
+poison, heart controls, player/all-five/multisprite interactive common sources,
+`three_plus_three_controls.c26`, the all-five-player-color interactive common
+source, and the video-standard multisprite common source.  A helper used only by
+one leaf/family may remain local; for example UA's common source belongs with the
+UA multi-ROM diagnostic.  `_common` must contain no public runnable cartridge
+Makefile.
+
+Migration hazards / required audit
+----------------------------------
+Every move slice must check at least these classes of coupling before it is
+called complete:
+
+* source `include` paths, especially `../../../common/...` and family-local
+  controls;
+* each example Makefile's `ROOT`, `VCS_DIR`, `COMMON`, target list, and `play`
+  behavior; multi-ROM examples must retain the existing Stella `for`-loop rule;
+* root `Makefile` example discovery, bankswitching discovery, release/package
+  smoke paths, and installed-toolchain smoke paths;
+* `packaging/install.manifest` behavior (the examples tree is copied as a tree,
+  but install/release validation may still assert concrete paths);
+* tests and fixtures with explicit paths, including assembly allowlist inventory,
+  animated-gallery RAM accounting, diagnostic-cart tests, VSYNC/layout checks,
+  video-standard layout checks, and source-tree hygiene;
+* tests that synthesize a path from a renderer/group name even when they do not
+  contain a literal `examples/...` string;
+* public documentation in root/driver/Linux/Windows/library/renderer READMEs;
+* the animated-sprites directory's CC BY-NC-SA license exception: moving the
+  directory must move/preserve the local license and update every statement that
+  names the exception path;
+* recursively discovered example counts and any assumptions that a leaf is a
+  fixed number of directories below `examples/`;
+* generated/install-clean behavior and `make play` behavior after relative depth
+  changes;
+* exact ROM/raster tests should continue to prove that a pure path move did not
+  alter cartridge bytes.  If a migration slice changes source organization or
+  adds a new example, distinguish that from byte-preserving relocations.
+
+Roadmap
+-------
+Each item is intentionally scoped to a single roughly 25-minute execution
+window.  Do not combine several move families merely because the edits look
+mechanical.  After each slice, run the focused tests for the moved family plus
+source-tree hygiene/example-build checks appropriate to the change, then package
+normally if that slice is the turn's handoff.
+
+[ ] ER1. Add migration inventory and path-safety regression.
+    * Encode the existing runnable-example inventory and agreed old->new family
+      mapping in a focused test/fixture so later moves cannot silently drop or
+      duplicate a cartridge.
+    * Teach the check to distinguish runnable leaves from `_common` support.
+    * Inventory tests/docs/build scripts containing hard-coded old paths; this is
+      the checklist used by later slices, not a blanket rename yet.
+
+[ ] ER2. Establish `_common` and normalize shared helper ownership.
+    * Rename `examples/common` to `_common` and move clearly cross-family helpers
+      currently stranded at family roots when safe.
+    * Update includes/Makefiles/tests only; do not move runnable leaves yet.
+    * Verify no `_common` Makefile is treated as a public cartridge.
+
+[ ] ER3. Move strict basics and standalone score components except heart.
+    * Create `01_basics` and `02_components`.
+    * Move blank_screen, blank_noasm, ode_to_joy and the four standalone
+      six-digit/wide/big-wide/three-plus-three score examples.
+    * Update focused tests, root/package smokes, and docs for these paths.
+
+[ ] ER4. Split and move the heart-score trio.
+    * Move standalone `heart_score.c26` to `02_components/heart_score`.
+    * Split the current three-target Makefile/README so score-above and
+      score-below interactive cartridges become renderer leaves under
+      `04_renderers/player_color/.../heart`.
+    * Preserve the multi-target play-policy intent where still applicable and
+      run all heart Stella/structural tests.
+
+[ ] ER5. Move existing controller examples and create the controller section.
+    * Move keypad and drive to `03_controllers/keypad` and `driving`.
+    * Do not move Paddleball/Tanks here.
+    * Update controller documentation/tests and verify both examples build/run.
+
+[ ] ER6. Add the new joystick tutorial.
+    * Implement only the minimal joystick-direction/fire teaching example,
+      README, Makefile, and focused regression.
+    * Keep it pedagogical rather than turning it into a game or renderer demo.
+
+[ ] ER7. Add the new paddle tutorial.
+    * Implement only paddle value/timing and button behavior, with README,
+      Makefile, and focused regression.
+    * Keep Paddleball as the richer game example rather than copying game logic.
+
+[ ] ER8. Move the three completed games.
+    * Move Tanks, Paddleball, and four-player Paddleball to `06_games`.
+    * Update all direct path references and preserve Tanks/Paddleball behavioral
+      tests and ROM/resource guards.
+
+[ ] ER9. Move faithful legacy renderer identities.
+    * Move faithful legacy player-color and faithful legacy multisprite into two
+      peer directories under `04_renderers`.
+    * Flatten their single-child directory layers.
+    * Preserve compatibility/golden tests exactly; this slice is path-only.
+
+[ ] ER10. Move player_color no-score, animated, and dual-score compositions.
+    * Move the current 192 no-score/animated examples and 170
+      score-above-and-below example into `04_renderers/player_color`.
+    * Preserve the animated-gallery local license and RAM/golden fixture paths.
+
+[ ] ER11. Move the core official player_color 181 score matrix.
+    * Move centered, left, right, and two-plus-two above/below leaves.
+    * Flatten `.../<layout>/01_interactive` to the target leaf.
+    * Update common-control includes and focused renderer matrix tests.
+
+[ ] ER12. Finish official player_color special score leaves.
+    * Move wide and poison above/below leaves (heart was already handled by ER4).
+    * Run the complete official player_color example matrix after the move.
+
+[ ] ER13. Move player_color_unofficial as a peer renderer.
+    * Move its centered/left/right/two-plus-two/poison above/below matrix.
+    * Preserve explicit `-Wa,--illegals`, opcode-policy docs, assembly allowlist,
+      and matched official/unofficial comparison tests.
+
+[ ] ER14. Move official all_five no-score and centered/basic score leaves.
+    * Move the 192 no-score example plus centered/left/right above/below leaves.
+    * Update all-five common support and focused raster tests.
+
+[ ] ER15. Finish official all_five score compositions.
+    * Move two-plus-two, three-plus-three, poison above/below, plus the existing
+      170 score-above-and-below example.
+    * Run the complete official all_five example matrix after the move.
+
+[ ] ER16. Move all_five_unofficial as a peer renderer.
+    * Move its full 181 above/below matrix plus the existing 170
+      score-above-and-below example.
+    * Preserve unofficial opcode settings and prove the 170 example was not lost.
+
+[ ] ER17. Move all_five_player_color.
+    * Move no-score plus centered score-above/score-below examples under the one
+      renderer identity and flatten single-child layers.
+    * Move/consolidate its shared interactive helper as appropriate.
+
+[ ] ER18. Move modern multisprite and enhanced multisprite.
+    * Move multisprite no-score/score-above/score-below leaves and enhanced
+      multisprite no_score_asymmetric.
+    * Update renderer docs, shared helpers, raster tests, and standard-wrapper
+      references without touching faithful legacy multisprite (already ER9).
+
+[ ] ER19. Re-layout existing PAL/SECAM standards examples.
+    * Convert standard-first `17_video_standards/{pal,secam}/<demo>` into
+      demonstration-first `05_video_standards/<demo>/{pal,secam}`.
+    * Keep all twelve existing cartridges byte/behavior equivalent and update
+      the video-standard layout/Stella tests.
+
+[ ] ER20. Add first half of the NTSC standards matrix.
+    * Add dedicated NTSC cells for blank, player_color, and all_five.
+    * Reuse/shared-source the same scene logic where practical and add comparison
+      tests that make the intended NTSC/PAL/SECAM relationship explicit.
+
+[ ] ER21. Complete the NTSC standards matrix.
+    * Add all_five_unofficial, multisprite, and enhanced_multisprite_asymmetric
+      NTSC cells.
+    * Preserve illegal-opcode requirements for all_five_unofficial and complete
+      the 18-cell standards layout regression.
+
+[ ] ER22. Move standalone diagnostics.
+    * Move fingerprint to `07_diagnostics/6507_fingerprint` and the F4SC field
+      diagnostic to `07_diagnostics/field_diagnostic`.
+    * Update diagnostic tests, docs, packaging/install references, and any
+      assembly allowlist paths.
+
+[ ] ER23. Move the bankswitching diagnostic family.
+    * Move `09_bankswitching/*` under `07_diagnostics/bankswitching` while
+      keeping mapper leaf names and multi-ROM F864/UA semantics.
+    * Update every mapper Makefile `ROOT`, root bankswitching discovery target,
+      mapper tests/docs, installcheck smoke, and play-loop audit.
+
+[ ] ER24. Global stale-path/documentation sweep.
+    * Search source, tests, packaging, README files, developer docs, fixtures,
+      and scripts for every retired top-level example path/name.
+    * Rewrite `examples/README.md` around the seven purpose categories and actual
+      renderer identities rather than historical numbering.
+    * Update root/Linux/Windows/driver/library/renderer documentation and license
+      exception references.
+
+[ ] ER25. Final tree and packaging certification.
+    * Assert no retired numbered top-level example group remains, no redundant
+      `01_interactive`-only directory remains, and `_common` has no runnable leaf.
+    * Build all public example Makefiles recursively; run example path/layout,
+      source-tree hygiene, assembly allowlist, installcheck/release packaging,
+      and relevant Stella suites.
+    * Compare moved legacy ROMs against pre-reorg baselines where the migration
+      was intended to be byte-preserving; separately certify the eight newly
+      added examples.
+    * Update hot documentation/history and close this focused workstream.
