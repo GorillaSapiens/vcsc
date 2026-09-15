@@ -9,6 +9,16 @@ half of the next heart through 10.5, and `color` selects the heart color. At
 score 11, `half` is ignored visually. The 11 full slots remain fixed at TIA
 X=16,28,...,136; smaller values are exact left prefixes.
 
+The default template profile remains the historical 7-line / 8-byte component.
+`instantiate "heart_score_component.c26" as score (line_markers:=1)` selects an
+optional 10-line / 12-byte profile. That profile adds public `lines` (0..11)
+and `line_color`. Two dedicated playfield scanlines draw an independent
+left-prefix of 8-pixel marker segments on the same 12-pixel pitch as the hearts,
+one above and one below the heart row with blank separation. Marker count does
+not clamp or otherwise alter health. The marker profile owns PF0/PF1/PF2,
+CTRLPF, and COLUPF while drawing, clears the PF graphics before return, and
+leaves the marker color/control state clobbered for a following renderer to set.
+
 The 12 full renderers remain the certified 45-byte Jentzsch streams. Half state
 0 uses a P0 high-nibble glyph. Half states 1..9 preserve Jentzsch row timing and
 use SAX with X=$F0 to write only the high nibble into the next player copy.
@@ -28,28 +38,34 @@ neutralized, then restores the score-dependent Jentzsch NUSIZ/HMP state before
 the first row. Therefore a renderer that ran immediately before the heart score
 may leave arbitrary P0/P1 X positions without displacing low heart counts.
 
-One instance uses 8 RIOT-RAM bytes total: public `score`, `half`, and `color`, a
-two-byte renderer pointer, and three cached TIA setup bytes. It consumes seven
-visible scanlines. Stella 7.0 locks all 23 visible values plus the score-11 half
+A default instance uses 8 RIOT-RAM bytes total: public `score`, `half`, and
+`color`, a two-byte renderer pointer, and three cached TIA setup bytes. It
+consumes seven visible scanlines. The marker-enabled profile adds four bytes
+(`lines`, `line_color`, and two cached left PF bytes) and consumes ten visible
+scanlines. Stella 7.0 locks all 23 visible heart values plus the score-11 half
 clamp. Independent image comparison proves every 0.5..10.5 raster equals the
-unchanged N-heart raster plus exactly the left half of heart N+1; all twelve full
-hashes remain unchanged.
+unchanged N-heart raster plus exactly the left half of heart N+1; all twelve
+full hashes remain unchanged. Separate marker-profile goldens lock every 0..11
+marker prefix; zero markers is raster-identical to the ordinary centered 5.5
+fixture.
 
 `examples/01_basic/14_heart_score` also contains 4K interactive composition
 cartridges with the maintained 181-line player-color renderer both below and
-above the heart meter. Four blank lines complete the 192-line visible field.
-Right joystick UP/DOWN changes health in half-heart steps across 0..11, with a
-neutral-required edge latch. Left joystick moves the selected P0/P1/Ball and
-SELECT cycles the selected object, matching the maintained player-color
-interactive convention; the heart demos keep static sprite frames to remain 4K.
-Stella snapshots lock both composition orders, one UP/DOWN transition from the
-initial 5.5 state, and visible left-stick P0 motion. The bottom composition also
-locks 0.5, 1.0, 1.5, 2.0, 2.5, and 3.0 after the preceding player renderer;
-these are the singleton-sensitive states that exposed inherited-X bugs.
+above the heart meter. Those demos instantiate `line_markers:=1`, use a one-line
+separator, start at 5.5 hearts / 8 markers, and remain plain 4K. Right joystick
+UP/DOWN changes health in half-heart steps across 0..11; RIGHT/LEFT changes the
+independent marker prefix across 0..11. A neutral-required edge latch applies to
+all four directions. Left joystick moves the selected P0/P1/Ball and SELECT
+cycles the selected object. Stella snapshots lock both composition orders,
+UP/DOWN health transitions, LEFT/RIGHT marker transitions, and visible left-stick
+P0 motion. The bottom composition also locks 0.5, 1.0, 1.5, 2.0, 2.5, and 3.0
+after the preceding player renderer; these are the singleton-sensitive states
+that exposed inherited-X bugs.
 
 Next work
 ---------
 No heart-renderer implementation work is open. Preserve the fixed footprint,
-7-line self-positioning draw contract, 8-byte RAM contract, full-state hashes,
-left-half geometry, bottom-order low-state composition checks, and score-11
-clamp.
+default 7-line/8-byte profile, opt-in 10-line/12-byte line-marker profile,
+full-state hashes, 0..11 marker-prefix goldens, left-half geometry, bottom-order
+low-state composition checks, independent health/marker controls, and score-11
+clamp. Do not reintroduce the abandoned filled-box experiment.

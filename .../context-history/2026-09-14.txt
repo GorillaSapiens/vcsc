@@ -185,3 +185,33 @@ than one large inline expansion. Both top and bottom carts now link at 3974/4090
 ROM bytes with the same 47-byte total RAM use. Existing neutral and right-stick
 Stella hashes are unchanged. New Stella hashes pin held left-stick RIGHT visibly
 moving the initially selected P0 in both composition orders.
+
+2026-09-14 23:55:28 PDT, optional heart line-marker profile
+Reverted the abandoned filled-box experiment and kept the known-good player-only
+heart renderer unchanged. Added compile-time template parameter `line_markers`,
+defaulting to zero. The default instantiation remains the exact seven-visible-line,
+eight-RIOT-byte component. `line_markers:=1` selects a ten-line, twelve-byte
+profile with public runtime `lines` (0..11) and `line_color`. Two dedicated
+playfield scanlines draw an independent left-prefix of eight-pixel marker
+segments on the same twelve-pixel pitch/X origins as the hearts, above and below
+the heart row with blank separation. Marker count is independent of health.
+
+The marker playfield uses reflected CTRLPF and asymmetric PF1/PF2 values so all
+0..11 prefixes land exactly at TIA X=16,28,...,136. Stella pixel inspection
+confirmed every enabled segment is eight Atari pixels wide and every gap four
+pixels; line count zero is raster-identical to the unchanged centered 5.5-heart
+fixture. The marker profile owns/clobbers PF0/PF1/PF2, CTRLPF and COLUPF and
+clears PF graphics before return. The above-composition demo therefore restores
+the gameplay playfield color/control before handing off to `player_color`.
+
+Updated the two plain-4K interactive composition demos to enable the marker
+profile while retaining the maintained 181-line player-color renderer and all
+left-stick/SELECT object controls. They start at 5.5 hearts and eight marker
+segments. Right joystick UP/DOWN changes health by half-heart steps; LEFT/RIGHT
+changes marker count by one, all with the existing neutral-required edge latch.
+Compacted only non-beam demo state/update code so both carts remain 4K. Focused
+structural tests now lock the compile-time 7/10-line and 8/12-byte profiles,
+marker API, one-line composition gap and all four right-stick directions.
+Stella goldens cover all twelve marker counts plus both composition orders and
+UP/DOWN/LEFT/RIGHT controls; the existing 24 default-profile heart hashes remain
+immutable.

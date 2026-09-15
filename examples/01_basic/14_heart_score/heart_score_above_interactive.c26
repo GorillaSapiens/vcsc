@@ -7,14 +7,18 @@ include "color_ntsc.c26"
 include "playfield.c26"
 
 instantiate "renderers/player_color/player_color.c26" as game (lines:=181)
-instantiate "heart_score_component.c26" as score
+instantiate "heart_score_component.c26" as score (line_markers:=1)
 
 include "../../common/heart_score_controls.c26"
 
 inline void draw_visible_components(void) {
    score_draw();
+   // The enabled heart profile is ten lines; one blank line keeps the
+   // composed visible field at 192 (10 + 1 + 181).
+   asm sta WSYNC;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x21;
    vcs_ntsc_component_handoff();
-   vcs_ntsc_wait_component_scanlines(4);
    game_draw();
 }
 

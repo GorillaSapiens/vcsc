@@ -81,18 +81,26 @@ alias SELECTED_BALL    2
 alias SELECTED_OBJECT_COUNT 3
 
 uint8_t selected_object := SELECTED_PLAYER0;
-uint8_t select_switch_ready := 1;
+uint8_t select_switch_ready := 0;
+uint8_t demo_object_x[3];
+uint8_t demo_object_y[3];
 
-inline void initialize_scene(void) {
+void initialize_scene(void) {
    VBLANK := 2;
-   game_PLAYER0_X := 44;
-   game_PLAYER1_X := 108;
+   demo_object_x[0] := 44;
+   demo_object_x[1] := 108;
+   demo_object_x[2] := 78;
+   demo_object_y[0] := 70;
+   demo_object_y[1] := 42;
+   demo_object_y[2] := 45;
+   game_PLAYER0_X := demo_object_x[0];
+   game_PLAYER1_X := demo_object_x[1];
    game_PLAYER0_NUSIZ := 0x20;
    game_PLAYER1_NUSIZ := 0x20;
-   game_BALL_X := 78;
-   game_player0_y := 70;
-   game_player1_y := 42;
-   game_ball_y := 45;
+   game_BALL_X := demo_object_x[2];
+   game_player0_y := demo_object_y[0];
+   game_player1_y := demo_object_y[1];
+   game_ball_y := demo_object_y[2];
    game_player0_graphics := game_player0_graphics_data;
    game_player1_graphics := game_player1_graphics_data;
    game_player0_height := 7;
@@ -133,58 +141,37 @@ void update_object_selection(void) {
 
 void move_selected_object(void) {
    if (!(SWCHA & 0x40)) {
-      switch (selected_object) {
-         case SELECTED_PLAYER0:
-            if (game_PLAYER0_X > 0) { game_PLAYER0_X--; }
-            break;
-         case SELECTED_PLAYER1:
-            if (game_PLAYER1_X > 0) { game_PLAYER1_X--; }
-            break;
-         default:
-            if (game_BALL_X > 0) { game_BALL_X--; }
+      if (demo_object_x[selected_object]) {
+         demo_object_x[selected_object]--;
       }
    }
    else {
       if (!(SWCHA & 0x80)) {
-         switch (selected_object) {
-            case SELECTED_PLAYER0:
-               if (game_PLAYER0_X < 159) { game_PLAYER0_X++; }
-               break;
-            case SELECTED_PLAYER1:
-               if (game_PLAYER1_X < 159) { game_PLAYER1_X++; }
-               break;
-            default:
-               if (game_BALL_X < 159) { game_BALL_X++; }
+         if (demo_object_x[selected_object] < 159) {
+            demo_object_x[selected_object]++;
          }
       }
    }
 
    if (!(SWCHA & 0x10)) {
-      switch (selected_object) {
-         case SELECTED_PLAYER0:
-            if (game_player0_y > 0) { game_player0_y--; }
-            break;
-         case SELECTED_PLAYER1:
-            if (game_player1_y > 0) { game_player1_y--; }
-            break;
-         default:
-            if (game_ball_y > 0) { game_ball_y--; }
+      if (demo_object_y[selected_object]) {
+         demo_object_y[selected_object]--;
       }
    }
    else {
       if (!(SWCHA & 0x20)) {
-         switch (selected_object) {
-            case SELECTED_PLAYER0:
-               if (game_player0_y < OBJECT_MAX_Y) { game_player0_y++; }
-               break;
-            case SELECTED_PLAYER1:
-               if (game_player1_y < OBJECT_MAX_Y) { game_player1_y++; }
-               break;
-            default:
-               if (game_ball_y < OBJECT_MAX_Y) { game_ball_y++; }
+         if (demo_object_y[selected_object] < OBJECT_MAX_Y) {
+            demo_object_y[selected_object]++;
          }
       }
    }
+
+   game_PLAYER0_X := demo_object_x[0];
+   game_PLAYER1_X := demo_object_x[1];
+   game_BALL_X := demo_object_x[2];
+   game_player0_y := demo_object_y[0];
+   game_player1_y := demo_object_y[1];
+   game_ball_y := demo_object_y[2];
 }
 
 void update_controls(void) {

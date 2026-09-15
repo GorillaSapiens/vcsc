@@ -9,8 +9,9 @@ alias BACKGROUND_COLOR 0x84
 alias HEART_COLOR      0x46
 alias SCORE_PERIOD     30
 
-instantiate "heart_score_component.c26" as health
+instantiate "heart_score_component.c26" as health(line_markers := 1)
 uint8_t frame_counter := 0;
+
 
 void main(void) {
    PF0 := 0;
@@ -22,6 +23,8 @@ void main(void) {
    COLUBK := BACKGROUND_COLOR;
    VBLANK := 2;
 
+   health_line_color := 0;
+   health_lines := 11;
    health_score := 0;
    health_half := 0;
    health_color := HEART_COLOR;

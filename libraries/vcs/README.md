@@ -51,7 +51,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
 - `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
-- `heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps derived from Thomas Jentzsch's 11-Invaders renderer; seven visible lines, 12-pixel heart pitch, exact full/half left-prefix geometry
+- `heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps derived from Thomas Jentzsch's 11-Invaders renderer; seven-line default profile, optional compile-time top/bottom playfield line markers, 12-pixel heart pitch, exact full/half left-prefix geometry
 - `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers
 - `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
 - `driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
@@ -392,6 +392,22 @@ health_half := 1;  // add the left half of the next heart (through 10.5)
 health_color := 0x46;
 ```
 
+The default instantiation is deliberately unchanged. An optional compile-time
+profile adds segmented playfield lines above and below the heart row:
+
+```vcsc
+instantiate "heart_score_component.c26" as health (line_markers:=1)
+
+health_lines := 8;       // independent left prefix, 0..11
+health_line_color := 0xc6;
+```
+
+Each marker segment is eight pixels wide on the same 12-pixel pitch as a heart,
+so the eleven possible origins remain X=16,28,...,136. `lines` is independent
+of `score`/`half`; changing one does not clamp or otherwise modify the other.
+The enabled profile keeps the heart renderer itself unchanged and spends its
+extra scanlines entirely on the playfield markers and blank separation.
+
 The twelve full-heart renderer variants and twelve half-control variants execute
 directly from ROM. Full renderers are the 45-byte prepatched Jentzsch streams.
 `0.5` uses one P0 left-half sprite. `1.5` through `9.5` keep the Jentzsch row
@@ -400,8 +416,10 @@ copy. `10.5` uses an unrolled six-row variant because the 10-heart loop has no
 four-cycle slot left for that store. At score 11, `half` is ignored visually;
 there is no 11.5 state.
 
-One instance uses **eight RIOT-RAM bytes** total: public `score`, `half`, and
-`color`, a two-byte ROM-renderer pointer, and three cached TIA setup bytes.
+A default instance uses **eight RIOT-RAM bytes** total: public `score`, `half`,
+and `color`, a two-byte ROM-renderer pointer, and three cached TIA setup bytes.
+The `line_markers:=1` profile uses **twelve RIOT-RAM bytes** by adding public
+`lines`/`line_color` plus two cached left-half playfield bytes.
 Horizontal player placement is re-established by `draw()` itself, rather than
 being left as VBLANK state for a later visible component to preserve. The setup
 line uses paired RESP0/RESP1 strobes plus a late positioning HMOVE, then restores
@@ -410,23 +428,29 @@ certification locks all 23 visible values (`0`, `0.5`, ... `10.5`, `11`) plus
 the `11+half` clamp case, and preserves the original twelve full-heart hashes
 unchanged.
 
-The component consumes exactly **seven visible scanlines**, enters `draw()` at
-cycle 3, and returns at cycle 0 after its terminal `WSYNC`. It owns P0/P1 while
-drawing. Half-heart pixels use no Ball or missile graphics. The visible setup
+The default component consumes exactly **seven visible scanlines**. The
+`line_markers:=1` profile consumes **ten visible scanlines**. Both enter `draw()`
+at cycle 3 and return at cycle 0 after their terminal `WSYNC`. The heart portion
+owns P0/P1; half-heart pixels use no Ball or missile graphics. The visible setup
 line clears missile/Ball motion before its positioning `HMOVE`, so unrelated
-objects are not displaced; terminal cleanup leaves M0 and Ball disabled. This
-self-positioning makes the renderer safe both before and after another P0/P1
-renderer in the same visible frame.
+objects are not displaced; terminal cleanup leaves M0 and Ball disabled. The
+marker profile additionally owns PF0/PF1/PF2, CTRLPF, and COLUPF during its two
+marker scanlines, clears the PF graphics before return, and deliberately leaves
+the marker color/control values as clobbered state for the next renderer to
+configure. This self-positioning makes the heart geometry safe both before and
+after another P0/P1 renderer in the same visible frame.
 
 The public example directory
 [`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/)
-contains the automatic meter plus two 4K interactive composition cartridges.
-They place the seven-line heart meter above and below the maintained 181-line
-`player_color` renderer with a four-line separator. Right joystick UP/DOWN
-changes health by half a heart from 0 through 11 with edge-triggered input.
-Stella composition coverage includes the bottom-mounted singleton-sensitive
-states 0.5 through 3.0, so a preceding player renderer cannot silently displace
-the first hearts.
+contains the automatic default-profile meter plus two 4K interactive
+composition cartridges. The interactive carts instantiate `line_markers:=1`
+and place the ten-line heart profile above and below the maintained 181-line
+`player_color` renderer with a one-line separator. Right joystick UP/DOWN
+changes health by half a heart from 0 through 11; RIGHT/LEFT independently
+increments/decrements the marker count from 0 through 11. Input is edge
+triggered. Stella composition coverage includes both marker directions and the
+bottom-mounted singleton-sensitive heart states 0.5 through 3.0, so a preceding
+player renderer cannot silently displace the first hearts.
 
 ## Left/right three-plus-three score component
 

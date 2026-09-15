@@ -31,8 +31,14 @@ $controls =~ /SWCHA\s*&\s*0x0f/ or die "right joystick does not read the low SWC
 $controls =~ /right_joystick_ready\s*&\s*0x01/ or die "right joystick UP handling is missing\n";
 $controls =~ /right_joystick_ready\s*&\s*0x02/ or die "right joystick DOWN handling is missing\n";
 $controls =~ /score_score\s*<\s*11/ or die "heart increment is not capped at 11\n";
-$common =~ /game_PLAYER0_X\s*:=\s*44/ && $common =~ /game_PLAYER1_X\s*:=\s*108/
+$controls =~ /score_lines\s*:=\s*8/ or die "marker count does not start at an interior test value\n";
+$controls =~ /right_joystick_ready\s*&\s*0x04/ or die "right joystick LEFT marker handling is missing\n";
+$controls =~ /right_joystick_ready\s*&\s*0x08/ or die "right joystick RIGHT marker handling is missing\n";
+$controls =~ /score_lines\s*<\s*11/ or die "marker increment is not capped at 11\n";
+$common =~ /demo_object_x\[0\]\s*:=\s*44/ && $common =~ /demo_object_x\[1\]\s*:=\s*108/
    or die "player-color composition scene is missing\n";
+$common =~ /game_PLAYER0_X\s*:=\s*demo_object_x\[0\]/ && $common =~ /game_PLAYER1_X\s*:=\s*demo_object_x\[1\]/
+   or die "player-color composition scene does not publish demo positions to renderer state\n";
 $common =~ /update_score_controls\(\);/ or die "composition scene does not update heart controls\n";
 $common =~ /update_object_selection\(\);/ && $common =~ /move_selected_object\(\);/
    or die "heart composition demo lacks left-joystick object controls\n";
@@ -48,10 +54,12 @@ for my $kind (qw(above below)) {
    $text =~ /^include "4K\/mapper\.c26"$/m or die "$kind demo is not a plain 4K cartridge\n";
    $text =~ /instantiate "renderers\/player_color\/player_color\.c26" as game \(lines:=181\)/
       or die "$kind demo does not use maintained player_color_181\n";
-   $text =~ /instantiate "heart_score_component\.c26" as score/
-      or die "$kind demo does not instantiate heart score\n";
-   $text =~ /vcs_ntsc_component_handoff\(\);/ && $text =~ /vcs_ntsc_wait_component_scanlines\(4\);/
-      or die "$kind demo does not use the measured four-line component gap\n";
+   $text =~ /instantiate "heart_score_component\.c26" as score \(line_markers:=1\)/
+      or die "$kind demo does not enable heart line markers at instantiation\n";
+   $text =~ /asm sta WSYNC;/ && $text =~ /vcs_ntsc_component_handoff\(\);/
+      or die "$kind demo does not use the one-line measured component gap\n";
+   $text !~ /vcs_ntsc_wait_component_scanlines\(4\);/
+      or die "$kind demo still uses the obsolete four-line gap\n";
    my $score=index($text,'score_draw();');
    my $game=index($text,'game_draw();');
    $score>=0 && $game>=0 or die "$kind demo lacks component draws\n";

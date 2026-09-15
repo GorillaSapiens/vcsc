@@ -133,15 +133,14 @@ Open workstreams
    semantics. Regression tests own the detailed placement/footprint expectations.
 
 6. **Heart score component**
-   `libraries/vcs/heart_score_component.c26` is complete for 0..11 hearts with
-   half steps through 10.5. Player-only left-half renderers preserve the fixed
-   12-pixel-pitch footprint using 8 RIOT-RAM bytes; score 11 ignores `half`.
-   `draw()` now re-establishes P0/P1 horizontal placement itself, so bottom
-   composition does not inherit player X from a preceding renderer; Stella
-   locks the singleton-sensitive 0.5..3.0 bottom cases. Full-state hashes are
-   unchanged. 4K examples compose it above/below `player_color_181`; right
-   stick changes health, left stick moves P0/P1/Ball, and SELECT cycles it. Read
-   `.../heart_score.txt` for invariants.
+   Complete for 0..11 hearts with left-half steps through 10.5; score 11 ignores
+   `half`. Default profile is 7 lines / 8 RIOT bytes. `line_markers:=1` selects
+   a 10-line / 12-byte profile with independent `lines` 0..11 and `line_color`,
+   drawing 8-pixel PF segments above/below on the same 12-pixel pitch without
+   changing the heart raster. `draw()` self-positions P0/P1. 4K above/below
+   `player_color_181` demos use right UP/DOWN for health, right LEFT/RIGHT for
+   markers, left stick for P0/P1/Ball and SELECT to cycle. See
+   `.../heart_score.txt`.
 
 Startup selection
 -----------------

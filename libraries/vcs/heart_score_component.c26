@@ -14,18 +14,41 @@
 // VBLANK clear.  It consumes seven scanlines and returns at cycle zero after
 // its terminal WSYNC.  It owns P0/P1 graphics, color, reflection, VDEL, NUSIZ,
 // horizontal motion, RESP0/RESP1, and HMOVE while drawing. Half-heart pixels
-// use the same two players only; they do not consume M0/Ball, CTRLPF, or COLUPF.
-// The visible setup line neutralizes missile/Ball motion before its positioning
-// HMOVE, and terminal cleanup leaves M0 and Ball disabled.
-// It does not touch playfield graphics, VSYNC, VBLANK, RIOT timer, audio, or
-// collision latches. A/X/Y and arithmetic flags are clobbered; hardware stack
-// depth is unchanged at lifecycle boundaries.
+// use the same two players only; they do not consume M0/Ball. The visible setup
+// line neutralizes missile/Ball motion before its positioning HMOVE, and
+// terminal cleanup leaves M0 and Ball disabled. The default profile does not
+// touch playfield graphics, CTRLPF, or COLUPF.
+//
+// Optional compile-time line markers use the playfield on two dedicated
+// scanlines, one above and one below the hearts, with blank separation from the
+// six heart rows. Instantiate with line_markers:=1 to enable TEMPLATE_lines
+// (0..11) and TEMPLATE_line_color. The enabled profile owns/clobbers
+// PF0/PF1/PF2, CTRLPF, and COLUPF while drawing; it leaves PF graphics clear on
+// return but does not restore the predecessor's color/control values. The
+// disabled profile keeps the historical seven-line renderer and allocates no
+// marker state; the enabled profile is ten visible scanlines and 12 RAM bytes.
+//
+// Neither profile touches VSYNC, VBLANK, the RIOT timer, audio, or collision
+// latches. A/X/Y and arithmetic flags are clobbered; hardware stack depth is
+// unchanged at lifecycle boundaries.
+
+parameter line_markers := 0;
+
+#if TEMPLATE_line_markers != 0 && TEMPLATE_line_markers != 1
+extern const uint8_t TEMPLATE_line_markers_must_be_0_or_1[0];
+#endif
+
+#if TEMPLATE_line_markers
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 10
+#else
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 7
+#endif
 
 enum TEMPLATE_contract {
-   TEMPLATE_VISIBLE_SCANLINES :=7,
+   TEMPLATE_VISIBLE_SCANLINES :=TEMPLATE_VISIBLE_SCANLINES_VALUE,
    TEMPLATE_DRAW_ENTRY_CYCLE :=3,
    TEMPLATE_DRAW_RETURN_CYCLE :=0,
-   TEMPLATE_DRAW_COMPLETE_SCANLINES :=7,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES :=TEMPLATE_VISIBLE_SCANLINES_VALUE,
    TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES :=0,
    TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES :=0,
    TEMPLATE_DRAW_TERMINAL_WSYNC :=1,
@@ -42,6 +65,32 @@ enum TEMPLATE_contract {
 recommend uint8_t TEMPLATE_score :=0;
 recommend uint8_t TEMPLATE_color :=0x46;
 recommend uint8_t TEMPLATE_half :=0;
+
+#if TEMPLATE_line_markers
+// Runtime marker state exists only in the enabled template profile.  `lines`
+// selects a left-justified prefix of the same eleven fixed heart slots.
+recommend uint8_t TEMPLATE_lines :=0;
+recommend uint8_t TEMPLATE_line_color :=0;
+uint8_t TEMPLATE_line_pf1_left;
+uint8_t TEMPLATE_line_pf2_left;
+
+// The marker occupies exactly the central 128 pixels (TIA X=16..143).  Each
+// slot is eight pixels on a twelve-pixel pitch: two playfield bits on, then a
+// four-pixel gap.  The four tables are the asymmetric PF1/PF2 bytes for the
+// left and right 64-pixel halves.
+page const uint8_t TEMPLATE_line_pf1_left_table[12] := {
+   0x00,0xc0,0xd8,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb,0xdb
+};
+page const uint8_t TEMPLATE_line_pf2_left_table[12] := {
+   0x00,0x00,0x00,0x00,0x06,0x36,0xb6,0xb6,0xb6,0xb6,0xb6,0xb6
+};
+page const uint8_t TEMPLATE_line_pf2_right_table[12] := {
+   0x00,0x00,0x00,0x00,0x00,0x00,0x80,0xb0,0xb6,0xb6,0xb6,0xb6
+};
+page const uint8_t TEMPLATE_line_pf1_right_table[12] := {
+   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x03,0x1b,0xdb
+};
+#endif
 
 // Private RIOT-RAM state: selected ROM renderer plus the three score-dependent
 // TIA values needed by the fixed-cycle draw setup. HMP1 is always $80.
@@ -1015,6 +1064,50 @@ static void TEMPLATE_dispatch(void) {
    asm jmp.i (TEMPLATE_renderer_ptr);
 }
 
+#if TEMPLATE_line_markers
+static void TEMPLATE_prepare_lines(void) {
+   if (TEMPLATE_lines > 11) {
+      TEMPLATE_lines := 11;
+   }
+   TEMPLATE_line_pf1_left := TEMPLATE_line_pf1_left_table[TEMPLATE_lines];
+   TEMPLATE_line_pf2_left := TEMPLATE_line_pf2_left_table[TEMPLATE_lines];
+}
+
+// Shared cycle-counted middle of a marker scanline.  The inline caller has
+// written left PF1/PF2 by cycle 29; the six-cycle JSR enters this helper at
+// cycle 35.  The right-half writes therefore land at the maintained asymmetric
+// playfield phases, cycles 48 and 55.  Returning at cycle 61 leaves the caller
+// enough time to clear PF2/PF1 after their final pixels and finish with WSYNC.
+static void TEMPLATE_draw_line_right(void) {
+   asm ldy.z TEMPLATE_lines;
+   asm lda.ay TEMPLATE_line_pf2_right_table,y;
+   asm sta PF2;
+   asm lda.ay TEMPLATE_line_pf1_right_table,y;
+   asm sta PF1;
+}
+
+// One marker scanline. Entry is the normal component cycle-3 phase and the
+// final WSYNC returns at cycle zero.
+static inline void TEMPLATE_draw_line(void) {
+   asm lda.z TEMPLATE_line_color;
+   asm sta COLUPF;
+   asm lda #0;
+   asm sta PF0;
+   asm lda #1;
+   asm sta CTRLPF;
+   asm lda.z TEMPLATE_line_pf1_left;
+   asm sta PF1;
+   asm lda.z TEMPLATE_line_pf2_left;
+   asm sta PF2;
+   TEMPLATE_draw_line_right();
+   asm ldx #0;
+   asm stx PF2;
+   asm bit.z $00;
+   asm stx PF1;
+   asm sta WSYNC;
+}
+#endif
+
 // The visible setup line re-establishes P0/P1 horizontal state on every draw.
 // Back-to-back absolute RESP strobes preserve the 12-pixel heart pitch; the
 // late $50 setup HMOVE places singleton P0/P1 so the renderer's normal $80
@@ -1023,10 +1116,16 @@ static void TEMPLATE_dispatch(void) {
 
 require inline void TEMPLATE_init(void) {
    TEMPLATE_select_renderer();
+#if TEMPLATE_line_markers
+   TEMPLATE_prepare_lines();
+#endif
 }
 
 require inline void TEMPLATE_vblank(void) {
    TEMPLATE_select_renderer();
+#if TEMPLATE_line_markers
+   TEMPLATE_prepare_lines();
+#endif
 }
 
 static inline void TEMPLATE_configure_tia(void) {
@@ -1053,6 +1152,13 @@ static inline void TEMPLATE_configure_tia(void) {
 }
 
 require inline void TEMPLATE_draw(void) {
+#if TEMPLATE_line_markers
+   // Top marker line. The three-cycle handoff restores the historical cycle-3
+   // phase before the unchanged seven-line heart renderer begins. Its setup
+   // scanline is the requested blank line above the six heart rows.
+   TEMPLATE_draw_line();
+   asm bit.z $00;
+#endif
    TEMPLATE_configure_tia();
    asm sta WSYNC;
 
@@ -1079,6 +1185,12 @@ require inline void TEMPLATE_draw(void) {
    asm sta ENAM0;
    asm sta ENABL;
    asm sta WSYNC;
+#if TEMPLATE_line_markers
+   // One blank scanline below the hearts, then the bottom marker.
+   asm sta WSYNC;
+   asm bit.z $00;
+   TEMPLATE_draw_line();
+#endif
 }
 
 require inline void TEMPLATE_overscan(void) {}

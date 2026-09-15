@@ -27,6 +27,7 @@ my $perl=findexe('perl') or die "perl required\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(test fixtures heart_score golden.c26));
+my $line_source=File::Spec->catfile($repo,qw(test fixtures heart_score lines.c26));
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 my @wanted_full=(
@@ -58,6 +59,21 @@ my @wanted_half=(
 '320 x 228 8f6a51ac3e0df1b1683758cbfe7dcf13c965b2ce6565bc864734cf132f501eac',
 );
 
+my @wanted_lines=(
+'320 x 228 62a828766ef7260961fdc0afd07273891f0dfa11cced7a96b54e0e2a01464d45',
+'320 x 228 5315350d47938c0b1ebcd8e271be532c60b921bd94d542d0ad1803667f967b4c',
+'320 x 228 8287ef17c47e4b068371feda948228bd15c8b4762f861636f8e059a711258366',
+'320 x 228 a09609f4cac61a61641a4b18f9e32c099ca801754849eb6923bf0c066741ae3e',
+'320 x 228 d06a50a72af9d201e8f17a6bd8364ea0309a43dbf719aa028e9dff35992d698a',
+'320 x 228 2611c21075fcd6f54ac3dc81aab34b79bb21f6830eaeab0f253e284ade66289e',
+'320 x 228 672a0a0152f3c05744b3c563d9f1548b4fc2204c36bd5855e73a4f3312b6e76e',
+'320 x 228 b6b83c6543dff76a1b8acf941bb62a4c7ec3529191da0ee165eaacfb2d803e84',
+'320 x 228 536c4e5311383d0af969bea5cd751452fb39010ef178b50d3dcedbc280c1c5c6',
+'320 x 228 7b94550877141054e07fdf22107a1093068b82962b6929245f6bc5e1bec88336',
+'320 x 228 e0314a4bce3558cff4d555e16b3dfd45f4fb29833f0de09937b8d54fcd214507',
+'320 x 228 9197e1098213f5fbd592a1abcdc6c9749ae7c5db474d6b1b60e8ad5c2305d2b7'
+);
+
 my $display=180+($$%50); $display++ while -e "/tmp/.X11-unix/X$display";
 my $d=":$display";
 my $xpid=fork(); defined$xpid or die "fork Xvfb\n";
@@ -87,30 +103,61 @@ for my $half (0,1) {
    }
 }
 
+# Compile-time-enabled marker certification. The heart state stays fixed at 5.5
+# while the independent runtime marker count walks all twelve 0..11 prefixes.
+# The hashes lock both top and bottom marker lines, the blank separation, and
+# exact 8-pixel / 12-pixel-pitch alignment without changing the default heart
+# profile above.
+for my $lines (0..11) {
+   my $rom=File::Spec->catfile($tmp,"heart_score_lines_${lines}.bin");
+   ok("build heart line markers $lines",$driver,'-I',$vcs,"-DHEART_LINES=$lines",$line_source,'-o',$rom);
+   unlink glob("$snap/*.png");
+   my $line_user=File::Spec->catdir($tmp,"user_lines_${lines}"); make_path($line_user);
+   my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+      '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+      '-exitlauncher','0','-confirmexit','0','-userdir',$line_user,$rom);
+   my $pid=fork(); defined$pid or die "fork Stella\n";
+   if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_lines_${lines}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+   ok("snapshot heart line markers $lines",$perl,$keys,'--fast');
+   my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for line markers $lines\n";
+   my($actual,$ae)=ok("digest heart line markers $lines",$perl,$digest,$png[0]);
+   $ae eq '' or die $ae; chomp $actual;
+   $actual eq $wanted_lines[$lines]
+      or die "heart line markers $lines raster differs: actual=$actual wanted=$wanted_lines[$lines]\n";
+}
+
 # Composition certification: the real 181-line player-color renderer and the
-# seven-line heart renderer must coexist in either visible order. The initial
-# 5.5 state plus held right-joystick UP/DOWN lock one health transition in each
-# direction (6.0 and 5.0). Held left-joystick RIGHT locks real gameplay motion
+# ten-line line-marker heart profile must coexist in either visible order.
+# The initial 5.5 health / 8-marker state plus held right-joystick UP/DOWN locks
+# one health transition in each direction (6.0 and 5.0), while LEFT/RIGHT locks
+# one marker transition (7 and 9). Held left-joystick RIGHT locks real gameplay motion
 # of the initially selected P0 so these cartridges cannot regress to static
 # "interactive" demos again.
 my %demo_wanted=(
    above=>{
-      neutral=>'320 x 228 e7c4ad08dab58982e519427730ee521e10f22f4559ce880759ab9e31385b9bf2',
-      score_up=>'320 x 228 e990766e5c3a72b66636a8fa6dc0b9f03c7e168118bb8c10c388bc9163c9b9be',
-      score_down=>'320 x 228 7f185d1dba6c0f630f42d0e08b2140f856d0ed4cd123a7d8019a616d1f412504',
-      move_right=>'320 x 228 7acfac858feb57d6b1daf666c0a0336d3aede1b67dc878b69178ffd65d6d6351',
+      neutral=>'320 x 228 8e6a0911a09179774b8dcbeb5ba13fb7b8eb21ddcf5da57d7c5fea9cf58d86ba',
+      score_up=>'320 x 228 174f265af3bc63a35370eaf2d2f5eec7eb51705bd22c186678ff24c1d9a50ee2',
+      score_down=>'320 x 228 953eeb5b84f71eff832f98aeaf76b403126973f259f384002840ea028afa3b7c',
+      lines_down=>'320 x 228 f176dd46c61ea77d9f59e2bc29adbe8f0a4ad29db00e7065812ac76c81c5c7c0',
+      lines_up=>'320 x 228 48ebc35ab9bfdd974268f8ec3d07af12f54d15125eb3d24d4b47258e5b73d511',
+      move_right=>'320 x 228 a2c3bdb7b1c17e8585826fa4432b8ec1a5949ce83609613a9a0e046502c6910c',
    },
    below=>{
-      neutral=>'320 x 228 37f583c87535a6099d7b9c916de8abacd53d768fb3a94b0b2c3a6aa5ab715fd6',
-      score_up=>'320 x 228 1480a0544803c5afbacd635e79ee968ca80c4dce81296dd1c2af7ce9ce5a4de3',
-      score_down=>'320 x 228 3e335dbe9805188cab1ce1a9d29e72a745749d599c83d559c395e2a193de677e',
-      move_right=>'320 x 228 3bee9ad675144951b87a48afe8c2c5def455e45fa0ed7cfbb12bbda0bb5f3442',
+      neutral=>'320 x 228 a72a00cb44acce3b895aa38ddb201c0bf8bc4e1ca0af10612dfa0667f1b94861',
+      score_up=>'320 x 228 b24b5119ec669f8ecc1e4a9d966988b5d1fbf0c089b9eaa6730c122ebca9e3f9',
+      score_down=>'320 x 228 16fc703cebf3cf7273a653f585800b506dd95adcde1081969c3dba2df7dffeec',
+      lines_down=>'320 x 228 a2dd1851c482df1aa3ccc6008a64f3e0430d8808e4f76ef160faf44de333a5ed',
+      lines_up=>'320 x 228 e707ba6ef44f0fe51f4ebd2933cb2948338f28c0fe2119d65f9c7de321a5b5dc',
+      move_right=>'320 x 228 15035ce398f0bf57c916fde1a69e4d1c6201cc1d3f84b34a9c8be5bb1cbc60ae',
    },
 );
 my @demo_inputs=(
    [neutral=>[]],
    [score_up=>['-holdjoy1','U']],
    [score_down=>['-holdjoy1','D']],
+   [lines_down=>['-holdjoy1','L']],
+   [lines_up=>['-holdjoy1','R']],
    [move_right=>['-holdjoy0','R']],
 );
 for my $kind (qw(above below)) {
@@ -143,12 +190,12 @@ for my $kind (qw(above below)) {
 # footprint.  Mask everything except the six score rows so unrelated scene
 # pixels cannot make a bad heart placement look valid.
 my @below_low=(
-   [0,1,'0.5','320 x 228 b602f9750d4cfe22c587495f54ed231e71903a659faea0733587e6141011cfef'],
-   [1,0,'1.0','320 x 228 bfd918d2ccc6bb2d56aeef63fdbb15a236ac0bf2c7926cac8bee2ea966070845'],
-   [1,1,'1.5','320 x 228 fc8be92aab18f7b20f9d2f6526948699a97ba55637f2e22c549939a299f0eac3'],
-   [2,0,'2.0','320 x 228 a438f06da3b5d876a136bebb78956a4af03fe8b512558eb57ab843108664a695'],
-   [2,1,'2.5','320 x 228 f29aa8e23eb00b91b07747562c3a9bd640f545db04822c1aa5b9143c3a9986f3'],
-   [3,0,'3.0','320 x 228 45c2ebd6f0c285ae9967c199b0495bed32286494c04aaf725fa7814d26578af9'],
+   [0,1,'0.5','320 x 228 0a2f524431c634ccb4af0aa6b27cd1d97913f8d98c979291fe96dee0fcedd9c4'],
+   [1,0,'1.0','320 x 228 ee0fc63e9b99fe4f3f5b514c0900585047f04354bb17ea7805b2d6d69c6a8252'],
+   [1,1,'1.5','320 x 228 ab706c767ba8c11d2e92b26a4f4e592afe9b36ef53812089df1795bdf4c67904'],
+   [2,0,'2.0','320 x 228 85e29f6f44708c4ea87e1de3716cfd180b7d1828dd9a43695a3746590fe49435'],
+   [2,1,'2.5','320 x 228 1632b26a264bc83ccb06a3f2e19f1bb40fbddc0edb76dd6bb6a6d854b21f6a7d'],
+   [3,0,'3.0','320 x 228 3c5f3543cafcd697abe6ad591c8232a078e32ae9ac49b82f2cb23160752ab014'],
 );
 my $below_source=File::Spec->catfile($repo,qw(examples 01_basic 14_heart_score),'heart_score_below_interactive.c26');
 for my $case (@below_low) {
@@ -168,7 +215,7 @@ for my $case (@below_low) {
    my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
    terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for bottom composition $label\n";
    my($actual,$ae)=ok("digest bottom composition $label",$perl,$digest,
-      '--mask-rows','0-199','--mask-rows','206-227',$png[0]);
+      '--mask-rows','0-197','--mask-rows','204-227',$png[0]);
    $ae eq '' or die $ae; chomp $actual;
    $actual eq $wanted
       or die "bottom composition $label heart rows differ: actual=$actual wanted=$wanted\n";

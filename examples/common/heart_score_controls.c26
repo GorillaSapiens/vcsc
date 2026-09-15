@@ -3,7 +3,7 @@
 // Shared right-joystick controls for heart-score composition examples.
 // The including source must instantiate heart_score_component.c26 as `score`.
 
-uint8_t right_joystick_ready := 0x0f;
+uint8_t right_joystick_ready := 0;
 
 inline void initialize_score_state(void) {
 #ifdef HEART_SCORE_INITIAL_SCORE
@@ -17,6 +17,8 @@ inline void initialize_score_state(void) {
    score_half := 1;
 #endif
    score_color := VCS_NTSC_LIGHT_CORAL;
+   score_lines := 8;
+   score_line_color := VCS_NTSC_PALE_GREEN;
    right_joystick_ready := 0x0f;
 }
 
@@ -50,6 +52,22 @@ inline void update_score_controls(void) {
                   if (score_score) {
                      score_score--;
                      score_half := 1;
+                  }
+               }
+            }
+            else {
+               // Horizontal directions control the independent marker count.
+               // LEFT decreases and RIGHT increases the 0..11 prefix.
+               if (!(right_joystick_ready & 0x04)) {
+                  if (score_lines) {
+                     score_lines--;
+                  }
+               }
+               else {
+                  if (!(right_joystick_ready & 0x08)) {
+                     if (score_lines < 11) {
+                        score_lines++;
+                     }
                   }
                }
             }

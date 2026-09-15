@@ -23,11 +23,17 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $component=File::Spec->catfile($vcs,'heart_score_component.c26');
 my $fixture=File::Spec->catfile($repo,qw(test fixtures heart_score golden.c26));
+my $line_fixture=File::Spec->catfile($repo,qw(test fixtures heart_score lines.c26));
 my $source=read_file($component);
 
+$source =~ /parameter\s+line_markers\s*:=\s*0\s*;/ or die "line-marker template parameter is missing\n";
+$source =~ /alias\s+TEMPLATE_VISIBLE_SCANLINES_VALUE\s+10/ or die "enabled line-marker height is not 10 scanlines\n";
+$source =~ /alias\s+TEMPLATE_VISIBLE_SCANLINES_VALUE\s+7/ or die "disabled heart height is not 7 scanlines\n";
+$source =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ or die "visible-line contract does not follow template profile\n";
+$source =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ or die "complete-line contract does not follow template profile\n";
 for my $field (
-   [VISIBLE_SCANLINES=>7],[DRAW_ENTRY_CYCLE=>3],[DRAW_RETURN_CYCLE=>0],
-   [DRAW_COMPLETE_SCANLINES=>7],[DRAW_TERMINAL_WSYNC=>1],
+   [DRAW_ENTRY_CYCLE=>3],[DRAW_RETURN_CYCLE=>0],
+   [DRAW_TERMINAL_WSYNC=>1],
    [DRAW_HMOVE_COUNT=>7],[DRAW_SUCCESSOR_ON_RETURN_LINE=>1],
    [MAX_HEARTS=>11],[HEART_WIDTH=>8],[HEART_PITCH=>12],[HALF_STATES=>2],
 ) {
@@ -60,8 +66,8 @@ $source !~ /TEMPLATE_position_single_p[01]|TEMPLATE_prepare_positions/
    or die "heart positioning unexpectedly depends on VBLANK singleton state\n";
 $source =~ /TEMPLATE_configure_tia.*?\.byte \$8d,\$10,\$00;.*?\.byte \$8d,\$11,\$00;.*?lda #\$50;.*?sta HMP0;.*?sta HMP1;.*?sta HMOVE;/s
    or die "draw-time P0/P1 fixed-footprint positioning changed\n";
-$source =~ /TEMPLATE_vblank\s*\(void\)\s*\{\s*TEMPLATE_select_renderer\(\);\s*\}/s
-   or die "heart VBLANK unexpectedly owns horizontal player positioning\n";
+$source =~ /TEMPLATE_vblank\s*\(void\)\s*\{\s*TEMPLATE_select_renderer\(\);.*?TEMPLATE_prepare_lines\(\);.*?\}/s
+   or die "heart VBLANK line preparation contract changed\n";
 $source =~ /TEMPLATE_half_heart\[7\].*?0x10,0x30,0x70,0xf0,0xf0,0x60/s
    or die "left-half player glyph changed\n";
 $source =~ /\.byte\s+\$87,\$1c/ && $source =~ /\.byte\s+\$8f,\$(?:1b|1c),\$00/
@@ -72,6 +78,11 @@ $source !~ /TEMPLATE_half_ball|TEMPLATE_half_m0|TEMPLATE_position_half_overlay/
    or die "obsolete Ball/M0 half-heart overlay returned\n";
 $source =~ /State 11 deliberately draws the ordinary 11-heart maximum/
    or die "11-heart half clamp contract is missing\n";
+
+$source =~ /#if TEMPLATE_line_markers.*?recommend\s+uint8_t\s+TEMPLATE_lines\s*:=\s*0.*?recommend\s+uint8_t\s+TEMPLATE_line_color\s*:=\s*0/s
+   or die "enabled marker runtime state is missing or not compile-time guarded\n";
+$source =~ /TEMPLATE_draw_line\(\);.*?TEMPLATE_configure_tia\(\);.*?TEMPLATE_dispatch\(\);.*?asm sta WSYNC;.*?TEMPLATE_draw_line\(\);/s
+   or die "enabled marker draw does not bracket the historical heart renderer\n";
 
 my $bin=File::Spec->catfile($tmp,'heart_score.bin');
 my $map=File::Spec->catfile($tmp,'heart_score.map');
@@ -97,5 +108,18 @@ for my $score (1..9,11) {
 }
 $mt =~ /^\s+CODE\.__vcsc_function\$health_half_renderer_10\s+load=\$[0-9A-Fa-f]+\s+size=\$0145\s+page=crossing$/m
    or die "unrolled 10.5-heart renderer footprint changed\n";
+
+my $line_bin=File::Spec->catfile($tmp,'heart_score_lines.bin');
+my $line_map=File::Spec->catfile($tmp,'heart_score_lines.map');
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-DHEART_LINES=11','-Map',$line_map,$line_fixture,'-o',$line_bin);
+$rc==0&&!$sig or die "line-marker heart fixture build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "line-marker heart fixture build wrote output\n$out$err";
+-s $line_bin == 4096 or die "line-marker heart fixture is not a 4K ROM\n";
+my $lmt=read_file($line_map);
+my $line_ram=0;
+while ($lmt =~ /^\s+(?:BSS|DATA)\.__vcsc_object\$health_[^\s]+\s+.*?size=\$([0-9A-Fa-f]{4})/mg) { $line_ram += hex($1); }
+$line_ram==12 or die "line-marker heart component RAM changed: $line_ram bytes, expected 12\n";
+$lmt =~ /(?:BSS|DATA)\.__vcsc_object\$health_lines\b/m or die "enabled marker line-count state is missing\n";
+$lmt =~ /(?:BSS|DATA)\.__vcsc_object\$health_line_color\b/m or die "enabled marker color state is missing\n";
 
 print "vcs_heart_score ok\n";
