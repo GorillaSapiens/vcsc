@@ -42,32 +42,35 @@ find({no_chdir=>1,wanted=>sub {
    }
 }},$examples);
 @direct=sort @direct;
-my @expected=(
-   'examples/01_basics/blank_screen/blank_screen.c26',
+my $blank_screen='examples/01_basics/blank_screen/blank_screen.c26';
+my @c26_frame_owners=(
    'examples/01_basics/blank_noasm/blank_noasm.c26',
    'examples/01_basics/ode_to_joy/ode_to_joy.c26',
-   'examples/19_diagnostic/01_diagnostic/vcsc_diagnostic.c26',
+   'examples/03_controllers/joystick/joystick.c26',
 );
+my $diagnostic='examples/19_diagnostic/01_diagnostic/vcsc_diagnostic.c26';
+my @expected=($blank_screen,@c26_frame_owners,$diagnostic);
 join("\n",@direct) eq join("\n",sort @expected)
    or die "direct example VSYNC writers changed:\n".join("\n",@direct)."\n";
 
-for my $rel ($expected[0]) {
+{
+   my $rel=$blank_screen;
    my $asm=read_file(File::Spec->catfile($repo,split('/', $rel)));
    $asm =~ /asm lda #2;\s*asm sta WSYNC;\s*asm sta VSYNC;\s*asm lda #0;\s*asm sta WSYNC;\s*asm sta WSYNC;\s*asm sta WSYNC;\s*asm sta VSYNC;/s
       or die "$rel lost exact same-phase VSYNC stores\n";
 }
-for my $rel (@expected[1,2]) {
+for my $rel (@c26_frame_owners) {
    my $t=read_file(File::Spec->catfile($repo,split('/', $rel)));
    $t =~ /WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*0\s*;/s
       or die "$rel lost exact same-phase VSYNC sequence\n";
 }
-my $diag=read_file(File::Spec->catfile($repo,split('/', $expected[3])));
+my $diag=read_file(File::Spec->catfile($repo,split('/', $diagnostic)));
 my @diag_direct=($diag =~ /\bVSYNC\s*:=/g);
 @diag_direct==1 && $diag =~ /\bVSYNC\s*:=\s*0\s*;/ &&
 $diag =~ /vcs_ntsc_vsync\s*\(\s*\)/ &&
 $diag =~ /vcs_pal_vsync\s*\(\s*\)/ &&
 $diag =~ /vcs_secam_vsync\s*\(\s*\)/
-   or die "$expected[3] must use shared per-standard VSYNC helpers; only its startup clear may write VSYNC directly\n";
+   or die "$diagnostic must use shared per-standard VSYNC helpers; only its startup clear may write VSYNC directly\n";
 for my $standard (qw(pal secam)) {
    my $root=File::Spec->catdir($examples,'17_video_standards',$standard);
    find({no_chdir=>1,wanted=>sub {
@@ -87,7 +90,7 @@ for my $standard (qw(pal secam)) {
 # and an actual 262-scanline assertion-to-assertion frame period.
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $source=File::Spec->catfile($repo,split('/', $expected[0]));
+my $source=File::Spec->catfile($repo,split('/', $blank_screen));
 my $bin=File::Spec->catfile($tmp,'blank_screen.bin');
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$source,'-o',$bin);
 $rc==0 && !$sig or die "blank_screen build failed\n$out$err";

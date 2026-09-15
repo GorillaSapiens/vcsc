@@ -7,6 +7,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Compress::Zlib qw(uncompress);
 use File::Find;
 use File::Spec;
 
@@ -67,6 +68,94 @@ sub same {
       or die "$label does not match the faithful legacy visual orientation\n";
 }
 
+sub read_binary {
+   my($path)=@_;
+   open(my $fh,'<:raw',$path) or die "read $path: $!\n";
+   local $/; my $data=<$fh>; close($fh); return $data // '';
+}
+sub paeth {
+   my($a,$b,$c)=@_;
+   my $p=$a+$b-$c;
+   my($pa,$pb,$pc)=(abs($p-$a),abs($p-$b),abs($p-$c));
+   return $a if $pa<=$pb && $pa<=$pc;
+   return $b if $pb<=$pc;
+   return $c;
+}
+sub png_rgb_rows {
+   my($path)=@_;
+   my $png=read_binary($path);
+   substr($png,0,8) eq "\x89PNG\r\n\x1a\n" or die "$path is not PNG\n";
+   my($w,$h,$depth,$ct,$interlace,$idat); $idat='';
+   my $off=8;
+   while ($off<length($png)) {
+      my $n=unpack('N',substr($png,$off,4));
+      my $type=substr($png,$off+4,4); $off+=8;
+      my $data=substr($png,$off,$n); $off+=$n+4;
+      if ($type eq 'IHDR') {
+         ($w,$h,$depth,$ct,undef,undef,$interlace)=unpack('NNCCCCC',$data);
+      }
+      elsif ($type eq 'IDAT') { $idat.=$data; }
+      elsif ($type eq 'IEND') { last; }
+   }
+   defined($w) && $w==320 && $h==228 && $depth==8 && $ct==2 && $interlace==0
+      or die "$path is not the reviewed 320x228 RGB Stella snapshot format\n";
+   my $rowbytes=$w*3;
+   my $raw=uncompress($idat); defined($raw) or die "$path has invalid PNG data\n";
+   length($raw)==($rowbytes+1)*$h or die "$path has unexpected PNG scanline bytes\n";
+   my @prev=(0)x$rowbytes; my @rows; my $pos=0;
+   for my $y (0..$h-1) {
+      my $filter=ord(substr($raw,$pos++,1));
+      my @row=unpack('C*',substr($raw,$pos,$rowbytes)); $pos+=$rowbytes;
+      for my $x (0..$#row) {
+         my $left=$x>=3 ? $row[$x-3] : 0;
+         my $up=$prev[$x];
+         my $ul=$x>=3 ? $prev[$x-3] : 0;
+         if ($filter==1) { $row[$x]=($row[$x]+$left)&255; }
+         elsif ($filter==2) { $row[$x]=($row[$x]+$up)&255; }
+         elsif ($filter==3) { $row[$x]=($row[$x]+int(($left+$up)/2))&255; }
+         elsif ($filter==4) { $row[$x]=($row[$x]+paeth($left,$up,$ul))&255; }
+         elsif ($filter!=0) { die "$path uses unknown PNG filter $filter\n"; }
+      }
+      push @rows,pack('C*',@row);
+      @prev=@row;
+   }
+   my %colors;
+   for my $row (@rows) {
+      for (my $x=0;$x<length($row);$x+=3) {
+         ++$colors{substr($row,$x,3)};
+      }
+   }
+   my @base=sort { $colors{$b}<=>$colors{$a} } keys %colors;
+   @base>=3 or die "$path has too few colors for the reviewed Stella scene\n";
+   my %non_sprite=map { $_=>1 } @base[0..2]; # background, black border, playfield
+   return (\@rows,\%non_sprite);
+}
+sub snapshot_sprite_rows {
+   my($rows,$non_sprite,$x0,$y0,$label)=@_;
+   my @out;
+   for my $r (0..7) {
+      my @pair;
+      for my $dy (0,1) {
+         my $bits='0b';
+         for my $b (0..7) {
+            my $pixel=substr($rows->[$y0+$r*2+$dy],($x0+$b*2)*3,3);
+            $bits.=(exists($non_sprite->{$pixel}) ? '.' : 'X');
+         }
+         push @pair,$bits;
+      }
+      $pair[0] eq $pair[1]
+         or die "$label Stella reference changes within doubled source row $r\n";
+      push @out,$pair[0];
+   }
+   return \@out;
+}
+sub decimal_assignment {
+   my($text,$name)=@_;
+   $text =~ /^\s*\Q$name\E\s*:=\s*(\d+)\s*;/m
+      or die "missing literal initial $name\n";
+   return int($1);
+}
+
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
 my $faithful_path=File::Spec->catfile($repo,qw(examples 04_renderers faithful_legacy_player_color faithful_legacy_playercolors_interactive.c26));
 my $faithful=read_file($faithful_path);
@@ -92,6 +181,26 @@ my @definitions=(
    [qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
    [qw(examples 11_all_five_170 01_score_above_and_below 01_interactive all_five_170_score_above_and_below_interactive.c26)],
 );
+
+# The reviewed Stella reference is optional to regenerate, but its visible sprite
+# artwork must never silently drift from the normal-suite source contract.  Decode
+# the two 8x8 doubled sprite regions from the PNG and compare them directly with
+# the animation frames selected by the public example's literal initial X/Y.
+my $pc192_path=File::Spec->catfile($repo,qw(examples 04_renderers player_color no_score player_color_192_interactive.c26));
+my $pc192=read_file($pc192_path);
+my $pc192_p0=frames(initializer($pc192,'p0_animation',32),'game_SPRITE_GLYPH');
+my $pc192_p1=frames(initializer($pc192,'p1_animation',32),'game_SPRITE_GLYPH');
+my $p0_frame=(decimal_assignment($pc192,'game_PLAYER0_X') ^ decimal_assignment($pc192,'game_player0_y')) & 3;
+my $p1_frame=(decimal_assignment($pc192,'game_PLAYER1_X') ^ decimal_assignment($pc192,'game_player1_y')) & 3;
+my $stella_reference=File::Spec->catfile($repo,qw(test fixtures player_color_192 reference_interactive_stella_7.0.png));
+my($snapshot_rows,$snapshot_non_sprite)=png_rgb_rows($stella_reference);
+# Stella 7.0's fixed 320x228 1x viewport places these initial public-example
+# sprites at the following doubled-pixel rectangles.  A position/crop change is
+# itself a visible reference change and must therefore fail this guard.
+same(snapshot_sprite_rows($snapshot_rows,$snapshot_non_sprite,86,139,'P0'),$pc192_p0->[$p0_frame],
+   'player-color-192 Stella reference P0');
+same(snapshot_sprite_rows($snapshot_rows,$snapshot_non_sprite,214,85,'P1'),$pc192_p1->[$p1_frame],
+   'player-color-192 Stella reference P1');
 
 for my $parts (@definitions) {
    my $path=File::Spec->catfile($repo,@$parts);

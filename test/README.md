@@ -674,7 +674,14 @@ pins the corrected Ball row-boundary transfer through its motion trace and rejec
 both failure modes in the Ball
 positioning sequence: an immediate `HMCLR`
 that interrupts the first HMOVE, and a later HMOVE reached while `HMBL` is still
-nonzero. `vcs_player_extreme_right.pl` builds both heights with alternating $AA/$55
+nonzero. The optional `vcs_player_color_192_stella.pl`/`make
+stella-player-color-192-test` remains the independent Stella 7.0 pixel oracle.
+Because that emulator target is intentionally outside the default suite,
+`vcs_interactive_sprite_orientation.pl` also decodes the reviewed Stella PNG's
+P0/P1 rectangles and requires them to match the animation frames selected by the
+public example's literal initial X/Y. This makes an intentional sprite-art or
+selector change fail the normal suite until the Stella reference is regenerated
+and reviewed. `vcs_player_extreme_right.pl` builds both heights with alternating $AA/$55
 checkerboard players at X=159; that pattern exposes the one-bit row swap that solid
 glyphs hide at the extreme right edge.
 

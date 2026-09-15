@@ -93,10 +93,10 @@ my @families=(
    {fixture=>'all_five_181_unofficial',     example=>'08_all_five_181_unofficial',     class=>'all_five', illegals=>1},
 );
 my @scores=(
-   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 component=>'six_glyph_component.c26'},
-   {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  component=>'six_glyph_left_component.c26'},
-   {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', component=>'six_glyph_right_component.c26'},
-   {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    component=>'two_plus_two_score_component.c26'},
+   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 migrated=>'centered',      component=>'six_glyph_component.c26'},
+   {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  migrated=>'left',          component=>'six_glyph_left_component.c26'},
+   {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', migrated=>'right',         component=>'six_glyph_right_component.c26'},
+   {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    migrated=>'two_plus_two', component=>'two_plus_two_score_component.c26'},
    {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          component=>'renderers/poison_debug_score/poison_debug_score.c26'},
 );
 
@@ -104,6 +104,19 @@ my @active_families=defined($family_filter)
    ? grep { $_->{fixture} eq $family_filter } @families
    : @families;
 @active_families or die "unknown score-composition family $family_filter\n";
+
+sub public_leaf {
+   my($family,$score,$order)=@_;
+   # ER11 flattened the official player-color centered/left/right/two-plus-two
+   # leaves into renderer/layout/composition.  Poison remains in its legacy
+   # numbered leaf until ER12; keep that transition explicit rather than
+   # silently probing both trees and masking a lost move.
+   if ($family->{fixture} eq 'player_color_181' && defined($score->{migrated})) {
+      return File::Spec->catdir($repo,'examples','04_renderers','player_color',
+         "score_$order",$score->{migrated});
+   }
+   return File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
+}
 
 my %harness_sources=(
    raster=>[qw(test vcs_score_matrix_raster.cpp)],
@@ -134,7 +147,7 @@ my $public=0;
 for my $family (@active_families) {
    for my $score (@scores) {
       for my $order (qw(above below)) {
-         my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
+         my $leaf=public_leaf($family,$score,$order);
          -d $leaf or die "missing public matrix leaf $leaf\n";
          my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
          @sources==1 or die "$leaf has ".scalar(@sources)." editable sources, expected one\n";
@@ -174,7 +187,7 @@ my $public_production_checked=0;
 for my $family (@active_families) {
    for my $score (grep { $_->{kind} ne 'poison' } @scores) {
       for my $order (qw(above below)) {
-         my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
+         my $leaf=public_leaf($family,$score,$order);
          my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
          my $tag=join('_','public',$family->{fixture},$score->{kind},$order);
          $tag =~ s/-/_/g;

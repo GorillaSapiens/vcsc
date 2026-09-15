@@ -87,3 +87,36 @@ while its checked-in reference digest is
 The moved ROM is byte-identical to its pre-ER10 baseline, so this is a preexisting
 certification mismatch, not a relocation behavior change; do not update that
 golden as part of a path-only move without separately diagnosing it.
+
+2026-09-15 11:40:01 PDT, repair stale player-color Stella reference
+The ER10 investigation traced the stale player-color-192 Stella PNG to the
+September 4 repo-wide interactive sprite-animation change, not the example move.
+The Aug-07 reference still showed frame-zero static alien/radish artwork while
+the public example now selects frame ((X XOR Y) & 3); its initial P0/P1 state
+selects frame 2.  An A/B build of the current source with both animation offsets
+removed reproduced the old reference RGB digest exactly
+8046bf5c73b3e5a8f519d24f47e81c26e5d2e79077312d6b2e8a2e501aa0c250,
+proving the provenance.  The Sep-04 normal orientation/raster tests were updated
+for the new animation, but vcs_player_color_192_stella.pl is deliberately an
+opt-in Stella target and source_tree_hygiene only pinned the unchanged PNG file;
+there was no default-suite edge joining current selected sprite frames to the
+reviewed PNG, so the stale golden escaped.
+
+Regenerated the reviewed Stella 7.0 reference from the current public example;
+its RGB digest is now
+4093a6bcb808a710638b1fc01891b6cd15e8a44d7891566fd75904be80c137ab and raw PNG
+SHA-256 is 938ad57703701d195424c4d6490bedcfacb3ecfd6546209c0a1ea9865722f2c8.
+Extended vcs_interactive_sprite_orientation.pl to decode that PNG during the
+normal e2e suite and compare both doubled 8x8 sprite masks directly with the
+source animation frames selected by the initial X/Y; the old PNG demonstrably
+fails this new guard.  Also fixed the reorg regressions reported by the user:
+vcs_example_vsync_contract.pl now inventories and timing-checks the new joystick
+tutorial as a direct C26 VSYNC owner, and vcs_score_composition_raster.pl resolves
+the ER11-flattened official player-color centered/left/right/two-plus-two leaves
+while keeping poison explicitly on its legacy path until ER12.
+
+Focused validation after the repair passes the two user-reported cases through
+the normal runner, the new default PNG/source guard, source-tree hygiene, example
+reorg inventory, context-history format, and the independent Stella 7.0 snapshot.
+A broad 371-case e2e run reached 231/371 clean through vcs_0fa0.pl before the
+container execution window expired; no broad-suite failure was observed.
