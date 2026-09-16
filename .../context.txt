@@ -208,8 +208,9 @@ exact RGB under the checked-in user palette.
 
 Since that baseline, the public joystick tutorial was simplified to two directly
 controlled sprites: left joystick/red P0 and right joystick/blue P1 on black,
-with a solid 4-row bitmap normally and the specified 8-row outlined bitmap while
-each fire button is held. Its focused source/build/runtime regression, shared VSYNC-contract regression,
+with an 8-row bitmap containing two blank rows, four centered `..XXXX..` rows,
+and two blank rows normally, and the specified 8-row outlined bitmap while each
+fire button is held. Its focused source/build/runtime regression, shared VSYNC-contract regression,
 source-tree hygiene, example assembly allowlist, example-reorg inventory,
 recursive public-example shard 2/8, and the complete 537/537 compile-only gate
 pass. The full e2e suite has not been rerun after this isolated tutorial change.

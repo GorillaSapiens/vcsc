@@ -14,13 +14,17 @@ The **left joystick moves the red square** and the **right joystick moves the
 blue square** over a black background. Each direction moves its square one step
 per frame, including diagonals when two directions are held together.
 
-Each player is normally a solid 4x4 bitmap:
+Each player normally uses an 8x8 bitmap with a centered 4x4 square:
 
 ```text
+........
+........
 ..XXXX..
 ..XXXX..
 ..XXXX..
 ..XXXX..
+........
+........
 ```
 
 Holding that joystick's fire button changes its player to this 8x8 bitmap:

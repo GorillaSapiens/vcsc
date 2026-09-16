@@ -35,7 +35,16 @@ $s =~ /alias\s+JOYSTICK_RED\s+__builtin_ntsc_rgb/ &&
 $s =~ /alias\s+JOYSTICK_BLUE\s+__builtin_ntsc_rgb/
    or die "joystick tutorial lost black background or red/blue player colors\n";
 
-my @solid=("..XXXX..") x 4;
+my @normal=(
+   '........',
+   '........',
+   '..XXXX..',
+   '..XXXX..',
+   '..XXXX..',
+   '..XXXX..',
+   '........',
+   '........',
+);
 my @outline=(
    '.XXXXXX.',
    'X......X',
@@ -46,15 +55,15 @@ my @outline=(
    'X......X',
    '.XXXXXX.',
 );
-for my $row (@solid,@outline) {
-   $s =~ /0b\Q$row\E/
-      or die "joystick tutorial lost sprite row $row\n";
-}
-$s =~ /game_player0_height\s*:=\s*3;/ &&
-$s =~ /game_player1_height\s*:=\s*3;/ &&
+my $normal_pattern=join('\\s*,\\s*',map { '0b'.quotemeta($_) } @normal);
+my $outline_pattern=join('\\s*,\\s*',map { '0b'.quotemeta($_) } @outline);
+$s =~ /joystick_graphics\[16\]\s*:=\s*\{\s*$normal_pattern\s*,\s*$outline_pattern\s*\}/s
+   or die "joystick tutorial lost exact 8-row normal/fire bitmap layout\n";
+$s !~ /game_player0_height\s*:=\s*3;/ &&
+$s !~ /game_player1_height\s*:=\s*3;/ &&
 $s =~ /game_player0_height\s*:=\s*7;/ &&
 $s =~ /game_player1_height\s*:=\s*7;/
-   or die "joystick tutorial lost 4-row normal or 8-row fire state\n";
+   or die "joystick tutorial must keep both normal and fire sprites at 8 rows\n";
 
 $s =~ /uint8_t\s+joysticks\s*:=\s*SWCHA;/
    or die "joystick tutorial must sample SWCHA directly\n";
@@ -104,7 +113,7 @@ my$p1_graphics=map_symbol($map_text,'game_player1_graphics');
 my$p0_height=map_symbol($map_text,'game_player0_height');
 my$p1_height=map_symbol($map_text,'game_player1_height');
 my$graphics=map_symbol($map_text,'joystick_graphics');
-my$outline=$graphics+4;
+my$outline=$graphics+8;
 
 my$cxx=$ENV{CXX}||'c++';
 my$mos=File::Spec->catdir($repo,qw(simulator mos6502));

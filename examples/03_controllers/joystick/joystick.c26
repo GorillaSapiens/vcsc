@@ -5,9 +5,10 @@
 // Left joystick  -> red P0
 // Right joystick -> blue P1
 //
-// Each player is normally a solid 4x4 square. Holding that joystick's fire
-// button switches the same player to an 8x8 outlined version. Controller input
-// is sampled once per frame during overscan; the renderer owns only display
+// Each player is normally an 8x8 bitmap with a centered 4x4 square. Holding
+// that joystick's fire button switches the same player to an 8x8 outlined
+// version. Controller input is sampled once per frame during overscan; the
+// renderer owns only display
 // timing and horizontal positioning.
 
 include "vcs.c26"
@@ -44,14 +45,19 @@ page const uint8_t game_player1_colors[8] := {
 
 instantiate "renderers/player_color/player_color.c26" as game (lines:=192)
 
-// The first four bytes are the ordinary 4x4 square. The next eight bytes are
-// the fire-button form requested by the example: the same 4x4 center with a
+// The first eight bytes are the ordinary centered 4x4 square: two blank
+// rows, four solid rows, then two blank rows. The next eight bytes are the
+// fire-button form requested by the example: the same 4x4 center with a
 // one-pixel outline separated by a one-pixel gap.
-page const uint8_t joystick_graphics[12] := {
+page const uint8_t joystick_graphics[16] := {
+   0b........,
+   0b........,
    0b..XXXX..,
    0b..XXXX..,
    0b..XXXX..,
    0b..XXXX..,
+   0b........,
+   0b........,
 
    0b.XXXXXX.,
    0bX......X,
@@ -65,21 +71,17 @@ page const uint8_t joystick_graphics[12] := {
 
 inline void joystick_update_graphics(void) {
    if (!(INPT4 & 0x80)) {
-      game_player0_graphics := joystick_graphics + 4;
-      game_player0_height := 7;
+      game_player0_graphics := joystick_graphics + 8;
    }
    else {
       game_player0_graphics := joystick_graphics;
-      game_player0_height := 3;
    }
 
    if (!(INPT5 & 0x80)) {
-      game_player1_graphics := joystick_graphics + 4;
-      game_player1_height := 7;
+      game_player1_graphics := joystick_graphics + 8;
    }
    else {
       game_player1_graphics := joystick_graphics;
-      game_player1_height := 3;
    }
 }
 
@@ -159,8 +161,8 @@ void main(void) {
 
    game_player0_graphics := joystick_graphics;
    game_player1_graphics := joystick_graphics;
-   game_player0_height := 3;
-   game_player1_height := 3;
+   game_player0_height := 7;
+   game_player1_height := 7;
 
    game_init();
 

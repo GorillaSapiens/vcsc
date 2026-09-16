@@ -131,3 +131,13 @@ pointers/heights. The joystick moved from direct VSYNC ownership to the shared
 accordingly. Focused joystick/runtime, VSYNC-contract, hygiene, 32-source asm
 allowlist, reorg-inventory, recursive public-example shard 2/8, and the full
 537/537 compile-only gate pass.
+
+2026-09-16 12:45:29 PDT, center normal joystick sprite in 8 rows
+----------------------------------------------------------------
+Adjusted the simplified joystick tutorial's normal player bitmap to the intended
+8-row form: two blank rows, four `..XXXX..` rows, and two blank rows. The fire
+state remains the requested 8-row outline. Both normal and fire states now keep
+player height at 7; fire switches each graphics pointer by eight bytes instead
+of changing sprite height. Updated the README and `vcs_joystick.pl` contract to
+lock the exact normal bitmap and 8-byte fire-state offset. Focused joystick runtime,
+VSYNC-contract, source-tree-hygiene, and direct example-build checks pass.
