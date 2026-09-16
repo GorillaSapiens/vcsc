@@ -206,14 +206,19 @@ exhaustive paddle-threshold regression, and the final example-tree inventory.
 PAL monochrome/dark-gray normalization is retired; all reviewed standards use
 exact RGB under the checked-in user palette.
 
-Since that baseline, the public joystick tutorial was simplified to two directly
-controlled sprites: left joystick/red P0 and right joystick/blue P1 on black,
-with an 8-row bitmap containing two blank rows, four centered `..XXXX..` rows,
-and two blank rows normally, and the specified 8-row outlined bitmap while each
-fire button is held. Its focused source/build/runtime regression, shared VSYNC-contract regression,
-source-tree hygiene, example assembly allowlist, example-reorg inventory,
-recursive public-example shard 2/8, and the complete 537/537 compile-only gate
-pass. The full e2e suite has not been rerun after this isolated tutorial change.
+Since that baseline, the public joystick and paddle tutorials were simplified into
+direct visual demonstrations. The joystick example uses independently controlled red
+P0 and blue P1 sprites on black, with the centered 4x4 square in an 8-row bitmap and
+the requested 8-row outline while fire is held. The paddle example now shows four
+equally spaced white 2x8 markers at X=20,60,100,140 on black; paddle 0..3 move their
+respective P0/M0/M1/P1 markers vertically, and each marker changes from solid to
+alternating-scanline dotted while its button is held. The paddle visible kernel
+samples all four RC inputs at fixed beam phases through `four_paddles.c26`. Focused
+source/build/controller regressions, shared paddle API tests, source-tree hygiene,
+example-reorg inventory, the 33-source assembly allowlist, recursive public-example
+shard 3/8, Stella visual geometry inspection, and the complete 537/537 compile-only
+gate pass after the paddle change. The full e2e suite has not been rerun after these
+isolated tutorial changes.
 
 The ER1-ER25 example reorganization is complete. Final ER25 certification covers
 all 112 recursively discovered editable cartridge entry points through the

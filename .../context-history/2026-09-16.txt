@@ -141,3 +141,29 @@ player height at 7; fire switches each graphics pointer by eight bytes instead
 of changing sprite height. Updated the README and `vcs_joystick.pl` contract to
 lock the exact normal bitmap and 8-byte fire-state offset. Focused joystick runtime,
 VSYNC-contract, source-tree-hygiene, and direct example-build checks pass.
+
+2026-09-16 13:18:01 PDT, replace paddle tutorial
+-------------------------------------------------------
+Replaced the old single-paddle raw timing/binary monitor with a direct visual
+four-controller tutorial. The screen is black and uses P0, M0, M1, and P1 as
+four equally spaced white markers at Atari logical X=20,60,100,140. Paddle
+inputs 0..3 independently move those markers vertically. Each marker is exactly
+2 logical pixels wide by 8 scanlines tall; it is solid with the corresponding
+button released and alternating-scanline dotted while that button is held.
+
+The cartridge now instantiates `four_paddles.c26`, preserves the normal
+VBLANK.7 RC discharge/release lifecycle, and samples one analog input at a
+fixed phase on each of the four scanlines in its repeating visible-kernel
+schedule. P0/P1 use two adjacent player bits and M0/M1 use the TIA 2-pixel
+missile width, avoiding multiplexing machinery in a controller tutorial.
+
+`vcs_paddle_tutorial.pl` now locks the four-input/four-button mapping, marker
+positions and widths, solid/dotted patterns, RC lifecycle, 192-line renderer,
+and 4K build. The hand-timed visible kernel is classified in the example asm
+allowlist, raising the pinned inventory from 32 to 33 sources. Focused paddle,
+four-player paddle API, score-paddle sampling, source-tree hygiene,
+example-reorg inventory, recursive public-example shard 3/8, and the complete
+537/537 compile-only gate pass. Stella 7 with the pinned palette visually
+confirms four solid 2x8 markers at X=20,60,100,140; the button-dotted state is
+locked by source/test contracts rather than claimed as a Stella input-injection
+capture.

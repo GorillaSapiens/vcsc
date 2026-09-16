@@ -27,32 +27,41 @@ my$make=File::Spec->catfile($dir,'Makefile');
 my$readme=File::Spec->catfile($dir,'README.md');
 
 my$s=read_file($src);
-$s =~ /instantiate "two_paddles\.c26" as paddles \(port:=0\)/
-   or die "paddle tutorial must use the left-port paddle timing component\n";
-$s =~ /display_position := paddles_position0;/ && $s =~ /display_button := paddles_button0;/
-   or die "paddle tutorial must display stable raw position and button state\n";
-$s =~ /paddles_init\(\)/ && $s =~ /paddles_vblank\(\)/ &&
-$s =~ /paddles_sample0\(\)/ && $s =~ /paddles_sample1\(\)/ &&
-$s =~ /paddles_advance_pair\(\)/ && $s =~ /paddles_account_gap\(2\)/ &&
+$s =~ /instantiate "four_paddles\.c26" as paddles/
+   or die "paddle tutorial must use the four-paddle timing component\n";
+$s =~ /X=20,60,100,140/ &&
+$s =~ /asm lda #26;.*?asm ldx #2;.*?asm lda #67;.*?asm ldx #3;.*?asm lda #107;.*?asm ldx #1;.*?asm lda #146;/s
+   or die "paddle tutorial lost the four equally spaced fixed X positions\n";
+$s =~ /alias PADDLE_PLAYER_ON 0xc0/ && $s =~ /alias PADDLE_MISSILE_ON 0x02/ &&
+$s =~ /NUSIZ0 := 0x10;/ && $s =~ /NUSIZ1 := 0x10;/
+   or die "paddle tutorial markers are no longer two pixels wide\n";
+for my$i(0..3) {
+   $s =~ /paddles_button$i/ or die "paddle tutorial lost button $i\n";
+   $s =~ /paddles_position$i/ or die "paddle tutorial lost position $i\n";
+   $s =~ /inline void paddle_sample$i\(void\).*?INPT$i.*?sty\.z paddles_active$i/s
+      or die "paddle tutorial lost fixed-phase visible probe $i\n";
+}
+$s =~ /if \(paddles_button0\).*?paddle0_pattern_odd := 0;/s &&
+$s =~ /if \(paddles_button1\).*?paddle1_pattern_even := 0;/s &&
+$s =~ /if \(paddles_button2\).*?paddle2_pattern_odd := 0;/s &&
+$s =~ /if \(paddles_button3\).*?paddle3_pattern_even := 0;/s
+   or die "paddle tutorial lost per-button dotted marker patterns\n";
+$s =~ /asm ldx #\$d0;/ && $s =~ /asm inx;\s*asm beq\.same \@done;\s*asm jmp \@group;/s &&
+$s =~ /Forty-eight groups|48 groups/
+   or die "paddle tutorial lost its 48x4=192 visible raster\n";
+$s =~ /paddles_vblank\(\)/ && $s =~ /paddles_account_gap\(3\)/ &&
 $s =~ /paddles_overscan\(\)/ && $s =~ /paddles_dump\(\)/
    or die "paddle tutorial lost the RC measurement lifecycle\n";
-my$count=()=$s=~/draw_value_band\(bit[0-7]_color\);/g;
-$count==8 or die "paddle tutorial must draw eight raw-value bit bands, got $count\n";
-$s =~ /for \(uint8_t pair := 11; pair; pair--\)/ &&
-$s =~ /for \(uint8_t pair := 8; pair; pair--\)/ &&
-$s =~ /Eight 22-line binary-value bands plus one 16-line button band/
-   or die "paddle tutorial lost its 192-line visible layout\n";
-$s =~ /prepare_display\(\);\s*paddles_vblank\(\);/s
-   or die "paddle tutorial must freeze display state before current-frame paddle sampling\n";
 
 my$m=read_file($make);
-$m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m && $m =~ /two_paddles\.c26/ &&
-$m =~ /^play:\s*\n\tstella \*\.bin/m
+$m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m && $m =~ /four_paddles\.c26/ &&
+$m !~ /two_paddles\.c26/ && $m =~ /^play:\s*\n\tstella \*\.bin/m
    or die "paddle tutorial Makefile dependencies or play target regressed\n";
 my$r=read_file($readme);
-$r =~ /RC charge time/i && $r =~ /INPT0\.7/ && $r =~ /VBLANK\.7/ &&
-$r =~ /SWCHA.*bit 7/s && $r =~ /active-low/i && $r =~ /two-NTSC-scanline units/i
-   or die "paddle tutorial README lost raw timing/button explanation\n";
+$r =~ /X=20, 60, 100, and\s+140/s && $r =~ /2 pixels wide and 8 pixels tall/i &&
+$r =~ /solid/i && $r =~ /dotted/i && $r =~ /INPT0.*INPT3/s &&
+$r =~ /VBLANK\.7/ && $r =~ /SWCHA/
+   or die "paddle tutorial README lost the visible four-paddle contract\n";
 
 my$bin=File::Spec->catfile($tmp,'paddle.bin');
 my$map=File::Spec->catfile($tmp,'paddle.map');

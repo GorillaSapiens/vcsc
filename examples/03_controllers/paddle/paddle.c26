@@ -1,83 +1,408 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Minimal left-paddle timing/value monitor.
+// Four Atari paddles, one vertical marker per controller.
 //
-// The upper eight bands display the last completed raw paddle measurement as
-// bits 7..0. The bottom band displays the paddle button. While that stable
-// value is shown, the next RC measurement is sampled continuously in two-line
-// slots by the reusable two_paddles input component.
+// P0, M0, M1, and P1 are fixed at evenly spaced X coordinates. Each paddle's
+// potentiometer moves its marker vertically. The marker is a solid 2x8 bar
+// normally and becomes a dotted 2x8 bar while that paddle's button is held.
+// The visible renderer also samples one RC channel per scanline, so all four
+// paddle measurements retain a fixed beam phase while the markers are drawn.
 
 include "vcs.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
-instantiate "two_paddles.c26" as paddles (port:=0)
 
-alias PADDLE_INACTIVE_COLOR VCS_NTSC_DARK_BLUE
-alias PADDLE_VALUE_COLOR VCS_NTSC_PALE_GREEN
-alias PADDLE_BUTTON_COLOR VCS_NTSC_LIGHT_CORAL
+instantiate "four_paddles.c26" as paddles
 
-uint8_t display_position := 0;
-uint8_t display_button := 0;
-uint8_t bit7_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit6_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit5_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit4_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit3_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit2_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit1_color := PADDLE_INACTIVE_COLOR;
-uint8_t bit0_color := PADDLE_INACTIVE_COLOR;
-uint8_t button_color := PADDLE_INACTIVE_COLOR;
+alias PADDLE_BLACK 0x00
+alias PADDLE_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
+alias PADDLE_PLAYER_ON 0xc0
+alias PADDLE_MISSILE_ON 0x02
+alias PADDLE_RAW_MIN 12
+alias PADDLE_TOP_Y 8
+alias PADDLE_BOTTOM_Y 176
+alias PADDLE_GROUPS 48
+alias PADDLE_GROUP_BIAS 208
 
-inline void sample_pair(void) {
-   paddles_sample0();
-   WSYNC := _;
-   paddles_sample1();
+// Four equally spaced 2-pixel-wide objects at X=20,60,100,140.
+// P0 and P1 use two adjacent player bits; M0 and M1 use NUSIZ's 2-pixel
+// missile width. The four object types let every paddle move independently.
+
+uint8_t paddle0_start_group := 228;
+uint8_t paddle0_prepare_start := 227;
+uint8_t paddle0_prepare_end := 229;
+uint8_t paddle1_start_group := 228;
+uint8_t paddle1_end_group := 230;
+uint8_t paddle2_start_group := 228;
+uint8_t paddle2_end_group := 230;
+uint8_t paddle3_start_group := 227;
+uint8_t paddle3_end_group := 229;
+
+// Each object keeps one value for even scanlines and one for odd scanlines.
+// Solid mode uses the same value on both. Button/dotted mode zeros every
+// second row. The phase is chosen so the first row of every 8-line marker is
+// visible even though P0/M0/M1/P1 begin on four different scanline phases.
+uint8_t paddle0_pattern_even := PADDLE_PLAYER_ON;
+uint8_t paddle0_pattern_odd := PADDLE_PLAYER_ON;
+uint8_t paddle1_pattern_even := PADDLE_MISSILE_ON;
+uint8_t paddle1_pattern_odd := PADDLE_MISSILE_ON;
+uint8_t paddle2_pattern_even := PADDLE_MISSILE_ON;
+uint8_t paddle2_pattern_odd := PADDLE_MISSILE_ON;
+uint8_t paddle3_pattern_even := PADDLE_PLAYER_ON;
+uint8_t paddle3_pattern_odd := PADDLE_PLAYER_ON;
+
+uint8_t paddle0_current_even := 0;
+uint8_t paddle0_current_odd := 0;
+uint8_t paddle1_current_even := 0;
+uint8_t paddle1_current_odd := 0;
+uint8_t paddle2_current_even := 0;
+uint8_t paddle2_current_odd := 0;
+uint8_t paddle3_current_even := 0;
+uint8_t paddle3_current_odd := 0;
+
+inline uint8_t paddle_target_y(uint8_t raw) {
+   uint8_t y := PADDLE_TOP_Y;
+   if (raw > PADDLE_RAW_MIN) {
+      y += raw - PADDLE_RAW_MIN;
+      if (y > PADDLE_BOTTOM_Y) {
+         return PADDLE_BOTTOM_Y;
+      }
+   }
+   return y;
+}
+
+void paddle_prepare_positions(void) {
+   if (paddles_valid) {
+      uint8_t y0 := paddle_target_y(paddles_position0);
+      uint8_t y1 := paddle_target_y(paddles_position1);
+      uint8_t y2 := paddle_target_y(paddles_position2);
+      uint8_t y3 := paddle_target_y(paddles_position3);
+
+      // The visible loop is four scanlines per group. Each object is prepared
+      // on the scanline immediately before its first displayed row. Adjusting
+      // for those four phases keeps equal raw readings visually aligned to
+      // within at most three scanlines.
+      paddle0_start_group := (y0 >> 2) + PADDLE_GROUP_BIAS;
+      paddle0_prepare_start := paddle0_start_group - 1;
+      paddle0_prepare_end := paddle0_start_group + 1;
+
+      paddle1_start_group := ((y1 - 1) >> 2) + PADDLE_GROUP_BIAS;
+      paddle1_end_group := paddle1_start_group + 2;
+
+      paddle2_start_group := ((y2 - 2) >> 2) + PADDLE_GROUP_BIAS;
+      paddle2_end_group := paddle2_start_group + 2;
+
+      paddle3_start_group := ((y3 - 3) >> 2) + PADDLE_GROUP_BIAS;
+      paddle3_end_group := paddle3_start_group + 2;
+   }
+}
+
+void paddle_prepare_patterns(void) {
+   paddle0_pattern_even := PADDLE_PLAYER_ON;
+   paddle0_pattern_odd := PADDLE_PLAYER_ON;
+   if (paddles_button0) {
+      paddle0_pattern_odd := 0;
+   }
+
+   paddle1_pattern_even := PADDLE_MISSILE_ON;
+   paddle1_pattern_odd := PADDLE_MISSILE_ON;
+   if (paddles_button1) {
+      paddle1_pattern_even := 0;
+   }
+
+   paddle2_pattern_even := PADDLE_MISSILE_ON;
+   paddle2_pattern_odd := PADDLE_MISSILE_ON;
+   if (paddles_button2) {
+      paddle2_pattern_odd := 0;
+   }
+
+   paddle3_pattern_even := PADDLE_PLAYER_ON;
+   paddle3_pattern_odd := PADDLE_PLAYER_ON;
+   if (paddles_button3) {
+      paddle3_pattern_even := 0;
+   }
+}
+
+// Fixed horizontal positioning. This runs once at startup while VBLANK is
+// asserted; the paddle X coordinates never change afterward.
+inline void paddle_position_objects(void) {
+   HMCLR := _;
+
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda #26;
+   asm sec;
+   asm @p0_divide:;
+   asm sbc #15;
+   asm bcs.same @p0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #2;
+   asm bit.z CXM0P;
+   asm lda #67;
+   asm sec;
+   asm @m0_divide:;
+   asm sbc #15;
+   asm bcs.same @m0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #3;
+   asm bit.z CXM0P;
+   asm lda #107;
+   asm sec;
+   asm @m1_divide:;
+   asm sbc #15;
+   asm bcs.same @m1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z CXM0P;
+   asm lda #146;
+   asm sec;
+   asm @p1_divide:;
+   asm sbc #15;
+   asm bcs.same @p1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm sta WSYNC;
+   asm sta HMCLR;
+}
+
+// Boundary preparation is deliberately distributed across the four scanlines
+// in each group. The object is updated one scanline before the new state is
+// needed, leaving the beginning of every visible scanline free for the four
+// TIA object writes and keeping the RC probe at a repeatable phase.
+inline void paddle_prepare_0(void) {
+   asm cpx.z paddle0_prepare_start;
+   asm bne.same @check_end;
+   asm lda.z paddle0_pattern_even;
+   asm sta.z paddle0_current_even;
+   asm lda.z paddle0_pattern_odd;
+   asm sta.z paddle0_current_odd;
+   asm jmp @done;
+   asm @check_end:;
+   asm cpx.z paddle0_prepare_end;
+   asm bne.same @done;
+   asm lda #0;
+   asm sta.z paddle0_current_even;
+   asm sta.z paddle0_current_odd;
+   asm @done:;
+}
+
+inline void paddle_prepare_1(void) {
+   asm cpx.z paddle1_start_group;
+   asm bne.same @check_end;
+   asm lda.z paddle1_pattern_even;
+   asm sta.z paddle1_current_even;
+   asm lda.z paddle1_pattern_odd;
+   asm sta.z paddle1_current_odd;
+   asm jmp @done;
+   asm @check_end:;
+   asm cpx.z paddle1_end_group;
+   asm bne.same @done;
+   asm lda #0;
+   asm sta.z paddle1_current_even;
+   asm sta.z paddle1_current_odd;
+   asm @done:;
+}
+
+inline void paddle_prepare_2(void) {
+   asm cpx.z paddle2_start_group;
+   asm bne.same @check_end;
+   asm lda.z paddle2_pattern_even;
+   asm sta.z paddle2_current_even;
+   asm lda.z paddle2_pattern_odd;
+   asm sta.z paddle2_current_odd;
+   asm jmp @done;
+   asm @check_end:;
+   asm cpx.z paddle2_end_group;
+   asm bne.same @done;
+   asm lda #0;
+   asm sta.z paddle2_current_even;
+   asm sta.z paddle2_current_odd;
+   asm @done:;
+}
+
+inline void paddle_prepare_3(void) {
+   asm cpx.z paddle3_start_group;
+   asm bne.same @check_end;
+   asm lda.z paddle3_pattern_even;
+   asm sta.z paddle3_current_even;
+   asm lda.z paddle3_pattern_odd;
+   asm sta.z paddle3_current_odd;
+   asm jmp @done;
+   asm @check_end:;
+   asm cpx.z paddle3_end_group;
+   asm bne.same @done;
+   asm lda #0;
+   asm sta.z paddle3_current_even;
+   asm sta.z paddle3_current_odd;
+   asm @done:;
+}
+
+
+// Beam-safe visible probes. four_paddles.c26 exposes equivalent score helpers
+// that clear a completed channel with STX because score renderers reserve X=0.
+// This tutorial needs X for its 48-group raster counter, so it reserves Y=0
+// instead and uses the same 17-cycle completion path with STY.
+inline void paddle_sample0(void) {
+   asm lda.z paddles_active0;
+   asm and.z INPT0;
+   asm bpl.same @not_ready;
+   asm lda.z paddles_elapsed;
+   asm sta.z paddles_position0;
+   asm sty.z paddles_active0;
+   asm @not_ready:;
+}
+
+inline void paddle_sample1(void) {
+   asm lda.z paddles_active1;
+   asm and.z INPT1;
+   asm bpl.same @not_ready;
+   asm lda.z paddles_elapsed;
+   asm sta.z paddles_position1;
+   asm sty.z paddles_active1;
+   asm @not_ready:;
+}
+
+inline void paddle_sample2(void) {
+   asm lda.z paddles_active2;
+   asm and.z INPT2;
+   asm bpl.same @not_ready;
+   asm lda.z paddles_elapsed;
+   asm sta.z paddles_position2;
+   asm sty.z paddles_active2;
+   asm @not_ready:;
+}
+
+inline void paddle_sample3(void) {
+   asm lda.z paddles_active3;
+   asm and.z INPT3;
+   asm bpl.same @not_ready;
+   asm lda.z paddles_elapsed;
+   asm sta.z paddles_position3;
+   asm sty.z paddles_active3;
+   asm @not_ready:;
+}
+
+inline void paddle_draw_even(void) {
+   asm lda.z paddle0_current_even;
+   asm sta GRP0;
+   asm lda.z paddle1_current_even;
+   asm sta ENAM0;
+   asm lda.z paddle2_current_even;
+   asm sta ENAM1;
+   asm lda.z paddle3_current_even;
+   asm sta GRP1;
+}
+
+inline void paddle_draw_odd(void) {
+   asm lda.z paddle0_current_odd;
+   asm sta GRP0;
+   asm lda.z paddle1_current_odd;
+   asm sta ENAM0;
+   asm lda.z paddle2_current_odd;
+   asm sta ENAM1;
+   asm lda.z paddle3_current_odd;
+   asm sta GRP1;
+}
+
+inline void paddle_draw(void) {
+   // X deliberately starts at $d0. INX therefore wraps to zero after exactly
+   // 48 groups, letting the beam-critical loop terminate with a cheap BEQ
+   // instead of a compare plus a long conditional branch. Start/end groups
+   // stored above use the same bias.
+   asm ldx #$d0;
+   asm ldy #0;
+   asm @group:;
+
+   // Line 0: P0 boundary was prepared on the prior group's line 3. The first
+   // advance accounts the last two unsampled VBLANK scanlines; on later groups
+   // it advances over the preceding line-2/line-3 pair.
+   asm sta WSYNC;
+   paddle_draw_even();
    paddles_advance_pair();
-   WSYNC := _;
-}
+   paddle_sample0();
+   paddle_prepare_1();
 
-void draw_value_band(uint8_t color) {
-   COLUBK := color;
-   for (uint8_t pair := 11; pair; pair--) {
-      sample_pair();
-   }
-}
+   // Line 1: prepare M1 for line 2 and advance the shared RC clock by one
+   // two-scanline unit after channels 0/1 have both been probed.
+   asm sta WSYNC;
+   paddle_draw_odd();
+   paddle_sample1();
+   paddle_prepare_2();
+   paddles_advance_pair();
 
-void draw_button_band(void) {
-   COLUBK := button_color;
-   for (uint8_t pair := 8; pair; pair--) {
-      sample_pair();
-   }
-}
+   // Line 2: prepare P1 for line 3.
+   asm sta WSYNC;
+   paddle_draw_even();
+   paddle_sample2();
+   paddle_prepare_3();
 
-inline uint8_t value_color(uint8_t mask) {
-   if (display_position & mask) {
-      return PADDLE_VALUE_COLOR;
-   }
-   return PADDLE_INACTIVE_COLOR;
-}
+   // Line 3: prepare P0 for line 0 of the next group. INX wraps after the
+   // 48th group; the common path uses a fixed JMP back to the next WSYNC.
+   asm sta WSYNC;
+   paddle_draw_odd();
+   paddle_sample3();
+   paddle_prepare_0();
+   asm inx;
+   asm beq.same @done;
+   asm jmp @group;
+   asm @done:;
 
-void prepare_display(void) {
-   // Capture the last completed measurement before this frame's sampling can
-   // change the public paddle state. Precompute all visible colors during
-   // VBLANK so input-dependent branches cannot move the live RC sample phase.
-   display_position := paddles_position0;
-   display_button := paddles_button0;
-   bit7_color := value_color(0x80);
-   bit6_color := value_color(0x40);
-   bit5_color := value_color(0x20);
-   bit4_color := value_color(0x10);
-   bit3_color := value_color(0x08);
-   bit2_color := value_color(0x04);
-   bit1_color := value_color(0x02);
-   bit0_color := value_color(0x01);
-   button_color := PADDLE_INACTIVE_COLOR;
-   if (display_button) {
-      button_color := PADDLE_BUTTON_COLOR;
-   }
+   // Finish the last visible scanline before blanking every object.
+   asm sta WSYNC;
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
 }
 
 void main(void) {
+   VBLANK := 2;
+   COLUBK := PADDLE_BLACK;
+   COLUP0 := PADDLE_WHITE;
+   COLUP1 := PADDLE_WHITE;
+   COLUPF := PADDLE_WHITE;
    PF0 := 0;
    PF1 := 0;
    PF2 := 0;
@@ -86,47 +411,35 @@ void main(void) {
    ENAM0 := 0;
    ENAM1 := 0;
    ENABL := 0;
-   COLUBK := PADDLE_INACTIVE_COLOR;
+   NUSIZ0 := 0x10;
+   NUSIZ1 := 0x10;
+   REFP0 := 0;
+   REFP1 := 0;
+   VDELP0 := 0;
+   VDELP1 := 0;
+
    paddles_init();
+   paddle_prepare_patterns();
+   paddle_position_objects();
 
    while (1) {
       vcs_ntsc_vsync();
 
-      // A high-resistance measurement may remain active across frames. VSYNC
-      // is three scanlines where this tutorial does not probe INPT0, so count
-      // that fixed gap before the next sampled phase. A freshly dumped paddle
-      // has not started charging yet and therefore must not count the gap.
-      if (!paddles_dumped) {
-         paddles_account_gap(2);
-      }
-
-      // begin_vblank() clears VBLANK.7. If the previous measurement completed
-      // and paddles_dump() grounded the capacitor, that release starts the next
-      // RC charge measurement here.
       vcs_ntsc_begin_vblank();
-      prepare_display();
       paddles_vblank();
+      // four_paddles consumes 28 blank lines. Account six of the remaining
+      // nine VBLANK lines here; the visible loop entry accounts two more so a threshold crossing during that unsampled span
+      // is still represented in the raw position.
+      paddles_account_gap(3);
       vcs_ntsc_end_vblank();
 
-      // Eight 22-line binary-value bands plus one 16-line button band make the
-      // complete 192-line visible region. sample_pair() probes INPT0/INPT1 once
-      // per two scanlines while the previous stable value remains on screen.
-      draw_value_band(bit7_color);
-      draw_value_band(bit6_color);
-      draw_value_band(bit5_color);
-      draw_value_band(bit4_color);
-      draw_value_band(bit3_color);
-      draw_value_band(bit2_color);
-      draw_value_band(bit1_color);
-      draw_value_band(bit0_color);
-      draw_button_band();
+      paddle_draw();
 
       vcs_ntsc_begin_overscan();
       paddles_overscan();
+      paddle_prepare_positions();
+      paddle_prepare_patterns();
       vcs_ntsc_end_overscan();
-
-      // Completed readings are discharged across VSYNC. A high-resistance
-      // reading that is still active is allowed to continue into another frame.
       paddles_dump();
    }
 }
