@@ -89,7 +89,7 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 my @families=(
    {fixture=>'player_color_181',            example=>undef,                           class=>'player',   illegals=>0},
    {fixture=>'all_five_181',                example=>'06_all_five_181',                class=>'all_five', illegals=>0},
-   {fixture=>'player_color_181_unofficial', example=>'07_player_color_181_unofficial', class=>'player',   illegals=>1},
+   {fixture=>'player_color_181_unofficial', example=>undef,                           class=>'player',   illegals=>1},
    {fixture=>'all_five_181_unofficial',     example=>'08_all_five_181_unofficial',     class=>'all_five', illegals=>1},
 );
 my @scores=(
@@ -110,8 +110,12 @@ sub public_leaf {
    # The official player-color 181-line matrix is flattened into
    # renderer/layout/composition. Keep that mapping explicit rather than
    # silently probing both trees and masking a lost move.
-   if ($family->{fixture} eq 'player_color_181' && defined($score->{migrated})) {
-      return File::Spec->catdir($repo,'examples','04_renderers','player_color',
+   if (($family->{fixture} eq 'player_color_181' ||
+        $family->{fixture} eq 'player_color_181_unofficial') &&
+       defined($score->{migrated})) {
+      my $renderer=$family->{fixture} eq 'player_color_181'
+         ? 'player_color' : 'player_color_unofficial';
+      return File::Spec->catdir($repo,'examples','04_renderers',$renderer,
          "score_$order",$score->{migrated});
    }
    return File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');

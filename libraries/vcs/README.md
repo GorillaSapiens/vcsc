@@ -78,7 +78,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `../../examples/04_renderers/player_color/` ... official-opcode player-color family, including the 181-line centered/left/right/two-plus-two/heart/poison/wide score compositions
 - `../../examples/05_all_five_192/` ... official-opcode full-height interactive diagnostic using `all_five (lines:=192)`
 - `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix using `all_five (lines:=181)`
-- `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
+- `../../examples/04_renderers/player_color_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/09_bankswitching/` ... F8/F6/F4/SC complete transition diagnostics plus the CBS FA/RAM Plus complete ordered-call PASS/FAIL diagnostic
 - `../../examples/04_renderers/faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28

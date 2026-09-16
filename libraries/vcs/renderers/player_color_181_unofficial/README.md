@@ -34,5 +34,5 @@ This profile is explicit rather than selected by an alias so opcode policy is
 obvious from the component filename.
 
 The ten-cartridge public score/poison matrix lives under
-`examples/07_player_color_181_unofficial/`. They are direct twins of the
+`examples/04_renderers/player_color_unofficial/`. They are direct twins of the
 official examples and keep `-Wa,--illegals` visible in each Makefile.

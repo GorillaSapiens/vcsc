@@ -43,7 +43,7 @@ my $split_src=File::Spec->catfile($repo,qw(test vcs_two_plus_two_controls.cpp));
 $rc==0 && !$sig or die "two-plus-two harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "two-plus-two harness build wrote output\n$out$err";
 
-my @families=qw(player_color_181 06_all_five_181 07_player_color_181_unofficial 08_all_five_181_unofficial);
+my @families=qw(player_color_181 06_all_five_181 player_color_181_unofficial 08_all_five_181_unofficial);
 my @six_layouts=qw(01_score_above 02_score_below 03_left_justified_score_above 04_left_justified_score_below 05_right_justified_score_above 06_right_justified_score_below);
 my @split_layouts=qw(07_two_plus_two_score_above 08_two_plus_two_score_below);
 my %official_player_color_leaf=(
@@ -58,13 +58,17 @@ my %official_player_color_leaf=(
 );
 sub public_leaf {
    my($family,$layout)=@_;
-   return File::Spec->catdir($repo,'examples',@{$official_player_color_leaf{$layout}})
-      if $family eq 'player_color_181' && exists $official_player_color_leaf{$layout};
+   if (($family eq 'player_color_181' || $family eq 'player_color_181_unofficial') &&
+       exists $official_player_color_leaf{$layout}) {
+      my @parts=@{$official_player_color_leaf{$layout}};
+      $parts[1]='player_color_unofficial' if $family eq 'player_color_181_unofficial';
+      return File::Spec->catdir($repo,'examples',@parts);
+   }
    return File::Spec->catdir($repo,'examples',$family,$layout,'01_interactive');
 }
 sub shared_control_include_depth {
    my($family)=@_;
-   return $family eq 'player_color_181' ? 4 : 3;
+   return ($family eq 'player_color_181' || $family eq 'player_color_181_unofficial') ? 4 : 3;
 }
 my $six_public=0; my $split_public=0;
 for my $family (@families) {

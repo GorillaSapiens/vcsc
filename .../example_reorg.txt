@@ -3,7 +3,7 @@ Example directory reorganization
 
 Status
 ------
-Migration is complete through ER12.  ER13 is the next unfinished slice.
+Migration is complete through ER13.  ER14 is the next unfinished slice.
 The target tree and migration invariants below remain authoritative while the
 remaining renderer/video-standard/diagnostic moves are in progress.
 
@@ -340,11 +340,6 @@ window.  Do not combine several move families merely because the edits look
 mechanical.  After each slice, run the focused tests for the moved family plus
 source-tree hygiene/example-build checks appropriate to the change, then package
 normally if that slice is the turn's handoff.
-
-[ ] ER13. Move player_color_unofficial as a peer renderer.
-    * Move its centered/left/right/two-plus-two/poison above/below matrix.
-    * Preserve explicit `-Wa,--illegals`, opcode-policy docs, assembly allowlist,
-      and matched official/unofficial comparison tests.
 
 [ ] ER14. Move official all_five no-score and centered/basic score leaves.
     * Move the 192 no-score example plus centered/left/right above/below leaves.

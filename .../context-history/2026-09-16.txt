@@ -1,0 +1,31 @@
+2026-09-16 08:53:00 PDT, complete example reorg ER13
+ER13 moved the complete ten-cartridge unofficial player-color score matrix from
+`07_player_color_181_unofficial` to the peer
+`04_renderers/player_color_unofficial/score_{above,below}` tree. Centered,
+left, right, two-plus-two, and poison leaves are now flattened directly under
+the above/below composition directories. The retired numbered top-level family
+and all single-child `01_interactive` layers are gone.
+
+Every moved Makefile still enables `-Wa,--illegals` explicitly. Source-relative
+`_common` paths and Makefile root depth were adjusted for the new tree. Public
+renderer documentation, `examples/README.md`, matched score/raster tests, and
+the reorg stale-path checklist now name the peer renderer path directly rather
+than probing or preserving the retired path.
+
+All ten public ROMs are byte-identical to their pre-move builds:
+* centered above: 9150b5aed532d62c587158276f5937253fbc119a38f0e90cd93c445cd0100934
+* centered below: 2a40822a3e06c73a08a9c33aaae83258407f7e787ed6fa4b23946de2e89b9b49
+* left above:     9cc932c9c990d306ab5069dd8c00974ad4d12a19de865d7b1ebcc0cb8131bf34
+* left below:     9346f7597536214bf212fdaace3997c01c8c9980770b9abeb9ca9f0d37c8d9cb
+* right above:    3f9a85f56ccc911595a62cdbd12ffbf0e3439a539ae26a0e68da3f13e708e27f
+* right below:    1e3a2a30b55c840165c5ec4d7bc17823cc8a4ee341c01382f20ba6013ea05907
+* 2+2 above:      61003bb3e805c4ef14476ec83400d2a21c6f28ea50d0ce618f102e2045064166
+* 2+2 below:      84d8b071741a1c41e781174427d101c4d8e84f301228b79e5442ea5657ad2d90
+* poison above:   03b0b51a044445c9bc591f31617a36c3398f1f6dd082d8e8903f9668745155ea
+* poison below:   85b5efbc456887889d3fdda5c8f91549306af7554c6836056203f5c4ee830ee8
+
+Focused validation passed the reorg inventory, source-tree hygiene, assembly
+allowlist, eight-example multicolor/opcode-policy test, public score-control
+matrix, unofficial renderer official/twin comparison, visible component handoff,
+and the complete unofficial score-composition raster matrix including mixed
+placement. ER14 is next.
