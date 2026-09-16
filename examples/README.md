@@ -24,7 +24,7 @@ the shared timing, resource, opcode, and composition contracts.
 | [`01_basic`](01_basic/) | Small standalone cartridges and reusable lifecycle components | Blank screen, audio, centered/wide scores, and silicon fingerprint |
 | [`04_renderers/faithful_legacy_player_color`](04_renderers/faithful_legacy_player_color/) | Faithful retained legacy player-color renderer, including its historical unofficial opcodes | Interactive P0/P1/Ball motion and integrated score editing |
 | [`04_renderers/player_color/no_score`](04_renderers/player_color/no_score/) | Official-opcode, scoreless 192-line P0/P1/Ball renderer | Interactive full-range motion for 29 attributed four-frame animations and the source's sole three-frame animation, expanded to a nonblank four-slot cycle, traversing the screen in 15 pairs |
-| [`04_player_color_181`](04_player_color_181/) | Official-opcode 181-line P0/P1/Ball renderer plus an 11-line score profile | Ten-layout matrix: four production scores plus poison, each above/below |
+| [`04_renderers/player_color`](04_renderers/player_color/) | Official-opcode P0/P1/Ball renderer family | Scoreless and animated 192-line demos, fourteen 181-line score compositions, and the 170-line dual-score composition |
 | [`05_all_five_192`](05_all_five_192/) | Official-opcode, scoreless 192-line P0/P1/M0/M1/Ball renderer | Interactive five-object motion |
 | [`06_all_five_181`](06_all_five_181/) | Official-opcode 181-line P0/P1/M0/M1/Ball renderer plus an 11-line score profile | Ten-layout matrix: four production scores plus poison, each above/below |
 | [`07_player_color_181_unofficial`](07_player_color_181_unofficial/) | Stable/common-NMOS unofficial-opcode twin of group 04 | Matching ten-layout score/poison matrix |

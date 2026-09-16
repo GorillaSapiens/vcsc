@@ -250,3 +250,26 @@ Main-roadmap item 59 remains planning-only: a future compiler/driver option may
 accept this same combined Stella palette format for RGB builtins, but no compiler
 palette-file option was implemented in this work. `.../example_reorg.txt` is
 unchanged and ER12 remains the next example-reorganization slice.
+
+2026-09-15 19:40:14 PDT, complete example reorg ER12
+---------------------------------------------------
+ER12 finished the official `player_color` score-family relocation.  The poison
+and wide score-above/score-below cartridges moved from the last four numbered
+`04_player_color_181` leaves to
+`04_renderers/player_color/score_{above,below}/{poison,wide}`.  Their Makefile
+root depth and `_common` includes were adjusted for the new depth, the family
+README moved to `04_renderers/player_color/README.md`, and the now-empty retired
+`04_player_color_181` top-level directory was removed.  Directly affected tests
+and public renderer documentation now use the new paths; the reorg stale-path
+fixture was updated to match.
+
+All four moved ROMs are byte-identical to their pre-move baselines:
+* poison above: 03b0b51a044445c9bc591f31617a36c3398f1f6dd082d8e8903f9668745155ea
+* poison below: 85b5efbc456887889d3fdda5c8f91549306af7554c6836056203f5c4ee830ee8
+* wide above:   6127892c74964a0aaf74caa34d5a005e40d020036d1a980b0280efcc1027e147
+* wide below:   53c29c62b3a2641d7f9eaa01c31f2d4788a60ae49b3e04fead115e7cba566ba2
+
+The complete 17-Makefile official `04_renderers/player_color` example family
+built successfully.  Focused score-composition, wide-raster, multicolor, public
+score-control, 192-line, animation, 170-line, poison-handoff, sprite-orientation,
+example-reorg inventory, and source-tree hygiene tests pass.  ER13 is next.

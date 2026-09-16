@@ -654,8 +654,8 @@ index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_181.pl') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_raster.cpp') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_stella.pl') &&
--f File::Spec->catfile($repo,'examples','04_player_color_181','11_wide_score_above','01_interactive','player_color_181_wide_score_above_interactive.c26') &&
--f File::Spec->catfile($repo,'examples','04_player_color_181','12_wide_score_below','01_interactive','player_color_181_wide_score_below_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','player_color','score_above','wide','player_color_181_wide_score_above_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','player_color','score_below','wide','player_color_181_wide_score_below_interactive.c26') &&
 -f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_pinned.png')
    or die "widely spaced score example, tests, or oracle are incomplete
 ";

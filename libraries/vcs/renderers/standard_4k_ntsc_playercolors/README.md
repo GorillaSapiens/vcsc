@@ -167,7 +167,7 @@ Public componentized examples now live under renderer-specific paths:
 
 - `examples/04_renderers/player_color/no_score/` contains one full-height official-opcode
   P0/P1/Ball positioning diagnostic.
-- `examples/04_player_color_181/` contains the official-opcode score-above and
+- `examples/04_renderers/player_color/score_{above,below}/` contain the official-opcode score-above and
   score-below positioning and score-editing diagnostics.
 - `examples/07_player_color_181_unofficial/` contains direct unofficial-opcode
   twins of those two 181-line diagnostics; their Makefiles pass
@@ -190,7 +190,7 @@ private golden cartridges under `test/fixtures/vcs_examples/`.
 `examples/04_renderers/faithful_legacy_player_color/` against the independently built
 pristine BASIC 1.9 ROM; it does not certify this component profile. Public
 componentized examples are grouped under `examples/04_renderers/player_color/no_score/`,
-`examples/04_player_color_181/`, and
+`examples/04_renderers/player_color/score_{above,below}/`, and
 `examples/07_player_color_181_unofficial/`; each maintained interactive diagnostic has
 initial-raster certification plus emulated switch, joystick, endpoint, score,
 and reset coverage.
@@ -209,7 +209,7 @@ It verifies:
   including RESP cycles and HMxx values.
 
 The human-facing componentized multicolor diagnostics are grouped under
-`examples/04_renderers/player_color/no_score/`, `examples/04_player_color_181/`, and
+`examples/04_renderers/player_color/no_score/`, `examples/04_renderers/player_color/score_{above,below}/`, and
 `examples/07_player_color_181_unofficial/`. Their
 initial scenes have direct display certification and their controls run under
 emulation. Exact regressions

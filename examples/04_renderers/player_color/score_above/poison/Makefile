@@ -1,22 +1,21 @@
 # This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-ROOT ?= ../../../..
+ROOT ?= ../../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
-TARGET := player_color_181_wide_score_above_interactive.bin
-SOURCE := player_color_181_wide_score_above_interactive.c26
+TARGET := player_color_181_poison_score_above_interactive.bin
+SOURCE := player_color_181_poison_score_above_interactive.c26
 
 all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/six_glyph_wide_component.c26 \
+           $(VCS_DIR)/renderers/poison_debug_score/poison_debug_score.c26 \
            $(VCS_DIR)/renderers/player_color/player_color.c26 \
-           $(ROOT)/examples/_common/fixed_six_digit_controls.c26 \
-           $(ROOT)/examples/_common/player_color_181_interactive_common.c26 \
-           $(VCS_DIR)/fonts/default_decimal.c26
+           $(ROOT)/examples/_common/poison_score_controls.c26 \
+           $(ROOT)/examples/_common/player_color_181_interactive_common.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

@@ -87,7 +87,7 @@ my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 
 my @families=(
-   {fixture=>'player_color_181',            example=>'04_player_color_181',            class=>'player',   illegals=>0},
+   {fixture=>'player_color_181',            example=>undef,                           class=>'player',   illegals=>0},
    {fixture=>'all_five_181',                example=>'06_all_five_181',                class=>'all_five', illegals=>0},
    {fixture=>'player_color_181_unofficial', example=>'07_player_color_181_unofficial', class=>'player',   illegals=>1},
    {fixture=>'all_five_181_unofficial',     example=>'08_all_five_181_unofficial',     class=>'all_five', illegals=>1},
@@ -97,7 +97,7 @@ my @scores=(
    {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  migrated=>'left',          component=>'six_glyph_left_component.c26'},
    {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', migrated=>'right',         component=>'six_glyph_right_component.c26'},
    {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    migrated=>'two_plus_two', component=>'two_plus_two_score_component.c26'},
-   {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          component=>'renderers/poison_debug_score/poison_debug_score.c26'},
+   {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          migrated=>'poison',        component=>'renderers/poison_debug_score/poison_debug_score.c26'},
 );
 
 my @active_families=defined($family_filter)
@@ -107,9 +107,8 @@ my @active_families=defined($family_filter)
 
 sub public_leaf {
    my($family,$score,$order)=@_;
-   # ER11 flattened the official player-color centered/left/right/two-plus-two
-   # leaves into renderer/layout/composition.  Poison remains in its legacy
-   # numbered leaf until ER12; keep that transition explicit rather than
+   # The official player-color 181-line matrix is flattened into
+   # renderer/layout/composition. Keep that mapping explicit rather than
    # silently probing both trees and masking a lost move.
    if ($family->{fixture} eq 'player_color_181' && defined($score->{migrated})) {
       return File::Spec->catdir($repo,'examples','04_renderers','player_color',

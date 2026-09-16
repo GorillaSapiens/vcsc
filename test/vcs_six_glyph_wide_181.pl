@@ -62,11 +62,11 @@ $rc==0 && !$sig or die "181-line raster harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "181-line raster harness build wrote output\n$out$err";
 
 for my $case (
-   ['above','11_wide_score_above',40],
-   ['below','12_wide_score_below',221],
+   ['above','score_above','wide',40],
+   ['below','score_below','wide',221],
 ) {
-   my($order,$directory,$entry)=@$case;
-   my $leaf=File::Spec->catdir($repo,'examples','04_player_color_181',$directory,'01_interactive');
+   my($order,$side,$layout,$entry)=@$case;
+   my $leaf=File::Spec->catdir($repo,'examples','04_renderers','player_color',$side,$layout);
    -d $leaf or die "missing public wide-score leaf $leaf\n";
    my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
    @sources==1 or die "$leaf has ".scalar(@sources)." editable sources, expected one\n";
@@ -79,8 +79,8 @@ for my $case (
       ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
       : qr/game_draw\(\);.*vcs_ntsc_component_handoff\(\);.*score_draw\(\);/s;
    $source_text =~ $draw_order or die "$sources[0] has the wrong $order draw order\n";
-   $source_text =~ /include "\.\.\/\.\.\/\.\.\/_common\/fixed_six_digit_controls\.c26"/
-      && $source_text =~ /include "\.\.\/\.\.\/\.\.\/_common\/player_color_181_interactive_common\.c26"/
+   $source_text =~ /include "\.\.\/\.\.\/\.\.\/\.\.\/_common\/fixed_six_digit_controls\.c26"/
+      && $source_text =~ /include "\.\.\/\.\.\/\.\.\/\.\.\/_common\/player_color_181_interactive_common\.c26"/
       or die "$sources[0] does not use the shared high-level interactive controls\n";
 
    my $tag="wide_181_$order";

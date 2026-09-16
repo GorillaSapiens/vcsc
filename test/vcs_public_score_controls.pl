@@ -43,7 +43,7 @@ my $split_src=File::Spec->catfile($repo,qw(test vcs_two_plus_two_controls.cpp));
 $rc==0 && !$sig or die "two-plus-two harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "two-plus-two harness build wrote output\n$out$err";
 
-my @families=qw(04_player_color_181 06_all_five_181 07_player_color_181_unofficial 08_all_five_181_unofficial);
+my @families=qw(player_color_181 06_all_five_181 07_player_color_181_unofficial 08_all_five_181_unofficial);
 my @six_layouts=qw(01_score_above 02_score_below 03_left_justified_score_above 04_left_justified_score_below 05_right_justified_score_above 06_right_justified_score_below);
 my @split_layouts=qw(07_two_plus_two_score_above 08_two_plus_two_score_below);
 my %official_player_color_leaf=(
@@ -59,12 +59,12 @@ my %official_player_color_leaf=(
 sub public_leaf {
    my($family,$layout)=@_;
    return File::Spec->catdir($repo,'examples',@{$official_player_color_leaf{$layout}})
-      if $family eq '04_player_color_181' && exists $official_player_color_leaf{$layout};
+      if $family eq 'player_color_181' && exists $official_player_color_leaf{$layout};
    return File::Spec->catdir($repo,'examples',$family,$layout,'01_interactive');
 }
 sub shared_control_include_depth {
    my($family)=@_;
-   return $family eq '04_player_color_181' ? 4 : 3;
+   return $family eq 'player_color_181' ? 4 : 3;
 }
 my $six_public=0; my $split_public=0;
 for my $family (@families) {
@@ -150,7 +150,7 @@ for my $case (
    ['03_left_justified_score_above','left'],
    ['05_right_justified_score_above','right'],
 ) {
-   my($bin,$map)=build_public('04_player_color_181',$case->[0],$case->[1]);
+   my($bin,$map)=build_public('player_color_181',$case->[0],$case->[1]);
    my @args=($six_harness,$bin,'above',map { map_zp($map,$_) }
       qw(game_object_x game_player0_y game_player1_y game_ball_y selected_object select_switch_ready score_score selected_score_digit right_joystick_ready score_color));
    ($rc,$sig,$out,$err)=capture(@args);
@@ -160,7 +160,7 @@ for my $case (
    $err eq '' or die "$case->[1] runtime stderr: $err";
 }
 
-my($split_bin,$split_map)=build_public('04_player_color_181','07_two_plus_two_score_above','two_plus_two');
+my($split_bin,$split_map)=build_public('player_color_181','07_two_plus_two_score_above','two_plus_two');
 my @split_args=($split_harness,$split_bin,map { map_zp($split_map,$_) }
    qw(score_left_score score_right_score score_left_color score_right_color score_left_x score_right_x selected_score_field right_score_fire_ready right_joystick_ready));
 ($rc,$sig,$out,$err)=capture(@split_args);

@@ -52,12 +52,12 @@ my @cases=(
    score=>'score_score', color=>'score_color', extra=>[],
  },
  {
-   dir=>'04_player_color_181/11_wide_score_above/01_interactive',
+   dir=>'04_renderers/player_color/score_above/wide',
    stem=>'player_color_181_wide_score_above_interactive', profile=>'above', prefix=>'game',
    score=>'score_score', color=>'score_color', extra=>[], component=>'six_glyph_wide_component',
  },
  {
-   dir=>'04_player_color_181/12_wide_score_below/01_interactive',
+   dir=>'04_renderers/player_color/score_below/wide',
    stem=>'player_color_181_wide_score_below_interactive', profile=>'below', prefix=>'game',
    score=>'score_score', color=>'score_color', extra=>[], component=>'six_glyph_wide_component',
  },

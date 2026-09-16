@@ -75,7 +75,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
 - `../../examples/04_renderers/faithful_legacy_player_color/` ... faithful legacy interactive compatibility diagnostic
 - `../../examples/04_renderers/player_color/no_score/` ... full-height scoreless interactive player-color diagnostic
-- `../../examples/04_player_color_181/` ... official-opcode twelve-cartridge centered/left/right/two-plus-two/poison/wide matrix for 181-line player-color gameplay
+- `../../examples/04_renderers/player_color/` ... official-opcode player-color family, including the 181-line centered/left/right/two-plus-two/heart/poison/wide score compositions
 - `../../examples/05_all_five_192/` ... official-opcode full-height interactive diagnostic using `all_five (lines:=192)`
 - `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix using `all_five (lines:=181)`
 - `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`

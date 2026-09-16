@@ -3,7 +3,7 @@ Example directory reorganization
 
 Status
 ------
-Migration is complete through ER11.  ER12 is the next unfinished slice.
+Migration is complete through ER12.  ER13 is the next unfinished slice.
 The target tree and migration invariants below remain authoritative while the
 remaining renderer/video-standard/diagnostic moves are in progress.
 
@@ -340,10 +340,6 @@ window.  Do not combine several move families merely because the edits look
 mechanical.  After each slice, run the focused tests for the moved family plus
 source-tree hygiene/example-build checks appropriate to the change, then package
 normally if that slice is the turn's handoff.
-
-[ ] ER12. Finish official player_color special score leaves.
-    * Move wide and poison above/below leaves (heart was already handled by ER4).
-    * Run the complete official player_color example matrix after the move.
 
 [ ] ER13. Move player_color_unofficial as a peer renderer.
     * Move its centered/left/right/two-plus-two/poison above/below matrix.
