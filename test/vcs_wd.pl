@@ -1,7 +1,8 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
+# runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# timeout: 120
+# serial
+# timeout: 600
 # expectstdout: WD diagnostic passed
 # expectexit: 0
 
@@ -247,9 +248,10 @@ read_file(File::Spec->catfile($rt_out,'wd-visible.bin')) eq $vrom
    or die "WD disassembler round trip is not byte-exact\n";
 
 if ($stella_mode) {
-   my $stella=$ENV{VCSC_STELLA} || $ENV{STELLA} || find_executable('stella');
+   my $stella=find_executable($ENV{VCSC_STELLA} || $ENV{STELLA} || 'stella');
+   require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
    defined($stella) && -x $stella or die "WD Stella certification requires Stella\n";
-   my $xvfb=find_executable('Xvfb') or die "WD Stella certification requires Xvfb\n";
+   my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "WD Stella certification requires Xvfb\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    my $snap=File::Spec->catdir($tmp,'stella-snap'); my $user=File::Spec->catdir($tmp,'stella-user');
@@ -265,7 +267,7 @@ if ($stella_mode) {
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
    if ($pid==0) {
       open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')) or die $!; open(STDERR,'>&STDOUT') or die $!;
-      exec($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','WD',
+      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','WD',
            '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
            '-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible);
       die "exec Stella: $!\n";

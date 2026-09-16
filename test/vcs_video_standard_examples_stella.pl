@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# serial
+# timeout: 600
+# expectexit: 0
 
 use strict;
 use warnings;
@@ -19,8 +24,9 @@ sub read_file { my($p)=@_;open(my$f,'<:raw',$p)or die"read $p: $!\n";local$/;my$
 
 @ARGV==2 or die"usage: $0 REPO TMP\n";
 my$repo=abs_path($ARGV[0])or die"repo\n";my$tmp=$ARGV[1];make_path($tmp);$tmp=abs_path($tmp);
-my$stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella')or die"set STELLA or VCSC_STELLA\n";
-my$xvfb=findexe('Xvfb')or die"Xvfb required\n";my$perl=findexe('perl')or die"perl required\n";
+my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella')or die"set STELLA or VCSC_STELLA\n";
+require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb')or die"Xvfb required\n";my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));my$vcs=File::Spec->catdir($repo,qw(libraries vcs));my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my$cxx=$ENV{CXX}||'c++';my$mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my$mos_obj=File::Spec->catfile($mos,'mos6502.o');
@@ -96,7 +102,7 @@ for my$case(
    select undef,undef,undef,.2;local$ENV{DISPLAY}=$d;local$ENV{XAUTHORITY}='/dev/null';local$ENV{HOME}="$tmp/home-$tag";local$ENV{SDL_AUDIODRIVER}='dummy';make_path($ENV{HOME});
    my$snap="$tmp/snap-$tag";my$user="$tmp/user-$tag";make_path($snap,$user);unlink glob("$snap/*.png");
    my$bs=$family eq 'enhanced-asymmetric' ? 'F8' : '4K';
-   my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-format',$format,'-bs',$bs,'-snapsavedir',$snap,'-snapname',$tag,'-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,'-bs',$bs,'-snapsavedir',$snap,'-snapname',$tag,'-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork();defined$pid or die"fork Stella\n";if(!$pid){open(STDOUT,'>:raw',"$tmp/$tag.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    ok("snapshot $tag example",$perl,$keys);my@png;for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}terminate($pid);terminate($xpid);@png==1 or die"$tag Stella produced ".scalar(@png)." snapshots\n";
    my($w,$h)=png_dimensions($png[0]);$w==320&&$h==274 or die"$tag example snapshot ${w}x${h}, expected 320x274\n";

@@ -82,20 +82,29 @@ Useful top-level targets include:
 ```sh
 make test          # complete unified test suite
 make unit          # compile-only tests
-make e2e           # linked/simulated and generic tests
+make e2e           # linked/simulated tests, including required Stella/Xvfb certification
 make fonts         # regenerate all library/example font subsets from *_ascii.c26
 make installcheck  # staged manifest validation + representative installed-toolchain smokes
 make rebuild       # explicit clean rebuild; ordinary targets are incremental
 make linux         # build a self-contained native Linux tar.gz with examples
 make windows       # cross-build a self-contained 64-bit Windows zip with examples
-make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
-make stella-player-color-192-test STELLA=stella  # player-color-192 visible playfield raster
-make stella-all-five-player-color-192-test STELLA=stella  # all-five + per-row player colors
-make stella-all-five-player-color-181-test STELLA=stella  # 181 gameplay + score above/below
-make stella-enhanced-multisprite-test STELLA=stella  # symmetric P0/P1 multisprite pixel oracle
+make stella-bank-test STELLA=stella  # focused rerun of mapper Stella certification
+make stella-player-color-192-test STELLA=stella  # focused rerun: player-color-192 raster
+make stella-all-five-player-color-192-test STELLA=stella  # focused rerun: all-five + per-row colors
+make stella-all-five-player-color-181-test STELLA=stella  # focused rerun: 181 gameplay + scores
+make stella-multisprite-test STELLA=stella  # focused rerun: multisprite pixel oracle
 make docs          # Doxygen output under doxygen/
 make clean
 ```
+
+Stella and Xvfb are required test dependencies for `make test` and `make e2e`.
+Maintained Stella raster and mapper certifications are part of the normal e2e
+suite; the `stella-*` targets above are convenient focused reruns, not an
+optional test tier. `make unit` remains compile-only.
+The test harness supplies a private Stella basedir and the checked-in 792-byte
+`test/fixtures/stella/stella.pal`, which pins the NTSC, PAL, and SECAM RGB tables
+from `compiler/builtin_rgb.c`.  Stella raster references therefore use exact RGB
+without depending on the host Stella version's built-in palette or saved settings.
 
 Installation and release payloads are owned by `packaging/install.manifest`.
 `make install`, `make uninstall`, `make package`, `make linux`, and
@@ -273,9 +282,9 @@ cd test
 See [`test/README.md`](test/README.md) for test metadata, fixtures, filtering,
 and runner behavior.
 
-Banked mapper certification has two layers: `make test` executes every F8/F6/F4
-transition through `vcsc-sim`, while `make stella-bank-test` runs the visible
-PASS/FAIL diagnostic in Stella from every forced physical startup bank and under
+Banked mapper certification has two layers inside the normal e2e suite: the tests execute every F8/F6/F4
+transition through `vcsc-sim` and also run the visible PASS/FAIL diagnostic in Stella.
+`make stella-bank-test` is a focused rerun of that coverage from every forced physical startup bank and under
 randomized developer startup-bank selection. CBS FA/RAM Plus has its own public
 `examples/09_bankswitching/03_fa_ram_plus` PASS/FAIL cartridge and emulator-backed
 self-test covering all three selectors, startup physical bank 2, and all 256 bytes

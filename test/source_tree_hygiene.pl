@@ -350,10 +350,10 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'vcs_player_color_192_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_all_five_player_color_192_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_all_five_player_color_181_stella.pl') &&
--f File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_7.0.png') &&
+-f File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_pinned.png') &&
 -f File::Spec->catfile($test,'vcs_faithful_legacy_multisprite.pl') &&
 -f File::Spec->catfile($test,'vcs_faithful_legacy_multisprite_stella.pl') &&
--f File::Spec->catfile($test,'fixtures','faithful_legacy_multisprite','reference_diagnostic_stella_7.0.png') &&
+-f File::Spec->catfile($test,'fixtures','faithful_legacy_multisprite','reference_diagnostic_stella_pinned.png') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','README.md') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','faithful_legacy_multisprite.c26') &&
 -f File::Spec->catfile($repo,'examples','04_renderers','faithful_legacy_multisprite','faithful_legacy_multisprite_diagnostic.c26') &&
@@ -373,6 +373,45 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','banked_standard_renderer.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','README.md')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
+# Maintained Stella tests may receive a command name such as `stella` or
+# `Xvfb` through the Makefiles.  Resolve those values through PATH rather than
+# treating every nonempty environment override as an already-absolute path.
+opendir(my $stella_test_dh,$test) or die "open test directory: $!\n";
+my @stella_test_scripts=map { File::Spec->catfile($test,$_) }
+   grep { /\.pl\z/ && -f File::Spec->catfile($test,$_) } readdir($stella_test_dh);
+closedir($stella_test_dh);
+for my $path (@stella_test_scripts) {
+   next if $path eq File::Spec->catfile($test,'source_tree_hygiene.pl');
+   my $text=slurp($path);
+   if (index($text,'$ENV{VCSC_STELLA}') >= 0) {
+      $text =~ /(?:findexe|find_executable)\(\$ENV\{VCSC_STELLA\}\s*\|\|\s*\$ENV\{STELLA\}\s*\|\|\s*'stella'\)/
+         or die "$path does not resolve VCSC_STELLA/STELLA through PATH\n";
+   }
+   if (index($text,'$ENV{VCSC_XVFB}') >= 0) {
+      $text =~ /(?:findexe|find_executable)\(\$ENV\{VCSC_XVFB\}\s*\|\|\s*\$ENV\{XVFB\}\s*\|\|\s*'Xvfb'\)/
+         or die "$path does not resolve VCSC_XVFB/XVFB through PATH\n";
+   }
+}
+my $stella_lib=File::Spec->catfile($test,'stella_test_lib.pl');
+my $stella_palette=File::Spec->catfile($test,'fixtures','stella','stella.pal');
+my $stella_palette_contract=File::Spec->catfile($test,'stella_palette_contract.pl');
+-f $stella_lib && -f $stella_palette && -s $stella_palette == 792 && -f $stella_palette_contract
+   or die "pinned Stella palette contract is incomplete\n";
+for my $path (@stella_test_scripts) {
+   my $text=slurp($path);
+   next unless $text =~ /(?:exec\(\$stella|my ?\@cmd=\(\$stella)/;
+   index($text,'stella_test_lib.pl') >= 0 && index($text,'vcsc_stella_palette_args') >= 0
+      or die "$path does not use the pinned Stella palette helper\n";
+}
+my $diagnostic_stella=slurp(File::Spec->catfile($test,'vcs_diagnostic_cartridge_stella.pl'));
+index($diagnostic_stella,q{my@digest_mask=('--mask-rows','109-126');}) >= 0
+   or die "diagnostic Stella certification no longer uses exact RGB with only live rows masked\n";
+index($diagnostic_stella,'stella_pinned.png') >= 0
+   or die "diagnostic Stella certification is not using pinned-palette references\n";
+my $stella_digest=slurp(File::Spec->catfile($test,'stella_png_rgb_digest.pl'));
+index($stella_digest,'normalize-mono') < 0 && index($stella_digest,'normalize-dark') < 0
+   or die "Stella RGB digest helper still permits palette-normalizing comparisons\n";
+
 my $top_make=slurp(File::Spec->catfile($repo,'Makefile'));
 my @stella_tmp_vars=($top_make =~ /^(STELLA_[A-Z0-9_]+_TEST_TMP)\s*\?=/mg);
 my($clean_recipe)=$top_make =~ /^clean:\n((?:\t.*\n)+)/m;
@@ -617,7 +656,7 @@ index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_stella.pl') &&
 -f File::Spec->catfile($repo,'examples','04_player_color_181','11_wide_score_above','01_interactive','player_color_181_wide_score_above_interactive.c26') &&
 -f File::Spec->catfile($repo,'examples','04_player_color_181','12_wide_score_below','01_interactive','player_color_181_wide_score_below_interactive.c26') &&
--f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_7.0.png')
+-f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_pinned.png')
    or die "widely spaced score example, tests, or oracle are incomplete
 ";
 my $big_wide_source=slurp(File::Spec->catfile($repo,'examples','02_components','big_wide_score','big_wide_score.c26'));
@@ -1208,8 +1247,8 @@ index($pf_phase,'kGalleryPlayfield192')>=0 &&
 index($pf_phase,'15/22/51/54')<0
    or die "player-color-192 asymmetric playfield regression coverage is incomplete
 ";
-my $pc192_reference=File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_7.0.png');
-sha256_hex(slurp($pc192_reference)) eq '938ad57703701d195424c4d6490bedcfacb3ecfd6546209c0a1ea9865722f2c8'
+my $pc192_reference=File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_pinned.png');
+sha256_hex(slurp($pc192_reference)) eq '79c39e7eb7c608660b03499032988209b31d760869784d4ea3bfab0049b4b587'
    or die "reviewed player-color-192 Stella reference PNG changed without updating its contract
 ";
 

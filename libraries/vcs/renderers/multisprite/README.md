@@ -163,8 +163,8 @@ Reset restores the scene. Joystick Up increments Y and Down decrements Y, matchi
 the renderer's upward-positive public coordinate system. The MOS6502/TIA timing
 regression exhaustively checks 1,521 independent X/Y positions for the 192 profile
 and 1,485 for each 181 score composition, with every case frame-stable. Physical
-placement is certified separately by the optional Stella pixel regression
-(`make stella-multisprite-test`): it locks all five P1 rank phases at left/middle/
+placement is certified separately by the required normal-e2e Stella pixel regression;
+`make stella-multisprite-test` is its focused rerun: it locks all five P1 rank phases at left/middle/
 right-edge coordinates, natural X=159 clipping/wrap, the P1 top edge, the 181
 first-rank X=143..151 right-edge discontinuity (with X=148 locked explicitly),
 181 P0 sort-invariant X placement, and the P0 Y=0 no-stripe case. The exact `123456`

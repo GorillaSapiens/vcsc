@@ -1,7 +1,11 @@
 #!/usr/bin/perl
-# Authoritative Stella 7.0 playfield certification for player_color_192.
-# This is an explicit Stella target rather than a default e2e dependency so the
-# normal suite remains runnable on hosts without Stella/Xvfb.
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# serial
+# timeout: 300
+# expectexit: 0
+# Authoritative pinned-palette Stella playfield certification for player_color_192.
+# This is part of the normal e2e suite; Stella and Xvfb are required.
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -20,15 +24,16 @@ sub terminate { my($p)=@_; return unless$p; kill 'TERM',$p; for(1..20){my$d=wait
 @ARGV==2 or die "usage: $0 REPO TMP\n";
 my $repo=abs_path($ARGV[0]) or die "resolve repo\n";
 my $tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp);
-my $stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella') or die "set STELLA or VCSC_STELLA\n";
-my $xvfb=findexe('Xvfb') or die "Xvfb required\n";
+my $stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella') or die "set STELLA or VCSC_STELLA\n";
+require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+my $xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n";
 my $perl=findexe('perl') or die "perl required\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(examples 04_renderers player_color no_score player_color_192_interactive.c26));
-my $reference=File::Spec->catfile($repo,qw(test fixtures player_color_192 reference_interactive_stella_7.0.png));
+my $reference=File::Spec->catfile($repo,qw(test fixtures player_color_192 reference_interactive_stella_pinned.png));
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
-my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
+my $sequence=File::Spec->catfile($repo,qw(test stella_png_sequence.pl));
 my $rom=File::Spec->catfile($tmp,'player_color_192_interactive.bin');
 ok('build player-color 192 interactive',$driver,'-I',$vcs,$source,'-o',$rom);
 
@@ -39,14 +44,16 @@ if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xv
 select undef,undef,undef,.2;
 local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user); unlink glob("$snap/*.png");
-my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-   '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','0','-speed','1','-uimessages','0','-audio.enabled','0','-bs','4K',
+   '-snapsavedir',$snap,'-snapname','rom','-sssingle','0','-ss1x','1',
    '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
 my $pid=fork(); defined$pid or die "fork Stella\n";
 if(!$pid){open(STDOUT,'>:raw',"$tmp/stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-ok('snapshot player-color 192 interactive',$perl,$keys);
-my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
-terminate($pid); terminate($xpid); @png==1 or die "Stella produced ".scalar(@png)." snapshots\n";
-my($actual,$ae)=ok('actual digest',$perl,$digest,$png[0]); my($wanted,$we)=ok('reference digest',$perl,$digest,$reference);
-$ae eq ''&&$we eq '' or die $ae.$we; $actual eq $wanted or die "player-color 192 Stella raster differs: actual=$actual reference=$wanted";
-chomp $actual; print "Stella player-color 192 playfield passed: $actual\n";
+ok('capture completed player-color frames',$perl,$keys,'--fast','--every-frame',
+   '--snapshot-dir',$snap,'--snapshot-count','20','--snapshot-timeout','20');
+my @png=sort grep{-s$_}glob("$snap/*.png");
+terminate($pid); terminate($xpid);
+@png>=12 or die "Stella produced only ".scalar(@png)." completed-frame snapshots\n";
+my($actual,$ae)=ok('stable player-color raster',$perl,$sequence,'--stable-tail','8','--reference',$reference,@png);
+$ae eq '' or die $ae; chomp $actual;
+print "Stella player-color 192 playfield passed: $actual\n";

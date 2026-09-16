@@ -110,6 +110,18 @@ inline assembly makes procedure timing opaque.
 sequences inside source `asm` statements and requires the exact sequence to
 survive unchanged with the pass both enabled and disabled.
 
+## Stella test environment
+
+Stella and Xvfb are required for normal E2E testing.  Every maintained Stella
+certification uses `test/stella_test_lib.pl`, which gives Stella a private
+`-basedir`, installs the checked-in `test/fixtures/stella/stella.pal`, selects
+`-palette user`, and explicitly neutralizes palette adjustments, PAL color-loss,
+TV filtering/phosphor blending, and TIA interpolation.  The 792-byte palette file
+contains the canonical NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`;
+`stella_palette_contract.pl` locks each standard's slice and the combined file.
+Reviewed raster references therefore compare exact RGB on all three standards and
+must not depend on the host Stella version's built-in palette or saved settings.
+
 ## Common usage
 
 Run the whole suite from `test/`:
@@ -534,8 +546,8 @@ all former `DCP` families even when the static scene exits before the P0/M0 half
 `vcs_six_glyph_wide.pl` builds the separate widely spaced score profile, locks
 its X=36,52,68,84,100,116 origin contract, exact cycle 0/8/31/36/42/48 GRP
 schedule, packed-BCD row bytes, 262-line frame, 18-byte mutable-color component-owned RAM
-layout, public 2K example accounting, and reviewed Stella 7.0 RGB oracle. The
-optional `vcs_six_glyph_wide_stella.pl` regenerates the emulator snapshot and
+layout, public 2K example accounting, and reviewed pinned-palette Stella RGB oracle. The
+required normal-e2e `vcs_six_glyph_wide_stella.pl` regenerates the emulator snapshot and
 compares decoded RGB pixels with that checked-in oracle. It also hashes the
 centered component so the wide profile cannot silently alter its predecessor.
 
@@ -578,7 +590,7 @@ score component with hostile incoming P0/P1 state and independently colored
 packed-BCD fields. Its 6502 oracle locks the simultaneous `098 -> 099 -> 100`
 and `998 -> 999 -> 000` carry transitions, exact row-by-row TIA write cycles,
 one HMOVE, and the scheduler calibration of 264 raw harness intervals to a
-262-line Stella frame. A reviewed Stella 7.0 RGB reference locks the visible
+262-line Stella frame. A reviewed pinned-palette Stella RGB reference locks the visible
 `123`/`456` raster at glyph origins X=20,36,52 and X=100,116,132. The default
 regression decodes that reference and verifies all six glyphs pixel-for-pixel
 against the decimal font, so a mixed-copy P1 latch artifact cannot be blessed
@@ -620,7 +632,7 @@ each family's blank row/column cell contract, the compact three-line CC0
 headers, the complete tree-wide `libraries/LICENSE.txt`, and byte-identical logo glyph
 pixels.
 
-`vcs_six_glyph_wide_stella.pl` is the independent Stella 7.0 guard for the
+`vcs_six_glyph_wide_stella.pl` is the independent pinned-palette Stella guard for the
 standalone wide-score visible tail. It compares raw RGB pixels against the
 reviewed reference image, specifically catching an overscan VBLANK assertion
 that moves into the last visible scanline. The six-glyph phase harnesses retain
@@ -674,9 +686,9 @@ pins the corrected Ball row-boundary transfer through its motion trace and rejec
 both failure modes in the Ball
 positioning sequence: an immediate `HMCLR`
 that interrupts the first HMOVE, and a later HMOVE reached while `HMBL` is still
-nonzero. The optional `vcs_player_color_192_stella.pl`/`make
-stella-player-color-192-test` remains the independent Stella 7.0 pixel oracle.
-Because that emulator target is intentionally outside the default suite,
+nonzero. The required normal-e2e `vcs_player_color_192_stella.pl` remains the independent pinned-palette Stella pixel oracle;
+`make stella-player-color-192-test` reruns it in isolation.
+Because the Stella oracle is now part of the normal suite,
 `vcs_interactive_sprite_orientation.pl` also decodes the reviewed Stella PNG's
 P0/P1 rectangles and requires them to match the animation frames selected by the
 public example's literal initial X/Y. This makes an intentional sprite-art or
@@ -827,8 +839,7 @@ exact continuation executes, and prove A:X survives the generic return path.
 The fixtures therefore lock full 16-bit carry handling for both inline-word
 fetch and saved-return-PC `+3` arithmetic.
 
-The optional
-authoritative mode is:
+The normal e2e runner includes the authoritative Stella mode. For a focused rerun use:
 
 ```sh
 make stella-bank-test STELLA=/path/to/stella
@@ -870,22 +881,20 @@ ordinary BSS while emitting no ZERO record for the preserved latch. The linked
 image must contain the strong diagnostic `__reset` plus the weak stock reset/body
 provider, proving the shim no longer owns diagnostic-specific RAM-clearing loops.
 
-`vcs_diagnostic_cartridge_stella.pl` is the optional independent Stella 7.0
-raster certification. Run the complete 12-screen matrix with:
+`vcs_diagnostic_cartridge_stella.pl` is the required normal-e2e independent pinned-palette Stella
+raster certification. For a focused rerun of the complete 12-screen matrix use:
 
 ```sh
 make stella-diagnostic-test STELLA=/path/to/stella
 ```
 
 The matrix covers NTSC/PAL/SECAM x joystick/paddle/keypad/driving and compares
-1x RGB snapshots against reviewed references. With the compact five-row pair
-font there is no synthetic blank glyph row above the text, so every case must
-begin its first lit raster on snapshot row 18. This keeps controller-specific
-vertical shifts from being hidden by refreshing a shifted golden image. Hosts with short execution
-windows may set `VCSC_STELLA_CASES` to a comma-separated subset such as
-`pal_keypad,secam_driving`; the default remains all 12 cases. The test requires
-Xvfb but is intentionally outside the default e2e suite so ordinary test hosts do
-not need a graphical Stella installation.
+1x RGB snapshots against reviewed references. The diagnostic's first lit row is
+also compared with its reviewed reference, avoiding a brittle absolute row number
+that changes when the maintained font's top-row pixels change. For focused runs,
+`VCSC_STELLA_CASES` may name a comma-separated subset such as
+`pal_keypad,secam_driving`; the normal test remains all 12 cases. Stella and Xvfb
+are required test dependencies.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
@@ -1152,8 +1161,8 @@ at 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan scanlines. The calibrated
 RIOT loads are TIM64T 52/41; the CPU harness observes 314 raw frame intervals
 for Stella's 312-line 50 Hz frame, preserving the same two closeout boundaries
 as the maintained NTSC scheduler. It exercises production, exact-boundary, and
-both overrun paths for both public front ends. `vcs_frame_50hz_stella.pl` is the
-optional independent Stella 7.0 smoke test; run `make stella-50hz-test
+both overrun paths for both public front ends. `vcs_frame_50hz_stella.pl` is the required normal-e2e independent pinned-palette Stella smoke test;
+run `make stella-50hz-test
 STELLA=/path/to/stella`. It forces PAL and SECAM formats and requires a stable
 320x274 50 Hz snapshot viewport.
 
@@ -1192,9 +1201,9 @@ terminal line uses 10/17/43/50. The default player-color-192 tests now exercise 
 `02_animated_sprites` independently verifies its full/checker/blank/checker/full
 pattern against the same Stella-proven PF byte/order/phase contract. Both profiles
 reject the previously accepted 15/22/51/54 boundary schedule that corrupted one
-visible scanline per 16-line row. The optional
+visible scanline per 16-line row. The normal e2e suite runs `vcs_player_color_192_stella.pl`; the focused
 `make stella-player-color-192-test STELLA=/path/to/stella` target snapshots that
-exact public example in Stella 7.0 and compares its RGB raster to a reviewed
+exact public example in pinned-palette Stella and compares its RGB raster to a reviewed
 reference PNG. The report also records the corrected delayed-Ball carry staging
 across the extra row-boundary `GRP1`, plus the
 accepted Ball first-row mask-boundary fix, full baseline-to-current checkpoint
@@ -1202,8 +1211,8 @@ history, and the unchanged 232-byte high-level `install_frames()` span. The stac
 report remains explicit at source=4, hidden=0, total=4 and `.callstackextra 0`.
 The separate animation emulator remains the behavioral/frame oracle.
 
-The optional `make stella-all-five-player-color-192-test STELLA=/path/to/stella`
-target cross-checks the combined all-five plus per-row-player-color profile
+The normal e2e suite runs this Stella cross-check; the focused
+`make stella-all-five-player-color-192-test STELLA=/path/to/stella` target cross-checks the combined all-five plus per-row-player-color profile
 against both maintained 192-line golden renderers. It verifies patterned player
 colors and asymmetric playfield pixels against `player_color_192`, constant-color
 object pixels against `all_five_192`, and delayed-Ball/P1 overlap at cache-row
@@ -1340,16 +1349,16 @@ that the visible build stays on the stack-safe simple startup path, and rejects
 nested cross-bank JSRs. A raw poisoned fixture changes the bank-1 copy of the
 JSR target-high fetch byte, so it fails if `$01FE` switches immediately instead
 of one bus cycle later. The same test requires high-confidence FE disassembly and
-byte-exact round trip; `make stella-bank-test STELLA=/path/to/stella` additionally
-forces Stella `-bs FE` and grades the public green `pass` / `FE` frame.
+byte-exact round trip; the normal runner also forces Stella `-bs FE`;
+`make stella-bank-test STELLA=/path/to/stella` reruns that certification and and grades the public green `pass` / `FE` frame.
 
 `vcs_dpc.pl` certifies DPC as F8 program ROM plus two non-CPU-addressable
 image regions rather than as a size-only mapper guess. It requires the exact
 10,495-byte image, 2K display-data and 255-byte Poly8 `$data_only` placement,
 rejects ordinary CPU references into those regions, executes the public
 diagnostic in `vcsc-sim`, checks the full display checksum/wrap and 255-state RNG
-cycle, and requires high-confidence byte-exact disassembly/reassembly. With
-`--stella` (included by `make stella-bank-test`) it forces Stella `-bs DPC` and
+cycle, and requires high-confidence byte-exact disassembly/reassembly. The normal runner uses
+`--stella` and forces Stella `-bs DPC` and
 grades the public green `PASS` / `DPC` frame.
 
 `vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding
@@ -1357,7 +1366,7 @@ F8SC/F6SC/F4SC profiles. It checks every allocatable bank region begins at
 `$x100` with size `$0E00`, verifies the C26 profiles keep the RAM-port prefix out of ROM,
 verifies exact images, map-reported startup records, hostile initial RAM, both
 aliases, bank-switch persistence, poison-before-result, and reinitialization on
-a reset which preserves RAM externally. `stella-bank-test` independently runs
+a reset which preserves RAM externally. The normal runner independently runs
 the same SC lifecycle from every forced and randomized physical startup bank.
 `VCSC_STELLA_FILTER` limits focused Stella reruns. The installation manifest
 regression proves the Superchip profiles and examples are shipped; the source
@@ -1384,10 +1393,9 @@ logical P1 sprites in upright display order, their colors/reposition phases,
 the explicit P0 trailing clear that prevents stale-HMOVE stripes, asymmetric
 playfield, and integrated score timing.
 
-`vcs_faithful_legacy_multisprite_stella.pl` is the independent Stella 7.0
-certification for the same fixed cartridge.  Run it through
-`make stella-faithful-multisprite-test STELLA=/path/to/stella`; the default e2e
-suite does not require a graphical Stella installation.
+`vcs_faithful_legacy_multisprite_stella.pl` is the independent pinned-palette Stella
+certification for the same fixed cartridge and is part of normal e2e. Run
+`make stella-faithful-multisprite-test STELLA=/path/to/stella` for a focused rerun.
 
 `vcs_multisprite_profiles.pl` locks the modern item-28 derivative. It requires
 one `renderers/multisprite/multisprite.c26` source with compile-time
@@ -1406,10 +1414,9 @@ The test also pins the 86-byte renderer RAM contract for both profiles, the pack
 full-range P1 positioner, 181 late-HMOVE P0 neutralization, and current ROM/RAM
 accounting.
 
-`vcs_multisprite_stella.pl` independently grades actual Stella 7.0 pixels rather
-than inferring X from RESP/HMP write cycles. Run it through
-`make stella-multisprite-test STELLA=/path/to/stella`; the default e2e suite does
-not require a graphical Stella installation. It locks all five multiplexed rank
+`vcs_multisprite_stella.pl` independently grades actual pinned-palette Stella pixels rather
+than inferring X from RESP/HMP write cycles and is part of normal e2e. Run
+`make stella-multisprite-test STELLA=/path/to/stella` for a focused rerun. It locks all five multiplexed rank
 phases at representative edge/interior X coordinates, natural X=159 wrap/clipping,
 the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
 
@@ -1435,9 +1442,9 @@ example for every line-parameterized renderer that advertises a 228 profile.
 `vcs_video_standard_portability.pl` locks the scheduler-neutral component
 classification in `libraries/vcs/VIDEO_STANDARDS.md`. PAL/SECAM RGB compile
 and E2E tests lock the reference palettes, while the sound compile tests lock
-the 50 Hz cadence/control aliases. `vcs_frame_50hz_stella.pl` remains optional
-and independently certifies the forced PAL/SECAM Stella viewport.
-`vcs_video_standard_examples_stella.pl` is the optional Stella companion for the
+the 50 Hz cadence/control aliases. `vcs_frame_50hz_stella.pl` is required normal-e2e
+coverage and independently certifies the forced PAL/SECAM Stella viewport.
+`vcs_video_standard_examples_stella.pl` is the required normal-e2e Stella companion for the
 complete PAL/SECAM native-228 renderer matrix and verifies every forced-format
 viewport; the all-five pair additionally retains the independent PF phase oracle.
 

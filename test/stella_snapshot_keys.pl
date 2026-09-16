@@ -9,7 +9,7 @@ use strict;
 use warnings;
 use IO::Socket::UNIX;
 use Socket qw(SOCK_STREAM);
-use Time::HiRes qw(sleep);
+use Time::HiRes qw(sleep time);
 
 sub read_exact {
    my($fh,$length)=@_;
@@ -153,12 +153,48 @@ sub key_event {
 
 my $reset=0;
 my $fast=0;
-for my $arg (@ARGV) {
+my $every_frame=0;
+my $reset_sequence=0;
+my $duration=1.00;
+my $snapshot_dir;
+my $snapshot_count;
+my $snapshot_timeout=30.0;
+while (@ARGV) {
+   my $arg=shift @ARGV;
    if ($arg eq '--reset') { $reset=1; }
    elsif ($arg eq '--fast') { $fast=1; }
-   else { die "usage: $0 [--reset] [--fast]\n"; }
+   elsif ($arg eq '--every-frame') { $every_frame=1; }
+   elsif ($arg eq '--reset-sequence') { $reset_sequence=1; }
+   elsif ($arg eq '--duration') {
+      @ARGV or die "--duration requires seconds\n";
+      $duration=shift @ARGV;
+      $duration =~ /^\d+(?:\.\d+)?$/ && $duration > 0
+         or die "invalid --duration '$duration'\n";
+   }
+   elsif ($arg eq '--snapshot-dir') {
+      @ARGV or die "--snapshot-dir requires a directory\n";
+      $snapshot_dir=shift @ARGV;
+   }
+   elsif ($arg eq '--snapshot-count') {
+      @ARGV or die "--snapshot-count requires a positive integer\n";
+      $snapshot_count=shift @ARGV;
+      $snapshot_count =~ /^\d+$/ && $snapshot_count > 0
+         or die "invalid --snapshot-count '$snapshot_count'\n";
+   }
+   elsif ($arg eq '--snapshot-timeout') {
+      @ARGV or die "--snapshot-timeout requires seconds\n";
+      $snapshot_timeout=shift @ARGV;
+      $snapshot_timeout =~ /^\d+(?:\.\d+)?$/ && $snapshot_timeout > 0
+         or die "invalid --snapshot-timeout '$snapshot_timeout'\n";
+   }
+   else { die "usage: $0 [--reset] [--fast] [--every-frame] [--reset-sequence] [--duration seconds | --snapshot-dir DIR --snapshot-count N [--snapshot-timeout seconds]]\n"; }
 }
 
+$reset_sequence && !$every_frame and die "--reset-sequence requires --every-frame\n";
+(defined($snapshot_dir) xor defined($snapshot_count))
+   and die "--snapshot-dir and --snapshot-count must be used together\n";
+defined($snapshot_count) && !$every_frame
+   and die "--snapshot-count requires --every-frame\n";
 my($x,$root)=x_connect();
 my $window;
 for (1..100) {
@@ -172,11 +208,75 @@ defined($window) or die "no mapped Stella window appeared\n";
 my $f12=$fast ? 96 : function_keycode('F12');
 my $f2=$reset ? ($fast ? 68 : function_keycode('F2')) : undef;
 
+sub x_test_opcode {
+   my($fh)=@_;
+   my $name='XTEST';
+   my $reply=send_request($fh,98,0,pack('vCC',length($name),0,0).$name,1);
+   ord(substr($reply,8,1)) or die "XTEST extension is unavailable\n";
+   return ord(substr($reply,9,1));
+}
+
+sub x_test_key {
+   my($fh,$opcode,$type,$keycode,$root_window)=@_;
+   my $body=pack('CCvVVVVssVvCC',
+      $type,$keycode,0,0,$root_window,0,0,0,0,0,0,0,0);
+   send_request($fh,$opcode,2,$body,0);
+}
+
+sub toggle_every_frame_snapshots {
+   my($fh,$root_window)=@_;
+   $fast or die "--every-frame currently requires --fast on the private stock Xvfb display\n";
+   my $xtest=x_test_opcode($fh);
+   # Stock Xvfb keycodes: left Shift=50, left Control=37, left Alt=64, S=39.
+   # Stella binds Shift-Control-Alt-S to one PNG snapshot after every complete
+   # emulated frame.  XTEST is required here because SendEvent does not update
+   # the server modifier state that Stella/SDL observes for this chord.
+   for my $pair ([2,50],[2,37],[2,64],[2,39],[3,39],[3,64],[3,37],[3,50]) {
+      x_test_key($fh,$xtest,$pair->[0],$pair->[1],$root_window);
+      sleep(0.01);
+   }
+}
+
 # SetInputFocus: RevertToParent=2, CurrentTime=0.
 send_request($x,42,2,pack('VV',$window,0),0);
 # Complete-matrix bank diagnostics can execute for several video frames
 # before settling on their PASS/FAIL display, especially in F4/F4SC.
 sleep($fast ? 0.10 : 1.00);
+if ($every_frame) {
+   if ($reset_sequence) {
+      # Pause first so capture can be armed before a deterministic console-reset
+      # release.  Keep F2 physically down while resuming for several frames,
+      # then release it and record the resulting complete-frame sequence.
+      my $xtest=x_test_opcode($x);
+      x_test_key($x,$xtest,2,127,$root); # Pause down
+      x_test_key($x,$xtest,3,127,$root); # Pause up
+      sleep(0.10);
+      toggle_every_frame_snapshots($x,$root);
+      x_test_key($x,$xtest,2,68,$root);  # F2/reset down
+      x_test_key($x,$xtest,2,127,$root); # resume
+      x_test_key($x,$xtest,3,127,$root);
+      sleep(0.10);
+      x_test_key($x,$xtest,3,68,$root);  # release reset
+   } else {
+      toggle_every_frame_snapshots($x,$root);
+   }
+   if (defined($snapshot_count)) {
+      my $deadline=time()+$snapshot_timeout;
+      while (1) {
+         my @png=grep { -s $_ } glob("$snapshot_dir/*.png");
+         last if @png >= $snapshot_count;
+         time() < $deadline
+            or die "timed out waiting for $snapshot_count complete-frame snapshots in $snapshot_dir; got ".scalar(@png)."\n";
+         sleep(0.02);
+      }
+   }
+   else {
+      sleep($duration);
+   }
+   toggle_every_frame_snapshots($x,$root);
+   sleep(0.20);
+   exit 0;
+}
 if ($reset) {
    for my $type (2,3) { # KeyPress, KeyRelease
       my $event=key_event($type,$f2,$root,$window);

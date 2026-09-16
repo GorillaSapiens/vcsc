@@ -180,37 +180,35 @@ than assigned false provenance. Source metadata is transparent to peephole
 optimization, and focused regressions lock source/assembly/address/byte
 correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
+Test policy
+-----------
+Stella and Xvfb are required dependencies for `make test` and `make e2e`;
+maintained Stella raster/mapper certifications are ordinary e2e tests rather
+than an opt-in tier. `make unit` remains compile-only. Stella-bearing tests are
+serialized by the unified runner, resolve `VCSC_STELLA`/`VCSC_XVFB` as either
+absolute paths or command names through PATH, use explicit deterministic Stella
+power-on settings unless randomization is the behavior under test, and prefer
+completed-frame capture over asynchronous single snapshots. Every maintained
+Stella certification also uses `test/stella_test_lib.pl` with a private basedir
+and the checked-in 792-byte `test/fixtures/stella/stella.pal`; that one file pins
+the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`, neutralizes palette
+adjustments/effects, and makes reviewed raster references exact-RGB contracts
+independent of Stella's host-version built-in palette. Focused `stella-*` Make
+targets are reruns of normal-suite coverage, not separate acceptance gates.
+
 Last validation state
 ---------------------
-The current disassembler semantic-audit corpus round-trips 208/208 byte-exact;
-the complete `vcsc_disassembler.pl` assertion tail and hardening suite pass.
-The heavyweight disassembler regression now has an explicit 600-second local
-timeout (measured standalone runtime about 140 seconds); the suite-wide default
-remains 45 seconds. Perl is a required source-build tool, and generated
-`compiler/coverage_map.h` is not a source-distribution bootstrap artifact.
-Split-RAM read/write/RMW behavior and provenance are regression-locked, including
-unknown-index destruction and exclusion of RAM-overlay bytes from static graphics. The intentionally negative
-`speculative_without_reset.bin` diagnostic still fails by design. Broader project
-e2e/compile-only counts below predate this focused disassembler checkpoint.
-
-Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
+Final pinned-palette validation is clean with packaged Stella 7.0 and Xvfb:
+537/537 compile-only tests and 385/385 e2e tests pass. The e2e set includes the
+792-byte palette contract, source-tree hygiene, every maintained mapper/renderer
+Stella launcher, the heart 54-state exact-RGB oracle, and all 12
+NTSC/PAL/SECAM diagnostic raster cases. PAL monochrome/dark-gray normalization
+has been removed: NTSC, PAL, and SECAM reviewed rasters are exact RGB under the
+checked-in user palette. The first broad attempt exposed only a missing FIGlet
+banner in the new palette README; after fixing that documentation defect, the
+complete clean rerun passed.
 
 Immediate TODO
 --------------
 Example reorg: `.../example_reorg.txt`; ER12 is next.
 DRA is design-only; see `.../DRA.txt`. If selected, do DRA1 next.
-
-The incremental asm-to-C26 cleanup converted all ordinary game logic and position-control arithmetic. `tanks_move_object()` is C26 at exactly the old asm size ($56/86 bytes); `tanks_random()` is C26 at exactly 18 bytes; `tanks_process_knockback()` is C26 after general indexed-X/range/update codegen work; `tanks_prepare_graphics()` is C26 and is 11 ROM bytes smaller than the former asm; `tanks_compute_player_position()` is readable C26 at $2c/44 bytes, exactly matching the former register-crafted asm. Explicit Tanks asm is 167 reviewed statements, confined to the actual beam/cycle-sensitive `tanks_position_missiles()`, `tanks_position_players_after_score()`, and `tanks_draw()` paths. Do not force those remaining hardware-timing routines into C26 merely to reach zero asm.
-
-General compiler/codegen work from this cleanup is regression-locked in `test/`: runtime-indexed byte stores/copies/compound updates, direct array,X use for X-backed counted-loop induction variables, safe nested `if`/`break` counted-loop analysis, idiomatic postfix `i++` counted-loop recognition, byte immediate/logical comparisons in X-backed loops, compact byte range tests, live A/N/Z reuse across adjacent assignment/condition and arithmetic statements, direct byte constant-minus and scalar compound ALU forms, update-then-range-adjust folding, and `while (u8 >= constant) { u8 -= constant; ... }` reuse of live A/carry. The valued prefix/postfix ++/-- side-effect case is explicitly excluded from unsafe N/Z reuse after a broad e2e regression exposed it. Cross-control-flow direct-byte lifetime lowering now also keeps a normalization state in A and an immediate-initialized companion byte in Y across a repeated-subtraction loop, optional threshold adjustment, and following immediate arithmetic, then spills each once. This is structural and source-name-independent; `test/u8_register_lifetime_codegen_test.c26` locks the generic form. Full compiler compile-only validation is 525/525 passing at this checkpoint.
-
-The user subsequently completed the full 356-test e2e suite and found three regressions: one semantic-use metadata provenance bug plus two stale exact-ROM guards. All three are now fixed in focused tests. The direct-byte statement-chain optimizer now emits read/write metadata from each statement's own lvalue/source location rather than reusing the first statement's location. The all-five public example is legitimately 3570 bytes (520 free), and the animated gallery is legitimately 3238 bytes (852 free); the latter four-byte reduction is the expected scalar-chain removal of one `STA`/`LDA` pair in `main`. Compile-only validation is now 525/525 after the register-lifetime addition. A local post-fix e2e rerun passed 1-225/356, and resumed tail validation passed 30 more non-maximal VCS e2e cases before the slow VCS-heavy remainder exceeded the execution window; an uninterrupted 356/356 rerun remains desirable.
-
-Tanks cleanup is closed at the legitimate beam-asm boundary. `forbidcountasm:` is enforced by the compile-test harness as a literal `PATTERN|MAX` occurrence ceiling and has runner self-coverage; `page_pointer_offset_reuse_codegen_test` now locks the accepted three `lda sprite` occurrences. The compact `.flex` linker policy remains regression-locked. Two exact-address guards exposed by that policy were stale rather than semantic: OMNI now checks that explicitly pinned `main` stays in bank0 without requiring offset $000, and the pre-template six-digit score accepts its now-compact $F000 reset placement while retaining emulator timing/entry verification. Compile-only validation is 525/525. Before the BCD-matrix addition, a broad e2e rerun was clean through 227/358 before the environment window hit the maximal VCS-heavy tail; the new matrix adds one e2e case, so the current inventory is 359. focused OMNI, six-digit-score, compactness, and forbidcountasm tests all pass. Main-roadmap Item 56 diagnostic non-beam asm cleanup is complete; compile-only is 528/528 and full e2e is 364/364. Item 57 playfield-color renderer support is next.
-
-The Item-55 direct-u8 immediate-comparison optimization must not consume single
-subscript lvalues. Pointer locals may live in ordinary BSS, and 6502 `(zp),Y`
-requires zero-page pointer storage; pointer-subscript comparisons therefore stay
-on the established lowering that copies through `ptr0`.
-
-Explicit packed-BCD mutation coverage now lives in `test/vcs_bcd_ram_cartram_operators.pl`: all `bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t` widths are runtime-checked in both ordinary Atari RAM and split-address Superchip `cartram` for `+=`, `-=`, prefix/postfix `++`, and prefix/postfix `--` (48 cases). The F4SC fixture pins one storage/width case per bank; the wrapper also verifies the actual linker memory regions. BCD-focused e2e validation is 13/13 and compile-only remains 525/525. Preserve Tanks readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.

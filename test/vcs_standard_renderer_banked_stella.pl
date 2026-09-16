@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# serial
+# timeout: 300
+# expectexit: 0
 # Independently compare Stella snapshots for 4K, F8, and F8SC compositions.
 use strict;
 use warnings;
@@ -16,9 +21,10 @@ sub findexe { my($n)=@_; return abs_path($n) if $n=~m{/} && -x$n; for(split(/:/,
 sub terminate { my($p)=@_; return unless $p; kill 'TERM',$p; for(1..20){my$d=waitpid($p,WNOHANG);return if$d==$p||$d==-1;select undef,undef,undef,.05} kill 'KILL',$p;waitpid($p,0); }
 @ARGV==2 or die "usage: $0 REPO TMP\n";
 my $repo=abs_path($ARGV[0]) or die "resolve repo\n"; my $tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp);
-my $stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella') or die "set STELLA or VCSC_STELLA\n";
-my $xvfb=findexe('Xvfb') or die "Xvfb required\n"; my $perl=findexe('perl') or die "perl required\n";
-my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
+my $stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella') or die "set STELLA or VCSC_STELLA\n";
+require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+my $xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n"; my $perl=findexe('perl') or die "perl required\n";
+my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my $sequence=File::Spec->catfile($repo,qw(test stella_png_sequence.pl));
 my $driver=File::Spec->catfile($repo,qw(driver vcsc)); my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(examples 09_bankswitching 02_standard_renderer banked_standard_renderer.c26));
 my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
@@ -29,10 +35,13 @@ for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile(
    my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/$name.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
    select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
    my$snap=File::Spec->catdir($tmp,"snap_$name"); my$user=File::Spec->catdir($tmp,"user_$name"); make_path($snap,$user); unlink glob("$snap/*.png");
-   my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs',$mapper,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user); push@cmd,('-startbank',$start)if defined$start; push@cmd,$rom;
+   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','0','-speed','1','-uimessages','0','-audio.enabled','0','-bs',$mapper,'-snapsavedir',$snap,'-snapname','rom','-sssingle','0','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user); push@cmd,('-startbank',$start)if defined$start; push@cmd,$rom;
    my$pid=fork(); defined$pid or die"fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$tmp/$name.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-   ok("snapshot $name",$perl,$keys); my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05} terminate($pid);terminate($xpid);@png==1 or die"$name produced ".scalar(@png)." snapshots\n";
-   my($out,$err)=ok("digest $name",$perl,$digest,$png[0]); $err eq'' or die$err; chomp$out; $dig{$name}=$out;
+   ok("capture completed $name frames",$perl,$keys,'--fast','--every-frame',
+      '--snapshot-dir',$snap,'--snapshot-count','20','--snapshot-timeout','20');
+   my@png=sort grep{-s$_}glob("$snap/*.png"); terminate($pid);terminate($xpid);
+   @png>=12 or die"$name produced only ".scalar(@png)." completed-frame snapshots\n";
+   my($out,$err)=ok("stable digest $name",$perl,$sequence,'--stable-tail','8',@png); $err eq'' or die$err; chomp$out; $dig{$name}=$out;
 }
 $dig{f8} eq $dig{'4k'} or die "F8 Stella raster differs: $dig{f8} vs $dig{'4k'}\n";
 $dig{f8sc} eq $dig{'4k'} or die "F8SC Stella raster differs: $dig{f8sc} vs $dig{'4k'}\n";

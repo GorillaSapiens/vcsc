@@ -8,6 +8,7 @@ PACKAGE_STAGING ?= $(CURDIR)/pkgroot
 INSTALLCHECK_STAGING ?= $(CURDIR)/.installcheck-root
 DOXYGEN ?= doxygen
 STELLA ?= stella
+XVFB ?= Xvfb
 TEST_JOBS ?= 8
 TEST_TIMINGS ?= $(CURDIR)/test-times.tsv
 TEST_SLOWEST ?= 20
@@ -375,10 +376,10 @@ unit: tools
 
 
 e2e: tools
-	@$(MAKE) --no-print-directory -C ./test e2e TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
+	@$(MAKE) --no-print-directory -C ./test e2e TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)" VCSC_STELLA="$(STELLA)" VCSC_XVFB="$(XVFB)"
 
 test: tools
-	@$(MAKE) --no-print-directory -C ./test test TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
+	@$(MAKE) --no-print-directory -C ./test test TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)" VCSC_STELLA="$(STELLA)" VCSC_XVFB="$(XVFB)"
 
 slow-tests:
 	@$(MAKE) --no-print-directory -C ./test slow-tests TEST_TIMINGS="$(TEST_TIMINGS)" TEST_SLOWEST=$(TEST_SLOWEST)

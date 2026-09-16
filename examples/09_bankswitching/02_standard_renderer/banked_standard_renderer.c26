@@ -171,6 +171,9 @@ bank0 void configure_banked_frame(void) {
    CTRLPF := 0x21;
    NUSIZ0 := 0x20;
    NUSIZ1 := 0x20;
+   // RESMP power-on state is unspecified; the renderer needs independent missiles.
+   RESMP0 := 0;
+   RESMP1 := 0;
 }
 
 #ifdef UNBANKED_REFERENCE

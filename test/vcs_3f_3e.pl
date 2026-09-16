@@ -1,7 +1,8 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
+# runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# timeout: 120
+# serial
+# timeout: 600
 # expectstdout: 3F/3E diagnostics passed
 # expectexit: 0
 
@@ -227,9 +228,10 @@ $map";
 }
 
 if ($stella_mode) {
-   my $stella=$ENV{VCSC_STELLA} || $ENV{STELLA} || find_executable('stella');
+   my $stella=find_executable($ENV{VCSC_STELLA} || $ENV{STELLA} || 'stella');
+   require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
    defined($stella) && -x $stella or die "3F/3E Stella certification requires Stella\n";
-   my $xvfb=find_executable('Xvfb') or die "3F/3E Stella certification requires Xvfb\n";
+   my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "3F/3E Stella certification requires Xvfb\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    my $display_num=220+($$%20);
@@ -248,7 +250,7 @@ if ($stella_mode) {
       my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
       if ($pid==0) {
          open(STDOUT,'>',File::Spec->catfile($root,'stella.log')) or die $!; open(STDERR,'>&STDOUT') or die $!;
-         exec($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs',$m,
+         exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs',$m,
               '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
               '-exitlauncher','0','-confirmexit','0','-userdir',$user,$c->{visible});
          die "exec Stella: $!\n";

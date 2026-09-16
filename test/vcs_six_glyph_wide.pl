@@ -38,7 +38,7 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $component=File::Spec->catfile($vcs,'six_glyph_wide_component.c26');
 my $centered=File::Spec->catfile($vcs,'six_glyph_component.c26');
 my $fixture=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score golden.c26));
-my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score reference_stella_7.0.png));
+my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score reference_stella_pinned.png));
 my $public=File::Spec->catfile($repo,qw(examples 02_components wide_score wide_score.c26));
 my $bin=File::Spec->catfile($tmp,'wide_score.bin');
 my $map=File::Spec->catfile($tmp,'wide_score.map');
@@ -136,7 +136,7 @@ $err eq '' or die "wide full-pointer raster stderr: $err";
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 ($rc,$sig,$out,$err)=capture($^X,$digest,$reference);
 $rc==0 && !$sig or die "wide reference digest failed\n$out$err";
-$out eq "320 x 228 89214b459cb1fae3b5c558c622a060e9cf7aa84957e0d1cb34385eab812d6b02\n"
+$out eq "320 x 228 23711b07296b18e786bb8ca0234deb803623892488e818225ba7b24e915a479e\n"
    or die "wide reviewed Stella reference changed: $out";
 $err eq '' or die "wide reference digest stderr: $err";
 

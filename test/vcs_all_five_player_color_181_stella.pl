@@ -1,6 +1,11 @@
 #!/usr/bin/perl
-# Explicit Stella 7.0 full-raster equivalence test for score-composed
-# all_five_player_color_181. Not a default e2e dependency.
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# serial
+# timeout: 600
+# expectexit: 0
+# Required pinned-palette Stella full-raster equivalence test for score-composed
+# all_five_player_color_181. This is part of the normal e2e suite.
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -20,8 +25,9 @@ sub write_file { my($p,$s)=@_; open(my$f,'>:raw',$p)or die"write $p: $!\n";print
 
 @ARGV==2 or die "usage: $0 REPO TMP\n";
 my$repo=abs_path($ARGV[0])or die"resolve repo\n"; my$tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp);
-my$stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella')or die"set STELLA or VCSC_STELLA\n";
-my$xvfb=findexe('Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
+my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella')or die"set STELLA or VCSC_STELLA\n";
+require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc)); my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
@@ -34,7 +40,7 @@ sub build_rom {
 }
 sub snapshot_digest {
    my($name,$rom)=@_; my$snap=File::Spec->catdir($tmp,"snap_$name"); my$user=File::Spec->catdir($tmp,"user_$name"); remove_tree($snap,$user); make_path($snap,$user);
-   my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork(); defined$pid or die"fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_$name.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    select undef,undef,undef,.4; ok("snapshot $name",$perl,$keys); my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05} terminate($pid); @png==1 or die"$name produced ".scalar(@png)." snapshots\n";
    my($dg,$de)=ok("digest $name",$perl,$digest,$png[0]); $de eq'' or die$de; chomp$dg; return$dg;

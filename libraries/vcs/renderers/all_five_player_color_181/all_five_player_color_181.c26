@@ -1520,11 +1520,10 @@ require inline void TEMPLATE_draw(void) {
    // Row 10 is terminal. Its packed M0 bit7 is already active; keep the old
    // row's reflected PF through the final line and close it with WSYNC.
    asm @TEMPLATE_terminal_boundary:;
-   // Match the canonical terminal reflected handoff at PF2@40 / PF1@47 in
-   // the CPU trace. Two two-cycle NOPs plus three three-cycle BITs provide the
-   // exact terminal entry phase without growing the old padding footprint.
-   asm nop;
-   asm nop;
+   // The old PF2@40 / PF1@47 terminal CPU-trace schedule was one cycle late
+   // at the center seam in Stella. Four three-cycle BITs keep the same eight-byte
+   // footprint while matching all_five(lines:=181) pixel-for-pixel on the final row.
+   asm bit.z $00;
    asm bit.z $00;
    asm bit.z $00;
    asm bit.z $00;

@@ -24,3 +24,6 @@ Assume the available tool-execution window may be short. Optimize for useful pro
 
 Preserve existing project conventions unless the task explicitly requires changing them. Prefer fixing root causes over adding narrow exceptions or test-specific hacks. Do not weaken tests merely to make them pass unless the test itself is demonstrably wrong.
 
+Stella and Xvfb are required test dependencies. Independent Stella raster/mapper certification is part of the normal e2e suite, not an optional or opt-in test tier. Focused `stella-*` make targets may remain as convenient reruns, but every maintained Stella certification must also be discoverable by the unified normal test runner.
+All maintained Stella certification must use the checked-in combined NTSC/PAL/SECAM `test/fixtures/stella/stella.pal` through `test/stella_test_lib.pl` and a private Stella basedir. Raster references use exact RGB; do not substitute host-version built-in palettes or normalize away palette differences.
+

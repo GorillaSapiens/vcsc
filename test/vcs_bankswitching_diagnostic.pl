@@ -1,7 +1,8 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
+# runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# timeout: 240
+# serial
+# timeout: 600
 # expectstdout: bank switching diagnostic matrix passed
 # expectexit: 0
 
@@ -205,10 +206,11 @@ sub run_simulator_matrix {
 
 sub run_stella_certification {
    my($repo,$tmp,$source)=@_;
-   my $stella=$ENV{VCSC_STELLA} || $ENV{STELLA} || find_executable('stella');
+   my $stella=find_executable($ENV{VCSC_STELLA} || $ENV{STELLA} || 'stella');
+   require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
    defined($stella) && -x $stella
       or die "Stella certification requires STELLA=/path/to/stella or Stella in PATH\n";
-   my $xvfb=find_executable('Xvfb') or die "Stella certification requires Xvfb\n";
+   my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "Stella certification requires Xvfb\n";
    my $perl=find_executable('perl') or die "Stella certification requires Perl\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
@@ -241,7 +243,7 @@ sub run_stella_certification {
       my $snapdir=File::Spec->catdir($snap_root,$label); make_path($snapdir);
       unlink glob(File::Spec->catfile($snapdir,'*.png'));
       my $run_user=File::Spec->catdir($user_root,$label); make_path($run_user);
-      my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0',
+      my @cmd=($stella,vcsc_stella_palette_args($repo,$run_user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
                '-bs',$arg{mapper},'-snapsavedir',$snapdir,'-snapname','rom',
                '-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0',
                '-userdir',$run_user);

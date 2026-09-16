@@ -1,7 +1,8 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
+# runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# timeout: 180
+# serial
+# timeout: 600
 # expectstdout: FA2 diagnostic passed
 # expectexit: 0
 
@@ -252,9 +253,10 @@ $rerr eq '' && $rout =~ /PASS fa2\.bin/ or die "FA2 roundtrip failed\n$rout\n$re
 
 
 if ($stella_mode) {
-   my $stella=$ENV{VCSC_STELLA} || $ENV{STELLA} || find_executable('stella');
+   my $stella=find_executable($ENV{VCSC_STELLA} || $ENV{STELLA} || 'stella');
+   require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
    defined($stella) && -x $stella or die "FA2 Stella certification requires Stella\n";
-   my $xvfb=find_executable('Xvfb') or die "FA2 Stella certification requires Xvfb\n";
+   my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "FA2 Stella certification requires Xvfb\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    my $snap=File::Spec->catdir($tmp,'stella-snap'); my $user=File::Spec->catdir($tmp,'stella-user'); make_path($snap,$user);
@@ -264,7 +266,7 @@ if ($stella_mode) {
    select undef,undef,undef,.20; my $xdg=File::Spec->catdir($tmp,'xdg'); make_path($xdg);
    local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
-   if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
+   if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
    select undef,undef,undef,.35; ok('snapshot FA2 in Stella',$^X,$keys); my @png;
    for(1..40){ @png=grep{-s $_} glob(File::Spec->catfile($snap,'*.png')); last if @png==1; select undef,undef,undef,.05; }
    terminate_child($pid); terminate_child($xpid); @png==1 or die "Stella FA2 produced ".scalar(@png)." snapshots\n";

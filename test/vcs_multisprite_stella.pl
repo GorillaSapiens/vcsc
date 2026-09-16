@@ -1,5 +1,10 @@
 #!/usr/bin/perl
-# Optional Stella 7.0 pixel-level regression for the modern multisprite renderer.
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# serial
+# timeout: 300
+# expectexit: 0
+# Required pinned-palette Stella pixel-level regression for the modern multisprite renderer.
 # Unlike vcs_multisprite_profiles.cpp, this deliberately judges rendered pixels,
 # not a formula inferred from RESP/HMP write cycles.
 use strict;
@@ -52,8 +57,9 @@ sub expect_y_extent { my($label,$ys,$lo,$hi)=@_; @$ys or die "$label has no pixe
 
 @ARGV==2 or die "usage: $0 REPO TMP\n";
 my$repo=abs_path($ARGV[0]) or die "resolve repo\n"; my$tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp);
-my$stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella') or die "set STELLA or VCSC_STELLA\n";
-my$xvfb=findexe('Xvfb') or die "Xvfb required\n"; my$perl=findexe('perl') or die "perl required\n";
+my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella') or die "set STELLA or VCSC_STELLA\n";
+require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n"; my$perl=findexe('perl') or die "perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc)); my$vcs=File::Spec->catdir($repo,qw(libraries vcs)); my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my%profile=(
    '192'=>[File::Spec->catfile($repo,qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26)),"   initialize_192_scene();\n"],
@@ -72,13 +78,17 @@ sub snapshot_case {
    my$rom=File::Spec->catfile($tmp,"$name.bin"); eval { ok("build $name",$driver,'-I',$vcs,'-Wa,--illegals',$case_src,'-o',$rom); 1 } or do { my$e=$@; unlink$case_src; die$e; }; unlink$case_src;
    my$work=File::Spec->catdir($tmp,$name); remove_tree($work); make_path(File::Spec->catdir($work,'snap'),File::Spec->catdir($work,'user'));
    my$snap=File::Spec->catdir($work,'snap'); my$user=File::Spec->catdir($work,'user');
-   my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork(); defined$pid or die "fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$work/stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    select undef,undef,undef,.25; ok("snapshot $name",$perl,$keys); my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.04}
    terminate($pid); @png==1 or die "$name produced ".scalar(@png)." snapshots\n"; return$png[0];
 }
 
-my%rgb=(p0=>pack('C3',234,234,233),p1=>pack('C3',253,134,133),p2=>pack('C3',134,253,133),p3=>pack('C3',121,221,251),p4=>pack('C3',234,130,220),p5=>pack('C3',121,253,207));
+# Stella applies its palette presentation transform even to a user palette.
+# These are the exact rendered RGB values produced from the pinned NTSC entries
+# used by the public multisprite fixture; the palette contract and reviewed PNG
+# tests independently lock the palette file itself.
+my%rgb=(p0=>pack('C3',232,232,230),p1=>pack('C3',254,123,121),p2=>pack('C3',123,254,121),p3=>pack('C3',110,218,250),p4=>pack('C3',232,119,215),p5=>pack('C3',110,254,201));
 for my$mode(qw(192 above below)) {
    my$top=$mode eq '192'?92:86;
    my$png=snapshot_case($mode,"edge_$mode",

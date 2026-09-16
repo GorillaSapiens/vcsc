@@ -66,16 +66,16 @@ sub verify_reference_glyphs {
    $w==320 && $h==228 or die "three-plus-three Stella reference is ${w}x${h}, expected 320x228\n";
    my $background=pixel_rgb($rgb,$w,0,0);
    my $left_color=pixel_rgb($rgb,$w,48,107);  # set pixel in digit 1, row 0
-   my $right_color=pixel_rgb($rgb,$w,208,107); # set pixel in digit 4, row 0
+   my $right_color=pixel_rgb($rgb,$w,210,107); # set pixel in digit 4, row 0
    $left_color ne $background && $right_color ne $background && $left_color ne $right_color
       or die "three-plus-three Stella reference lost independent foreground colors\n";
    my @font=(
-      [0x08,0x18,0x38,0x18,0x18,0x18,0x18,0x7e],
-      [0x3c,0x46,0x06,0x06,0x3c,0x60,0x60,0x7e],
-      [0x3c,0x46,0x06,0x1c,0x06,0x06,0x46,0x3c],
-      [0x0c,0x1c,0x2c,0x4c,0x4c,0x7e,0x0c,0x0c],
-      [0x7e,0x60,0x60,0x3c,0x06,0x06,0x46,0x3c],
-      [0x3c,0x62,0x60,0x7c,0x66,0x66,0x66,0x3c],
+      [0x1c,0x3c,0x7c,0x1c,0x1c,0x1c,0x1c,0x7f],
+      [0x3e,0x63,0x03,0x03,0x3e,0x60,0x60,0x7f],
+      [0x3e,0x63,0x03,0x1e,0x03,0x03,0x63,0x3e],
+      [0x06,0x1e,0x36,0x66,0x46,0x7f,0x06,0x06],
+      [0x7f,0x60,0x60,0x3e,0x03,0x03,0x63,0x3e],
+      [0x3e,0x63,0x60,0x7e,0x63,0x63,0x63,0x3e],
    );
    my @fields=(
       [$left_color, [40,72,104], [0,1,2]],
@@ -113,7 +113,7 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $component=File::Spec->catfile($vcs,'three_plus_three_score_component.c26');
 my $fixture=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score boundary_carries.c26));
-my $reference=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score reference_stella_7.0.png));
+my $reference=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score reference_stella_pinned.png));
 my $public=File::Spec->catfile($repo,qw(examples 02_components three_plus_three_score dual_score.c26));
 my $bin=File::Spec->catfile($tmp,'three_plus_three_score.bin');
 my $mapfile=File::Spec->catfile($tmp,'three_plus_three_score.map');
@@ -195,7 +195,7 @@ $public_map_text =~ /ram\s+used=45 bytes.*objects=41 bytes hardware-stack=4 byte
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 ($rc,$sig,$out,$err)=capture($^X,$digest,$reference);
 $rc==0 && !$sig or die "three-plus-three Stella reference digest failed\n$out$err";
-$out eq "320 x 228 9fb7a8bb7d5a0917a329343273b9a1035b6d1728a5654b0e0c6ab5463bbbb560\n"
+$out eq "320 x 228 65d5f8856db08ae4949b9c8e3e414c8039074877aa30ff35f89c8702d566a0c5\n"
    or die "three-plus-three reviewed Stella reference changed: $out";
 $err eq '' or die "three-plus-three reference digest stderr: $err";
 verify_reference_glyphs($reference);

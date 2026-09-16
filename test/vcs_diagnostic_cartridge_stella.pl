@@ -1,6 +1,11 @@
 #!/usr/bin/perl
-# Independent Stella 7.0 raster certification for the public F4SC field diagnostic.
-# Kept out of the default e2e suite so ordinary test hosts do not require Stella/Xvfb.
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# serial
+# timeout: 1200
+# expectexit: 0
+# Independent pinned-palette Stella raster certification for the public F4SC field diagnostic.
+# This is part of the normal e2e suite; Stella and Xvfb are required test dependencies.
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -47,8 +52,9 @@ sub terminate { my($p)=@_; return unless$p; kill 'TERM',$p; for(1..20){my$d=wait
 
 @ARGV==2 or die "usage: $0 REPO TMP\n";
 my$repo=abs_path($ARGV[0])or die"resolve repo\n"; my$tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp);
-my$stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella')or die"set STELLA or VCSC_STELLA\n";
-my$xvfb=findexe('Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
+my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella')or die"set STELLA or VCSC_STELLA\n";
+require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$example=File::Spec->catdir($repo,qw(examples 19_diagnostic 01_diagnostic));
@@ -59,7 +65,6 @@ my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
 my%requested=map { $_=>1 } grep { length } split(/,/, $ENV{VCSC_STELLA_CASES}//'');
 my%seen;
-my$expected_first_lit_row=19;
 my$display=350+($$%30);
 for my$standard (
    ['ntsc',0,'NTSC'],
@@ -78,7 +83,7 @@ for my$standard (
       next if %requested && !$requested{$name};
       $seen{$name}=1;
       my$rom=File::Spec->catfile($tmp,"diagnostic-$name.bin");
-      my$reference=File::Spec->catfile($repo,'test','fixtures','diagnostic',"reference_${name}_stella_7.0.png");
+      my$reference=File::Spec->catfile($repo,'test','fixtures','diagnostic',"reference_${name}_stella_pinned.png");
       -s$reference or die"missing Stella reference $reference\n";
       ok("build $name diagnostic",$driver,'-I',$vcs,'-I',$example,'-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",'-DDIAGNOSTIC_TEST_TIA_FREEZE=1',$source,$boot,'-o',$rom);
 
@@ -94,27 +99,40 @@ for my$standard (
 
       my$snap=File::Spec->catdir($tmp,"snap-$name"); my$user=File::Spec->catdir($tmp,"user-$name");
       make_path($snap,$user); unlink glob("$snap/*.png");
-      my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-format',$format,
+      my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,
          '-bs','F4SC','-bc',$stella_controller,'-snapsavedir',$snap,'-snapname',$name,'-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
       my$pid=fork(); defined$pid or die"fork Stella\n";
       if(!$pid){open(STDOUT,'>:raw',"$tmp/$name.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-      ok("snapshot $name diagnostic",$perl,$keys);
-      my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+      # Capture completed frames instead of an asynchronous F12 framebuffer.
+      # The diagnostic updates live controller detail in phases, so require the
+      # masked certification raster to settle for three complete frames.
+      ok("snapshot $name diagnostic",$perl,$keys,'--fast','--every-frame',
+         '--snapshot-dir',$snap,'--snapshot-count','10','--snapshot-timeout','20');
+      my@png=sort grep{-s$_}glob("$snap/*.png");
       terminate($pid); terminate($xpid);
-      @png==1 or die"$name Stella produced ".scalar(@png)." snapshots\n";
-      my($actual_row,$are)=ok("$name actual first lit row",$perl,$digest,'--first-lit-row',$png[0]);
+      @png>=10 or die"$name Stella produced only ".scalar(@png)." completed-frame snapshots\n";
+      # The Stella launcher installs the pinned NTSC/PAL/SECAM user palette,
+      # so all three standards are certified with exact RGB outside live rows.
+      my@digest_mask=('--mask-rows','109-126');
+      my@tail_digest;
+      for my$frame (@png[-3..-1]) {
+         my($value,$err)=ok("$name stable completed-frame digest",$perl,$digest,@digest_mask,$frame);
+         $err eq '' or die$err; chomp$value; push@tail_digest,$value;
+      }
+      $tail_digest[0] eq $tail_digest[1] && $tail_digest[1] eq $tail_digest[2]
+         or die"$name diagnostic completed-frame tail is not stable: @tail_digest\n";
+      my$actual_png=$png[-1];
+      my($actual_row,$are)=ok("$name actual first lit row",$perl,$digest,'--first-lit-row',$actual_png);
       my($reference_row,$rre)=ok("$name reference first lit row",$perl,$digest,'--first-lit-row',$reference);
       $are eq ''&&$rre eq '' or die$are.$rre;
-      $actual_row eq "$expected_first_lit_row\n"
-         or die"$name diagnostic first lit row is $actual_row instead of $expected_first_lit_row\n";
-      $reference_row eq "$expected_first_lit_row\n"
-         or die"$name reference first lit row is $reference_row instead of $expected_first_lit_row\n";
+      $actual_row eq $reference_row
+         or die"$name diagnostic/reference first-lit-row mismatch: actual=$actual_row reference=$reference_row";
       if ($name eq 'ntsc_joystick') {
          # P1's live row ends at x=173 with no controller input.  badpatch.patch
          # exposed a nondeterministic staging failure that emitted extra glyphs
          # to the right; keep this assertion outside the masked live-row digest.
-         ok("$name P1 trailing blank",$perl,$digest,'--assert-dark-rect','174,121,220,126',$png[0]);
+         ok("$name P1 trailing blank",$perl,$digest,'--assert-dark-rect','174,121,220,126',$actual_png);
       }
 
       # The two controller-detail text rows are intentionally live input.
@@ -122,8 +140,7 @@ for my$standard (
       # happened to land relative to the phased UI refresh (driving mode was
       # especially visible).  Ignore only those rows; the controller heading,
       # switch rows, collision bitmap, and collision lanes remain pixel-exact.
-      my@digest_mask=('--mask-rows','109-126');
-      my($actual,$ae)=ok("$name actual digest",$perl,$digest,@digest_mask,$png[0]);
+      my($actual,$ae)=ok("$name actual digest",$perl,$digest,@digest_mask,$actual_png);
       my($wanted,$we)=ok("$name reference digest",$perl,$digest,@digest_mask,$reference);
       $ae eq ''&&$we eq '' or die$ae.$we;
       $actual eq $wanted or die"$name diagnostic Stella raster differs: actual=$actual reference=$wanted";

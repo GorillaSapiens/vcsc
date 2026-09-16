@@ -39,4 +39,18 @@ Current next action: Item 57, add playfield-color support as an explicit rendere
         * Add deterministic emulator-backed tests for scrolling, collision,
           animation, and completion/reset behavior.
 
+[ ] 59. Let the compiler use a command-line Stella palette file for RGB builtins.
+
+        * Add a compiler/driver option that accepts Stella's combined 792-byte
+          `stella.pal` format (128 NTSC RGB triples, 128 PAL RGB triples, and
+          8 SECAM RGB triples).
+        * Make the NTSC/PAL/SECAM RGB builtins use the selected palette slices
+          instead of the compiled-in tables when the option is present.
+        * Preserve the current compiled-in palettes exactly when no palette file
+          is specified.
+        * Diagnose malformed, short, long, or unreadable palette files clearly.
+        * Add code-generation tests proving each standard uses its own slice and
+          that the checked-in Stella test palette produces the same RGB builtin
+          results as the current canonical tables.
+
 have TJ fix stella 3EX

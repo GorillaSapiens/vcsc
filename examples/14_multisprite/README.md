@@ -31,7 +31,7 @@ For every profile it also forces two logical P1 sprites into the same vertical
 band for consecutive frames and verifies the faithful flicker arbitration: the
 conflicting sprites alternate instead of permanently hiding the lower-numbered
 sprite.
-An optional Stella 7.0 pixel regression (`make stella-multisprite-test`) checks
-actual rendered horizontal placement across all five multiplex ranks, both edges,
+The required normal-e2e Stella 7.0 pixel regression checks
+actual rendered horizontal placement (`make stella-multisprite-test` reruns it in isolation) across all five multiplex ranks, both edges,
 the P1 top edge, and the 181 P0 sort-order/no-stripe regressions. The two 181-line
 compositions also lock the exact bottom/top score as `123456`.

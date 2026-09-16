@@ -192,9 +192,10 @@ standard-specific prefix. Define `VCS_PAL_DIAGNOSTICS` or
 `VCS_SECAM_DIAGNOSTICS` before including the corresponding front end to retain
 sticky deadline-overrun state.
 
-Stella certification is intentionally an optional independent test because Stella
-is not required for a normal VCSC build. `make stella-50hz-test STELLA=/path/to/stella`
-forces PAL and SECAM display formats and verifies their stable 50 Hz viewport.
+Stella and Xvfb are required test dependencies. The normal e2e suite includes
+independent Stella certification; `make stella-50hz-test STELLA=/path/to/stella`
+is a focused rerun that forces PAL and SECAM display formats and verifies their
+stable 50 Hz viewport.
 
 `VIDEO_STANDARDS.md` classifies the maintained renderers/components. Scheduler-neutral
 C26 visible components are timing-portable when their published line and entry/return

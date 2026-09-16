@@ -120,3 +120,133 @@ the normal runner, the new default PNG/source guard, source-tree hygiene, exampl
 reorg inventory, context-history format, and the independent Stella 7.0 snapshot.
 A broad 371-case e2e run reached 231/371 clean through vcs_0fa0.pl before the
 container execution window expired; no broad-suite failure was observed.
+
+2026-09-15 15:41:12 PDT, require Stella in normal e2e
+-----------------------------------------------------
+Changed the project test policy so Stella and Xvfb are required dependencies for
+`make test` and `make e2e`; `make unit` remains compile-only. The test Makefile
+now hard-fails the required dependency preflight, maintained standalone Stella
+certifications are discoverable normal-e2e cases, and mapper diagnostics run
+their Stella mode in the normal suite. Focused `stella-*` targets remain only as
+convenient reruns. The unified runner gained a serialized-resource annotation
+and self-test so Stella/Xvfb cases cannot race one another under `--jobs`.
+
+Replacing the old opt-in tier exposed several stale or nondeterministic tests.
+Stella launchers now explicitly disable unintended CPU/TIA/RAM/bank/hotspot
+power-on randomization; tests that deliberately exercise randomized banks
+explicitly re-enable it. `stella_snapshot_keys.pl` and the new
+`stella_png_sequence.pl` support complete-frame sequence capture and stable-tail
+or reviewed-phase grading instead of asynchronous one-shot F12 timing. This made
+player-color-192 and 4K/F8/F8SC standard-renderer certification deterministic.
+The F8SC experiment also exposed unspecified RESMP power-on state in the public
+standard-renderer diagnostic, so that example now initializes RESMP0/RESMP1.
+
+The faithful legacy multisprite certification is intentionally stateful across
+frames, so it now requires a full completed-frame phase cycle containing the
+reviewed reference color population while the existing CPU/TIA oracle remains
+the exact write/position authority. Heart continuous-motion certification waits
+for its completed-frame settled state rather than sampling an arbitrary motion
+phase. Field-diagnostic Stella coverage now captures stable completed frames for
+all 12 NTSC/PAL/SECAM controller cases. The four PAL references were regenerated
+only after reducing old/new captures to foreground/background masks and proving
+zero geometry changes; the remaining diagnostic references were likewise
+updated for the maintained font/presentation state.
+
+Promoting the old tests also found genuine stale assumptions: the FE bank-label
+grader still embedded the pre-widening ASCII font, DPC expected an obsolete
+compact-uppercase result presentation, and the wide-score and three-plus-three
+PNG/bitmap guards still described the pre-September glyphs. Those graders and
+reviewed references were synchronized with maintained source. The previously
+known-failing all-five-player-color-181 Stella equivalence exposed a real
+one-cycle terminal reflected-playfield seam error; replacing the terminal
+padding with four 3-cycle BITs preserves the eight-byte footprint and now
+matches `all_five(lines:=181)` pixel-for-pixel.
+
+Final broad validation with the new required policy is 384/384 e2e passing,
+including every promoted Stella/mapper certification. Example reorganization is
+unchanged by this policy work: ER12 remains the next migration slice.
+
+2026-09-15 16:10:21 PDT, fix Stella PATH and PAL portability
+------------------------------------------------------------
+A real-user `make test` exposed two portability holes in the newly mandatory
+Stella tier. The Makefiles intentionally export command names such as
+`VCSC_STELLA=stella` and `VCSC_XVFB=Xvfb`, but seven mapper tests treated any
+nonempty environment override as an already-resolved filesystem path and then
+applied `-x` to the bare name. They therefore reported "requires Stella" even
+when `/usr/bin/stella` was in PATH. All 19 maintained Stella launchers now pass
+environment-provided names through their executable finder, so both absolute
+paths and PATH-resolved command names work. `source_tree_hygiene.pl` enforces
+that rule for future Stella/Xvfb launchers.
+
+The user's PAL joystick diagnostic also showed that the reviewed completed-frame
+PNG still over-specified Stella's very-dark framebuffer luminance: otherwise
+identical PAL frames may distribute RGB gray 6 versus gray 7 differently. The
+diagnostic digest helper now has `--normalize-dark`, mapping only pixels whose
+three channels are <=16 to black before hashing. The diagnostic certification
+uses that normalization in addition to its existing live-row mask; foreground
+pixels, dimensions, first-lit-row geometry, and the joystick trailing-dark
+rectangle remain exact. All four PAL controller cases pass this normalized
+oracle with packaged Stella 7.0.
+
+Runner-level focused validation with `VCSC_STELLA=stella` passes 3F/3E, DPC, E0,
+FE, FA2, WD, a focused F8 bankswitching certification, and the exact PAL joystick
+case that failed on the user's machine. Source-tree hygiene and syntax checks for
+all maintained Stella launchers also pass. ER12 remains the next example-reorg
+slice.
+
+2026-09-15 16:45:28 PDT, PAL diagnostic luminance portability
+------------------------------------------------------------------
+A second real-user broad run reached 383/384 and showed that the first PAL
+portability repair was still too narrow. `pal_joystick` had identical raster
+geometry but Stella rendered the reviewed foreground at gray 227 instead of the
+reference gray 223. Replacing only the reference foreground with gray 227
+reproduces the user's reported normalized digest exactly, proving the failure
+was palette luminance rather than geometry.
+
+`stella_png_rgb_digest.pl` now supports `--normalize-mono`, thresholding decoded
+pixels at the diagnostic's existing >16 lit threshold. The field-diagnostic
+Stella test uses that geometry hash only for PAL; NTSC and SECAM continue to
+certify their reviewed RGB values. Existing first-lit-row, live-detail-row mask,
+and joystick trailing-dark checks remain independent and strict. The hygiene
+contract now requires the PAL-only monochrome normalization.
+
+Focused validation passes the exact `pal_joystick` test through the unified e2e
+runner with `VCSC_STELLA=stella`, plus all four PAL controller cases individually
+and source-tree hygiene. The user's immediately preceding full run was 383/384
+with only this PAL joystick case failing; a new full 384-case run was not needed
+for this PAL-only digest-oracle change. ER12 remains the next example-reorg
+slice.
+
+2026-09-15 18:59:19 PDT, pin Stella palette and restore exact RGB
+-----------------------------------------------------------------
+The PAL `--normalize-dark` and `--normalize-mono` experiments recorded earlier
+in this file are superseded and are not the maintained policy. They were useful
+diagnostics for proving the user's Stella 8.x failures were palette-luminance
+changes rather than geometry changes, but normalization would weaken raster
+certification.
+
+The maintained solution pins Stella to `test/fixtures/stella/stella.pal`, a
+792-byte combined user palette containing the canonical VCSC RGB tables from
+`compiler/builtin_rgb.c` in Stella order: 128 NTSC triples, 128 PAL triples, and
+8 SECAM triples. `test/stella_palette_contract.pl` locks the exact file size,
+each standard slice, the combined digest, and the required launch arguments.
+Every maintained Stella launcher uses `test/stella_test_lib.pl`, a private
+Stella basedir, `-palette user`, and explicit neutral palette/display settings,
+so saved user configuration and Stella-version built-in palette changes cannot
+alter certification. Reviewed NTSC, PAL, and SECAM raster references now use
+exact RGB; the PAL monochrome/dark-background normalization paths are gone.
+
+Focused final validation with packaged Stella 7.0 and Xvfb passed the palette
+contract, source-tree hygiene, all 537 compile-only tests, the maintained mapper
+and renderer Stella certifications, the heart 54-state exact-RGB oracle, and
+all 12 NTSC/PAL/SECAM diagnostic controller rasters. The first complete 385-case
+e2e run had no Stella or raster failure; its only failure was `vcsc_branding.pl`
+because the newly added `test/fixtures/stella/README.md` omitted the required
+VCSC FIGlet banner. The README was fixed and the branding test passes. The final clean
+`make test` rerun passed all 537 compile-only tests and all 385 e2e tests, including every
+mandatory Stella certification under the pinned palette.
+
+Main-roadmap item 59 remains planning-only: a future compiler/driver option may
+accept this same combined Stella palette format for RGB builtins, but no compiler
+palette-file option was implemented in this work. `.../example_reorg.txt` is
+unchanged and ER12 remains the next example-reorganization slice.

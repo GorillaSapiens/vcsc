@@ -192,9 +192,9 @@ my $pc192_p0=frames(initializer($pc192,'p0_animation',32),'game_SPRITE_GLYPH');
 my $pc192_p1=frames(initializer($pc192,'p1_animation',32),'game_SPRITE_GLYPH');
 my $p0_frame=(decimal_assignment($pc192,'game_PLAYER0_X') ^ decimal_assignment($pc192,'game_player0_y')) & 3;
 my $p1_frame=(decimal_assignment($pc192,'game_PLAYER1_X') ^ decimal_assignment($pc192,'game_player1_y')) & 3;
-my $stella_reference=File::Spec->catfile($repo,qw(test fixtures player_color_192 reference_interactive_stella_7.0.png));
+my $stella_reference=File::Spec->catfile($repo,qw(test fixtures player_color_192 reference_interactive_stella_pinned.png));
 my($snapshot_rows,$snapshot_non_sprite)=png_rgb_rows($stella_reference);
-# Stella 7.0's fixed 320x228 1x viewport places these initial public-example
+# The pinned-palette Stella 320x228 1x viewport places these initial public-example
 # sprites at the following doubled-pixel rectangles.  A position/crop change is
 # itself a visible reference change and must therefore fail this guard.
 same(snapshot_sprite_rows($snapshot_rows,$snapshot_non_sprite,86,139,'P0'),$pc192_p0->[$p0_frame],

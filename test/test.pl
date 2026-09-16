@@ -166,6 +166,7 @@ sub parse_directives {
       expectlinkfail => 0,
       expectexit => undef,
       phase => undef,
+      serial => 0,
       timeout => 45,
       expectstdout => [],
       expectstdoutordered => [],
@@ -252,6 +253,9 @@ sub parse_directives {
       }
       elsif ($body =~ /^phase:\s*(compile|e2e|any)\s*$/) {
          $meta{phase} = $1;
+      }
+      elsif ($body =~ /^serial\s*$/) {
+         $meta{serial} = 1;
       }
       elsif ($body =~ /^timeout:\s*([0-9]+)\s*$/) {
          $meta{timeout} = int($1);
@@ -971,7 +975,34 @@ sub run_cases_parallel {
    my $next_report = 0;
 
    while ($next_report < scalar(@$cases)) {
+      # A serial test owns the machine while it runs.  This is used by
+      # external GUI/emulator certification (Stella/Xvfb), where concurrent
+      # instances make wall-clock keyboard/snapshot timing nondeterministic
+      # and can starve otherwise unrelated compiler/simulator tests.
+      if (!%running && $next_start < scalar(@$cases) && $cases->[$next_start]->{meta}->{serial}) {
+         my $case_index = $next_start++;
+         my $started = time();
+         my $result;
+         my $ok = eval {
+            $result = run_case($cases->[$case_index]);
+            1;
+         };
+         if (!$ok) {
+            my $message = $@;
+            $message = 'unknown serial test worker failure' if !defined($message) || $message eq '';
+            $result = fail_result("serial test worker exception: $message");
+         }
+         $result->{elapsed_seconds} = time() - $started;
+         $finished{$case_index} = $result;
+         while (exists $finished{$next_report}) {
+            report_case_result($cases->[$next_report], delete $finished{$next_report});
+            $next_report++;
+         }
+         next;
+      }
+
       while ($next_start < scalar(@$cases) && scalar(keys %running) < $worker_count) {
+         last if $cases->[$next_start]->{meta}->{serial};
          my $case_index = $next_start++;
          my $result_path = File::Spec->catfile($result_dir, sprintf('result_%06d.stor', $case_index));
          my $pid = fork();
