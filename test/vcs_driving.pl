@@ -45,10 +45,28 @@ $e =~ /instantiate "driving_controller\.c26" as right_drive \(port:=1\)/ &&
 $e =~ /fonts\/big_hex\.c26/ && $e =~ /left_value/ && $e =~ /right_value/ &&
 $e =~ /& 0x0f/ && $e =~ /DRIVE_WHITE/ && $e =~ /DRIVE_RED/
    or die "public driving example lost two-port hex counter/color behavior\n";
-$e =~ /lda #36/ && $e =~ /lda #116/ && $e =~ /asm ldy #15/ &&
-$e =~ /vcs_ntsc_wait_component_scanlines\(88\)/ &&
-$e =~ /vcs_ntsc_wait_visible_tail_scanlines\(88\)/
-   or die "public driving example lost centered P0/P1 glyph raster\n";
+$e =~ /const uint8_t drive_orbit_x\[16\]/ &&
+$e =~ /38, 43, 46, 49,\s*50, 49, 46, 43,\s*38, 33, 30, 27,\s*26, 27, 30, 33/s &&
+$e =~ /const uint8_t drive_orbit_y\[16\]/ &&
+$e =~ /2,\s*4,\s*8, 14,\s*22, 30, 36, 40,\s*42, 40, 36, 30,\s*22, 14,\s*8,\s*4/s &&
+$e =~ /NUSIZ0 := 0x20/ && $e =~ /NUSIZ1 := 0x20/ &&
+$e =~ /drive_orbit_x\[left_value\] \+ 7/ &&
+$e =~ /drive_orbit_x\[right_value\] \+ 87/ &&
+$e =~ /left_missile_end := left_missile_start \+ 4/ &&
+$e =~ /right_missile_end := right_missile_start \+ 4/ &&
+$e =~ /left_missile_prepare_start := left_missile_start - 1/ &&
+$e =~ /left_missile_prepare_end := left_missile_end - 1/ &&
+$e =~ /right_missile_prepare_start := right_missile_start - 1/ &&
+$e =~ /right_missile_prepare_end := right_missile_end - 1/ &&
+$e =~ /asm sta WSYNC;\s*drive_apply_missiles\(\);/s
+   or die "public driving example lost 16-position 4x4 missile orbits\n";
+$e =~ /lda #42/ && $e =~ /lda #122/ && $e =~ /asm ldy #15/ &&
+$e =~ /asm \@glyph_rows:;\s*asm sta WSYNC;\s*drive_apply_missiles\(\);\s*asm lda\.iy \(left_glyph_pointer\),y;\s*asm sta GRP0/s &&
+$e =~ /drive_prepare_left_missile\(\)/ && $e =~ /drive_prepare_right_missile\(\)/ &&
+$e =~ /vcs_ntsc_wait_component_scanlines\(71\)/ &&
+$e =~ /vcs_ntsc_wait_visible_tail_scanlines\(72\)/ &&
+$e =~ /asm cpx #48/
+   or die "public driving example lost centered P0\/P1 glyph-and-orbit raster or one-line-ahead missile scheduling\n";
 
 sub build_rom {
    my($src,$dir,$bin,$map)=@_;
@@ -81,7 +99,7 @@ for my $case ([$left_bin,$left_map,0],[$right_bin,$right_map,1]) {
 }
 
 my$m=read_file($example_map);
-my@a=map{sprintf('0x%04x',symbol_addr($m,$_))}qw(left_value right_value);
+my@a=map{sprintf('0x%04x',symbol_addr($m,$_))}qw(left_value right_value left_missile_position right_missile_position left_missile_start right_missile_start);
 ($rc,$sig,$out,$err)=capture($oracle,'example',$example_bin,@a);
 $rc==0&&!$sig or die "public driving example oracle failed\n$out$err";
 $out =~ /vcs_driving ok:/ or die "unexpected public driving output: $out";

@@ -167,3 +167,52 @@ example-reorg inventory, recursive public-example shard 3/8, and the complete
 confirms four solid 2x8 markers at X=20,60,100,140; the button-dotted state is
 locked by source/test contracts rather than claimed as a Stella input-injection
 capture.
+
+2026-09-16 13:54:14 PDT, add driving-controller orbit display
+--------------------------------------------------------------
+Kept the two public driving-controller P0/P1 hexadecimal accumulated-rotation
+displays and added M0/M1 as matching 4x4 orbit markers. Each missile advances
+through a 16-position clockwise table or reverses through it for counterclockwise
+motion, wrapping with the same low-nibble accumulator that selects the displayed
+hex digit. The orbit is 12 logical pixels in horizontal radius and about 20
+scanlines vertically so it appears approximately circular with VCS pixel aspect.
+NUSIZ0/1 use the native four-pixel missile width and the 48-line visible scene
+enables each missile for exactly four scanlines. Fire still changes that side from
+white to red; the missile inherits its matching player's color automatically.
+
+The old player positioning constants were also corrected from the raw RESP operand
+to the calibrated values required for actual logical x=36 and x=116. Stella 7 with
+the pinned palette confirms phase 0 as a centered 4x4 dot above each glyph, and a
+forced phase 4/12 capture puts the left dot to the right of `4` and the right dot to
+the left of `C`, confirming opposite sides of the orbit. `vcs_driving.pl` now locks
+the 16-position tables, 4x4 missile contract, and runtime phase-derived orbit
+coordinates while retaining Gray-code, direction, wrap, button, and stable-frame
+checks. The driving example's beam-critical allowlist entry was deliberately updated
+to 119 asm statements. Focused driving, VSYNC-contract, source-tree-hygiene,
+33-source assembly-allowlist, recursive public-example shard 1/8, and the complete
+537/537 compile-only gate pass.
+
+The incoming paddle handoff accidentally contained `test/README.md` bytes at the
+repository root despite the prior turn intending to restore the real project README.
+Restored the root `README.md` from the immediately preceding known-good handoff;
+source-tree hygiene now verifies the required `# VCSC Toolchain` heading again.
+
+2026-09-16 14:21:44 PDT, fix left-side driving orbit clipping
+--------------------------------------------------------------
+The driving-controller orbit renderer no longer changes ENAM0/ENAM1 on the
+scanline being drawn.  The horizontal M0/M1 positions are still established
+completely during VBLANK, and each vertical on/off boundary is now prepared in
+RAM one scanline before it is needed.  Immediately after the following WSYNC,
+the prepared ENAM0/ENAM1 values are applied before the visible beam can reach
+even the far-left M0 positions.  The leading blank gap was reduced from 72 to
+71 lines because the 48-line scene now owns an initial WSYNC; a terminal WSYNC
+still completes scene line 47, preserving the frame geometry.
+
+This fixes the partial M0 square observed specifically at left-controller phases
+B and C.  Stella 7 pinned-palette forced-phase captures verify a full 4x4 logical
+missile at both phases: B occupies screenshot pixels x=54..61/y=115..118 and C
+occupies x=52..59/y=107..110, i.e. 8 screenshot pixels wide (four VCS color
+clocks at Stella's 2x horizontal presentation) by four scanlines.  The focused
+runtime/frame test, VSYNC contract, 33-source assembly allowlist, hygiene,
+example-reorg inventory, recursive public-example shard 1/8, and complete
+537/537 compile-only gate pass.

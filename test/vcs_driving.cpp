@@ -42,6 +42,8 @@ struct Snapshot {
    int step=0, delta=0;
    uint8_t button=0, phase=0, direction=0;
    uint8_t left_value=0, right_value=0;
+   uint8_t left_missile_position=0, right_missile_position=0;
+   uint8_t left_missile_start=0, right_missile_start=0;
    uint8_t colup0=0, colup1=0;
 };
 
@@ -182,6 +184,10 @@ private:
       Snapshot s;
       if(example_) {
          s.left_value=byte("left_value"); s.right_value=byte("right_value");
+         s.left_missile_position=byte("left_missile_position");
+         s.right_missile_position=byte("right_missile_position");
+         s.left_missile_start=byte("left_missile_start");
+         s.right_missile_start=byte("right_missile_start");
          s.colup0=memory_[kColup0]; s.colup1=memory_[kColup1];
       } else {
          s.step=sbyte("step"); s.delta=sbyte("delta"); s.button=byte("button");
@@ -231,6 +237,17 @@ void require_public(const std::vector<Snapshot>& s) {
       s[2].left_value!=12 || s[2].right_value!=4 ||
       s[3].left_value!=2 || s[3].right_value!=14)
       fail("public hex counters lost CW/CCW arithmetic or 0/F wrap");
+   // Visible preparation follows the three VBLANK samples; the three overscan
+   // samples then advance the public counters before the next VSYNC snapshot.
+   // These positions therefore lock the actual displayed phases 3/13, 9/7,
+   // and 15/1 while the counters below continue accumulating all six samples.
+   if(s[1].left_missile_position!=56 || s[1].right_missile_position!=114 ||
+      s[2].left_missile_position!=40 || s[2].right_missile_position!=130 ||
+      s[3].left_missile_position!=40 || s[3].right_missile_position!=130 ||
+      s[1].left_missile_start!=14 || s[1].right_missile_start!=14 ||
+      s[2].left_missile_start!=40 || s[2].right_missile_start!=40 ||
+      s[3].left_missile_start!=4 || s[3].right_missile_start!=4)
+      fail("public missile orbit did not follow the displayed 16-position phases");
    const uint8_t white0=s[0].colup0, white1=s[0].colup1;
    if(s[1].colup0!=white0 || s[1].colup1!=white1)
       fail("released controller glyphs are not white");
@@ -268,12 +285,14 @@ int main(int argc,char **argv) {
       if(ss.size()<2 || ss[1].delta!=-3 || ss[1].direction!=2 || ss[1].phase!=2)
          fail("ambiguous initial skip / direction-preserving two-step decode regressed");
    } else if(std::strcmp(mode,"example")==0) {
-      if(argc!=5) return 2;
+      if(argc!=9) return 2;
       std::map<std::string,uint16_t> a;
       a["left_value"]=parse_addr(argv[3]); a["right_value"]=parse_addr(argv[4]);
+      a["left_missile_position"]=parse_addr(argv[5]); a["right_missile_position"]=parse_addr(argv[6]);
+      a["left_missile_start"]=parse_addr(argv[7]); a["right_missile_start"]=parse_addr(argv[8]);
       Machine m(argv[2],a,-1,Scenario::Public,true); m.run(); require_public(m.snapshots());
       if(m.swacnt()!=0) fail("two-controller example did not leave both SWCHA nibbles as inputs");
    } else return 2;
-   std::puts("vcs_driving ok: both ports, Gray direction/wrap/skip, buttons, hex display, stable frames");
+   std::puts("vcs_driving ok: both ports, Gray direction/wrap/skip, buttons, hex+missile orbit display, stable frames");
    return 0;
 }

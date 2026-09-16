@@ -206,19 +206,25 @@ exhaustive paddle-threshold regression, and the final example-tree inventory.
 PAL monochrome/dark-gray normalization is retired; all reviewed standards use
 exact RGB under the checked-in user palette.
 
-Since that baseline, the public joystick and paddle tutorials were simplified into
-direct visual demonstrations. The joystick example uses independently controlled red
-P0 and blue P1 sprites on black, with the centered 4x4 square in an 8-row bitmap and
-the requested 8-row outline while fire is held. The paddle example now shows four
-equally spaced white 2x8 markers at X=20,60,100,140 on black; paddle 0..3 move their
-respective P0/M0/M1/P1 markers vertically, and each marker changes from solid to
-alternating-scanline dotted while its button is held. The paddle visible kernel
-samples all four RC inputs at fixed beam phases through `four_paddles.c26`. Focused
-source/build/controller regressions, shared paddle API tests, source-tree hygiene,
-example-reorg inventory, the 33-source assembly allowlist, recursive public-example
-shard 3/8, Stella visual geometry inspection, and the complete 537/537 compile-only
-gate pass after the paddle change. The full e2e suite has not been rerun after these
-isolated tutorial changes.
+Since that baseline, the public joystick, paddle, and driving-controller tutorials
+were simplified into direct visual demonstrations. Joystick uses independently
+controlled red P0 and blue P1 sprites on black, with the centered 4x4 square and the
+requested fire outline in matched 8-row bitmaps. Paddle shows four equally spaced
+white 2x8 P0/M0/M1/P1 markers at X=20,60,100,140; paddle 0..3 move them vertically
+and each becomes alternating-scanline dotted while its button is held. Driving keeps
+its P0/P1 hexadecimal accumulated-rotation display and now adds M0/M1 as 4x4 dots
+moving through 16 clockwise/counterclockwise orbit positions around the matching
+glyph; fire changes both the glyph and its inherited-color missile from white to red.
+The driving orbit uses a fixed 48-line visible scene and native 4-pixel missile width.
+M0/M1 horizontal positions are established during VBLANK; vertical missile-enable
+boundaries are prepared in RAM one scanline ahead and copied to ENAM0/1 immediately
+after WSYNC. This keeps the far-left B/C orbit positions from being clipped by a
+mid-scanline enable write. Stella 7 forced-phase captures verify full 4x4 left-side
+dots at both B and C.
+Focused source/build/controller regressions, source-tree hygiene, the 33-source
+assembly allowlist, the affected recursive public-example shards, Stella visual
+geometry checks, and the complete 537/537 compile-only gate pass after these tutorial
+changes. The full e2e suite has not been rerun after these isolated tutorial changes.
 
 The ER1-ER25 example reorganization is complete. Final ER25 certification covers
 all 112 recursively discovered editable cartridge entry points through the

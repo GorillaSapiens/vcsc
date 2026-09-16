@@ -1,8 +1,9 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // Two Indy 500 driving controllers. Clockwise motion increments each side's
-// hexadecimal P0/P1 glyph, counterclockwise decrements it, and the fire button
-// changes that side from white to red only while held.
+// hexadecimal P0/P1 glyph and moves that player's 4x4 missile dot clockwise
+// around it; counterclockwise motion reverses both. Fire changes that side's
+// glyph and orbit dot from white to red only while held.
 
 include "4K/mapper.c26"
 include "frame_ntsc.c26"
@@ -16,10 +17,45 @@ alias DRIVE_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 instantiate "driving_controller.c26" as left_drive (port:=0)
 instantiate "driving_controller.c26" as right_drive (port:=1)
 
+// The 8-pixel-wide x 16-line glyphs occupy x=36..43 / 116..123 and visible
+// y=88..103. These sixteen positions put a 4x4 missile around each glyph on an
+// ellipse chosen to look circular with VCS pixel aspect: about 12 color pixels
+// horizontally and 20 scanlines vertically from the glyph center.
+//
+// Index 0 is the top of the orbit and increasing indices move clockwise.
+// The y table is relative to the 48-line scene beginning at visible line 72.
+const uint8_t drive_orbit_x[16] := {
+   38, 43, 46, 49,
+   50, 49, 46, 43,
+   38, 33, 30, 27,
+   26, 27, 30, 33
+};
+const uint8_t drive_orbit_y[16] := {
+    2,  4,  8, 14,
+   22, 30, 36, 40,
+   42, 40, 36, 30,
+   22, 14,  8,  4
+};
+
 uint8_t left_value := 0;
 uint8_t right_value := 0;
 uint8_t *left_glyph_pointer := score_font;
 uint8_t *right_glyph_pointer := score_font;
+
+// Horizontal RESP operands use the same calibrated missile phase as the public
+// paddle tutorial: logical x + 7 for M0, then another 80 pixels for M1.
+uint8_t left_missile_position := 45;
+uint8_t right_missile_position := 125;
+uint8_t left_missile_start := 2;
+uint8_t left_missile_end := 6;
+uint8_t right_missile_start := 2;
+uint8_t right_missile_end := 6;
+uint8_t left_missile_prepare_start := 1;
+uint8_t left_missile_prepare_end := 5;
+uint8_t right_missile_prepare_start := 1;
+uint8_t right_missile_prepare_end := 5;
+uint8_t left_missile_current := 0;
+uint8_t right_missile_current := 0;
 
 inline void drive_apply_steps(void) {
    // Signed step is two's-complement. Addition followed by a low-nibble mask
@@ -35,12 +71,31 @@ void drive_sample_pair(void) {
 }
 
 inline void drive_prepare_glyphs(void) {
-   // Glyph selection is ordinary VCSC work in blanking time. The visible
-   // sixteen-line indirect glyph loop remains cycle-exact assembly.
    left_glyph_pointer := score_font;
    left_glyph_pointer += left_value << 4;
    right_glyph_pointer := score_font;
    right_glyph_pointer += right_value << 4;
+}
+
+inline void drive_prepare_orbits(void) {
+   left_missile_position := drive_orbit_x[left_value] + 7;
+   right_missile_position := drive_orbit_x[right_value] + 87;
+
+   left_missile_start := drive_orbit_y[left_value];
+   left_missile_end := left_missile_start + 4;
+   right_missile_start := drive_orbit_y[right_value];
+   right_missile_end := right_missile_start + 4;
+
+   // The visible kernel changes only RAM one scanline before each vertical
+   // boundary, then copies these prepared values to ENAM0/1 immediately after
+   // the following WSYNC. That keeps even the far-left B/C orbit positions
+   // completely stable before the beam reaches M0.
+   left_missile_prepare_start := left_missile_start - 1;
+   left_missile_prepare_end := left_missile_end - 1;
+   right_missile_prepare_start := right_missile_start - 1;
+   right_missile_prepare_end := right_missile_end - 1;
+   left_missile_current := 0;
+   right_missile_current := 0;
 }
 
 // P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
@@ -51,7 +106,7 @@ inline void drive_position_players(void) {
    asm sta WSYNC;
    asm ldx #0;
    asm bit.z CXM0P;
-   asm lda #36;
+   asm lda #42;
    asm sec;
    asm @p0_divide:;
    asm sbc #15;
@@ -69,7 +124,7 @@ inline void drive_position_players(void) {
    asm sta WSYNC;
    asm ldx #1;
    asm bit.z CXM0P;
-   asm lda #116;
+   asm lda #122;
    asm sec;
    asm @p1_divide:;
    asm sbc #15;
@@ -90,22 +145,154 @@ inline void drive_position_players(void) {
    asm sta HMCLR;
 }
 
-inline void drive_draw_glyphs(void) {
+// Reposition only M0/M1 each frame. HMCLR makes the following HMOVE neutral to
+// the already-positioned players. The NOP preserves the calibrated RESP phase
+// used by the fixed-position paddle tutorial while the x operand comes from RAM.
+inline void drive_position_missiles(void) {
+   HMCLR := _;
+   ENAM0 := 0;
+   ENAM1 := 0;
+
+   asm sta WSYNC;
+   asm ldx #2;
+   asm lda.z left_missile_position;
+   asm nop;
+   asm sec;
+   asm @m0_divide:;
+   asm sbc #15;
+   asm bcs.same @m0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #3;
+   asm lda.z right_missile_position;
+   asm nop;
+   asm sec;
+   asm @m1_divide:;
+   asm sbc #15;
+   asm bcs.same @m1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm sta WSYNC;
+   asm sta HMCLR;
+}
+
+// X is the current 0..47 line within the orbit scene. Boundary changes are
+// prepared one complete scanline before they are needed. The TIA write itself
+// then happens immediately after WSYNC at the beginning of the target line.
+// This avoids changing ENAM0 after the beam has already crossed a left-side
+// missile position.
+inline void drive_prepare_left_missile(void) {
+   asm cpx.z left_missile_prepare_start;
+   asm bne.same @check_end;
+   asm lda #2;
+   asm sta.z left_missile_current;
+   asm jmp @done;
+   asm @check_end:;
+   asm cpx.z left_missile_prepare_end;
+   asm bne.same @done;
+   asm lda #0;
+   asm sta.z left_missile_current;
+   asm @done:;
+}
+
+inline void drive_prepare_right_missile(void) {
+   asm cpx.z right_missile_prepare_start;
+   asm bne.same @check_end;
+   asm lda #2;
+   asm sta.z right_missile_current;
+   asm jmp @done;
+   asm @check_end:;
+   asm cpx.z right_missile_prepare_end;
+   asm bne.same @done;
+   asm lda #0;
+   asm sta.z right_missile_current;
+   asm @done:;
+}
+
+inline void drive_apply_missiles(void) {
+   asm lda.z left_missile_current;
+   asm sta ENAM0;
+   asm lda.z right_missile_current;
+   asm sta ENAM1;
+}
+
+// Draw 48 visible lines. The 16-line glyphs occupy scene lines 16..31 while
+// the missile dots may occupy any four-line span from 2..45. Every line starts
+// with WSYNC, then immediately applies the missile states prepared during the
+// preceding line. The caller therefore contributes one fewer leading blank
+// line so this component still occupies exactly the same 48 visible lines.
+inline void drive_draw_scene(void) {
+   GRP0 := 0;
+   GRP1 := 0;
+   left_missile_current := 0;
+   right_missile_current := 0;
+
+   asm ldx #0;
+   asm @before_glyph:;
+   asm sta WSYNC;
+   drive_apply_missiles();
+   drive_prepare_left_missile();
+   drive_prepare_right_missile();
+   asm inx;
+   asm cpx #16;
+   asm bne.same @before_glyph;
+
    asm ldy #15;
-   asm @rows:;
+   asm @glyph_rows:;
+   asm sta WSYNC;
+   drive_apply_missiles();
    asm lda.iy (left_glyph_pointer),y;
    asm sta GRP0;
    asm lda.iy (right_glyph_pointer),y;
    asm sta GRP1;
-   asm sta WSYNC;
+   drive_prepare_left_missile();
+   drive_prepare_right_missile();
+   asm inx;
    asm dey;
-   asm bpl.same @rows;
-   GRP0 := 0;
-   GRP1 := 0;
+   asm bpl.same @glyph_rows;
+
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm @after_glyph:;
+   asm sta WSYNC;
+   drive_apply_missiles();
+   drive_prepare_left_missile();
+   drive_prepare_right_missile();
+   asm inx;
+   asm cpx #48;
+   asm bne.same @after_glyph;
+
+   // Finish scene line 47 before blanking the orbit objects on the following
+   // scanline.
+   asm sta WSYNC;
+   asm lda #0;
+   asm sta ENAM0;
+   asm sta ENAM1;
 }
 
 inline void drive_prepare_visible(void) {
    drive_prepare_glyphs();
+   drive_prepare_orbits();
    if (left_drive_button) { COLUP0 := DRIVE_RED; }
    else { COLUP0 := DRIVE_WHITE; }
    if (right_drive_button) { COLUP1 := DRIVE_RED; }
@@ -125,8 +312,12 @@ void main(void) {
    ENAM0 := 0;
    ENAM1 := 0;
    ENABL := 0;
-   NUSIZ0 := 0;
-   NUSIZ1 := 0;
+   // Lower NUSIZ bits leave each player as one normal-width copy; bits 4..5
+   // make the corresponding missile four color clocks wide.
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+   RESMP0 := 0;
+   RESMP1 := 0;
    REFP0 := 0;
    REFP1 := 0;
    VDELP0 := 0;
@@ -135,6 +326,7 @@ void main(void) {
    left_drive_init();
    right_drive_init();
    drive_prepare_glyphs();
+   drive_prepare_orbits();
    drive_position_players();
 
    while (1) {
@@ -149,11 +341,15 @@ void main(void) {
       vcs_ntsc_wait_scanlines(6);
       drive_sample_pair();
       drive_prepare_visible();
+      drive_position_missiles();
       vcs_ntsc_end_vblank();
 
-      vcs_ntsc_wait_component_scanlines(88);
-      drive_draw_glyphs();
-      vcs_ntsc_wait_visible_tail_scanlines(88);
+      // drive_draw_scene() begins with a WSYNC so missile state can be applied
+      // at the very beginning of every scene line. Leave one of the 72 leading
+      // blank lines for that first WSYNC to complete.
+      vcs_ntsc_wait_component_scanlines(71);
+      drive_draw_scene();
+      vcs_ntsc_wait_visible_tail_scanlines(72);
 
       vcs_ntsc_begin_overscan();
       drive_sample_pair();
