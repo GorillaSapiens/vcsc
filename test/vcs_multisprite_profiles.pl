@@ -109,9 +109,9 @@ $score_component =~ /parameter\s+mutable_color\s*:=\s*0/
    or die "six-glyph mutable-color compact pointer/offset contract changed\n";
 
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2504,84,78,6],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3513,101,95,6],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3513,101,95,6],
+   ['192',qw(examples 04_renderers multisprite no_score multisprite_192_interactive.c26),2504,84,78,6],
+   ['181-score-above',qw(examples 04_renderers multisprite score_above multisprite_181_score_above_interactive.c26),3513,101,95,6],
+   ['181-score-below',qw(examples 04_renderers multisprite score_below multisprite_181_score_below_interactive.c26),3513,101,95,6],
 );
 my %bins;
 my %maps;
@@ -184,8 +184,8 @@ $common =~ /game_MISSILE0_Y\s*:=\s*250/ && $common =~ /game_MISSILE1_Y\s*:=\s*25
 # joystick editor as the other six-digit interactive examples.
 for my $mode (qw(181-score-above 181-score-below)) {
    my @parts = $mode eq '181-score-above'
-      ? qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26)
-      : qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26);
+      ? qw(examples 04_renderers multisprite score_above multisprite_181_score_above_interactive.c26)
+      : qw(examples 04_renderers multisprite score_below multisprite_181_score_below_interactive.c26);
    my $itext=read_file(File::Spec->catfile($repo,@parts));
    $itext =~ /include "\.\.\/\.\.\/\.\.\/_common\/fixed_six_digit_controls\.c26"/
       or die "$mode interactive score lost shared C26 right-joystick controls\n";

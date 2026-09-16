@@ -88,9 +88,9 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 
 my @families=(
    {fixture=>'player_color_181',            example=>undef,                           class=>'player',   illegals=>0},
-   {fixture=>'all_five_181',                example=>'06_all_five_181',                class=>'all_five', illegals=>0},
+   {fixture=>'all_five_181',                example=>undef,                           class=>'all_five', illegals=>0},
    {fixture=>'player_color_181_unofficial', example=>undef,                           class=>'player',   illegals=>1},
-   {fixture=>'all_five_181_unofficial',     example=>'08_all_five_181_unofficial',     class=>'all_five', illegals=>1},
+   {fixture=>'all_five_181_unofficial',     example=>undef,                           class=>'all_five', illegals=>1},
 );
 my @scores=(
    {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 migrated=>'centered',      component=>'six_glyph_component.c26'},
@@ -116,6 +116,14 @@ sub public_leaf {
       my $renderer=$family->{fixture} eq 'player_color_181'
          ? 'player_color' : 'player_color_unofficial';
       return File::Spec->catdir($repo,'examples','04_renderers',$renderer,
+         "score_$order",$score->{migrated});
+   }
+   if ($family->{fixture} eq 'all_five_181' && defined($score->{migrated})) {
+      return File::Spec->catdir($repo,'examples','04_renderers','all_five',
+         "score_$order",$score->{migrated});
+   }
+   if ($family->{fixture} eq 'all_five_181_unofficial' && defined($score->{migrated})) {
+      return File::Spec->catdir($repo,'examples','04_renderers','all_five_unofficial',
          "score_$order",$score->{migrated});
    }
    return File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');

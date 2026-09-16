@@ -41,7 +41,7 @@ the otherwise skipped next-row `COLUP0` update into a cycle-balanced selector;
 this keeps row-boundary entry at cycle zero without an extra scanline.
 
 The public interactive example is
-`examples/15_all_five_player_color_192/01_interactive/`. It cycles selection
+`examples/04_renderers/all_five_player_color/no_score/`. It cycles selection
 through all five objects with Game Select and moves the selected object with the
 left joystick while the two players retain visibly different eight-row color
 tables. The example currently links at **97/128 RAM bytes** and **3481/4090 ROM

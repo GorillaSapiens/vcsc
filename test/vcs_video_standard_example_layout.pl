@@ -20,25 +20,26 @@ sub read_file {
 
 @ARGV == 1 or die "usage: $0 REPO\n";
 my $repo=abs_path($ARGV[0]) // die "repo\n";
-my $root=File::Spec->catdir($repo,qw(examples 17_video_standards));
+my $root=File::Spec->catdir($repo,qw(examples 05_video_standards));
+my @demos=qw(blank player_color all_five all_five_unofficial multisprite enhanced_multisprite_asymmetric);
 
 opendir(my$dh,$root) or die "open $root: $!\n";
-my @standard_dirs=sort grep {
+my @demo_dirs=sort grep {
    $_ ne '.' && $_ ne '..' && -d File::Spec->catdir($root,$_)
 } readdir($dh);
 closedir($dh);
-join(' ',@standard_dirs) eq 'pal secam'
-   or die "examples/17_video_standards subdirectories must be exactly pal secam\n";
+join(' ',@demo_dirs) eq join(' ',sort @demos)
+   or die "examples/05_video_standards demonstration directories are incomplete or unexpected\n";
 
 my @cases=(
-   ['pal','__builtin_pal_rgb','00_blank','pal50_blank.c26'],
-   ['pal','__builtin_pal_rgb','01_all_five','pal_all_five_228_interactive.c26'],
-   ['secam','__builtin_secam_rgb','00_blank','secam50_blank.c26'],
-   ['secam','__builtin_secam_rgb','01_all_five','secam_all_five_228_interactive.c26'],
+   ['pal','__builtin_pal_rgb','blank','pal50_blank.c26'],
+   ['pal','__builtin_pal_rgb','all_five','pal_all_five_228_interactive.c26'],
+   ['secam','__builtin_secam_rgb','blank','secam50_blank.c26'],
+   ['secam','__builtin_secam_rgb','all_five','secam_all_five_228_interactive.c26'],
 );
 for my$case(@cases) {
-   my($standard,$builtin,$numbered,$file)=@$case;
-   my$dir=File::Spec->catdir($root,$standard,$numbered);
+   my($standard,$builtin,$demo,$file)=@$case;
+   my$dir=File::Spec->catdir($root,$demo,$standard);
    -d$dir or die "missing $dir\n";
    my$source=File::Spec->catfile($dir,$file);
    -f$source or die "missing $source\n";
@@ -48,7 +49,7 @@ for my$case(@cases) {
    $text !~ /^\s*include\s+"color_(?:pal|secam)\.c26"/m
       or die "$source hides RGB matching behind a color alias include\n";
 
-   if ($numbered eq '00_blank') {
+   if ($demo eq 'blank') {
       $text =~ /\Q$builtin\E\s*\(0x12,\s*0x13,\s*0x9d\)/
          or die "$source must retain the NTSC dark-blue RGB intent\n";
    }
@@ -69,21 +70,16 @@ for my$case(@cases) {
       or die "$makefile play target must force Stella -format $format\n";
 }
 
-for my$standard(qw(pal secam)) {
-   my$dir=File::Spec->catdir($root,$standard);
+for my$demo(@demos) {
+   my$dir=File::Spec->catdir($root,$demo);
    opendir(my$sdh,$dir) or die "open $dir: $!\n";
-   my@numbered=sort grep {
+   my@standards=sort grep {
       $_ ne '.' && $_ ne '..' && -d File::Spec->catdir($dir,$_)
    } readdir($sdh);
    closedir($sdh);
-   @numbered >= 2 && $numbered[0] eq '00_blank' && $numbered[1] eq '01_all_five'
-      or die "$standard examples must begin 00_blank 01_all_five\n";
-   for my$i(0..$#numbered) {
-      $numbered[$i] =~ /\A(\d\d)_/
-         or die "$standard example directory is not numbered: $numbered[$i]\n";
-      int($1) == $i
-         or die "$standard example numbering must be contiguous from 00; got $numbered[$i] at index $i\n";
-   }
+   my$expected='ntsc pal secam';
+   join(' ',@standards) eq $expected
+      or die "$demo standards cells are '@standards', expected '$expected'\n";
 }
 
 print "vcs_video_standard_example_layout ok\n";

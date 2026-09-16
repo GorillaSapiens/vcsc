@@ -3,9 +3,9 @@ Example directory reorganization
 
 Status
 ------
-Migration is complete through ER13.  ER14 is the next unfinished slice.
-The target tree and migration invariants below remain authoritative while the
-remaining renderer/video-standard/diagnostic moves are in progress.
+Migration is complete through ER25.  This focused workstream is closed.
+The target tree and migration invariants below remain the durable description
+of the public examples layout; executable regressions own the final structure.
 
 Goals
 -----
@@ -335,81 +335,8 @@ called complete:
 
 Roadmap
 -------
-Each item is intentionally scoped to a single roughly 25-minute execution
-window.  Do not combine several move families merely because the edits look
-mechanical.  After each slice, run the focused tests for the moved family plus
-source-tree hygiene/example-build checks appropriate to the change, then package
-normally if that slice is the turn's handoff.
-
-[ ] ER14. Move official all_five no-score and centered/basic score leaves.
-    * Move the 192 no-score example plus centered/left/right above/below leaves.
-    * Update all-five common support and focused raster tests.
-
-[ ] ER15. Finish official all_five score compositions.
-    * Move two-plus-two, three-plus-three, poison above/below, plus the existing
-      170 score-above-and-below example.
-    * Run the complete official all_five example matrix after the move.
-
-[ ] ER16. Move all_five_unofficial as a peer renderer.
-    * Move its full 181 above/below matrix plus the existing 170
-      score-above-and-below example.
-    * Preserve unofficial opcode settings and prove the 170 example was not lost.
-
-[ ] ER17. Move all_five_player_color.
-    * Move no-score plus centered score-above/score-below examples under the one
-      renderer identity and flatten single-child layers.
-    * Move/consolidate its shared interactive helper as appropriate.
-
-[ ] ER18. Move modern multisprite and enhanced multisprite.
-    * Move multisprite no-score/score-above/score-below leaves and enhanced
-      multisprite no_score_asymmetric.
-    * Update renderer docs, shared helpers, raster tests, and standard-wrapper
-      references without touching faithful legacy multisprite (already ER9).
-
-[ ] ER19. Re-layout existing PAL/SECAM standards examples.
-    * Convert standard-first `17_video_standards/{pal,secam}/<demo>` into
-      demonstration-first `05_video_standards/<demo>/{pal,secam}`.
-    * Keep all twelve existing cartridges byte/behavior equivalent and update
-      the video-standard layout/Stella tests.
-
-[ ] ER20. Add first half of the NTSC standards matrix.
-    * Add dedicated NTSC cells for blank, player_color, and all_five.
-    * Reuse/shared-source the same scene logic where practical and add comparison
-      tests that make the intended NTSC/PAL/SECAM relationship explicit.
-
-[ ] ER21. Complete the NTSC standards matrix.
-    * Add all_five_unofficial, multisprite, and enhanced_multisprite_asymmetric
-      NTSC cells.
-    * Preserve illegal-opcode requirements for all_five_unofficial and complete
-      the 18-cell standards layout regression.
-
-[ ] ER22. Move standalone diagnostics.
-    * Move fingerprint to `07_diagnostics/6507_fingerprint` and the F4SC field
-      diagnostic to `07_diagnostics/field_diagnostic`.
-    * Update diagnostic tests, docs, packaging/install references, and any
-      assembly allowlist paths.
-
-[ ] ER23. Move the bankswitching diagnostic family.
-    * Move `09_bankswitching/*` under `07_diagnostics/bankswitching` while
-      keeping mapper leaf names and multi-ROM F864/UA semantics.
-    * Update every mapper Makefile `ROOT`, root bankswitching discovery target,
-      mapper tests/docs, installcheck smoke, and play-loop audit.
-
-[ ] ER24. Global stale-path/documentation sweep.
-    * Search source, tests, packaging, README files, developer docs, fixtures,
-      and scripts for every retired top-level example path/name.
-    * Rewrite `examples/README.md` around the seven purpose categories and actual
-      renderer identities rather than historical numbering.
-    * Update root/Linux/Windows/driver/library/renderer documentation and license
-      exception references.
-
-[ ] ER25. Final tree and packaging certification.
-    * Assert no retired numbered top-level example group remains, no redundant
-      `01_interactive`-only directory remains, and `_common` has no runnable leaf.
-    * Build all public example Makefiles recursively; run example path/layout,
-      source-tree hygiene, assembly allowlist, installcheck/release packaging,
-      and relevant Stella suites.
-    * Compare moved legacy ROMs against pre-reorg baselines where the migration
-      was intended to be byte-preserving; separately certify the eight newly
-      added examples.
-    * Update hot documentation/history and close this focused workstream.
+ER1 through ER25 are complete; no unfinished ER item remains.  The final tree is
+locked by `test/example_reorg_inventory.pl`, recursive public-example build and
+round-trip coverage, source-tree hygiene, packaging/install checks, and focused
+Stella certifications.  Any future example-tree change belongs on the normal
+project roadmap rather than extending this completed migration checklist.

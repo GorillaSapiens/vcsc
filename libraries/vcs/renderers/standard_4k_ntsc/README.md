@@ -170,8 +170,8 @@ address map is part of this interface.
 
 ## Banked composition
 
-`examples/09_bankswitching/02_standard_renderer/` is the consolidated public F8
-diagnostic.  It links this exact renderer object with the generic F8 C26 profile.
+`examples/07_diagnostics/bankswitching/standard_renderer/` is the consolidated public F8
+diagnostic in the purpose-first diagnostics tree.  It links this exact renderer object with the generic F8 C26 profile.
 The renderer object's `@startup` component contract pins its code and score table
 to the startup bank, while the application declares its playfield and sprite art
 as `bank0 page const` objects.  The only deliberate cross-bank edge is the

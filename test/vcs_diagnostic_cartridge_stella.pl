@@ -57,7 +57,7 @@ require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$example=File::Spec->catdir($repo,qw(examples 19_diagnostic 01_diagnostic));
+my$example=File::Spec->catdir($repo,qw(examples 07_diagnostics field_diagnostic));
 my$source=File::Spec->catfile($example,'vcsc_diagnostic.c26');
 my$boot=File::Spec->catfile($example,'diagnostic_boot.s26');
 my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));

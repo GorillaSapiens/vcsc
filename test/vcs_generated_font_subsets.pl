@@ -101,23 +101,23 @@ for my $source (@ascii) {
 }
 
 my @cases=(
-   [qw(01_f864 bankswitching_diagnostic.c26)],
-   [qw(03_fa_ram_plus fa_ram_plus_diagnostic.c26)],
-   [qw(04_4ksc 4ksc_diagnostic.c26)],
-   [qw(05_omni omni_diagnostic.c26)],
-   [qw(06_cv cv_diagnostic.c26)],
-   [qw(07_jane jane_diagnostic.c26)],
-   [qw(08_0840 econobanking_diagnostic.c26)],
-   [qw(10_0fa0 fotomania_diagnostic.c26)],
-   [qw(11_e0 e0_diagnostic.c26)],
-   [qw(12_3f 3f_diagnostic.c26)],
-   [qw(13_3e 3e_diagnostic.c26)],
-   [qw(16_dpc dpc_diagnostic.c26)],
+   [qw(f864 bankswitching_diagnostic.c26)],
+   [qw(fa_ram_plus fa_ram_plus_diagnostic.c26)],
+   [qw(4ksc 4ksc_diagnostic.c26)],
+   [qw(omni omni_diagnostic.c26)],
+   [qw(cv cv_diagnostic.c26)],
+   [qw(jane jane_diagnostic.c26)],
+   [qw(0840 econobanking_diagnostic.c26)],
+   [qw(0fa0 fotomania_diagnostic.c26)],
+   [qw(e0 e0_diagnostic.c26)],
+   [qw(3f 3f_diagnostic.c26)],
+   [qw(3e 3e_diagnostic.c26)],
+   [qw(dpc dpc_diagnostic.c26)],
 );
 
 for my $case (@cases) {
    my ($dir,$source)=@$case;
-   my $srcdir=File::Spec->catdir($repo,'examples','09_bankswitching',$dir);
+   my $srcdir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching',$dir);
    my $outdir=File::Spec->catdir($tmp,$dir);
    make_path($outdir);
    my ($exit,$sig,$out,$err)=run_capture('make','-s','-C',$srcdir,'fonts',"FONT_SUBSET_DIR=$outdir");
@@ -147,33 +147,33 @@ for my $case (@cases) {
 # UA/UASW wrappers include their local generated tables directly; the shared
 # common body deliberately stays independent of wrapper-relative include paths.
 {
-   my $dir=File::Spec->catdir($repo,'examples','09_bankswitching','09_ua');
-   my $outdir=File::Spec->catdir($tmp,'09_ua');
+   my $dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching','ua');
+   my $outdir=File::Spec->catdir($tmp,'ua');
    make_path($outdir);
    my ($exit,$sig,$out,$err)=run_capture('make','-s','-C',$dir,'fonts',"FONT_SUBSET_DIR=$outdir");
-   die "09_ua make fonts exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
+   die "ua make fonts exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
       if $exit || $sig;
    for my $file (qw(ua_status_font.c26 ua_cart_type_font.c26)) {
       my $got=File::Spec->catfile($outdir,$file);
       my $want=File::Spec->catfile($dir,$file);
-      -f $want or die "09_ua does not check in $file\n";
+      -f $want or die "ua does not check in $file\n";
       slurp($got) eq slurp($want)
-         or die "09_ua/$file is stale; run make fonts in 09_ua\n";
+         or die "ua/$file is stale; run make fonts in ua\n";
    }
    my ($dry_exit,$dry_sig,$dry_out,$dry_err)=run_capture(
       'make','-n','-C',$dir,'all','PERL=/definitely/missing/perl');
-   die "09_ua ordinary make dry-run failed: $dry_err" if $dry_exit || $dry_sig;
+   die "ua ordinary make dry-run failed: $dry_err" if $dry_exit || $dry_sig;
    index($dry_out,'/definitely/missing/perl') < 0
-      or die "09_ua ordinary build unexpectedly requires Perl\n";
+      or die "ua ordinary build unexpectedly requires Perl\n";
 
-   my $common=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic_common.c26'));
+   my $common=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','ua','ua_diagnostic_common.c26'));
    $common !~ /Exact glyph subsets copied from the canonical ASCII fonts/
       or die "UA common body still contains hand-copied canonical glyphs\n";
    for my $wrapper (qw(ua_diagnostic.c26 uasw_diagnostic.c26)) {
       my $text=slurp(File::Spec->catfile($dir,$wrapper));
       index($text,'include "ua_status_font.c26"') >= 0 &&
       index($text,'include "ua_cart_type_font.c26"') >= 0
-         or die "09_ua/$wrapper does not consume its generated font subsets\n";
+         or die "ua/$wrapper does not consume its generated font subsets\n";
    }
 }
 
@@ -181,23 +181,23 @@ for my $case (@cases) {
 # It derives readable A..O labels from the canonical Half ASCII font; ordinary
 # example builds must consume the checked-in file without requiring Perl.
 {
-   my $dir=File::Spec->catdir($repo,'examples','19_diagnostic','01_diagnostic');
-   my $outdir=File::Spec->catdir($tmp,'19_diagnostic');
+   my $dir=File::Spec->catdir($repo,'examples','07_diagnostics','field_diagnostic');
+   my $outdir=File::Spec->catdir($tmp,'field_diagnostic');
    make_path($outdir);
    my ($exit,$sig,$out,$err)=run_capture('make','-s','-C',$dir,'fonts',"FONT_SUBSET_DIR=$outdir");
-   die "19_diagnostic make fonts exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
+   die "field_diagnostic make fonts exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
       if $exit || $sig;
    my $file='diagnostic_collision_font.c26';
    my $got=File::Spec->catfile($outdir,$file);
    my $want=File::Spec->catfile($dir,$file);
-   -f $want or die "19_diagnostic does not check in $file\n";
+   -f $want or die "field_diagnostic does not check in $file\n";
    slurp($got) eq slurp($want)
-      or die "19_diagnostic/$file is stale; run top-level make fonts\n";
+      or die "field_diagnostic/$file is stale; run top-level make fonts\n";
    my ($dry_exit,$dry_sig,$dry_out,$dry_err)=run_capture(
       'make','-n','-C',$dir,'all','PERL=/definitely/missing/perl');
-   die "19_diagnostic ordinary make dry-run failed: $dry_err" if $dry_exit || $dry_sig;
+   die "field_diagnostic ordinary make dry-run failed: $dry_err" if $dry_exit || $dry_sig;
    index($dry_out,'/definitely/missing/perl') < 0
-      or die "19_diagnostic ordinary build unexpectedly requires Perl\n";
+      or die "field_diagnostic ordinary build unexpectedly requires Perl\n";
 }
 
 # The maximum 3E/3EX diagnostics embed the generated small-font mapper label
@@ -206,11 +206,11 @@ for my $case (@cases) {
 # Keep that second generated layer synchronized too; otherwise a font change
 # leaves a dirty tree after the first top-level `make fonts`.
 for my $case (
-   ['19_3e_max','cart_type_font.c26','3e_max_torture_07.s26'],
-   ['20_3ex_max','cart_type_font.c26','3ex_max_torture_07.s26'],
+   ['3e_max','cart_type_font.c26','3e_max_torture_07.s26'],
+   ['3ex_max','cart_type_font.c26','3ex_max_torture_07.s26'],
 ) {
    my ($dir,$font_file,$torture_file)=@$case;
-   my $base=File::Spec->catdir($repo,'examples','09_bankswitching',$dir);
+   my $base=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching',$dir);
    my @font=generated_subset_runtime_bytes(File::Spec->catfile($base,$font_file));
    my @embedded=torture_cart_type_bytes(File::Spec->catfile($base,$torture_file));
    @font == 48 or die "$dir/$font_file has " . scalar(@font) . " runtime bytes; expected 48\n";
@@ -228,7 +228,7 @@ for my $case (
 
 # Directly lock the canonical slashed zero into one mapper subset. All other
 # copies are protected by the deterministic regeneration comparisons above.
-my $eco=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','cart_type_font.c26'));
+my $eco=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0840','cart_type_font.c26'));
 $eco =~ m{// 0x30 0\s+\w+\(\s*0b\.\.XXXXX\.}s
    or die "EconoBanking generated subset does not contain the canonical slashed zero\n";
 

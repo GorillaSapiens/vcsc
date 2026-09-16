@@ -25,7 +25,7 @@ $repo=abs_path($repo) or die "resolve repo\n"; $tmp=abs_path($tmp) or die "resol
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
-my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
+my$example_root=File::Spec->catdir($repo,qw(examples 04_renderers all_five_player_color));
 my@jobs=(
  ['above',File::Spec->catfile($repo,qw(test fixtures all_five_player_color_181 static_score_above.c26)),3360,730],
  ['below',File::Spec->catfile($repo,qw(test fixtures all_five_player_color_181 static_score_below.c26)),3360,730],
@@ -58,7 +58,7 @@ $source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw
 $source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
    or die "score-below example lost component order\n";
 
-my$interactive_common=File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26));
+my$interactive_common=File::Spec->catfile($repo,qw(examples _common all_five_player_color_181_interactive_common.c26));
 my$interactive_common_text=read_file($interactive_common);
 my$canonical_181_common=read_file(File::Spec->catfile($repo,qw(examples _common all_five_181_interactive_common.c26)));
 sub playfield_rows {
@@ -89,8 +89,8 @@ $interactive_common_text =~ /score_color\s*\+=\s*0x10/ &&
 $interactive_common_text !~ /\basm\b/
    or die "181 combined interactive controls changed\n";
 my@interactive_jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 01_interactive all_five_player_color_181_score_above_interactive.c26))],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 01_interactive all_five_player_color_181_score_below_interactive.c26))],
+ ['above',File::Spec->catfile($example_root,qw(score_above all_five_player_color_181_score_above_interactive.c26))],
+ ['below',File::Spec->catfile($example_root,qw(score_below all_five_player_color_181_score_below_interactive.c26))],
 );
 my(%interactive_bin,%interactive_source,%interactive_map);
 for my$j(@interactive_jobs){
@@ -110,7 +110,7 @@ for my$j(@interactive_jobs){
       or die "$n interactive example RAM footprint changed\n";
    $interactive_source{$n} =~ /instantiate "six_glyph_component\.c26" as score \(mutable_color:=1\)/
       or die "$n interactive example lost mutable score color\n";
-   $interactive_source{$n} =~ /include "\.\.\/\.\.\/all_five_player_color_181_interactive_common\.c26"/
+   $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/_common\/all_five_player_color_181_interactive_common\.c26"/
       or die "$n interactive example lost shared controls\n";
 }
 $interactive_source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s

@@ -51,9 +51,11 @@ the official renderer.
 
 ## Maintained examples
 
-- `examples/17_video_standards/{pal,secam}/03_all_five_unofficial/` instantiate the native `lines:=228` profile.
-- `examples/08_all_five_181_unofficial/` instantiates `lines:=181` with one score.
-- `examples/12_all_five_170_unofficial/` instantiates `lines:=170` between an
+- `examples/05_video_standards/all_five_unofficial/{pal,secam}/` instantiate the native `lines:=228` profile.
+- `examples/04_renderers/all_five_unofficial/score_{above,below}/` contains the
+  centered, left, right, two-plus-two, and poison `lines:=181` compositions.
+- `examples/04_renderers/all_five_unofficial/score_above_and_below/` instantiates
+  `lines:=170` between an
   11-line score above and an 11-line score below.
 
 The 192-line profile is regression-tested directly against the official

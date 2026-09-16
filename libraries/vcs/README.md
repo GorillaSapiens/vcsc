@@ -71,25 +71,22 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `renderers/standard_4k_ntsc/` ... legacy monolithic all-five-object solid-color component whose generated assembly object carries its own placement, page, and hidden-stack contracts; certified with generic 4K/F8/F6/F4/F8SC C26 profiles through a VBLANK-only banked overscan hook
 - `renderers/standard_4k_ntsc_playercolors/` ... legacy monolithic P0+P1+BL player-color profile retained for compatibility and regression
 - `fonts/` ... eight shared 8x8 score-font families, the Big 8x16 decimal/hex/ASCII family, plus the six-slice `logo_font.c26` VCSC mark
-- `../../examples/README.md` ... renderer-grouped public example index
-- `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
+- `../../examples/README.md` ... seven-category public example index and renderer-identity guide
+- `../../examples/01_basics/` ... standalone introductory cartridges
+- `../../examples/07_diagnostics/` ... silicon, console-I/O, and toolchain diagnostics
 - `../../examples/04_renderers/faithful_legacy_player_color/` ... faithful legacy interactive compatibility diagnostic
 - `../../examples/04_renderers/player_color/no_score/` ... full-height scoreless interactive player-color diagnostic
 - `../../examples/04_renderers/player_color/` ... official-opcode player-color family, including the 181-line centered/left/right/two-plus-two/heart/poison/wide score compositions
-- `../../examples/05_all_five_192/` ... official-opcode full-height interactive diagnostic using `all_five (lines:=192)`
-- `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix using `all_five (lines:=181)`
+- `../../examples/04_renderers/all_five/` ... complete official-opcode all-five family: full-height 192-line diagnostic, twelve 181-line score compositions, and the 170-line dual-score composition
 - `../../examples/04_renderers/player_color_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
-- `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
-- `../../examples/09_bankswitching/` ... F8/F6/F4/SC complete transition diagnostics plus the CBS FA/RAM Plus complete ordered-call PASS/FAIL diagnostic
+- `../../examples/04_renderers/all_five_unofficial/` ... complete unofficial-opcode all-five peer: ten 181-line score/poison compositions plus the 170-line dual-score composition, all built explicitly with `-Wa,--illegals`
+- `../../examples/07_diagnostics/bankswitching/` ... F8/F6/F4/SC complete transition diagnostics plus the CBS FA/RAM Plus complete ordered-call PASS/FAIL diagnostic
 - `../../examples/04_renderers/faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28
-- `../../examples/14_multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions, all with horizontal/vertical P0/P1..P5 movement
-- `../../examples/15_all_five_player_color_192/` ... full-height interactive combined all-five/per-row-player-color diagnostic
-- `../../examples/16_all_five_player_color_181/` ... fixed centered score-above and score-below compositions for the 181-line combined all-five/per-row-player-color profile
-- `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
-- `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
+- `../../examples/04_renderers/multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions, all with horizontal/vertical P0/P1..P5 movement
+- `../../examples/04_renderers/all_five_player_color/` ... combined all-five/per-row-player-color family with a full-height 192-line diagnostic and centered 181-line score-above/score-below compositions
 - `../../examples/04_renderers/player_color/score_above_and_below/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
-- `../../examples/17_video_standards/` ... separate `pal/` and `secam/` 50 Hz example trees with minimal frames and native interactive 228-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
-- `../../examples/18_enhanced_multisprite/` ... maintained asymmetric-playfield enhanced multisprite diagnostic; the renderer is line-parameterized for 192 and native PAL/SECAM 228 active lines
+- `../../examples/05_video_standards/` ... demonstration-first PAL/SECAM 50 Hz comparison tree with minimal frames and native interactive 228-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
+- `../../examples/04_renderers/enhanced_multisprite/` ... maintained asymmetric-playfield enhanced multisprite diagnostic; the renderer is line-parameterized for 192 and native PAL/SECAM 228 active lines
 
 ## Video-standard color matching
 

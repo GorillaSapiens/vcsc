@@ -215,10 +215,11 @@ See [`BANKSWITCHING.md`](BANKSWITCHING.md) for the public selector-controlled
 cross-bank call ABI and mapper descriptor contract.
 
 The examples are intentionally editable demonstrations rather than frozen test
-fixtures. They range from small standalone cartridges to interactive renderer
-diagnostics and are organized by purpose and renderer family. See
-[`examples/README.md`](examples/README.md) for the current hierarchy and build
-instructions.
+fixtures. Their runnable leaves are organized under seven purpose categories:
+basics, components, controllers, renderers, video standards, games, and
+diagnostics. Shared `_common` source is non-runnable. See
+[`examples/README.md`](examples/README.md) for the current hierarchy, renderer
+identities, and build instructions.
 
 ## Installing and packaging
 
@@ -286,9 +287,9 @@ Banked mapper certification has two layers inside the normal e2e suite: the test
 transition through `vcsc-sim` and also run the visible PASS/FAIL diagnostic in Stella.
 `make stella-bank-test` is a focused rerun of that coverage from every forced physical startup bank and under
 randomized developer startup-bank selection. CBS FA/RAM Plus has its own public
-`examples/09_bankswitching/03_fa_ram_plus` PASS/FAIL cartridge and emulator-backed
+`examples/07_diagnostics/bankswitching/fa_ram_plus` PASS/FAIL cartridge and emulator-backed
 self-test covering all three selectors, startup physical bank 2, and all 256 bytes
-of cartridge RAM. `examples/09_bankswitching/04_4ksc` similarly exercises direct
+of cartridge RAM. `examples/07_diagnostics/bankswitching/4ksc` similarly exercises direct
 4K Superchip RAM, including the full 128-byte split-address device, and displays
 `4KSC` beneath its PASS/FAIL result.
 

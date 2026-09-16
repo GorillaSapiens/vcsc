@@ -102,6 +102,9 @@ repeat the profile directory explicitly.
 
 ## Examples
 
+The editable cartridge tree is indexed by purpose and renderer identity in
+[`../examples/README.md`](../examples/README.md).
+
 Build and link a program:
 
 ```sh

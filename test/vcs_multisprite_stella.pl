@@ -62,9 +62,9 @@ require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n"; my$perl=findexe('perl') or die "perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc)); my$vcs=File::Spec->catdir($repo,qw(libraries vcs)); my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my%profile=(
-   '192'=>[File::Spec->catfile($repo,qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26)),"   initialize_192_scene();\n"],
-   'above'=>[File::Spec->catfile($repo,qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26)),"   initialize_multisprite_scene();\n"],
-   'below'=>[File::Spec->catfile($repo,qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26)),"   initialize_multisprite_scene();\n"],
+   '192'=>[File::Spec->catfile($repo,qw(examples 04_renderers multisprite no_score multisprite_192_interactive.c26)),"   initialize_192_scene();\n"],
+   'above'=>[File::Spec->catfile($repo,qw(examples 04_renderers multisprite score_above multisprite_181_score_above_interactive.c26)),"   initialize_multisprite_scene();\n"],
+   'below'=>[File::Spec->catfile($repo,qw(examples 04_renderers multisprite score_below multisprite_181_score_below_interactive.c26)),"   initialize_multisprite_scene();\n"],
 );
 
 my$display=280+($$%30); $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display";

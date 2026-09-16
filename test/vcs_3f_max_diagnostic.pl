@@ -48,7 +48,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 
-my $dir=File::Spec->catdir($repo,qw(examples 09_bankswitching 18_3f_max));
+my $dir=File::Spec->catdir($repo,qw(examples 07_diagnostics/bankswitching 3f_max));
 my $source=File::Spec->catfile($dir,'3f_max_diagnostic.c26');
 my $status_font=File::Spec->catfile($dir,'status_font.c26');
 my $wait_font=File::Spec->catfile($dir,'wait_font.c26');

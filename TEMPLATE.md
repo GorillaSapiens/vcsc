@@ -617,7 +617,7 @@ For real source rather than toy syntax, start with:
   timing-sensitive renderer;
 - `libraries/vcs/six_glyph_component.c26` for defaulted feature parameters,
   `require` lifecycle hooks, and `recommend` public state;
-- `examples/11_all_five_170/01_score_above_and_below/01_interactive/` for one
+- `examples/04_renderers/all_five/score_above_and_below/` for one
   renderer plus two independent instances of the same score component;
 - `examples/04_renderers/player_color/score_above/centered/` for a typical
   renderer-plus-score composition;

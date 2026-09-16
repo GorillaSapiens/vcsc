@@ -12,7 +12,7 @@ use File::Spec;
 
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
 die "usage: $0 REPO\n" if @ARGV;
-my $root=File::Spec->catdir($repo,qw(examples 09_bankswitching));
+my $root=File::Spec->catdir($repo,qw(examples 07_diagnostics/bankswitching));
 
 my $assignments=0;
 find({no_chdir=>1,wanted=>sub {

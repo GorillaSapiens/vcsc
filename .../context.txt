@@ -198,17 +198,24 @@ targets are reruns of normal-suite coverage, not separate acceptance gates.
 
 Last validation state
 ---------------------
-Final pinned-palette validation is clean with packaged Stella 7.0 and Xvfb:
-537/537 compile-only tests and 385/385 e2e tests pass. The e2e set includes the
-792-byte palette contract, source-tree hygiene, every maintained mapper/renderer
-Stella launcher, the heart 54-state exact-RGB oracle, and all 12
-NTSC/PAL/SECAM diagnostic raster cases. PAL monochrome/dark-gray normalization
-has been removed: NTSC, PAL, and SECAM reviewed rasters are exact RGB under the
-checked-in user palette. The first broad attempt exposed only a missing FIGlet
-banner in the new palette README; after fixing that documentation defect, the
-complete clean rerun passed.
+The final ER25 tree is clean with packaged Stella 7.0 and Xvfb: 537/537
+compile-only tests and 386/386 e2e tests pass, including the 792-byte palette
+contract, every maintained mapper/renderer Stella launcher, the heart 54-state
+exact-RGB oracle, all 12 NTSC/PAL/SECAM diagnostic rasters, the exhaustive
+paddle-threshold regression, and the final example-tree inventory. PAL
+monochrome/dark-gray normalization is retired; all reviewed standards use exact
+RGB under the checked-in user palette.
+
+The ER1-ER25 example reorganization is complete. Final ER25 certification covers
+all 112 recursively discovered editable cartridge entry points through the
+direct-driver compile/link/disassembly round-trip verifier and all 118 public
+Makefile leaves through `make clean` + `make all`. The seven public purpose
+categories plus non-runnable `_common` are enforced by the reorg inventory; no
+retired numbered top-level group or `01_interactive` shell remains. Installcheck,
+install/release payload regressions, the complete 18-cell NTSC/PAL/SECAM Stella
+matrix, and the relocated bankswitching Stella profiles pass.
 
 Immediate TODO
 --------------
-Example reorg: `.../example_reorg.txt`; ER14 is next.
+Main-roadmap work begins with Item 57 in `.../roadmap.txt`.
 DRA is design-only; see `.../DRA.txt`. If selected, do DRA1 next.

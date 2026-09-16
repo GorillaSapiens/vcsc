@@ -70,7 +70,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 
-my $dir=File::Spec->catdir($repo,qw(examples 09_bankswitching 20_3ex_max));
+my $dir=File::Spec->catdir($repo,qw(examples 07_diagnostics/bankswitching 3ex_max));
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $bin=File::Spec->catfile($tmp,'3ex_max.bin');

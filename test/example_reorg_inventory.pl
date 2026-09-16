@@ -103,6 +103,43 @@ for my $leaf (sort keys %active_leaves) {
       or die "inventory expects runnable example leaf without Makefile: examples/$leaf\n";
 }
 
+# ER25 final-tree invariants.  The seven purpose categories are the only
+# runnable top-level groups; _common is shared source and must stay non-runnable.
+my @expected_top=qw(01_basics 02_components 03_controllers 04_renderers 05_video_standards 06_games 07_diagnostics _common);
+opendir(my $examples_dh,$examples) or die "opendir $examples: $!\n";
+my @actual_top=sort grep {
+   $_ ne '.' && $_ ne '..' && -d File::Spec->catdir($examples,$_)
+} readdir($examples_dh);
+closedir($examples_dh);
+join("\n",@actual_top) eq join("\n",sort @expected_top)
+   or die "final example top-level groups changed: actual [".join(', ',@actual_top)."] expected [".join(', ',sort @expected_top)."]\n";
+for my $name (sort keys %retired_top) {
+   !-d File::Spec->catdir($examples,$name)
+      or die "retired top-level example group still exists: examples/$name\n";
+}
+my @interactive_shells;
+find({
+   no_chdir=>1,
+   wanted=>sub {
+      return unless -d $File::Find::name;
+      push @interactive_shells,rel_path($File::Find::name)
+         if $_ eq '01_interactive';
+   },
+},$examples);
+!@interactive_shells
+   or die "redundant 01_interactive directory remains: ".join(', ',sort @interactive_shells)."\n";
+my $common=File::Spec->catdir($examples,'_common');
+my @common_makefiles;
+find({
+   no_chdir=>1,
+   wanted=>sub {
+      push @common_makefiles,rel_path($File::Find::name)
+         if -f $_ && $_ eq 'Makefile';
+   },
+},$common);
+!@common_makefiles
+   or die "shared _common support became runnable: ".join(', ',sort @common_makefiles)."\n";
+
 # The path-reference fixture is deliberately a migration checklist.  It tracks
 # text files that still mention a retired top-level example family, including
 # tests which synthesize paths from the family name rather than spelling an

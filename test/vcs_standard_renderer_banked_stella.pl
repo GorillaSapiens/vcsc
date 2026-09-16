@@ -26,7 +26,7 @@ require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my $xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n"; my $perl=findexe('perl') or die "perl required\n";
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my $sequence=File::Spec->catfile($repo,qw(test stella_png_sequence.pl));
 my $driver=File::Spec->catfile($repo,qw(driver vcsc)); my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $source=File::Spec->catfile($repo,qw(examples 09_bankswitching 02_standard_renderer banked_standard_renderer.c26));
+my $source=File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching standard_renderer banked_standard_renderer.c26));
 my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
 my @runs=(['4k','4K',['-DUNBANKED_REFERENCE'],undef],['f8','F8',['-DMAPPER_BANKS=2'],1],['f8sc','F8SC',['-DMAPPER_BANKS=2','-DSUPERCHIP_TEST'],1]);
 my %dig; my $display=130+($$%50);

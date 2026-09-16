@@ -33,7 +33,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $round=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
-my $src=File::Spec->catfile($repo,'examples','09_bankswitching','17_fa2','fa2_diagnostic.c26');
+my $src=File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','fa2','fa2_diagnostic.c26');
 my $diag_source=readf($src);
 for my $source (0..6) {
    $diag_source =~ /bank\Q$source\E void bank\Q$source\E_source\(void\) \{(.*?)^\}/ms

@@ -212,31 +212,31 @@ index($bankswitching,'3F lower banks use selector-value descriptors `$00-$FE`; f
 -f File::Spec->catfile($repo,qw(libraries vcs 3F mapper.c26)) &&
 -f File::Spec->catfile($test,'vcs_3e_simulator_oracle.pl') &&
 -f File::Spec->catfile($test,'vcs_3f_max_diagnostic.pl') &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 18_3f_max 3f_max_diagnostic.c26)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 18_3f_max make_torture.pl)) &&
-index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!09_bankswitching/18_3f_max/3f_max_torture_*.s26')>=0 &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3f_max 3f_max_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3f_max make_torture.pl)) &&
+index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!07_diagnostics/bankswitching/3f_max/3f_max_torture_*.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_3e_max_diagnostic.pl') &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 19_3e_max 3e_max_diagnostic.c26)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 19_3e_max make_torture.pl)) &&
-index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!09_bankswitching/19_3e_max/3e_max_torture_*.s26')>=0 &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3e_max 3e_max_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3e_max make_torture.pl)) &&
+index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!07_diagnostics/bankswitching/3e_max/3e_max_torture_*.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_3ex_max_diagnostic.pl') &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 20_3ex_max 3ex_max_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3ex_max 3ex_max_diagnostic.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3EX mapper.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3EX bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3EX README.md)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 20_3ex_max make_torture.pl)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3ex_max make_torture.pl)) &&
 -f File::Spec->catfile($test,'vcs_fc.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs FC mapper.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FC bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FC entry.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FC README.md)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 21_fc fc_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching fc fc_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'vcs_f0.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs F0 mapper.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs F0 bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs F0 entry.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs F0 README.md)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 22_f0 f0_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching f0 f0_diagnostic.c26)) &&
 index($bankswitching,'FC descriptors are')>=0 &&
 index($bankswitching,'reserves 112 bytes (`$070`)')>=0 &&
 index($bankswitching,'F0 uses physical bank IDs `$00-$0F`')>=0 &&
@@ -324,12 +324,12 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'vcs_fe.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs FE/mapper.c26)) &&
 !-e File::Spec->catfile($repo,qw(libraries vcs FE/mapper.cfg)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 14_fe fe_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching fe fe_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'vcs_dpc.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC/mapper.c26)) &&
 !-e File::Spec->catfile($repo,qw(libraries vcs DPC/mapper.cfg)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC/registers.c26)) &&
--f File::Spec->catfile($repo,qw(examples 09_bankswitching 16_dpc dpc_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching dpc dpc_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'phase_overlay.pl') &&
 -f File::Spec->catfile($test,'align_language_placement.pl') &&
 -f File::Spec->catfile($test,'vcs_ascii_font_alignment.pl') &&
@@ -362,16 +362,16 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'vcs_multisprite_stella.pl') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','multisprite','README.md') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','multisprite','multisprite.c26') &&
--f File::Spec->catfile($repo,'examples','14_multisprite','01_192','01_interactive','multisprite_192_interactive.c26') &&
--f File::Spec->catfile($repo,'examples','14_multisprite','02_181_score_above','01_interactive','multisprite_181_score_above_interactive.c26') &&
--f File::Spec->catfile($repo,'examples','14_multisprite','03_181_score_below','01_interactive','multisprite_181_score_below_interactive.c26') &&
--f File::Spec->catfile($repo,'examples','15_all_five_player_color_192','01_interactive','all_five_player_color_192_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','multisprite','no_score','multisprite_192_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','multisprite','score_above','multisprite_181_score_above_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','multisprite','score_below','multisprite_181_score_below_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','all_five_player_color','no_score','all_five_player_color_192_interactive.c26') &&
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','bankswitching_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','banked_standard_renderer.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','f864','bankswitching_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','banked_standard_renderer.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','README.md')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
 # Maintained Stella tests may receive a command name such as `stella` or
 # `Xvfb` through the Makefiles.  Resolve those values through PATH rather than
@@ -447,8 +447,8 @@ index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/multispr
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/6507.c26\tlibraries/vcs/6507.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_wide_component.c26\tlibraries/vcs/six_glyph_wide_component.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_big_wide_component.c26\tlibraries/vcs/six_glyph_big_wide_component.c26")>=0 &&
--f File::Spec->catfile($repo,'examples','14_multisprite','01_192','01_interactive','multisprite_192_interactive.c26') &&
--f File::Spec->catfile($repo,'examples','15_all_five_player_color_192','01_interactive','all_five_player_color_192_interactive.c26')
+-f File::Spec->catfile($repo,'examples','04_renderers','multisprite','no_score','multisprite_192_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_renderers','all_five_player_color','no_score','all_five_player_color_192_interactive.c26')
    or die "top-level installed simulator/Stella and manifest coverage is incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
@@ -507,7 +507,7 @@ index($linker_readme,'`RETURN COALESCING` is descriptive')>=0 &&
 index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
 
-my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','Makefile'));
+my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','Makefile'));
 $banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
 $banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*stella\s+-bs\s+F8\s+f8\.bin\s*$/m &&
 $banked_renderer_make !~ /f6\.bin|f4\.bin|f8sc\.bin/ &&
@@ -674,35 +674,35 @@ index($big_wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_big_wide_raster.cpp')
    or die "big 8x16 wide score family, example, or tests are incomplete
 ";
-my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','Makefile'));
+my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','f864','Makefile'));
 index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')<0 &&
 index($bank_example_make,'$(VCS_DIR)/F8/mapper.cfg')<0
    or die "public bank diagnostics must build from C26 topology without linker cfg input\n";
 my $fa_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA/mapper.c26'));
-my $fa_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','03_fa_ram_plus','Makefile'));
+my $fa_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','fa_ram_plus','Makefile'));
 index($fa_profile,'$bankcall')>=0 &&
 index($fa_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($fa_example_make,'-DVCSC_INLINE_BANKCALL=1')<0
    or die "FA RAM Plus profile must use the descriptor bank-call ABI unconditionally\n";
 my $jane_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.c26'));
-my $jane_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','Makefile'));
+my $jane_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','jane','Makefile'));
 my $m0840_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','0840/mapper.c26'));
-my $m0840_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','Makefile'));
+my $m0840_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0840','Makefile'));
 my $ua_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','UA/mapper.c26'));
 my $uasw_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.c26'));
-my $ua_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','Makefile'));
+my $ua_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','ua','Makefile'));
 my $m0fa0_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.c26'));
-my $m0fa0_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','Makefile'));
+my $m0fa0_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0fa0','Makefile'));
 my $wd_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','WD/mapper.c26'));
-my $wd_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','15_wd','Makefile'));
+my $wd_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','wd','Makefile'));
 my $m3f_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','3F/mapper.c26'));
 my $m3e_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','3E/mapper.c26'));
 my $dpc_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','DPC/mapper.c26'));
-my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','16_dpc','Makefile'));
+my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','dpc','Makefile'));
 my $fa2_24_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_24k.c26'));
 my $fa2_28_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_28k.c26'));
-my $fa2_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','17_fa2','Makefile'));
+my $fa2_example_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','fa2','Makefile'));
 index($dpc_profile,'$bankcall')>=0 &&
 index($dpc_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($dpc_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
@@ -819,8 +819,8 @@ index($install_manifest,'libraries/vcs/CV/ram.c26')>=0 &&
 index($install_manifest,'libraries/vcs/CV/mapper.c26')>=0 &&
 index($install_manifest,'libraries/vcs/CV/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_cv.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','cv_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','cv','cv_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','cv','README.md')
    or die "CV profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','0840/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','0840/mapper.cfg') &&
@@ -829,8 +829,8 @@ index($install_manifest,'libraries/vcs/0840/mapper.c26')>=0 &&
 index($install_manifest,'libraries/vcs/0840/bankcall.s26')>=0 &&
 index($install_manifest,'libraries/vcs/0840/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_0840.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','econobanking_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0840','econobanking_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0840','README.md')
    or die "0840 profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','UA/mapper.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.c26') &&
@@ -845,15 +845,13 @@ index($install_manifest,'libraries/vcs/UASW/bankcall.s26')>=0 &&
 index($install_manifest,'libraries/vcs/UA/mapper.cfg')<0 &&
 index($install_manifest,'libraries/vcs/UASW/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_ua.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','uasw_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic_common.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','ua','ua_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','ua','uasw_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','ua','ua_diagnostic_common.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','ua','README.md')
    or die "UA/UASW profile/diagnostic support is missing installation or test coverage\n";
 for my $moved (
-   [qw(09_bankswitching 09_ua ua_diagnostic_common.c26)],
-   [qw(16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
-   [qw(06_all_five_181 three_plus_three_controls.c26)],
+   [qw(07_diagnostics/bankswitching ua ua_diagnostic_common.c26)],
 ) {
    my $name=$moved->[-1];
    -f File::Spec->catfile($repo,'examples',@$moved)
@@ -861,6 +859,10 @@ for my $moved (
    !-f File::Spec->catfile($repo,'examples','_common',$name)
       or die "narrow helper leaked into examples/_common: $name\n";
 }
+-f File::Spec->catfile($repo,'examples','_common','all_five_player_color_181_interactive_common.c26')
+   or die "shared all-five/player-color interactive helper is missing from examples/_common\n";
+-f File::Spec->catfile($repo,'examples','_common','three_plus_three_controls.c26')
+   or die "shared three-plus-three score controls are missing from examples/_common\n";
 -f File::Spec->catfile($repo,'examples','_common','multisprite_228_interactive_common.c26')
    or die "cross-family 228-line multisprite helper is missing from examples/_common\n";
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.c26') &&
@@ -870,8 +872,8 @@ index($install_manifest,'libraries/vcs/0FA0/mapper.c26')>=0 &&
 index($install_manifest,'libraries/vcs/0FA0/mapper.cfg')<0 &&
 index($install_manifest,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_0fa0.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','fotomania_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0fa0','fotomania_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','0fa0','README.md')
    or die "0FA0 profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','E0/mapper.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','E0/bankcall.s26') &&
@@ -884,8 +886,8 @@ index($install_manifest,'libraries/vcs/E0/entry.s26')>=0 &&
 index($install_manifest,'libraries/vcs/E0/README.md')>=0 &&
 index($install_manifest,'libraries/vcs/E0/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_e0.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','e0_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','README.md') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','e0','e0_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','e0','README.md') &&
 index($top_make,'test/vcs_e0.pl')>=0
    or die "E0 profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','tia_mirror_40.c26') &&
@@ -905,8 +907,8 @@ index($top_make,'test/vcs_e0.pl')>=0
 -f File::Spec->catfile($test,'vcs_3e_swapram_helpers.pl') &&
 -f File::Spec->catfile($test,'vcs_3e_swapram_acceptance.pl') &&
 -f File::Spec->catfile($test,'vcs_3e_swapram_restore.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','3f','3f_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','3e','3e_diagnostic.c26') &&
 index($install_manifest,'libraries/vcs/tia_mirror_40.c26')>=0 &&
 index($install_manifest,'libraries/vcs/3F/mapper.c26')>=0 &&
 index($install_manifest,'libraries/vcs/3F/bankcall.s26')>=0 &&
@@ -929,8 +931,8 @@ index($install_manifest,'libraries/vcs/JANE/mapper.c26')>=0 &&
 index($install_manifest,'libraries/vcs/JANE/bankcall.s26')>=0 &&
 index($install_manifest,'libraries/vcs/JANE/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_jane.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','jane_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','jane','jane_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','jane','README.md')
    or die "JANE profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','FA/ram.c26') &&
 index($install_manifest,'libraries/vcs/FA/ram.c26')>=0 &&
@@ -940,7 +942,7 @@ index($install_manifest,'libraries/vcs/FA/mapper.cfg')<0
 !-e File::Spec->catfile($repo,'libraries','vcs','4KSC/mapper.cfg') &&
 index($install_manifest,'libraries/vcs/4KSC/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_4ksc.pl') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','04_4ksc','4ksc_diagnostic.c26')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','4ksc','4ksc_diagnostic.c26')
    or die "4KSC profile/diagnostic support is missing installation or test coverage\n";
 my $direct_profile=slurp(File::Spec->catfile($repo,'test','vcs_direct_8k.c26'));
 !-e File::Spec->catfile($repo,'libraries','vcs','vcs_direct_8k.c26') &&
@@ -954,8 +956,8 @@ index($omni_profile,'mem cartram { $start:0x1000 $size:0x1000 $rw }')>=0 &&
 -f File::Spec->catfile($test,'vcs_omni_32k.pl') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','OMNI/mapper.cfg') &&
 index($install_manifest,'libraries/vcs/OMNI/mapper.cfg')<0 &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','omni','omni_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','omni','README.md')
    or die "test-only direct/OMNI certification profiles, simulator-map diagnostic or hardware-status comments are incomplete\n";
 !-e File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
 index($install_manifest,'libraries/vcs/vcs.cfg')<0
@@ -1228,7 +1230,7 @@ index($superchip_header,'$size:0x0080')>=0
    or die "4KSC/ram.c26 lost the allocatable split-memory region\n";
 index($superchip_header,'superchip_ram')<0
    or die "4KSC/ram.c26 must not publish a whole-window alias\n";
-my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','bankswitching_diagnostic.c26'));
+my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','f864','bankswitching_diagnostic.c26'));
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss_head;')>=0 &&
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_data_head := 0x5A;')>=0 &&
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss[124];')>=0 &&

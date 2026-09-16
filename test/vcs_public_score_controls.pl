@@ -43,7 +43,7 @@ my $split_src=File::Spec->catfile($repo,qw(test vcs_two_plus_two_controls.cpp));
 $rc==0 && !$sig or die "two-plus-two harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "two-plus-two harness build wrote output\n$out$err";
 
-my @families=qw(player_color_181 06_all_five_181 player_color_181_unofficial 08_all_five_181_unofficial);
+my @families=qw(player_color_181 all_five_181 player_color_181_unofficial all_five_181_unofficial);
 my @six_layouts=qw(01_score_above 02_score_below 03_left_justified_score_above 04_left_justified_score_below 05_right_justified_score_above 06_right_justified_score_below);
 my @split_layouts=qw(07_two_plus_two_score_above 08_two_plus_two_score_below);
 my %official_player_color_leaf=(
@@ -56,6 +56,16 @@ my %official_player_color_leaf=(
    '07_two_plus_two_score_above' => [qw(04_renderers player_color score_above two_plus_two)],
    '08_two_plus_two_score_below' => [qw(04_renderers player_color score_below two_plus_two)],
 );
+my %official_all_five_leaf=(
+   '01_score_above' => [qw(04_renderers all_five score_above centered)],
+   '02_score_below' => [qw(04_renderers all_five score_below centered)],
+   '03_left_justified_score_above' => [qw(04_renderers all_five score_above left)],
+   '04_left_justified_score_below' => [qw(04_renderers all_five score_below left)],
+   '05_right_justified_score_above' => [qw(04_renderers all_five score_above right)],
+   '06_right_justified_score_below' => [qw(04_renderers all_five score_below right)],
+   '07_two_plus_two_score_above' => [qw(04_renderers all_five score_above two_plus_two)],
+   '08_two_plus_two_score_below' => [qw(04_renderers all_five score_below two_plus_two)],
+);
 sub public_leaf {
    my($family,$layout)=@_;
    if (($family eq 'player_color_181' || $family eq 'player_color_181_unofficial') &&
@@ -64,11 +74,20 @@ sub public_leaf {
       $parts[1]='player_color_unofficial' if $family eq 'player_color_181_unofficial';
       return File::Spec->catdir($repo,'examples',@parts);
    }
+   if (($family eq 'all_five_181' || $family eq 'all_five_181_unofficial') &&
+       exists $official_all_five_leaf{$layout}) {
+      my @parts=@{$official_all_five_leaf{$layout}};
+      $parts[1]='all_five_unofficial' if $family eq 'all_five_181_unofficial';
+      return File::Spec->catdir($repo,'examples',@parts);
+   }
    return File::Spec->catdir($repo,'examples',$family,$layout,'01_interactive');
 }
 sub shared_control_include_depth {
-   my($family)=@_;
-   return ($family eq 'player_color_181' || $family eq 'player_color_181_unofficial') ? 4 : 3;
+   my($family,$layout)=@_;
+   return 4 if $family eq 'player_color_181' || $family eq 'player_color_181_unofficial';
+   return 4 if ($family eq 'all_five_181' || $family eq 'all_five_181_unofficial') &&
+      exists $official_all_five_leaf{$layout};
+   return 3;
 }
 my $six_public=0; my $split_public=0;
 for my $family (@families) {
@@ -77,7 +96,7 @@ for my $family (@families) {
       my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
       @sources==1 or die "$leaf does not have exactly one source\n";
       my $text=read_file($sources[0]);
-      my $depth=shared_control_include_depth($family);
+      my $depth=shared_control_include_depth($family,$layout);
       my $prefix='../' x $depth;
       index($text,qq{include "${prefix}_common/fixed_six_digit_controls.c26"})>=0
          or die "$sources[0] does not use the shared mutable-color six-digit controls\n";
@@ -88,7 +107,7 @@ for my $family (@families) {
       my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
       @sources==1 or die "$leaf does not have exactly one source\n";
       my $text=read_file($sources[0]);
-      my $depth=shared_control_include_depth($family);
+      my $depth=shared_control_include_depth($family,$layout);
       my $prefix='../' x $depth;
       index($text,qq{include "${prefix}_common/two_plus_two_controls.c26"})>=0
          or die "$sources[0] does not use the shared field-selection controls\n";
@@ -96,14 +115,14 @@ for my $family (@families) {
    }
 }
 $six_public==24 or die "found $six_public shared six-digit control examples, expected 24\n";
-!-e File::Spec->catfile($repo,qw(examples 14_multisprite fixed_six_digit_controls_compact.c26))
+!-e File::Spec->catfile($repo,qw(examples 04_renderers multisprite fixed_six_digit_controls_compact.c26))
    or die "obsolete multisprite compact score-control duplicate returned\n";
 
 # The two 181-line multisprite score compositions now use the same readable
 # C26 packed-BCD controls as the other public six-digit examples.
 for my $parts (
-   [qw(14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26)],
-   [qw(14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26)],
+   [qw(04_renderers multisprite score_above multisprite_181_score_above_interactive.c26)],
+   [qw(04_renderers multisprite score_below multisprite_181_score_below_interactive.c26)],
 ) {
    my $path=File::Spec->catfile($repo,'examples',@$parts);
    my $text=read_file($path);
@@ -115,7 +134,7 @@ for my $parts (
 
 # The nearly-full combined all-five/player-color 4K cartridges integrate the
 # same right-stick behavior into their compact shared object-control body.
-my $combined_common=read_file(File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)));
+my $combined_common=read_file(File::Spec->catfile($repo,qw(examples _common all_five_player_color_181_interactive_common.c26)));
 $combined_common =~ /selected_score_digit/ &&
 $combined_common =~ /right_joystick_latched/ &&
 $combined_common =~ /score_digit_weight\[6\]/ &&
@@ -125,8 +144,8 @@ $combined_common =~ /score_color\s*\+=\s*0x10/ &&
 $combined_common !~ /\basm\b/
    or die "combined 181 4K score controls are missing\n";
 for my $parts (
-   [qw(16_all_five_player_color_181 01_score_above 01_interactive all_five_player_color_181_score_above_interactive.c26)],
-   [qw(16_all_five_player_color_181 02_score_below 01_interactive all_five_player_color_181_score_below_interactive.c26)],
+   [qw(04_renderers all_five_player_color score_above all_five_player_color_181_score_above_interactive.c26)],
+   [qw(04_renderers all_five_player_color score_below all_five_player_color_181_score_below_interactive.c26)],
 ) {
    my $path=File::Spec->catfile($repo,'examples',@$parts);
    my $text=read_file($path);

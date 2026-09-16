@@ -29,3 +29,82 @@ allowlist, eight-example multicolor/opcode-policy test, public score-control
 matrix, unofficial renderer official/twin comparison, visible component handoff,
 and the complete unofficial score-composition raster matrix including mixed
 placement. ER14 is next.
+
+2026-09-16 11:10:43 PDT, complete example reorg ER14-ER25
+--------------------------------------------------------
+ER14-ER18 completed the renderer-family consolidation. Official `all_five`
+moved in two slices (7/7 then 7/7 byte-identical ROMs),
+`all_five_unofficial` moved as a peer renderer (11/11 byte-identical with every
+Makefile retaining explicit `-Wa,--illegals`), `all_five_player_color` moved
+with its shared helper (3/3 byte-identical), and modern multisprite plus enhanced
+asymmetric multisprite moved without touching the already-migrated faithful
+legacy family (4/4 byte-identical). Their focused behavior/raster tests,
+including pinned-Stella certifications for the combined and modern multisprite
+renderers, pass.
+
+ER19 transposed the twelve existing PAL/SECAM cartridges from standard-first to
+demonstration-first layout under `05_video_standards`; all 12/12 ROMs remained
+byte-identical and the layout/timing/VSYNC/Stella regressions pass. ER20-ER21
+then added the six missing NTSC cells to form the complete 18-cell standards
+matrix. Reusable NTSC renderer cells are byte-identical to their canonical
+renderer examples. The unofficial all-five NTSC cell deliberately scene-locks
+to its official peer while changing only renderer identity and preserving the
+explicit illegal-opcode opt-in. The complete 18-cell Stella certification
+passes under the pinned palette.
+
+ER22 moved the standalone 6507 fingerprint and F4SC field diagnostic into
+`07_diagnostics`. Their ROMs remained byte-identical; the fingerprint digest is
+`5e16400a3da00f9c0e0d854223b0319178bda7c5b4f5835622d12fe121974891` and
+the field diagnostic digest is
+`9b9de4584325c227c0487b94dda967c5992c2f92393982ebf938aa59325ce172`.
+Focused diagnostic regressions pass. The exhaustive paddle-threshold regression
+also passes in the final unified e2e run.
+
+ER23 moved the complete bankswitching family under
+`07_diagnostics/bankswitching`, removed numeric mapper prefixes, fixed every
+Makefile root depth and nine newly exposed relative `BANKSWITCHING.md` links,
+and updated root discovery/install/test/documentation paths. All 29 mapper ROMs
+intended as pure relocations matched their pre-move hashes. Focused mapper
+regressions, the non-Stella F8/F6/F4 matrix, standard-renderer banked Stella
+raster, and partitioned F8/F8SC/F6/F6SC/F4/F4SC/poison Stella certifications
+pass.
+
+ER24 removed the final dead `19_diagnostic` README shell and completed the
+retired-path/documentation sweep. The examples top level is now exactly
+`01_basics`, `02_components`, `03_controllers`, `04_renderers`,
+`05_video_standards`, `06_games`, `07_diagnostics`, plus non-runnable `_common`;
+there are no active retired-family references outside cold migration/history
+records. Public example/root/platform/library/renderer documentation now uses
+the purpose-oriented tree.
+
+ER25 converted the final layout assumptions into executable inventory checks.
+The recursive public-example verifier was corrected to follow local include
+closure so wrapper examples inherit transitive illegal-opcode/define and
+source-adjacent startup requirements without duplicating scene source. All 112
+editable cartridge entry points pass its direct-driver compile/link/disassembly
+round trip, and all 118 public Makefile leaves independently pass `make clean` +
+`make all`. `make installcheck`, install-manifest/release-payload regressions,
+source-tree hygiene, assembly allowlist, final layout inventory, and the focused
+Stella suites pass. The ER1-ER25 migration is closed; future example-tree work
+returns to the normal project roadmap.
+
+2026-09-16 12:00:22 PDT, close ER25 final acceptance
+----------------------------------------
+Final post-reorganization acceptance exposed and fixed three stale contracts:
+
+the generated-font subset test still synthesized the retired field-diagnostic
+path, the interactive-sprite orientation inventory still assumed numbered
+`01_interactive` shells, and the assembly-allowlist runner expectation still
+reported 31 pinned sources after the final tree contained 32.  The first two
+were corrected to discover the new purpose-oriented tree/include closure; the
+allowlist contract now reports the actual 32-source inventory.
+
+The corrected tree passes 537/537 compile-only cases.  The complete 386-case
+e2e run passed 385 cases and identified only the stale 31-source allowlist
+expectation; after correcting that expectation, the same runner-level
+`example_assembly_allowlist.pl` case passes.  Thus every one of the 386 e2e
+cases passes on the final tree.  The broad run also re-certified the exhaustive
+paddle-threshold test, the complete bankswitching Stella matrix, all 12
+NTSC/PAL/SECAM diagnostic rasters, the heart exact-RGB oracle, the 18-cell
+video-standard matrix, all eight recursive public-example build shards, and the
+hidden-path regressions fixed during ER25.

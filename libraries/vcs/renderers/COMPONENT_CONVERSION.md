@@ -405,7 +405,7 @@ The maintained 181-line score matrix continues to compare static and moving
 unofficial cartridges against the official `lines:=181` profile. Additional
 profile regressions instantiate 192, 181, and 170 directly, require equal linked
 ROM use and profile RAM contracts, and compare visible TIA traces and stable
-262-line frames. The public `examples/12_all_five_170_unofficial/` cartridge
+262-line frames. The public `examples/04_renderers/all_five_unofficial/score_above_and_below/` cartridge
 composes 11 score + 170 gameplay + 11 score to prove the dual-score profile.
 
 ## RAM-optimization architecture closeout
@@ -521,7 +521,7 @@ state: X is legal from 0..159; P0/P1 maximum Y are 95/91 for 192 and 89/85 for
 181. M0, M1, and Ball remain off the active raster because enabling them changes
 the retained physical scheduling.
 
-`examples/14_multisprite/` proves a full-height 192-line interactive cartridge
+`examples/04_renderers/multisprite/` proves a full-height 192-line interactive cartridge
 and both 181+11 score orders. The regression independently sweeps every legal
 coordinate for each sprite—1,516 cases for 192 and 1,480 cases for each 181
 composition—and requires the frame to remain exactly 262 NTSC lines. It also

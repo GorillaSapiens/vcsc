@@ -1,0 +1,3 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// The standards matrix intentionally reuses the maintained NTSC scene verbatim.
+include "../../../04_renderers/enhanced_multisprite/no_score_asymmetric/enhanced_multisprite_192_asymmetric.c26"

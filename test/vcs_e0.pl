@@ -61,7 +61,7 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catfile($vcs,qw(E0 mapper.c26));
 my $bankcall=File::Spec->catfile($vcs,qw(E0 bankcall.s26));
 my $entry=File::Spec->catfile($vcs,qw(E0 entry.s26));
-my $example_dir=File::Spec->catdir($repo,qw(examples 09_bankswitching 11_e0));
+my $example_dir=File::Spec->catdir($repo,qw(examples 07_diagnostics/bankswitching e0));
 my $source=File::Spec->catfile($example_dir,'e0_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 for ($driver,$sim,$disas,$roundtrip,$profile,$bankcall,$entry,$source,$example_make) { -e $_ or die "missing E0 support file $_\n"; }

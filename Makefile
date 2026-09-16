@@ -103,7 +103,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 exbs:
-	@for each in $$(find examples/*_bankswitching -type f -name Makefile \
+	@for each in $$(find examples/07_diagnostics/bankswitching -type f -name Makefile \
 		| sed 's|/Makefile$$||' \
 		| sort); do \
 		echo ==== $$each; \
@@ -347,8 +347,8 @@ installcheck: tools
 	test `wc -c < "$$stage/examples/01_basics/blank_screen/blank_screen.bin"` -eq 4096; \
 	$(MAKE) --no-print-directory -C "$$stage/examples/06_games/tanks" clean all; \
 	test `wc -c < "$$stage/examples/06_games/tanks/tanks.bin"` -eq 4096; \
-	$(MAKE) --no-print-directory -C "$$stage/examples/09_bankswitching/01_f864" clean f8.bin; \
-	test `wc -c < "$$stage/examples/09_bankswitching/01_f864/f8.bin"` -eq 8192
+	$(MAKE) --no-print-directory -C "$$stage/examples/07_diagnostics/bankswitching/f864" clean f8.bin; \
+	test `wc -c < "$$stage/examples/07_diagnostics/bankswitching/f864/f8.bin"` -eq 8192
 	rm -rf $(INSTALLCHECK_STAGING)
 
 tar:

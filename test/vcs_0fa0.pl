@@ -57,7 +57,7 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'0FA0/mapper.c26');
-my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','10_0fa0');
+my $example_dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching','0fa0');
 my $source=File::Spec->catfile($example_dir,'fotomania_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 

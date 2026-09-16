@@ -75,7 +75,7 @@ my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'WD/mapper.c26');
 my $inline=File::Spec->catfile($vcs,'WD/bankcall.s26');
-my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','15_wd');
+my $example_dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching','wd');
 my $source=File::Spec->catfile($example_dir,'wd_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 

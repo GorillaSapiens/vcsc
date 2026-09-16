@@ -48,7 +48,7 @@ my @c26_frame_owners=(
    'examples/01_basics/ode_to_joy/ode_to_joy.c26',
    'examples/03_controllers/joystick/joystick.c26',
 );
-my $diagnostic='examples/19_diagnostic/01_diagnostic/vcsc_diagnostic.c26';
+my $diagnostic='examples/07_diagnostics/field_diagnostic/vcsc_diagnostic.c26';
 my @expected=($blank_screen,@c26_frame_owners,$diagnostic);
 join("\n",@direct) eq join("\n",sort @expected)
    or die "direct example VSYNC writers changed:\n".join("\n",@direct)."\n";
@@ -72,15 +72,17 @@ $diag =~ /vcs_pal_vsync\s*\(\s*\)/ &&
 $diag =~ /vcs_secam_vsync\s*\(\s*\)/
    or die "$diagnostic must use shared per-standard VSYNC helpers; only its startup clear may write VSYNC directly\n";
 for my $standard (qw(pal secam)) {
-   my $root=File::Spec->catdir($examples,'17_video_standards',$standard);
+   my $root=File::Spec->catdir($examples,'05_video_standards');
    find({no_chdir=>1,wanted=>sub {
       return unless -f $_ && /\.c26\z/;
-      my $t=read_file($File::Find::name);
+      my $path=$File::Find::name;
+      return unless $path =~ m{[\\/]\Q$standard\E[\\/][^\\/]+\z};
+      my $t=read_file($path);
       $t =~ /\bvcs_${standard}_vsync\s*\(\s*\)/
-         or die "$File::Find::name does not use vcs_${standard}_vsync()\n";
+         or die "$path does not use vcs_${standard}_vsync()\n";
       my @helpers=($t =~ /\bvcs_(ntsc|pal|secam)_vsync\s*\(\s*\)/g);
       for my $helper (@helpers) {
-         $helper eq $standard or die "$File::Find::name mixes video-standard VSYNC helpers\n";
+         $helper eq $standard or die "$path mixes video-standard VSYNC helpers\n";
       }
    }},$root);
 }

@@ -54,9 +54,49 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_multisprite));
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;
+sub source_closure_text {
+   my($source,$seen)=@_;
+   $seen //= {};
+   my $absolute=abs_path($source) // $source;
+   return '' if $seen->{$absolute}++;
+   my $text=read_file($source);
+   my $combined=$text;
+   while ($text =~ /^\s*include\s+"([^"]+\.c26)"\s*$/mg) {
+      my $inc=$1;
+      my @candidate=(File::Spec->rel2abs($inc,dirname($source)),File::Spec->catfile($vcs,split(m{/},$inc)));
+      for my $candidate (@candidate) {
+         next unless -f $candidate;
+         $combined .= "\n" . source_closure_text($candidate,$seen);
+         last;
+      }
+   }
+   return $combined;
+}
+sub source_startup {
+   my($source,$seen)=@_;
+   $seen //= {};
+   my $absolute=abs_path($source) // $source;
+   return undef if $seen->{$absolute}++;
+   my $stem=$source;
+   $stem =~ s/\.c26\z//;
+   my $startup=$stem.'_startup.s26';
+   return $startup if -f $startup;
+   my $text=read_file($source);
+   while ($text =~ /^\s*include\s+"([^"]+\.c26)"\s*$/mg) {
+      my $inc=$1;
+      my @candidate=(File::Spec->rel2abs($inc,dirname($source)),File::Spec->catfile($vcs,split(m{/},$inc)));
+      for my $candidate (@candidate) {
+         next unless -f $candidate;
+         my $found=source_startup($candidate,$seen);
+         return $found if defined($found);
+         last;
+      }
+   }
+   return undef;
+}
 sub profile_from_source {
    my($source)=@_;
-   my $text=read_file($source);
+   my $text=source_closure_text($source);
    return '2k' if $text =~ /^\s*include\s+"2K\/mapper\.c26"\s*$/m;
    return 'cv' if $text =~ /^\s*include\s+"CV\/mapper\.c26"\s*$/m;
    return '4ksc' if $text =~ /^\s*include\s+"4KSC\/mapper\.c26"\s*$/m;
@@ -123,15 +163,15 @@ for my $source (@example_sources) {
    # The 512K 3F torture cartridge requires nine generated assembly objects
    # and executes a dedicated 65,535-call regression; it is not a standalone
    # one-source editable-example smoke input.
-   next if $source =~ m{[\/]09_bankswitching[\/]18_3f_max[\/]3f_max_diagnostic\.c26\z};
+   next if $source =~ m{[\/]07_diagnostics/bankswitching[\/]3f_max[\/]3f_max_diagnostic\.c26\z};
    # The maximum 3E cartridge likewise links nine generated torture objects
    # plus one compiler-managed swapram translation unit and its backing storage.
    # Its dedicated regression owns the complete multi-input build.
-   next if $source =~ m{[\/]09_bankswitching[\/]19_3e_max[\/](?:3e_max_diagnostic|3e_max_swapram)\.c26\z};
+   next if $source =~ m{[\/]07_diagnostics/bankswitching[\/]3e_max[\/](?:3e_max_diagnostic|3e_max_swapram)\.c26\z};
    # The maximum 3EX cartridge is also a generated multi-input image: nine ROM
    # torture objects plus eight swapram C26 translation units and eight backing
    # storage objects. Its dedicated regression owns that complete build.
-   next if $source =~ m{[\/]09_bankswitching[\/]20_3ex_max[\/](?:3ex_max_diagnostic|3ex_max_swapram_[0-9][0-9])\.c26\z};
+   next if $source =~ m{[\/]07_diagnostics/bankswitching[\/]3ex_max[\/](?:3ex_max_diagnostic|3ex_max_swapram_[0-9][0-9])\.c26\z};
    my($vol,$dir,$file)=File::Spec->splitpath($source);
    my $rel=File::Spec->abs2rel($dir,$examples_root);
    push @examples,[$rel,$file];
@@ -155,7 +195,7 @@ for my $entry (@examples) {
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
    my $profile=profile_from_source($source);
-   my $source_text=read_file($source);
+   my $source_text=source_closure_text($source);
    my @extra;
    push @extra,'-Wa,--illegals' if $file eq 'vcsc_diagnostic.c26';
    # Pending mapper diagnostics still use an explicit fixed-inline opt-in until
@@ -189,13 +229,11 @@ for my $entry (@examples) {
    }
    -f $source or die "missing editable example $source\n";
    my $source_dir=File::Spec->catdir($examples_root,$dir);
-   my $stem=$file; $stem =~ s/\.c26\z//;
-   my $local_startup=File::Spec->catfile($source_dir,"${stem}_startup.s26");
-   if (-f $local_startup) {
-      # Public examples may deliberately replace the generic runtime with a
-      # source-adjacent startup.  Keep the smoke build faithful to the
-      # example Makefile instead of silently relinking the C file with the
-      # stock runtime (which can also change ROM placement/size).
+   my $local_startup=source_startup($source);
+   if (defined($local_startup)) {
+      # Public wrappers may reuse a scene whose source-adjacent startup lives
+      # beside the canonical source rather than beside the wrapper. Follow the
+      # include closure so the direct-driver smoke matches the public Makefile.
       push @extra,'-nostdlib';
    }
    my @cmd=($driver,'-I',$vcs,'-I',$source_dir,'-Map',$map,@extra);
@@ -214,7 +252,7 @@ for my $entry (@examples) {
          File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_startup.s26');
    } elsif ($file eq 'vcsc_diagnostic.c26') {
       push @renderer,File::Spec->catfile($source_dir,'diagnostic_boot.s26');
-   } elsif (-f $local_startup) {
+   } elsif (defined($local_startup)) {
       push @renderer,$local_startup;
    }
    push @cmd,$source,@renderer,'-o',$bin;

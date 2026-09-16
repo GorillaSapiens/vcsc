@@ -56,7 +56,7 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','09_ua');
+my $example_dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching','ua');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 my $common_source=File::Spec->catfile($example_dir,'ua_diagnostic_common.c26');
 

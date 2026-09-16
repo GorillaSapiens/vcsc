@@ -1,0 +1,19 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+void main(void) {
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      // Keep the same dark-blue RGB intent used by the PAL and SECAM cells.
+      COLUBK := __builtin_ntsc_rgb(0x12, 0x13, 0x9d);
+      PF0 := 0; PF1 := 0; PF2 := 0;
+      GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_scanlines(VCS_NTSC_VISIBLE_SCANLINES`uint8_t);
+      asm nop;
+      vcs_ntsc_begin_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

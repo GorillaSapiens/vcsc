@@ -29,7 +29,7 @@ vcsc/
   bin/        statically linked Linux command-line tools
   cfg/        assembler opcode configuration
   libraries/  VCS support library and runtime, matching the source tree
-  examples/   editable example cartridges
+  examples/   editable examples in the seven purpose categories
   addons/     editor/tool integration files
 ```
 

@@ -25,15 +25,15 @@ $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($t
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my @cases=(
- { dir=>'05_all_five_192/01_interactive', stem=>'all_five_192_interactive', profile=>'all5_192', score=>0, extra=>[] },
- { dir=>'06_all_five_181/01_score_above/01_interactive', stem=>'all_five_181_score_above_interactive', profile=>'all5_above', score=>1, extra=>[] },
- { dir=>'06_all_five_181/02_score_below/01_interactive', stem=>'all_five_181_score_below_interactive', profile=>'all5_below', score=>1, extra=>[] },
- { dir=>'06_all_five_181/11_three_plus_three_score_above/01_interactive', stem=>'all_five_181_three_plus_three_score_above_interactive', profile=>'all5_3x3_above', score=>1, dual3=>1, extra=>[] },
- { dir=>'06_all_five_181/12_three_plus_three_score_below/01_interactive', stem=>'all_five_181_three_plus_three_score_below_interactive', profile=>'all5_3x3_below', score=>1, dual3=>1, extra=>[] },
- { dir=>'11_all_five_170/01_score_above_and_below/01_interactive', stem=>'all_five_170_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>[] },
- { dir=>'12_all_five_170_unofficial/01_score_above_and_below/01_interactive', stem=>'all_five_170_unofficial_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
- { dir=>'08_all_five_181_unofficial/01_score_above/01_interactive', stem=>'all_five_181_unofficial_score_above_interactive', profile=>'all5_above', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
- { dir=>'08_all_five_181_unofficial/02_score_below/01_interactive', stem=>'all_five_181_unofficial_score_below_interactive', profile=>'all5_below', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
+ { dir=>'04_renderers/all_five/no_score', stem=>'all_five_192_interactive', profile=>'all5_192', score=>0, extra=>[] },
+ { dir=>'04_renderers/all_five/score_above/centered', stem=>'all_five_181_score_above_interactive', profile=>'all5_above', score=>1, common=>'../../../../_common', extra=>[] },
+ { dir=>'04_renderers/all_five/score_below/centered', stem=>'all_five_181_score_below_interactive', profile=>'all5_below', score=>1, common=>'../../../../_common', extra=>[] },
+ { dir=>'04_renderers/all_five/score_above/three_plus_three', stem=>'all_five_181_three_plus_three_score_above_interactive', profile=>'all5_3x3_above', score=>1, dual3=>1, extra=>[] },
+ { dir=>'04_renderers/all_five/score_below/three_plus_three', stem=>'all_five_181_three_plus_three_score_below_interactive', profile=>'all5_3x3_below', score=>1, dual3=>1, extra=>[] },
+ { dir=>'04_renderers/all_five/score_above_and_below', stem=>'all_five_170_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>[] },
+ { dir=>'04_renderers/all_five_unofficial/score_above_and_below', stem=>'all_five_170_unofficial_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
+ { dir=>'04_renderers/all_five_unofficial/score_above/centered', stem=>'all_five_181_unofficial_score_above_interactive', profile=>'all5_above', score=>1, common=>'../../../../_common', extra=>['-Wa,--illegals'], unofficial=>1 },
+ { dir=>'04_renderers/all_five_unofficial/score_below/centered', stem=>'all_five_181_unofficial_score_below_interactive', profile=>'all5_below', score=>1, common=>'../../../../_common', extra=>['-Wa,--illegals'], unofficial=>1 },
 );
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -67,12 +67,10 @@ for my $case (@cases) {
          or die "$dir does not initialize and move both missiles\n";
       $text =~ /hard_reset\(\);/ or die "$dir RESET does not use the shared hard_reset helper\n";
    } elsif ($case->{dual3}) {
-      $text =~ /include "\.\.\/\.\.\/three_plus_three_controls\.c26"/
-         or die "$dir does not use the shared three-plus-three score controls
-";
-      $text =~ /include "\.\.\/\.\.\/\.\.\/_common\/all_five_181_interactive_common\.c26"/
-         or die "$dir does not use the shared high-level all-five controls
-";
+      $text =~ m{include "\.\./\.\./\.\./\.\./_common/three_plus_three_controls\.c26"}
+         or die "$dir does not use the shared three-plus-three score controls\n";
+      $text =~ m{include "\.\./\.\./\.\./\.\./_common/all_five_181_interactive_common\.c26"}
+         or die "$dir does not use the shared high-level all-five controls\n";
       $text =~ /three_plus_three_score_component\.c26/
          or die "$dir does not instantiate the three-plus-three component
 ";
@@ -81,9 +79,10 @@ for my $case (@cases) {
       $text =~ /top_score_draw\(\).*game_draw\(\).*bottom_score_draw\(\)/s
          or die "$dir does not draw score/game/score in order\n";
    } else {
-      $text =~ /include "\.\.\/\.\.\/\.\.\/_common\/fixed_six_digit_controls\.c26"/
+      my $common=$case->{common} // '../../../_common';
+      $text =~ /include "\Q$common\E\/fixed_six_digit_controls\.c26"/
          or die "$dir does not use the shared high-level score controls\n";
-      $text =~ /include "\.\.\/\.\.\/\.\.\/_common\/all_five_181_interactive_common\.c26"/
+      $text =~ /include "\Q$common\E\/all_five_181_interactive_common\.c26"/
          or die "$dir does not use the shared high-level all-five controls\n";
    }
    if ($case->{score} && $case->{profile} ne 'all5_dual') {

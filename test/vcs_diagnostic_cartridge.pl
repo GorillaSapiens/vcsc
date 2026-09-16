@@ -68,7 +68,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $example=File::Spec->catdir($repo,qw(examples 19_diagnostic 01_diagnostic));
+my $example=File::Spec->catdir($repo,qw(examples 07_diagnostics field_diagnostic));
 my $source=File::Spec->catfile($example,'vcsc_diagnostic.c26');
 my $boot=File::Spec->catfile($example,'diagnostic_boot.s26');
 my $indices=File::Spec->catfile($example,'diagnostic_pair_indices.c26');
@@ -87,7 +87,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $examples_ignore=File::Spec->catfile($repo,'examples','.gitignore');
 
 my $ignore_text=read_file($examples_ignore);
-$ignore_text =~ /^!19_diagnostic\/01_diagnostic\/diagnostic_boot\.s26$/m
+$ignore_text =~ /^!07_diagnostics\/field_diagnostic\/diagnostic_boot\.s26$/m
    or die "examples/.gitignore would omit maintained diagnostic_boot.s26 from handoff tarballs\n";
 
 my $src=read_file($source);

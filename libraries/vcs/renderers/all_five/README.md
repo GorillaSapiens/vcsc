@@ -75,12 +75,14 @@ VSYNC, VBLANK, RIOT timer deadlines and visible-component order.
 
 ## Maintained examples
 
-- `examples/05_all_five_192/` instantiates `lines:=192`.
-- `examples/06_all_five_181/` instantiates `lines:=181` with one score.
-- `examples/11_all_five_170/` instantiates `lines:=170` between an 11-line
-  score above and an 11-line score below.
-- `examples/17_video_standards/pal/01_all_five/` and
-  `examples/17_video_standards/secam/01_all_five/` instantiate `lines:=228` and
+- `examples/04_renderers/all_five/no_score/` instantiates `lines:=192`.
+- `examples/04_renderers/all_five/score_{above,below}/` contains the centered,
+  left, right, two-plus-two, three-plus-three, and poison `lines:=181`
+  compositions.
+- `examples/04_renderers/all_five/score_above_and_below/` instantiates
+  `lines:=170` between an 11-line score above and an 11-line score below.
+- `examples/05_video_standards/all_five/pal/` and
+  `examples/05_video_standards/all_five/secam/` instantiate `lines:=228` and
   consume the complete native 50 Hz visible field directly.
 
 The separately maintained `all_five_unofficial` renderer remains the

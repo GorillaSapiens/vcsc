@@ -78,14 +78,14 @@ require_ok('compile 3F/3E frame timing','g++','-std=c++17','-Wall','-Wextra','-W
    '-DILLEGAL_OPCODES','-I'.$mos_dir,$timing_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$timing);
 
 my @cases=(
-   { mapper=>'3F', dir=>'12_3f', source=>'3f_diagnostic.c26', ram=>0 },
-   { mapper=>'3E', dir=>'13_3e', source=>'3e_diagnostic.c26', ram=>1 },
+   { mapper=>'3F', dir=>'3f', source=>'3f_diagnostic.c26', ram=>0 },
+   { mapper=>'3E', dir=>'3e', source=>'3e_diagnostic.c26', ram=>1 },
 );
 
 for my $c (@cases) {
    my $m=$c->{mapper}; my $lc=lc($m);
-   my $source=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},$c->{source});
-   my $make=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},'Makefile');
+   my $source=File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching',$c->{dir},$c->{source});
+   my $make=File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching',$c->{dir},'Makefile');
    my $profile=File::Spec->catfile($vcs,$m,'mapper.c26');
    for ($source,$make,$profile) { -f $_ or die "$m support file missing: $_\n"; }
 

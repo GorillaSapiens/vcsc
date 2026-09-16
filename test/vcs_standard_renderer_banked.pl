@@ -64,7 +64,7 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $example=File::Spec->catdir($repo,qw(examples 09_bankswitching 02_standard_renderer));
+my $example=File::Spec->catdir($repo,qw(examples 07_diagnostics/bankswitching standard_renderer));
 my $source=File::Spec->catfile($example,'banked_standard_renderer.c26');
 my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
 

@@ -33,7 +33,7 @@ my@jobs=(
 my(%bin,%map);
 for my$j(@jobs){my($n,$f)=@$j; $bin{$n}=File::Spec->catfile($tmp,"all_five_player_color_192_$n.bin"); $map{$n}=File::Spec->catfile($tmp,"all_five_player_color_192_$n.map"); my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-Map',$map{$n},File::Spec->catfile($fixture_dir,$f),'-o',$bin{$n}); $r==0&&!$s or die "$n build failed\n$o$e"; without_usage($o) eq ''&&$e eq '' or die "$n build wrote output\n$o$e"; -s$bin{$n}==4096 or die "$n ROM not 4K\n"; }
 
-my$public_example=File::Spec->catfile($repo,qw(examples 15_all_five_player_color_192 01_interactive all_five_player_color_192_interactive.c26));
+my$public_example=File::Spec->catfile($repo,qw(examples 04_renderers all_five_player_color no_score all_five_player_color_192_interactive.c26));
 my$public_src=read_file($public_example);
 $public_src =~ /instantiate "renderers\/all_five_player_color_192\/all_five_player_color_192\.c26" as game/
    or die "public example does not instantiate combined renderer

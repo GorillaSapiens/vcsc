@@ -54,7 +54,7 @@ The terminal path explicitly transfers a zero through the delayed Ball latch
 before the final blank line. Without that `GRP1` transfer, `VDELBL` can retain
 the previous Ball enable for one extra line even after `ENABL` is cleared.
 
-Public examples are under `examples/16_all_five_player_color_181/`. Each score
+Public examples are under `examples/04_renderers/all_five_player_color/`. Each score
 order has a static raster diagnostic and an interactive cartridge. The static
 score-above and score-below examples link at **3754/4090 ROM bytes** and
 **114/128 RAM bytes**. The interactive examples link at **4058/4090 ROM bytes**

@@ -19,7 +19,7 @@ sub read_file {
 my$repo=abs_path(shift@ARGV // die "usage: $0 REPO\n");
 die "usage: $0 REPO\n" if @ARGV;
 my$renderers=File::Spec->catdir($repo,qw(libraries vcs renderers));
-my$examples=File::Spec->catdir($repo,qw(examples 17_video_standards));
+my$examples=File::Spec->catdir($repo,qw(examples 05_video_standards));
 my@families;
 find({no_chdir=>1,wanted=>sub {
    return unless -f $_ && /\.c26\z/;
@@ -39,7 +39,7 @@ for my$f(@families) {
    my($family,$renderer_rel)=@$f;
    for my$standard(qw(pal secam)) {
       my@matches;
-      my$root=File::Spec->catdir($examples,$standard);
+      my$root=File::Spec->catdir($examples,$family,$standard);
       find({no_chdir=>1,wanted=>sub {
          return unless -f $_ && /\.c26\z/;
          my$text=read_file($File::Find::name);

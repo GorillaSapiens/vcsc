@@ -11,7 +11,7 @@ use File::Spec;
 
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
 die "usage: $0 REPO\n" if @ARGV;
-my $src=File::Spec->catfile($repo,qw(examples 19_diagnostic 01_diagnostic vcsc_diagnostic.c26));
+my $src=File::Spec->catfile($repo,qw(examples 07_diagnostics field_diagnostic vcsc_diagnostic.c26));
 open(my $fh,'<',$src) or die "read $src: $!\n";
 local $/; my $text=<$fh>; close($fh);
 

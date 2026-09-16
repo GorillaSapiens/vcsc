@@ -149,12 +149,12 @@ component lifecycle.
 
 ## Maintained examples
 
-- `examples/17_video_standards/{pal,secam}/04_multisprite/` instantiate the native `lines:=228` profile.
-- `examples/14_multisprite/01_192/01_interactive/` — full-height interactive
+- `examples/05_video_standards/multisprite/{pal,secam}/` instantiate the native `lines:=228` profile.
+- `examples/04_renderers/multisprite/no_score/` — full-height interactive
   P0 + five-P1 demonstration.
-- `examples/14_multisprite/02_181_score_above/01_interactive/` — 11-line score
+- `examples/04_renderers/multisprite/score_above/` — 11-line score
   above 181-line gameplay.
-- `examples/14_multisprite/03_181_score_below/01_interactive/` — the same score
+- `examples/04_renderers/multisprite/score_below/` — the same score
   below gameplay.
 
 Select cycles P0 and the five logical P1 sprites; the left joystick moves the

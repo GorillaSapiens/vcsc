@@ -61,7 +61,7 @@ VBLANK, RIOT timer deadlines, and visible-component order.
 
 ## Maintained examples
 
-- `examples/17_video_standards/{pal,secam}/02_player_color/` instantiate the native `lines:=228` profile.
+- `examples/05_video_standards/player_color/{pal,secam}/` instantiate the native `lines:=228` profile.
 - `examples/04_renderers/player_color/no_score/` instantiates `lines:=192`.
 - `examples/04_renderers/player_color/score_{above,below}/` instantiate `lines:=181` with one adjacent score or diagnostic band.
 - `examples/04_renderers/player_color/score_above_and_below/` instantiates `lines:=170` between an 11-line

@@ -79,7 +79,7 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'FE/mapper.c26');
-my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','14_fe');
+my $example_dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching','fe');
 my $source=File::Spec->catfile($example_dir,'fe_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 

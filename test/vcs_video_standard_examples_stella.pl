@@ -34,18 +34,18 @@ my@mos_input=-f$mos_obj?($mos_obj):(File::Spec->catfile($mos,'mos6502.cpp'));
 my$phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
 my$phase=File::Spec->catfile($tmp,'vcs_video_standard_playfield_phase');
 for my$spec(
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 00_blank pal50_blank.c26)],
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 01_all_five pal_all_five_228_interactive.c26)],
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 02_player_color pal_player_color_228_interactive.c26)],
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 03_all_five_unofficial pal_all_five_unofficial_228_interactive.c26)],
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 04_multisprite pal_multisprite_228_interactive.c26)],
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 00_blank secam50_blank.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 02_player_color secam_player_color_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 03_all_five_unofficial secam_all_five_unofficial_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
+   ['pal','__builtin_pal_rgb',qw(05_video_standards blank pal pal50_blank.c26)],
+   ['pal','__builtin_pal_rgb',qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
+   ['pal','__builtin_pal_rgb',qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
+   ['pal','__builtin_pal_rgb',qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
+   ['pal','__builtin_pal_rgb',qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
+   ['pal','__builtin_pal_rgb',qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
+   ['secam','__builtin_secam_rgb',qw(05_video_standards blank secam secam50_blank.c26)],
+   ['secam','__builtin_secam_rgb',qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
+   ['secam','__builtin_secam_rgb',qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
+   ['secam','__builtin_secam_rgb',qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
+   ['secam','__builtin_secam_rgb',qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
+   ['secam','__builtin_secam_rgb',qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$builtin,@parts)=@$spec;
    my$src=File::Spec->catfile($repo,'examples',@parts);
    -f$src or die"missing reorganized $standard example $src\n";
@@ -63,8 +63,8 @@ ok('build 50 Hz playfield phase harness',$cxx,'-std=c++17','-O2','-DILLEGAL_OPCO
 
 # The all-five profile has an independent PF-write phase oracle.
 for my$case(
-   ['pal',qw(17_video_standards pal 01_all_five pal_all_five_228_interactive.c26)],
-   ['secam',qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)]) {
+   ['pal',qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
+   ['secam',qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)]) {
    my($standard,@parts)=@$case;
    my$src=File::Spec->catfile($repo,'examples',@parts);
    my$rom=File::Spec->catfile($tmp,"$standard-all-five-phase.bin");
@@ -77,16 +77,16 @@ for my$case(
 
 # Every native 228-line renderer gets a real Stella 7 launch/snapshot check.
 for my$case(
-   ['pal','PAL','all-five',[],qw(17_video_standards pal 01_all_five pal_all_five_228_interactive.c26)],
-   ['pal','PAL','player-color',[],qw(17_video_standards pal 02_player_color pal_player_color_228_interactive.c26)],
-   ['pal','PAL','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards pal 03_all_five_unofficial pal_all_five_unofficial_228_interactive.c26)],
-   ['pal','PAL','multisprite',['-Wa,--illegals'],qw(17_video_standards pal 04_multisprite pal_multisprite_228_interactive.c26)],
-   ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
-   ['secam','SECAM','all-five',[],qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)],
-   ['secam','SECAM','player-color',[],qw(17_video_standards secam 02_player_color secam_player_color_228_interactive.c26)],
-   ['secam','SECAM','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards secam 03_all_five_unofficial secam_all_five_unofficial_228_interactive.c26)],
-   ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)],
-   ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
+   ['pal','PAL','all-five',[],qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
+   ['pal','PAL','player-color',[],qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
+   ['pal','PAL','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
+   ['pal','PAL','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
+   ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
+   ['secam','SECAM','all-five',[],qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
+   ['secam','SECAM','player-color',[],qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
+   ['secam','SECAM','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
+   ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
+   ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$format,$family,$flags,@parts)=@$case;
    my$tag="$standard-$family";
    my$src=File::Spec->catfile($repo,'examples',@parts);

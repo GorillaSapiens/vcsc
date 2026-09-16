@@ -71,8 +71,7 @@ for my$h(@harness_specs) {
 }
 
 for my$standard(qw(pal secam)) {
-   my$source=File::Spec->catfile($repo,qw(examples 17_video_standards),$standard,
-      '01_all_five',"${standard}_all_five_228_interactive.c26");
+   my$source=File::Spec->catfile($repo,qw(examples 05_video_standards all_five),$standard,"${standard}_all_five_228_interactive.c26");
    my$text=read_file($source);
    require_re($text,qr/game_playfield\[60\]/,"$standard all-five playfield is not 60 bytes");
    require_re($text,qr/lines:=228/,"$standard all-five does not instantiate 228 visible lines");

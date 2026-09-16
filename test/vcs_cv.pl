@@ -54,7 +54,7 @@ my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'CV/mapper.c26');
 my $device=File::Spec->catfile($vcs,'CV/ram.c26');
-my $source=File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','cv_diagnostic.c26');
+my $source=File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','cv','cv_diagnostic.c26');
 
 my $pt=read_file($profile);
 my $dt=read_file($device);

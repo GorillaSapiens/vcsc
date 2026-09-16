@@ -8,6 +8,7 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 use Compress::Zlib qw(uncompress);
+use File::Basename qw(dirname);
 use File::Find;
 use File::Spec;
 
@@ -175,11 +176,11 @@ $faithful =~ /legacy_player1_graphics\s*\+=\s*\(\(legacy_PLAYER1_X\s*\^\s*legacy
 
 my @definitions=(
    [qw(examples 04_renderers player_color no_score player_color_192_interactive.c26)],
-   [qw(examples 05_all_five_192 01_interactive all_five_192_interactive.c26)],
+   [qw(examples 04_renderers all_five no_score all_five_192_interactive.c26)],
    [qw(examples _common player_color_181_interactive_common.c26)],
    [qw(examples _common all_five_181_interactive_common.c26)],
-   [qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
-   [qw(examples 11_all_five_170 01_score_above_and_below 01_interactive all_five_170_score_above_and_below_interactive.c26)],
+   [qw(examples _common all_five_player_color_181_interactive_common.c26)],
+   [qw(examples 04_renderers all_five score_above_and_below all_five_170_score_above_and_below_interactive.c26)],
 );
 
 # The reviewed Stella reference is optional to regenerate, but its visible sprite
@@ -233,8 +234,8 @@ find(sub {
    my $text=read_file($path);
    push @animation_sources,$path if $text =~ /\bp0_animation\s*\[32\]/;
 },File::Spec->catdir($repo,'examples'));
-@animation_sources==15
-   or die "expected 15 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
+@animation_sources==16
+   or die "expected 16 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
 for my $path (@animation_sources) {
    next if $path eq $faithful_path;
    my $text=read_file($path);
@@ -246,11 +247,33 @@ for my $path (@animation_sources) {
       or die "$path P1 animation selector changed\n";
 }
 
+sub local_include_closure {
+   my($path,$seen)=@_;
+   $seen //= {};
+   my $real=abs_path($path);
+   return '' unless defined($real) && !$seen->{$real}++;
+   my $text=read_file($real);
+   my $closure=$text;
+   while ($text =~ /^\s*include\s+"([^"]+)"/mg) {
+      my $candidate=File::Spec->catfile(dirname($real),split(m{/},$1));
+      next unless -f $candidate;
+      $closure.="\n".local_include_closure($candidate,$seen);
+   }
+   return $closure;
+}
+
+# Public interactive examples are identified by their source filename, not by a
+# numbered directory layer.  ER1-ER25 intentionally removed every
+# 01_interactive directory, and video-standard wrappers may reuse a canonical
+# scene through one or more local includes.  Follow that local include closure
+# so the guard validates the effective public source instead of encoding a tree
+# shape that no longer exists.
 my @leaves;
 find(sub {
-   return unless -f $_ && /\.c26\z/;
+   return unless -f $_ && /interactive.*\.c26\z/;
    my $path=$File::Find::name;
-   return unless $path =~ m{/\d+_interactive/} || $path eq $faithful_path;
+   return if $path =~ m{/examples/_common/};
+   return if $path =~ m{/heart/}; # heart-score examples intentionally use their own artwork
    push @leaves,$path;
 },File::Spec->catdir($repo,'examples'));
 @leaves or die "found no interactive sources\n";
@@ -259,11 +282,10 @@ $faithful_seen==1
    or die "interactive source discovery did not find the faithful legacy baseline\n";
 for my $path (@leaves) {
    next if $path eq $faithful_path;
-   my $text=read_file($path);
+   my $text=local_include_closure($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
                $text =~ /\bp0_animation\s*\[32\]/ ||
-               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/_common\/(?:player_color|all_five)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/ ||
-               $text =~ /include\s+"\.\.\/\.\.\/all_five_player_color_181_interactive_common\.c26"/;
+               $text =~ /\bgame_graphics\s*\[145\]/;
    $covered or die "$path does not use a normalized interactive sprite definition\n";
 }
 

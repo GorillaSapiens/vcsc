@@ -54,7 +54,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'OMNI/mapper.c26');
-my $diagnostic=File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26');
+my $diagnostic=File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','omni','omni_diagnostic.c26');
 
 my $profile_text=read_file($profile);
 $profile_text =~ /No real hardware currently supports this configuration/ &&

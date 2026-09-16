@@ -28,7 +28,7 @@ $repo=abs_path($repo)//die "resolve repo\n"; make_path($tmp); $tmp=abs_path($tmp
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$renderer=File::Spec->catfile($vcs,qw(renderers enhanced_multisprite_asymmetric enhanced_multisprite.c26));
-my$example_dir=File::Spec->catdir($repo,qw(examples 18_enhanced_multisprite 01_192 01_asymmetric));
+my$example_dir=File::Spec->catdir($repo,qw(examples 04_renderers enhanced_multisprite no_score_asymmetric));
 my$example=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric.c26');
 my$startup=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric_startup.s26');
 my$text=read_file($renderer);

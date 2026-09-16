@@ -53,8 +53,8 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'JANE/mapper.c26');
-my $source=File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','jane_diagnostic.c26');
-my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','07_jane');
+my $source=File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','jane','jane_diagnostic.c26');
+my $example_dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitching','jane');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 my $example_readme=File::Spec->catfile($example_dir,'README.md');
 

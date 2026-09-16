@@ -16,9 +16,9 @@ Renderer:
 
 Public diagnostics:
 
-    examples/18_enhanced_multisprite/01_192/01_asymmetric/
-    examples/17_video_standards/pal/05_enhanced_multisprite_asymmetric/
-    examples/17_video_standards/secam/05_enhanced_multisprite_asymmetric/
+    examples/04_renderers/enhanced_multisprite/no_score_asymmetric/
+    examples/05_video_standards/enhanced_multisprite_asymmetric/pal/
+    examples/05_video_standards/enhanced_multisprite_asymmetric/secam/
 
 Focused tests:
 
