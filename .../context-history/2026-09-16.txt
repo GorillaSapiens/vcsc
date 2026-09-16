@@ -108,3 +108,26 @@ paddle-threshold test, the complete bankswitching Stella matrix, all 12
 NTSC/PAL/SECAM diagnostic rasters, the heart exact-RGB oracle, the 18-cell
 video-standard matrix, all eight recursive public-example build shards, and the
 hidden-path regressions fixed during ER25.
+
+2026-09-16 12:33:13 PDT, simplify joystick tutorial
+---------------------------------------------------
+Replaced the old five-band left-port bit monitor with a direct two-player
+joystick demonstration. The left joystick moves a red P0 square and the right
+joystick moves a blue P1 square over a black background. Each player normally
+uses four `..XXXX..` bitmap rows. Holding that port's fire button selects the
+requested eight-row `.XXXXXX.` / `X......X` / `X.XXXX.X` outlined form while
+preserving the 4x4 center.
+
+The example now delegates frame timing and player positioning to the maintained
+192-line `player_color` renderer so the controller tutorial itself contains only
+direct SWCHA/INPT4/INPT5 input, movement bounds, and bitmap selection. The
+README documents both SWCHA nibbles and both active-low fire inputs.
+
+`test/vcs_joystick.pl` now runs the compiled cartridge through the shared 6502
+frame harness, drives both joystick nibbles and both fire buttons, and verifies
+independent red/blue position changes plus the 8-row fire-state graphics
+pointers/heights. The joystick moved from direct VSYNC ownership to the shared
+`vcs_ntsc_vsync()` helper, so the VSYNC-contract regression was updated
+accordingly. Focused joystick/runtime, VSYNC-contract, hygiene, 32-source asm
+allowlist, reorg-inventory, recursive public-example shard 2/8, and the full
+537/537 compile-only gate pass.

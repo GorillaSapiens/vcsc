@@ -9,21 +9,42 @@
 
 # Joystick input
 
-This is a deliberately small left-controller tutorial. It reads the four
-active-low direction bits from `SWCHA` and the active-low fire button from
-`INPT4`. It does not use a reusable display renderer, game rules, collision
-logic, or a controller abstraction, so the hardware reads stay obvious.
+This example gives both joystick ports something immediately visible to do.
+The **left joystick moves the red square** and the **right joystick moves the
+blue square** over a black background. Each direction moves its square one step
+per frame, including diagonals when two directions are held together.
 
-The visible screen is five horizontal bands, from top to bottom: **UP**,
-**DOWN**, **LEFT**, **RIGHT**, and **FIRE**. Direction bands are dark blue while
-released and turn green while held. The fire band is dark blue while released
-and turns red while pressed.
+Each player is normally a solid 4x4 bitmap:
 
-For the left joystick, the direction inputs are `SWCHA` bits 4 through 7:
-`0x10` is UP, `0x20` is DOWN, `0x40` is LEFT, and `0x80` is RIGHT. A pressed
-direction clears its bit. The left fire button is bit 7 of `INPT4`; it is also
-clear while pressed. The source samples both registers during VBLANK, then uses
-the captured values for the entire visible frame.
+```text
+..XXXX..
+..XXXX..
+..XXXX..
+..XXXX..
+```
 
-Build with `make` and run `make play`. Stella normally auto-detects a joystick
-for this cartridge.
+Holding that joystick's fire button changes its player to this 8x8 bitmap:
+
+```text
+.XXXXXX.
+X......X
+X.XXXX.X
+X.XXXX.X
+X.XXXX.X
+X.XXXX.X
+X......X
+.XXXXXX.
+```
+
+The controller wiring is still direct and visible in the source. `SWCHA` is
+active low. The left joystick uses the high nibble: `0x10` UP, `0x20` DOWN,
+`0x40` LEFT, and `0x80` RIGHT. The right joystick uses the low nibble: `0x01`
+UP, `0x02` DOWN, `0x04` LEFT, and `0x08` RIGHT. The left and right fire buttons
+are active-low bit 7 of `INPT4` and `INPT5`, respectively.
+
+The example delegates beam timing and player positioning to the normal
+`player_color` renderer so the tutorial can stay focused on controller input,
+movement, and fire-button state rather than RESP/HMOVE timing.
+
+Build with `make` and run `make play`. Stella normally auto-detects both
+joysticks for this cartridge.

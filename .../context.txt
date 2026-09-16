@@ -198,13 +198,21 @@ targets are reruns of normal-suite coverage, not separate acceptance gates.
 
 Last validation state
 ---------------------
-The final ER25 tree is clean with packaged Stella 7.0 and Xvfb: 537/537
-compile-only tests and 386/386 e2e tests pass, including the 792-byte palette
-contract, every maintained mapper/renderer Stella launcher, the heart 54-state
-exact-RGB oracle, all 12 NTSC/PAL/SECAM diagnostic rasters, the exhaustive
-paddle-threshold regression, and the final example-tree inventory. PAL
-monochrome/dark-gray normalization is retired; all reviewed standards use exact
-RGB under the checked-in user palette.
+The final ER25 full-suite baseline is clean with packaged Stella 7.0 and Xvfb:
+537/537 compile-only tests and 386/386 e2e tests pass, including the 792-byte
+palette contract, every maintained mapper/renderer Stella launcher, the heart
+54-state exact-RGB oracle, all 12 NTSC/PAL/SECAM diagnostic rasters, the
+exhaustive paddle-threshold regression, and the final example-tree inventory.
+PAL monochrome/dark-gray normalization is retired; all reviewed standards use
+exact RGB under the checked-in user palette.
+
+Since that baseline, the public joystick tutorial was simplified to two directly
+controlled sprites: left joystick/red P0 and right joystick/blue P1 on black,
+with a solid 4-row bitmap normally and the specified 8-row outlined bitmap while
+each fire button is held. Its focused source/build/runtime regression, shared VSYNC-contract regression,
+source-tree hygiene, example assembly allowlist, example-reorg inventory,
+recursive public-example shard 2/8, and the complete 537/537 compile-only gate
+pass. The full e2e suite has not been rerun after this isolated tutorial change.
 
 The ER1-ER25 example reorganization is complete. Final ER25 certification covers
 all 112 recursively discovered editable cartridge entry points through the

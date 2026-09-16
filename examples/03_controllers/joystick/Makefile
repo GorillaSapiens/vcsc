@@ -6,12 +6,14 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: joystick.bin
 
-joystick.bin: joystick.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/4K/mapper.c26
+joystick.bin: joystick.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/frame_ntsc.c26 \
+              $(VCS_DIR)/color_ntsc.c26 \
+              $(VCS_DIR)/renderers/player_color/player_color.c26
 	$(VCSC) -I $(VCS_DIR) -Map joystick.map joystick.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 
 clean:
-	rm -f joystick.bin joystick.hex joystick.map joystick.sym joystick.lst joystick.cfg
+	rm -f joystick.bin joystick.hex joystick.map joystick.s26 *.o26 joystick.sym joystick.lst joystick.cfg
 
 play:
 	stella *.bin

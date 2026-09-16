@@ -1,111 +1,178 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Minimal left-joystick input monitor.
+// Two ordinary joysticks controlling two simple player sprites.
 //
-// The four direction inputs are active-low bits in SWCHA.  The left fire
-// button is active-low on INPT4 bit 7.  Five horizontal bands show, from top
-// to bottom, UP, DOWN, LEFT, RIGHT, and FIRE.  A direction band turns green
-// while held; the fire band turns red while pressed.
+// Left joystick  -> red P0
+// Right joystick -> blue P1
+//
+// Each player is normally a solid 4x4 square. Holding that joystick's fire
+// button switches the same player to an 8x8 outlined version. Controller input
+// is sampled once per frame during overscan; the renderer owns only display
+// timing and horizontal positioning.
 
 include "vcs.c26"
+include "frame_ntsc.c26"
 include "color_ntsc.c26"
 
-typedef int16_t int;
-typedef uint8_t char;
-typedef uint8_t bool;
+alias JOYSTICK_RED  __builtin_ntsc_rgb(0xff, 0x20, 0x20)
+alias JOYSTICK_BLUE __builtin_ntsc_rgb(0x20, 0x40, 0xff)
+alias JOYSTICK_BLACK 0x00
 
-alias JOYSTICK_INACTIVE_COLOR VCS_NTSC_DARK_BLUE
-alias JOYSTICK_DIRECTION_COLOR VCS_NTSC_PALE_GREEN
-alias JOYSTICK_FIRE_COLOR VCS_NTSC_LIGHT_CORAL
-alias JOYSTICK_BLANK_COLOR 0x00
+alias JOYSTICK_MIN_X 0
+alias JOYSTICK_MAX_X 152
+alias JOYSTICK_MIN_Y 0
+alias JOYSTICK_MAX_Y 88
 
-void draw_input_band(uint8_t color) {
-   COLUBK := color;
-   for (uint8_t scanline := 38; scanline; scanline--) {
-      WSYNC := _;
+// This tutorial has no playfield. The player-color renderer still needs its
+// fixed 48-byte NTSC playfield object, so all twelve rows are simply blank.
+page const uint8_t game_playfield[48] := {
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+};
+
+// Player colors are constant; only each player's bitmap and position change.
+page const uint8_t game_player0_colors[8] := {
+   JOYSTICK_RED, JOYSTICK_RED, JOYSTICK_RED, JOYSTICK_RED,
+   JOYSTICK_RED, JOYSTICK_RED, JOYSTICK_RED, JOYSTICK_RED
+};
+
+page const uint8_t game_player1_colors[8] := {
+   JOYSTICK_BLUE, JOYSTICK_BLUE, JOYSTICK_BLUE, JOYSTICK_BLUE,
+   JOYSTICK_BLUE, JOYSTICK_BLUE, JOYSTICK_BLUE, JOYSTICK_BLUE
+};
+
+instantiate "renderers/player_color/player_color.c26" as game (lines:=192)
+
+// The first four bytes are the ordinary 4x4 square. The next eight bytes are
+// the fire-button form requested by the example: the same 4x4 center with a
+// one-pixel outline separated by a one-pixel gap.
+page const uint8_t joystick_graphics[12] := {
+   0b..XXXX..,
+   0b..XXXX..,
+   0b..XXXX..,
+   0b..XXXX..,
+
+   0b.XXXXXX.,
+   0bX......X,
+   0bX.XXXX.X,
+   0bX.XXXX.X,
+   0bX.XXXX.X,
+   0bX.XXXX.X,
+   0bX......X,
+   0b.XXXXXX.
+};
+
+inline void joystick_update_graphics(void) {
+   if (!(INPT4 & 0x80)) {
+      game_player0_graphics := joystick_graphics + 4;
+      game_player0_height := 7;
+   }
+   else {
+      game_player0_graphics := joystick_graphics;
+      game_player0_height := 3;
+   }
+
+   if (!(INPT5 & 0x80)) {
+      game_player1_graphics := joystick_graphics + 4;
+      game_player1_height := 7;
+   }
+   else {
+      game_player1_graphics := joystick_graphics;
+      game_player1_height := 3;
    }
 }
 
-void main(void) {
-   uint8_t directions := 0xff;
-   uint8_t fire_input := 0x80;
-   uint8_t color := JOYSTICK_INACTIVE_COLOR;
+inline void joystick_update_positions(void) {
+   uint8_t joysticks := SWCHA;
 
-   PF0 := 0;
-   PF1 := 0;
-   PF2 := 0;
-   GRP0 := 0;
-   GRP1 := 0;
-   ENAM0 := 0;
-   ENAM1 := 0;
-   ENABL := 0;
-   COLUBK := JOYSTICK_BLANK_COLOR;
+   // Left joystick: SWCHA high nibble, active low.
+   if (!(joysticks & 0x40)) {
+      if (game_PLAYER0_X > JOYSTICK_MIN_X) {
+         game_PLAYER0_X--;
+      }
+   }
+   if (!(joysticks & 0x80)) {
+      if (game_PLAYER0_X < JOYSTICK_MAX_X) {
+         game_PLAYER0_X++;
+      }
+   }
+   if (!(joysticks & 0x10)) {
+      if (game_player0_y > JOYSTICK_MIN_Y) {
+         game_player0_y--;
+      }
+   }
+   if (!(joysticks & 0x20)) {
+      if (game_player0_y < JOYSTICK_MAX_Y) {
+         game_player0_y++;
+      }
+   }
+
+   // Right joystick: SWCHA low nibble, active low.
+   if (!(joysticks & 0x04)) {
+      if (game_PLAYER1_X > JOYSTICK_MIN_X) {
+         game_PLAYER1_X--;
+      }
+   }
+   if (!(joysticks & 0x08)) {
+      if (game_PLAYER1_X < JOYSTICK_MAX_X) {
+         game_PLAYER1_X++;
+      }
+   }
+   if (!(joysticks & 0x01)) {
+      if (game_player1_y > JOYSTICK_MIN_Y) {
+         game_player1_y--;
+      }
+   }
+   if (!(joysticks & 0x02)) {
+      if (game_player1_y < JOYSTICK_MAX_Y) {
+         game_player1_y++;
+      }
+   }
+}
+
+inline void joystick_update_controls(void) {
+   joystick_update_positions();
+   joystick_update_graphics();
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+
+   COLUBK := JOYSTICK_BLACK;
+   COLUPF := JOYSTICK_BLACK;
+   CTRLPF := 0;
+
+   game_PLAYER0_X := 40;
+   game_PLAYER1_X := 112;
+   game_PLAYER0_NUSIZ := 0;
+   game_PLAYER1_NUSIZ := 0;
+   game_BALL_X := 80;
+
+   game_player0_y := 44;
+   game_player1_y := 44;
+   game_ball_y := 0;
+   game_ball_height := 0;
+   game_playfield_position := 8;
+
+   game_player0_graphics := joystick_graphics;
+   game_player1_graphics := joystick_graphics;
+   game_player0_height := 3;
+   game_player1_height := 3;
+
+   game_init();
 
    while (1) {
-      // Exact 3-scanline VSYNC, followed by a timer-owned 37-line VBLANK.
-      WSYNC := _;
-      VSYNC := 2;
-      WSYNC := _;
-      WSYNC := _;
-      WSYNC := _;
-      VSYNC := 0;
-
-      VBLANK := 2;
-      TIM64T := 42;
-
-      // Read the left controller while the beam is blanked.  All five inputs
-      // are active-low on real Atari hardware.
-      directions := SWCHA;
-      fire_input := INPT4;
-
-      while (!(TIMINT & 0x80)) {
-      }
-      WSYNC := _;
-      VBLANK := 0;
-
-      color := JOYSTICK_INACTIVE_COLOR;
-      if (!(directions & 0x10)) {
-         color := JOYSTICK_DIRECTION_COLOR;
-      }
-      draw_input_band(color);
-
-      color := JOYSTICK_INACTIVE_COLOR;
-      if (!(directions & 0x20)) {
-         color := JOYSTICK_DIRECTION_COLOR;
-      }
-      draw_input_band(color);
-
-      color := JOYSTICK_INACTIVE_COLOR;
-      if (!(directions & 0x40)) {
-         color := JOYSTICK_DIRECTION_COLOR;
-      }
-      draw_input_band(color);
-
-      color := JOYSTICK_INACTIVE_COLOR;
-      if (!(directions & 0x80)) {
-         color := JOYSTICK_DIRECTION_COLOR;
-      }
-      draw_input_band(color);
-
-      color := JOYSTICK_INACTIVE_COLOR;
-      if (!(fire_input & 0x80)) {
-         color := JOYSTICK_FIRE_COLOR;
-      }
-      draw_input_band(color);
-
-      // Five 38-line bands are 190 visible lines.  Finish the 192-line NTSC
-      // visible region with two black scanlines.
-      COLUBK := JOYSTICK_BLANK_COLOR;
-      WSYNC := _;
-      WSYNC := _;
-
-      // Timer-owned 30-line overscan.  The next frame's leading WSYNC supplies
-      // the final blanked boundary, matching the basic no-assembly example.
-      VBLANK := 2;
-      TIM64T := 34;
-      while (!(TIMINT & 0x80)) {
-      }
-      WSYNC := _;
-      WSYNC := _;
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      joystick_update_controls();
+      vcs_ntsc_end_overscan();
    }
 }

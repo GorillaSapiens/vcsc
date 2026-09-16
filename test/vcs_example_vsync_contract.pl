@@ -46,8 +46,8 @@ my $blank_screen='examples/01_basics/blank_screen/blank_screen.c26';
 my @c26_frame_owners=(
    'examples/01_basics/blank_noasm/blank_noasm.c26',
    'examples/01_basics/ode_to_joy/ode_to_joy.c26',
-   'examples/03_controllers/joystick/joystick.c26',
 );
+my $joystick='examples/03_controllers/joystick/joystick.c26';
 my $diagnostic='examples/07_diagnostics/field_diagnostic/vcsc_diagnostic.c26';
 my @expected=($blank_screen,@c26_frame_owners,$diagnostic);
 join("\n",@direct) eq join("\n",sort @expected)
@@ -63,6 +63,11 @@ for my $rel (@c26_frame_owners) {
    my $t=read_file(File::Spec->catfile($repo,split('/', $rel)));
    $t =~ /WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*0\s*;/s
       or die "$rel lost exact same-phase VSYNC sequence\n";
+}
+{
+   my $t=read_file(File::Spec->catfile($repo,split('/', $joystick)));
+   $t =~ /\bvcs_ntsc_vsync\s*\(\s*\)/ && $t !~ /\bVSYNC\s*:=/
+      or die "$joystick must delegate frame sync to vcs_ntsc_vsync()\n";
 }
 my $diag=read_file(File::Spec->catfile($repo,split('/', $diagnostic)));
 my @diag_direct=($diag =~ /\bVSYNC\s*:=/g);
