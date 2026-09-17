@@ -68,6 +68,16 @@ sub sym_addr {
    return hex($1);
 }
 
+sub require_tia_clear {
+   my ($case, $what) = @_;
+   # LDA #0; LDX #$2C; loop: STA $00,X; DEX; BPL loop.  This is the
+   # compact stock-runtime contract which makes real/ randomized-emulator TIA
+   # startup state deterministic before main or any long DATA initialization.
+   my $pattern = pack('C*', 0xA9, 0x00, 0xA2, 0x2C, 0x95, 0x00, 0xCA, 0x10, 0xFB);
+   index($case->{bin}, $pattern) >= 0
+      or die "$what is missing the stock TIA clear loop\n";
+}
+
 my $simple = build_case('simple', <<'SOURCE');
 include "vcs.c26"
 uint8_t byte;
@@ -86,6 +96,7 @@ require_re($simple->{map}, qr/^\s+\(not generated for compact startup\)$/m,
 require_re($simple->{map}, qr/hardware-stack=0 bytes/, 'zero main-entry stack reserve');
 forbid_re($simple->{sym}, qr/^__(?:copy|zero|init)_table\s+/m,
           'generic startup table symbol in compact case');
+require_tia_clear($simple, 'compact startup');
 
 my $noinit_riot = build_case('noinit_riot', <<'SOURCE');
 include "vcs.c26"
@@ -140,6 +151,7 @@ require_re($data->{map},
 require_re($data->{sym}, qr/^__copy_table\s+/m, 'copy table for DATA startup');
 require_re($data->{sym}, qr/^__init_table\s+/m, 'init table for DATA startup');
 forbid_re($data->{sym}, qr/^__zero_table\s+/m, 'ZERO table for DATA startup');
+require_tia_clear($data, 'DATA startup');
 
 my $split_data = build_case('split_data', <<'SOURCE');
 include "4KSC/mapper.c26"
@@ -216,6 +228,7 @@ require_re($data_noinit->{sym}, qr/^__vcsc_startup_full\s+/m,
            'full startup for DATA plus noinit');
 forbid_re($data_noinit->{sym}, qr/^__vcsc_startup_data\s+/m,
           'DATA startup for DATA plus noinit');
+require_tia_clear($data_noinit, 'full startup');
 require_re($data_noinit->{sym}, qr/^__copy_table\s+/m,
            'copy table for DATA plus noinit');
 require_re($data_noinit->{sym}, qr/^__zero_table\s+/m,

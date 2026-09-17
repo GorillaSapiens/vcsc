@@ -18,16 +18,19 @@ workspace expected by generated code.
 ### Startup/runtime pieces
 
 - `vcsc-rt0.s26` is the full/noinit stock startup. It initializes the hardware
-  stack, copies `DATA` through `__copy_table`, zeros ordinary objects through
+  stack, clears the TIA write-register window to a deterministic inert state,
+  copies `DATA` through `__copy_table`, zeros ordinary objects through
   `__zero_table` while naturally preserving omitted `noinit` objects, walks
   `__init_table`, and tail-jumps to `main`. It is also required for BSS in
   split/non-RIOT writable memory that cannot be covered by a blanket RIOT clear.
-- `vcsc-rt1-data.s26` is the middle DATA/runtime-init startup. It blanket-clears
-  ordinary RIOT RAM, copies `DATA` through `__copy_table`, walks
+- `vcsc-rt1-data.s26` is the middle DATA/runtime-init startup. It clears the TIA
+  write-register window, blanket-clears ordinary RIOT RAM, copies `DATA` through
+  `__copy_table`, walks
   `__init_table`, and tail-jumps to `main`. It deliberately has no generic ZERO
   walker or `__zero_table`.
-- `vcsc-rt1-simple.s26` is the smallest stock startup. It clears all 128 bytes of
-  ordinary RIOT RAM plus TIA registers and tail-jumps to `main`; it needs no
+- `vcsc-rt1-simple.s26` is the smallest stock startup. It clears the TIA
+  write-register window plus all 128 bytes of ordinary RIOT RAM and tail-jumps
+  to `main`; it needs no
   linker startup tables or runtime pointer workspace.
 - All three stock startups export weak `__reset`, `__nmi`, and `__irqbrk`
   definitions. The linker publishes the selected weak reset at the ordinary
@@ -48,8 +51,12 @@ workspace expected by generated code.
     imports those cells
 
 The selected startup sequence runs after every entry through `__reset`, not only
-at cartridge power-on. The full/noinit startup performs object-by-object zeroing;
-the DATA and simple startups use a blanket RIOT-RAM clear only when every object
+at cartridge power-on. All three stock paths first clear TIA `$00-$2C` with A=0,
+which mutes both audio channels, blanks player/missile/ball/playfield graphics,
+clears colors/motion/delay/collision state, and removes any dependency on the
+TIA's unspecified hardware power-on contents or Stella developer randomization.
+The full/noinit startup then performs object-by-object zeroing; the DATA and
+simple startups use a blanket RIOT-RAM clear only when every object
 that needs zero initialization is safely covered by it. For a split-address region such as Superchip RAM, table
 records contain the write-window address, so DATA copies and BSS clearing never
 read from or write through the wrong alias. A reset deliberately restores all

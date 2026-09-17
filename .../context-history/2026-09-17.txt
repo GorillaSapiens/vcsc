@@ -40,3 +40,18 @@ cover 0840, 0FA0, 3F/3E, DPC, E0, F0, FC, FE, JANE, UA/UASW, WD, and video-stand
 example layout. Focused reruns pass, followed by a clean normal `make test`: 
 582/582 compile-only and 392/392 e2e.
 
+
+2026-09-17 01:52:56 PDT, normalize stock TIA startup
+--------------------------------------------
+All three stock startup bodies now clear TIA write registers $00-$2C immediately
+after establishing the hardware stack. This reuses the compact historical simple-
+startup loop, so DATA/full/noinit carts no longer inherit unspecified real-TIA or
+Stella developer-randomized graphics/audio state during RAM/DATA initialization.
+The loop is deliberately broader and smaller than a sparse visible/audio register
+list; it also clears motion/delay/reset-to-player and collision state.
+
+Moved the simple startup's existing TIA clear ahead of its RIOT clear so random
+audio is muted before the longer memory initialization.
+`vcs_startup_selection.pl` now requires the linked clear loop in representative
+simple, DATA, and full images.
+Runtime/test documentation and hot startup state were updated accordingly.

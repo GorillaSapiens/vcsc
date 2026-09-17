@@ -1008,10 +1008,14 @@ the lexer/parser keyword,
 private BSS marker emission, rejection outside uninitialized mutable file-scope
 definitions, simple startup for ordinary RIOT BSS, DATA startup for initialized
 DATA/runtime initializers when blanket RIOT clearing is safe, full table-driven
-startup when RIOT `noinit` storage or split/non-RIOT BSS is present,
-and omission of both ordinary and split-address `noinit` objects from ZERO
-records. The split Superchip case also requires the preserved object to retain
-its `$F080` read and `$F000` write aliases while neighboring BSS is cleared.
+startup when RIOT `noinit` storage or split/non-RIOT BSS is present, the same
+compact `$00-$2C` TIA clear in all three stock startup bodies, and omission of
+both ordinary and split-address `noinit` objects from ZERO
+records. `vcs_startup_tia_stella.pl` independently enables Stella developer TIA
+randomization and requires representative simple, DATA, and full/noinit carts
+whose main loops never initialize graphics/audio to match an explicitly-cleared
+control raster. The split Superchip case also requires the preserved object to
+retain its `$F080` read and `$F000` write aliases while neighboring BSS is cleared.
 
 `split_memory_generic_regions.pl` proves that split-address storage is driven by
 authoritative ordinary `mem` metadata rather than by the spelling `cartram` or by

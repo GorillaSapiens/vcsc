@@ -152,14 +152,16 @@ Open workstreams
 
 Startup selection
 -----------------
-Stock VCS startup is deliberately three-way. `vcsc-rt1-simple.s26` is the
-smallest path for ordinary RIOT BSS with no DATA/runtime initializer work; it
-retains the historical blanket RIOT+TIA clear. `vcsc-rt1-data.s26` is selected
-for initialized DATA and/or runtime initializers when every startup-zeroed object
-can be satisfied by a blanket RIOT clear and no `noinit` object exists; it uses
-copy/init tables but has no generic ZERO-table walker and remains TIA-neutral,
-preserving the previous full-startup behavior of initialized-data carts.
-`vcsc-rt0.s26` is the full table-driven path used whenever `noinit` exists or
+Stock VCS startup is deliberately three-way. All three stock paths establish the
+same deterministic TIA baseline first by clearing the `$00-$2C` write-register
+window; real TIA power-on contents are unspecified and Stella developer-mode TIA
+randomization must not leak graphics/audio into compiled programs.
+`vcsc-rt1-simple.s26` is the smallest path for ordinary RIOT BSS with no
+DATA/runtime initializer work. `vcsc-rt1-data.s26` is selected for initialized
+DATA and/or runtime initializers when every startup-zeroed object can be satisfied
+by a blanket RIOT clear and no `noinit` object exists; it uses copy/init tables
+but has no generic ZERO-table walker. `vcsc-rt0.s26` is the full table-driven
+path used whenever `noinit` exists or
 startup-zeroed BSS lives in split/non-RIOT writable memory. DATA+noinit therefore
 uses full startup. The diagnostic's strong reset probe stores its
 `noinit cartram` 2600/7800 latch and tail-jumps to `__vcsc_startup_full`; normal
