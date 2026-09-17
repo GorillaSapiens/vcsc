@@ -17,6 +17,6 @@ clean:
 	rm -f $(TARGET) $(TARGET:.bin=.hex) $(TARGET:.bin=.map) $(TARGET:.bin=.s26) *.o26 $(TARGET:.bin=.sym) $(TARGET:.bin=.lst) $(TARGET:.bin=.cfg)
 
 play: $(TARGET)
-	stella -format PAL $(TARGET)
+	stella -userdir "$(CURDIR)" -format PAL "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play

@@ -14,6 +14,6 @@ clean:
 	rm -f wide_score.bin wide_score.hex wide_score.map wide_score.s26 wide_score.sym wide_score.lst wide_score.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

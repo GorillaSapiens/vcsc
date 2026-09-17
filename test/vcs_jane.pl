@@ -60,7 +60,7 @@ my $example_readme=File::Spec->catfile($example_dir,'README.md');
 
 my $mk=read_file($example_make);
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-bs\s+JANE\s+\$\(TARGET\)\s*$/m
+$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+JANE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "JANE play target must force Stella -bs JANE\n";
 my $ert=read_file($example_readme);
 $ert =~ /Stella 7\.0 or newer/ && $ert =~ /stella -bs JANE jane_diagnostic\.bin/

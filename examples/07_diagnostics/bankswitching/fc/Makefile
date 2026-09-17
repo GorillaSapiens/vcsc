@@ -21,5 +21,5 @@ fonts:
 clean:
 	rm -f fc_diagnostic.bin fc_diagnostic.map fc_diagnostic.hex fc_diagnostic.sym fc_diagnostic.lst fc_diagnostic.cfg
 play: $(TARGET)
-	stella -bs FC $(TARGET)
+	stella -userdir "$(CURDIR)" -bs FC "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

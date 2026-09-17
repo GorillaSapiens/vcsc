@@ -63,7 +63,7 @@ my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-bs\s+0840\s+\$\(TARGET\)\s*$/m
+$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+0840\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "0840 play target must force Stella -bs 0840\n";
 my $pt=read_file($profile);
 $pt =~ /cartridge\s*\{\s*\$bankcall/s &&

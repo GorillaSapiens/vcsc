@@ -14,6 +14,6 @@ clean:
 	rm -f blank_noasm.bin blank_noasm.hex blank_noasm.map blank_noasm.sym blank_noasm.lst blank_noasm.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

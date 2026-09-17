@@ -17,5 +17,5 @@ fonts:
 clean:
 	rm -f vcsc_diagnostic.bin vcsc_diagnostic.map vcsc_diagnostic.lst vcsc_diagnostic.sym vcsc_diagnostic.cfg
 play: $(TARGET)
-	stella -bs F4SC $(TARGET)
+	stella -userdir "$(CURDIR)" -bs F4SC "$(CURDIR)/$(TARGET)"
 .PHONY: all fonts clean play

@@ -53,6 +53,8 @@ recompile/assemble/link measurements and can materially increase build time on
 large source/example sets. It is silent unless `-v` is used. `-c` and `-S` do not
 run final-link profitability trials.
 
+Intermediate `.s26` and `.o26` files live in a private `vcsc.XXXXXX` directory under `$TMPDIR`, or `/tmp` when `TMPDIR` is unset. The driver removes that directory on both successful completion and normal failing exits from any pipeline stage.
+
 ## What it requires
 
 `vcsc` is only a coordinator.
@@ -152,8 +154,6 @@ Show aligned driver/subtool versions and the exact tool paths being used:
 ```
 
 The `-V` output prints one line per tool, aligns the first colon after the tool name, and includes the resolved executable path before that tool's version string.
-
-Intermediate `.s26` and `.o26` files live in a private `vcsc.XXXXXX` directory under `$TMPDIR`, or `/tmp` when `TMPDIR` is unset. The driver removes that directory on both successful completion and normal failing exits from any pipeline stage.
 
 ## Intentional non-goals
 

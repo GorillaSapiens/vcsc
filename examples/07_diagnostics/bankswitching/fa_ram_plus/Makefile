@@ -31,6 +31,6 @@ clean:
 		fa_ram_plus_diagnostic.lst fa_ram_plus_diagnostic.cfg
 
 play: $(TARGET)
-	stella -bs FA $(TARGET)
+	stella -userdir "$(CURDIR)" -bs FA "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

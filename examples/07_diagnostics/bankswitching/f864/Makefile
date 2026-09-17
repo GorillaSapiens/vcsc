@@ -60,7 +60,7 @@ clean:
 
 play:
 	for bin in $$(find . -type f -name '*.bin' | sort); do \
-		stella "$$bin"; \
+		stella -userdir "$(CURDIR)" "$(CURDIR)/$${bin#./}"; \
 	done;
 
 .PHONY: all ordinary superchip poisoned fonts clean play

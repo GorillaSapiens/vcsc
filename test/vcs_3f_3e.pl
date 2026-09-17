@@ -108,7 +108,8 @@ for my $c (@cases) {
    }
 
    my $mk=read_file($make);
-   $mk =~ /^play:\s*\$\(TARGET\)\s*$/m && $mk =~ /^\s*stella\s+-bs\s+\Q$m\E\s+\$\(TARGET\)\s*$/m
+   $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
+   $mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+\Q$m\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
       or die "$m play target must force Stella -bs $m\n";
    my $src=read_file($source);
    $src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result/ &&

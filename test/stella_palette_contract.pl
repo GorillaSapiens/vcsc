@@ -36,6 +36,18 @@ require $helper;
 my$basedir=File::Spec->catdir($tmp,'stella-private-basedir');
 make_path($basedir);
 my@args=vcsc_stella_palette_args($repo,$basedir);
+$ENV{HOME} eq $basedir or die "Stella helper did not redirect HOME to private basedir\n";
+for my$spec (
+   ['XDG_CONFIG_HOME','config'],
+   ['XDG_DATA_HOME','data'],
+   ['XDG_STATE_HOME','state'],
+   ['XDG_CACHE_HOME','cache'],
+) {
+   my($name,$leaf)=@$spec;
+   my$want=File::Spec->catdir($basedir,'.xdg',$leaf);
+   defined($ENV{$name}) && $ENV{$name} eq $want && -d $want
+      or die "Stella helper did not isolate $name\n";
+}
 my@expected=(
    '-basedir',$basedir,'-palette','user',
    '-pal.hue','0','-pal.saturation','0','-pal.contrast','0',

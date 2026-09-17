@@ -197,22 +197,27 @@ serialized by the unified runner, resolve `VCSC_STELLA`/`VCSC_XVFB` as either
 absolute paths or command names through PATH, use explicit deterministic Stella
 power-on settings unless randomization is the behavior under test, and prefer
 completed-frame capture over asynchronous single snapshots. Every maintained
-Stella certification also uses `test/stella_test_lib.pl` with a private basedir
-and the checked-in 792-byte `test/fixtures/stella/stella.pal`; that one file pins
-the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`, neutralizes palette
-adjustments/effects, and makes reviewed raster references exact-RGB contracts
-independent of Stella's host-version built-in palette. Focused `stella-*` Make
-targets are reruns of normal-suite coverage, not separate acceptance gates.
+Stella certification also uses `test/stella_test_lib.pl` with a private basedir,
+private HOME/XDG roots, and the checked-in 792-byte `test/fixtures/stella/stella.pal`;
+that one file pins the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`,
+neutralizes palette adjustments/effects, and makes reviewed raster references
+exact-RGB contracts independent of Stella's host-version built-in palette. Example
+`make play` recipes set Stella's `-userdir` to the example directory and pass an
+absolute ROM path so ROM-specific debugger files cannot inherit stale test paths.
+Focused `stella-*` Make targets are reruns of normal-suite coverage, not separate
+acceptance gates.
 
 Last validation state
 ---------------------
-The final ER25 full-suite baseline is clean with packaged Stella 7.0 and Xvfb:
-537/537 compile-only tests and 386/386 e2e tests pass, including the 792-byte
-palette contract, every maintained mapper/renderer Stella launcher, the heart
-54-state exact-RGB oracle, all 12 NTSC/PAL/SECAM diagnostic rasters, the
-exhaustive paddle-threshold regression, and the final example-tree inventory.
-PAL monochrome/dark-gray normalization is retired; all reviewed standards use
-exact RGB under the checked-in user palette.
+The current post-DRA/post-launcher/documentation-audit tree is clean with
+packaged Stella 7.0 and Xvfb: 582/582 compile-only tests and 392/392 e2e tests
+pass. This includes the 792-byte palette contract, every maintained
+mapper/renderer Stella launcher, the heart exact-RGB oracle, all 12
+NTSC/PAL/SECAM diagnostic rasters, and the full example-tree inventory. Mapper
+and video-standard play-target contracts preserve their required `-bs`/`-format`
+options while also requiring the isolated `-userdir "$(CURDIR)"` and absolute
+ROM path. PAL monochrome/dark-gray normalization remains retired; all reviewed
+standards use exact RGB under the checked-in user palette.
 
 Since that baseline, the public joystick, paddle, and driving-controller tutorials
 were simplified into direct visual demonstrations. Joystick uses independently
@@ -230,9 +235,9 @@ after WSYNC. This keeps the far-left B/C orbit positions from being clipped by a
 mid-scanline enable write. Stella 7 forced-phase captures verify full 4x4 left-side
 dots at both B and C.
 Focused source/build/controller regressions, source-tree hygiene, the 33-source
-assembly allowlist, the affected recursive public-example shards, Stella visual
-geometry checks, and the complete 537/537 compile-only gate pass after these tutorial
-changes. The full e2e suite has not been rerun after these isolated tutorial changes.
+assembly allowlist, affected recursive public-example shards, and Stella visual
+geometry checks cover these tutorial changes; the current full-suite result above
+now supersedes the earlier focused-only checkpoint.
 The ER1-ER25 example reorganization is complete. Final ER25 certification covers
 all 112 recursively discovered editable cartridge entry points through the
 direct-driver compile/link/disassembly round-trip verifier and all 118 public

@@ -12,6 +12,6 @@ clean:
 	rm -f drive.bin drive.map drive.lst drive.sym drive.cfg
 
 play:
-	stella -lc driving -rc driving *.bin
+	stella -userdir "$(CURDIR)" -lc driving -rc driving "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

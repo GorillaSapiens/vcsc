@@ -25,6 +25,6 @@ clean:
 	rm -f fe_diagnostic.bin fe_diagnostic.map fe_diagnostic.hex fe_diagnostic.sym fe_diagnostic.lst fe_diagnostic.cfg
 
 play: $(TARGET)
-	stella -bs FE $(TARGET)
+	stella -userdir "$(CURDIR)" -bs FE "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

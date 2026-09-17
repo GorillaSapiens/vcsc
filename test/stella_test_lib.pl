@@ -7,9 +7,27 @@ use File::Path qw(make_path);
 use File::Spec;
 use Digest::SHA qw(sha256_hex);
 
+sub vcsc_stella_private_env {
+   my($basedir)=@_;
+   defined($basedir) or die "vcsc_stella_private_env requires BASEDIR\n";
+   make_path($basedir);
+   my$xdg=File::Spec->catdir($basedir,'.xdg');
+   my$config=File::Spec->catdir($xdg,'config');
+   my$data=File::Spec->catdir($xdg,'data');
+   my$state=File::Spec->catdir($xdg,'state');
+   my$cache=File::Spec->catdir($xdg,'cache');
+   make_path($config,$data,$state,$cache);
+   $ENV{HOME}=$basedir;
+   $ENV{XDG_CONFIG_HOME}=$config;
+   $ENV{XDG_DATA_HOME}=$data;
+   $ENV{XDG_STATE_HOME}=$state;
+   $ENV{XDG_CACHE_HOME}=$cache;
+}
+
 sub vcsc_stella_palette_args {
    my($repo,$basedir)=@_;
    defined($repo)&&defined($basedir) or die "vcsc_stella_palette_args requires REPO and BASEDIR\n";
+   vcsc_stella_private_env($basedir);
    my$palette=File::Spec->catfile($repo,qw(test fixtures stella stella.pal));
    -f$palette or die "missing pinned Stella palette $palette\n";
    -s$palette==792 or die "pinned Stella palette must be exactly 792 bytes\n";

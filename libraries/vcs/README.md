@@ -582,6 +582,8 @@ and are documented in [`../../compiler/README.md`](../../compiler/README.md).
 This directory documents only the names and target bindings supplied by the VCS
 machine definition.
 
+## Building with VCS cartridge profiles
+
 Compile with an include path that can see this directory, for example:
 
 ```sh

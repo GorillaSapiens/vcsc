@@ -377,7 +377,7 @@ playfield helper libraries, vertical-reflect source, status-bar source,
 multisprite source, and bank/Superchip manifests are excluded. The retained
 source tree remains untouched; adapted files live beside this contract.
 
-### Application sprite and projectile notes
+## Application sprite and projectile notes
 
 The renderer supports P0, P1, M0, M1, and BL simultaneously. Player rows are
 fetched from highest index down to zero; use `VCS_STANDARD_SPRITE_GLYPH(...)`

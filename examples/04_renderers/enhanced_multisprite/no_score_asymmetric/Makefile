@@ -24,6 +24,6 @@ clean:
 	rm -f $(TARGET) $(TARGET:.bin=.cfg) $(TARGET:.bin=.lst) $(TARGET:.bin=.map) $(TARGET:.bin=.sym)
 
 play: $(TARGET)
-	stella -bs 4K $(TARGET)
+	stella -userdir "$(CURDIR)" -bs 4K "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play

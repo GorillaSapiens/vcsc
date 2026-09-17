@@ -14,6 +14,6 @@ clean:
 	rm -f paddle.bin paddle.hex paddle.map paddle.sym paddle.lst paddle.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

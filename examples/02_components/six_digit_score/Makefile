@@ -14,6 +14,6 @@ clean:
 	rm -f score.bin score.hex score.map score.s26 score.sym score.lst score.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

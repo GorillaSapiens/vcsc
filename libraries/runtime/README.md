@@ -97,7 +97,7 @@ generated archive members appear in `wrk/` after `make`. Machine definitions and
 linker layouts are platform-owned; the stock project target lives under
 `libraries/vcs/`.
 
-### Dynamic allocation
+## Dynamic allocation
 
 The stock runtime does not provide `sbrk`, `malloc`, `free`, or a heap. Programs
 that need dynamic allocation must supply their own allocator and storage policy.

@@ -22,6 +22,6 @@ clean:
 	rm -f $(TARGET) $(TARGET:.bin=.cfg) $(TARGET:.bin=.lst) $(TARGET:.bin=.map) $(TARGET:.bin=.sym)
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

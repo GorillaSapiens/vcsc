@@ -133,13 +133,16 @@ native replacement for isolated TSX/TXS probe/restore assembly.
 
 Stella and Xvfb are required for normal E2E testing.  Every maintained Stella
 certification uses `test/stella_test_lib.pl`, which gives Stella a private
-`-basedir`, installs the checked-in `test/fixtures/stella/stella.pal`, selects
+`-basedir`, redirects `HOME` and all XDG config/data/state/cache roots into that
+private tree, installs the checked-in `test/fixtures/stella/stella.pal`, selects
 `-palette user`, and explicitly neutralizes palette adjustments, PAL color-loss,
 TV filtering/phosphor blending, and TIA interpolation.  The 792-byte palette file
 contains the canonical NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`;
 `stella_palette_contract.pl` locks each standard's slice and the combined file.
 Reviewed raster references therefore compare exact RGB on all three standards and
 must not depend on the host Stella version's built-in palette or saved settings.
+The source-tree hygiene contract rejects any maintained Stella test that bypasses
+this helper.
 
 ## Common usage
 
@@ -249,6 +252,67 @@ E2E tests without a `linkcfg:` directive use `test/generic_6502.cfg`, an
 explicit test-only layout matching the retained generic simulator fixtures.
 Production `vcsc-ld` has no implicit layout, and production `vcsc` defaults to
 the bundled VCS 4K script instead.
+
+
+### `.pl` tests
+
+A runnable Perl test keeps its harness metadata in the leading comment block
+after the shebang. The driver is therefore both the test implementation and its
+manifest; no same-named `.test` forwarding file is needed:
+
+```perl
+#!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: linker reports occupied and free RAM bytes
+# expectexit: 0
+
+use strict;
+use warnings;
+```
+
+Only `.pl` files with a recognized runner header are discovered as tests. Other
+Perl files remain ordinary support scripts. `source_tree_hygiene.pl` rejects a
+`.test` file whose only purpose is to invoke a same-named `.pl` driver.
+
+### `.test` files
+
+`.test` remains appropriate for a generic non-Perl command or for a test of the
+runner itself:
+
+```text
+# runner: vcsc-as --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s26
+# expectstdout: wrote
+# expectexit: 0
+```
+
+Useful placeholders in `runner:` and related directives:
+
+- `@REPO@` ... repository root
+- `@TEST_ROOT@` ... `test/` directory
+- `@FILE@` ... current test file
+- `@FILEDIR@` ... directory containing the current test file
+- `@TMP@` ... per-test temporary work directory
+- `@RUNTIME@` ... default `libraries/runtime/libvcsc.l26`
+- `@RUNTIME_INC@` ... default `libraries/runtime/` include directory
+- `@GENERIC_LINK_CFG@` ... explicit test-only generic 6502 linker layout
+
+Useful generic expectations include:
+
+- `expectstdout:` / `expectstdoutordered:` / `forbidstdout:`
+- `expectstderr:` / `expectstderrordered:` / `forbidstderr:`
+- `expectstdoutexact:` / `expectstderrexact:`
+- `expectfile:` / `forbidfile:`
+- `expectexit:`
+
+## Assembler fixture sources
+
+`assembler/tests/` contains assembler source fixtures that exercise `vcsc-as`
+directly rather than passing through `vcsc-cc1`. They are part of the normal
+harness through `test/assembler_fixture_suite.pl`. Some fixtures are
+intentionally invalid and verify assembler diagnostics.
+
+## Selected regression coverage
 
 `function_mem_region_codegen_test.c26` and
 `function_mem_region_placement.pl` cover named `mem` modifiers on functions.
@@ -1087,64 +1151,6 @@ remainder members are gone; that the fixed-width shift/multiply/divide members
 are present; that scalar lowering is inline where appropriate; and that objects
 wider than four bytes retain a separate aggregate zeroing path.
 
-### `.pl` tests
-
-A runnable Perl test keeps its harness metadata in the leading comment block
-after the shebang. The driver is therefore both the test implementation and its
-manifest; no same-named `.test` forwarding file is needed:
-
-```perl
-#!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
-# phase: e2e
-# expectstdout: linker reports occupied and free RAM bytes
-# expectexit: 0
-
-use strict;
-use warnings;
-```
-
-Only `.pl` files with a recognized runner header are discovered as tests. Other
-Perl files remain ordinary support scripts. `source_tree_hygiene.pl` rejects a
-`.test` file whose only purpose is to invoke a same-named `.pl` driver.
-
-### `.test` files
-
-`.test` remains appropriate for a generic non-Perl command or for a test of the
-runner itself:
-
-```text
-# runner: vcsc-as --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s26
-# expectstdout: wrote
-# expectexit: 0
-```
-
-Useful placeholders in `runner:` and related directives:
-
-- `@REPO@` ... repository root
-- `@TEST_ROOT@` ... `test/` directory
-- `@FILE@` ... current test file
-- `@FILEDIR@` ... directory containing the current test file
-- `@TMP@` ... per-test temporary work directory
-- `@RUNTIME@` ... default `libraries/runtime/libvcsc.l26`
-- `@RUNTIME_INC@` ... default `libraries/runtime/` include directory
-- `@GENERIC_LINK_CFG@` ... explicit test-only generic 6502 linker layout
-
-Useful generic expectations include:
-
-- `expectstdout:` / `expectstdoutordered:` / `forbidstdout:`
-- `expectstderr:` / `expectstderrordered:` / `forbidstderr:`
-- `expectstdoutexact:` / `expectstderrexact:`
-- `expectfile:` / `forbidfile:`
-- `expectexit:`
-
-## Assembler fixture sources
-
-`assembler/tests/` contains assembler source fixtures that exercise `vcsc-as`
-directly rather than passing through `vcsc-cc1`. They are part of the normal
-harness through `test/assembler_fixture_suite.pl`. Some fixtures are
-intentionally invalid and verify assembler diagnostics.
-
 - `driver_version_format.pl` verifies that `vcsc -V` aligns tool-name colons and prints the resolved executable path for each tool.
 - `driver_temp_cleanup.pl` forces a post-compilation linker failure and verifies that the driver removes its private `vcsc.*` directory and intermediates on the failing exit path.
 
@@ -1357,6 +1363,8 @@ source filename/line/statement provenance survives compile/assemble/link, marks
 compiler-generated code honestly, and checks a real F8SC `cartram` store/load
 shows distinct final Superchip write/read aliases separated by `$80`.
 
+## Mapper and banked-renderer certification
+
 `vcs_fe.pl` certifies the FE/SCABS profile as a delayed stack-bus mapper rather
 than a hotspot mapper. It builds and executes the public 8K diagnostic, requires
 a direct top-level JSR into the `$D000` bank and an RTS return to `$F000`, checks
@@ -1388,6 +1396,8 @@ regression proves the Superchip profiles and examples are shipped; the source
 E2E/Stella tests remain the exhaustive lifecycle authority, while
 `make installcheck` runs representative staged 4K and F8 integration smokes.
 
+`vcs_4ksc.pl` certifies the direct 4K Superchip profile, full 128-byte split-address RAM lifecycle, hostile-fill reset behavior, PASS/FAIL diagnostic, disassembler recognition, and exact round trip.
+
 `vcs_standard_renderer_banked.pl` composes the maintained standard all-five
 renderer with 4K, F8, F6, F4, and F8SC C26 profiles.  It locks bank-local hard
 page objects, component-owned startup placement, one VBLANK-only bank1 hook,
@@ -1395,7 +1405,7 @@ per-bank ROM and replicated bridge costs, 37-cycle cross-bank calls, RIOT and
 Superchip usage, 12 hardware-stack bytes, 20140-cycle frame length, exact raster
 identity, mapper restoration, and the consolidated one-cartridge public example.
 
-## Faithful legacy multisprite baseline
+## Multisprite renderer certification
 
 `vcs_faithful_legacy_multisprite.pl` locks the first roadmap-item-28 milestone:
 the minimal NTSC, unbanked, non-Superchip retained multisprite profile.  It
@@ -1436,12 +1446,14 @@ phases at representative edge/interior X coordinates, natural X=159 wrap/clippin
 the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
 
 
+## Additional compiler coverage
+
 `fixed_large_offset_codegen_test.c26` locks the fixed-address audit past the old
 8-bit-offset boundary: an automatic byte at offset 299 must use direct
 `symbol + 299` addressing rather than materializing a pointer or consuming Y.
 
-PAL/SECAM 50 Hz coverage
-------------------------
+## PAL/SECAM 50 Hz coverage
+
 `vcs_frame_50hz_scheduler.pl` locks the shared PAL/SECAM scheduler deadlines,
 phase boundaries, 314-raw/312-Stella frame accounting, and diagnostics.
 `vcs_frame_50hz_interactive.pl` builds the complete PAL/SECAM native-228
@@ -1463,4 +1475,3 @@ coverage and independently certifies the forced PAL/SECAM Stella viewport.
 complete PAL/SECAM native-228 renderer matrix and verifies every forced-format
 viewport; the all-five pair additionally retains the independent PF phase oracle.
 
-`vcs_4ksc.pl` certifies the direct 4K Superchip profile, full 128-byte split-address RAM lifecycle, hostile-fill reset behavior, PASS/FAIL diagnostic, disassembler recognition, and exact round trip.

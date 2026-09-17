@@ -34,6 +34,6 @@ clean:
 	rm -f 3f_max_diagnostic.bin 3f_max_diagnostic.map 3f_max_diagnostic.hex 3f_max_diagnostic.sym 3f_max_diagnostic.lst 3f_max_diagnostic.cfg
 
 play: $(TARGET)
-	stella -bs 3F $(TARGET)
+	stella -userdir "$(CURDIR)" -bs 3F "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts torture

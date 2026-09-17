@@ -218,17 +218,21 @@ jsr $ffff
 
 This exits with status 0.
 
+## Raw cartridge and mapper-specific models
+
 Raw unbanked 2K and 4K images are placed in the conventional cartridge window
 when the map/config topology describes a direct cartridge. Superchip split-RAM
 aliases likewise come from that topology. Other raw unbanked sizes are rejected
 rather than guessed.
 
-OMNI direct-multi support
--------------------------
+### FA2 split-address RAM
+
 The FA2 linked map models six/seven directly selected 4K banks at
 `$1FF5-$1FFA/$1FFB` with 256 bytes of split-address cartridge RAM (write
 `$1000-$10FF`, read `$1100-$11FF`) and bank 0 at power-up. Harmony `$1FF4`
 persistence is intentionally outside the core simulator contract.
+
+### OMNI direct-multi support
 
 The OMNI linked map describes the planned OmniCart PHM direct-addressing model.
 The simulator loads its eight 4K file chunks directly at logical `$1000`,
@@ -239,8 +243,8 @@ same-address writable memory, while the seven program/constant islands remain
 read-only. This mode exists to certify VCSC/OmniCart software before PHM hardware
 is available; it is not an emulation of conventional Atari bank switching.
 
-Split-address memory and Superchip mapper support
--------------------------------------------------
+### Split-address memory and Superchip mapper support
+
 Any map/config memory entry with both `read_start` and `write_start` is modeled as
 one physical byte array with two CPU windows. The region name, window order,
 window spacing, alignment, and size are not special-cased. Reads must use the
@@ -264,6 +268,8 @@ accesses. The selector decoder uses the hardware-relevant `$1840` mask, so the
 Reads select after sampling the underlying console byte; writes both select the
 bank and continue to the ordinary low-memory model. The bundled MOS6502 core
 models the operand bus reads performed by undocumented absolute NOP `$0C` and the absolute-X NOP family `$1C/$3C/$5C/$7C/$DC/$FC`. This lets mapper entry hooks and descriptor bank-call selectors execute faithfully.
+
+### UA / UASW
 
 `mapper=UA` and `mapper=UASW` use the UA Limited alias decoder. The simulator
 canonicalizes each low-address access with `address & $1260`: `$0220` selects

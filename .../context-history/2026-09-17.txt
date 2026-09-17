@@ -1,0 +1,42 @@
+2026-09-17 00:10:00 PDT, documentation placement audit
+------------------------------------------------------
+Audited maintained README/Markdown/text documentation for material stranded under
+unrelated headings or in the wrong directory. This was a structural audit, not a
+prose rewrite; broad sections whose contents already matched their headings were
+left alone.
+
+Moved compiler page-aware object/function documentation out of the unsupported
+features section and into declarations/storage. Split VCS target type definitions
+from cartridge-profile build/reference material. Promoted runtime dynamic
+allocation and standard-renderer application notes out of unrelated subsections,
+and moved the driver's temporary-file behavior from examples into its behavior
+summary.
+
+Restructured linker documentation so local affine relocations, relative-branch
+page policies, page-aware placement, NMOS page-wrap hazards, private/replicated
+ROM layouts, hardware-stack reservation, and building instructions no longer
+inherit unrelated headings. Returned the "not a full ld65 config parser" note to
+Config support. Restructured simulator mapper documentation, including separate
+FA2, OMNI, split-address/Superchip, and UA/UASW subsections.
+
+Reorganized test documentation so .c26/.pl/.test metadata is grouped together,
+assembler fixtures have their own section, regression descriptions have an
+explicit umbrella section, and mapper, multisprite, additional compiler, and
+PAL/SECAM certification material no longer inherits unrelated preceding headings.
+Removed the repository-root DESIGN_NOTES.md because it was byte-for-byte
+identical to the authoritative assembler/DESIGN_NOTES.md and had no root-level
+references. Verified that all maintained local Markdown links still resolve.
+2026-09-17 00:35:00 PDT, Stella launcher contract tests
+--------------------------------------------------------
+The example `make play` isolation change intentionally preserved each existing
+mapper/video-standard option while adding `-userdir "$(CURDIR)"` and an
+absolute ROM path. Twelve older mapper/video regression tests still matched the
+pre-isolation literal Stella command shape and therefore falsely reported that
+required `-bs`/`-format` options had been lost.
+
+Updated those tests to require both contracts at once: exact mapper/format
+selection and the isolated userdir/absolute-ROM launch form. The affected tests
+cover 0840, 0FA0, 3F/3E, DPC, E0, F0, FC, FE, JANE, UA/UASW, WD, and video-standard
+example layout. Focused reruns pass, followed by a clean normal `make test`: 
+582/582 compile-only and 392/392 e2e.
+

@@ -14,6 +14,6 @@ clean:
 	rm -f dual_score.bin dual_score.hex dual_score.map dual_score.s26 dual_score.sym dual_score.lst dual_score.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

@@ -386,6 +386,8 @@ for my $path (@stella_test_scripts) {
    if (index($text,'$ENV{VCSC_STELLA}') >= 0) {
       $text =~ /(?:findexe|find_executable)\(\$ENV\{VCSC_STELLA\}\s*\|\|\s*\$ENV\{STELLA\}\s*\|\|\s*'stella'\)/
          or die "$path does not resolve VCSC_STELLA/STELLA through PATH\n";
+      index($text,'stella_test_lib.pl') >= 0 && index($text,'vcsc_stella_palette_args') >= 0
+         or die "$path does not use the private Stella launch helper\n";
    }
    if (index($text,'$ENV{VCSC_XVFB}') >= 0) {
       $text =~ /(?:findexe|find_executable)\(\$ENV\{VCSC_XVFB\}\s*\|\|\s*\$ENV\{XVFB\}\s*\|\|\s*'Xvfb'\)/
@@ -509,7 +511,7 @@ index($test_readme,'return_local_coalescing.pl')>=0
 
 my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','Makefile'));
 $banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
-$banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*stella\s+-bs\s+F8\s+f8\.bin\s*$/m &&
+$banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
 $banked_renderer_make !~ /f6\.bin|f4\.bin|f8sc\.bin/ &&
 index($banked_renderer_make,'vcs_standard_4k_ntsc.cfg')<0
    or die "banked standard renderer must remain one consolidated F8 public diagnostic\n";

@@ -25,6 +25,6 @@ clean:
 	rm -f dpc_diagnostic.bin dpc_diagnostic.map dpc_diagnostic.hex dpc_diagnostic.sym dpc_diagnostic.lst dpc_diagnostic.cfg
 
 play: $(TARGET)
-	stella -bs DPC $(TARGET)
+	stella -userdir "$(CURDIR)" -bs DPC "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

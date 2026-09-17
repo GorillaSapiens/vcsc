@@ -34,13 +34,13 @@ play: $(TARGETS)
 	for spec in $(PLAY_SPECS); do \
 		bin=$${spec%%:*}; \
 		mapper=$${spec##*:}; \
-		stella -bs "$$mapper" "$$bin"; \
+		stella -userdir "$(CURDIR)" -bs "$$mapper" "$(CURDIR)/$${bin#./}"; \
 	done;
 
 play-ua: ua_diagnostic.bin
-	stella -bs UA ua_diagnostic.bin
+	stella -userdir "$(CURDIR)" -bs UA "$(CURDIR)/ua_diagnostic.bin"
 
 play-uasw: uasw_diagnostic.bin
-	stella -bs UASW uasw_diagnostic.bin
+	stella -userdir "$(CURDIR)" -bs UASW "$(CURDIR)/uasw_diagnostic.bin"
 
 .PHONY: all clean play play-ua play-uasw fonts

@@ -23,5 +23,5 @@ fonts:
 clean:
 	rm -f wd_diagnostic.bin wd_diagnostic.map wd_diagnostic.hex wd_diagnostic.sym wd_diagnostic.lst wd_diagnostic.cfg
 play: $(TARGET)
-	stella -bs WD $(TARGET)
+	stella -userdir "$(CURDIR)" -bs WD "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

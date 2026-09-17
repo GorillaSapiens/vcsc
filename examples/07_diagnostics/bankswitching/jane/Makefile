@@ -23,5 +23,5 @@ fonts:
 clean:
 	rm -f jane_diagnostic.bin jane_diagnostic.map jane_diagnostic.hex jane_diagnostic.sym jane_diagnostic.lst jane_diagnostic.cfg
 play: $(TARGET)
-	stella -bs JANE $(TARGET)
+	stella -userdir "$(CURDIR)" -bs JANE "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

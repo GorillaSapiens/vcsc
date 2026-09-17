@@ -12,6 +12,6 @@ clean:
 	rm -f tanks.bin tanks.map tanks.lst tanks.sym tanks.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

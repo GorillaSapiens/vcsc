@@ -63,7 +63,7 @@ my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-bs\s+0FA0\s+\$\(TARGET\)\s*$/m &&
+$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+0FA0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m &&
 index($mk,'-DVCSC_INLINE_BANKCALL=1')<0
    or die "0FA0 play target must force Stella -bs 0FA0 without an inline-bankcall pilot define\n";
 my $pt=read_file($profile);

@@ -420,3 +420,20 @@ includes the complete 12-case diagnostic Stella matrix, the previously flaky
 `make installcheck` also passes, including installed-tool smoke tests and staged
 builds of blank_screen, Tanks, and the F8 bankswitch diagnostic. DRA1-DRA12 are
 now complete; the next non-DRA work is main-roadmap Item 57.
+
+2026-09-16 23:47:41 PDT, isolate Stella state and play paths
+* Updated all 118 example Stella play launches to set `-userdir "$(CURDIR)"`
+  and pass an absolute ROM path. ROM-specific debugger scripts now resolve to the
+  example directory instead of inheriting Stella's saved user directory or a
+  stale VCSC test temp path.
+* Hardened `test/stella_test_lib.pl` so every maintained Stella certification
+  redirects HOME plus XDG config/data/state/cache into its private test basedir.
+  Source-tree hygiene now rejects maintained Stella tests that bypass the helper.
+* Added `example_stella_play_contract.pl` to reject cwd-relative example ROM
+  launches. Focused contracts pass, the compile-only suite passes 582/582, and a
+  real pinned-palette three-plus-three Stella raster certification passes with
+  its SQLite/palette state confined to the test temp tree.
+* Moved the existing power-of-two runtime division/remainder warning paragraph in
+  `compiler/README.md` back beside the general shift/operator semantics. The
+  warning was added 2026-07-17; later DRA documentation had stranded it at the
+  end of the DRA subsection even though it is unrelated to DRA.

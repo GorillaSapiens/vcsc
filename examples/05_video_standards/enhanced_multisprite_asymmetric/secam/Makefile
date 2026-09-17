@@ -12,7 +12,7 @@ $(TARGET): $(SOURCE) $(STARTUP) ../../../_common/multisprite_228_interactive_com
 	$(VCSC) -nostdlib -I $(VCS_DIR) -DMULTISPRITE_NO_RETAINED_PF_ROWS $(SOURCE) $(STARTUP) -o $@
 
 play: $(TARGET)
-	stella -format SECAM $(TARGET)
+	stella -userdir "$(CURDIR)" -format SECAM "$(CURDIR)/$(TARGET)"
 
 clean:
 	rm -f $(TARGET) *.map *.lst *.sym *.cfg

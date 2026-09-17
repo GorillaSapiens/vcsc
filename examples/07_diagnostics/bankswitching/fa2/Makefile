@@ -26,6 +26,6 @@ clean:
 	rm -f fa2_diagnostic.bin fa2_diagnostic.map fa2_diagnostic.hex fa2_diagnostic.sym fa2_diagnostic.lst fa2_diagnostic.cfg
 
 play: $(TARGET)
-	stella -bs FA2 $(TARGET)
+	stella -userdir "$(CURDIR)" -bs FA2 "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

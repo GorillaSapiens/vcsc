@@ -14,6 +14,6 @@ clean:
 	rm -f fingerprint.bin fingerprint.hex fingerprint.map fingerprint.s26 fingerprint.sym fingerprint.lst fingerprint.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

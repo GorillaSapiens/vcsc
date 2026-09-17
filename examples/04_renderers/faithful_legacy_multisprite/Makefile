@@ -24,6 +24,6 @@ clean:
 	  $(TARGET:.bin=.s26) *.o26
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

@@ -101,10 +101,11 @@ Stella and Xvfb are required test dependencies for `make test` and `make e2e`.
 Maintained Stella raster and mapper certifications are part of the normal e2e
 suite; the `stella-*` targets above are convenient focused reruns, not an
 optional test tier. `make unit` remains compile-only.
-The test harness supplies a private Stella basedir and the checked-in 792-byte
-`test/fixtures/stella/stella.pal`, which pins the NTSC, PAL, and SECAM RGB tables
-from `compiler/builtin_rgb.c`.  Stella raster references therefore use exact RGB
-without depending on the host Stella version's built-in palette or saved settings.
+The test harness supplies a private Stella basedir, redirects HOME/XDG state into
+that private tree, and uses the checked-in 792-byte `test/fixtures/stella/stella.pal`,
+which pins the NTSC, PAL, and SECAM RGB tables from `compiler/builtin_rgb.c`.
+Stella raster references therefore use exact RGB without depending on the host
+Stella version's built-in palette or saved settings.
 
 Installation and release payloads are owned by `packaging/install.manifest`.
 `make install`, `make uninstall`, `make package`, `make linux`, and

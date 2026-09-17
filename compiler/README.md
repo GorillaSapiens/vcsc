@@ -736,6 +736,46 @@ the RAM-port prefix, for example `$start:0xD100 $size:0x0E00`; `$size:0x1000`
 would run through `$E0FF` rather than stopping at the end of the 4K bank mirror.
 The eventual banked cartridge writer still emits the complete physical bank.
 
+### Page-aware data objects and functions
+
+Every file-scope data-object definition is emitted in a private compiler-owned
+segment. This preserves the size and boundary of even a one- or two-byte scalar
+so the linker can reuse same-page holes without changing source order or adding
+padding. The ordinary placement is a soft preference only.
+
+At file scope, `page` requests hard 256-byte page containment, for example
+`page const uint8_t table[80] := { ... };`. The complete object must fit within
+one hardware page, but its first byte need not be `$xx00`; a small `page` object
+may share a page with other objects. The private segment is marked with
+`.pagecontain`, and for objects of at most 256 bytes the compiler also emits
+`.indexrange 0, size-1` as explicit full-declaration access metadata. The linker
+must find a legal address or reject the link.
+
+`align(N)` is the independent start-address alignment contract for file-scope
+data-object definitions:
+
+```vcsc
+align(256) const uint8_t ascii_font[760] := { ... };
+page align(256) const uint8_t frame_page[192] := { ... };
+```
+
+`N` must be a compile-time positive power of two from 1 through 32768. Other
+values are rejected. `align(256)` means the first byte is `$xx00`; unlike
+`page`, the object may span as many pages as its size requires. Combining the
+two requests both a page-aligned start and whole-object page containment.
+`align()` does not apply to functions, locals, extern data declarations, or
+absolute external bindings. The compiler emits the contract through the
+assembler/linker `.segmentalign` metadata rather than inserting literal padding
+into application data.
+
+A non-inline function definition is likewise emitted as its own `CODE` layout,
+so the linker knows its exact boundary and size. Ordinary functions receive the
+same soft containment preference. `page` on a function definition upgrades that
+function to hard containment; declarations without a body reject `page` because
+the final size is not yet known. Locals, extern data declarations, absolute external bindings,
+and named `mem` data regions do not yet accept the hard `page` modifier. Ordinary
+objects in named `mem` regions still receive private soft-placement segments.
+
 ### Split-address allocated memory
 
 A named read/write region may expose separate CPU aliases for the same physical
@@ -1156,6 +1196,10 @@ Truth is zero versus nonzero. `!`, `&&`, and `||` produce `uint8_t`; `&&` and
 Constant negative shift counts and counts at least as wide as the left operand
 are errors. Signed right shift is arithmetic; unsigned right shift is logical.
 
+Runtime division or remainder by a known positive power of two greater than one
+emits a performance warning. The compiler does not silently replace the
+operation because shifts and masks differ for signed negative values.
+
 `sizeof(type)` and `sizeof(expression)` produce `int16_t` and do not evaluate an
 expression operand for side effects.
 
@@ -1247,10 +1291,6 @@ effects:
 The historical one-character discard spelling `_` is obsolete and rejected. The
 diagnostic points accumulator-store uses to `$A` and result-discard uses to
 `(void)`. Identifiers that merely contain underscores remain ordinary identifiers.
-
-Runtime division or remainder by a known positive power of two greater than one
-emits a performance warning. The compiler does not silently replace the
-operation because shifts and masks differ for signed negative values.
 
 ## Initializers, strings, and xforms
 
@@ -1523,43 +1563,3 @@ void main(void) {
 - Recursive or reentrant functions and software call frames.
 - Struct, union, and array returns.
 - The parent runtime's software stack, frame pointer, `sbrk`, and interrupt-entry library.
-
-### Page-aware data objects
-
-Every file-scope data-object definition is emitted in a private compiler-owned
-segment. This preserves the size and boundary of even a one- or two-byte scalar
-so the linker can reuse same-page holes without changing source order or adding
-padding. The ordinary placement is a soft preference only.
-
-At file scope, `page` requests hard 256-byte page containment, for example
-`page const uint8_t table[80] := { ... };`. The complete object must fit within
-one hardware page, but its first byte need not be `$xx00`; a small `page` object
-may share a page with other objects. The private segment is marked with
-`.pagecontain`, and for objects of at most 256 bytes the compiler also emits
-`.indexrange 0, size-1` as explicit full-declaration access metadata. The linker
-must find a legal address or reject the link.
-
-`align(N)` is the independent start-address alignment contract for file-scope
-data-object definitions:
-
-```vcsc
-align(256) const uint8_t ascii_font[760] := { ... };
-page align(256) const uint8_t frame_page[192] := { ... };
-```
-
-`N` must be a compile-time positive power of two from 1 through 32768. Other
-values are rejected. `align(256)` means the first byte is `$xx00`; unlike
-`page`, the object may span as many pages as its size requires. Combining the
-two requests both a page-aligned start and whole-object page containment.
-`align()` does not apply to functions, locals, extern data declarations, or
-absolute external bindings. The compiler emits the contract through the
-assembler/linker `.segmentalign` metadata rather than inserting literal padding
-into application data.
-
-A non-inline function definition is likewise emitted as its own `CODE` layout,
-so the linker knows its exact boundary and size. Ordinary functions receive the
-same soft containment preference. `page` on a function definition upgrades that
-function to hard containment; declarations without a body reject `page` because
-the final size is not yet known. Locals, extern data declarations, absolute external bindings,
-and named `mem` data regions do not yet accept the hard `page` modifier. Ordinary
-objects in named `mem` regions still receive private soft-placement segments.

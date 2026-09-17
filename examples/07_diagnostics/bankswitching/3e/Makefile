@@ -23,5 +23,5 @@ fonts:
 clean:
 	rm -f 3e_diagnostic.bin 3e_diagnostic.map 3e_diagnostic.hex 3e_diagnostic.sym 3e_diagnostic.lst 3e_diagnostic.cfg
 play: $(TARGET)
-	stella -bs 3E $(TARGET)
+	stella -userdir "$(CURDIR)" -bs 3E "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

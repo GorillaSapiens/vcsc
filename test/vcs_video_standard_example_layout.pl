@@ -66,7 +66,7 @@ for my$case(@cases) {
    my$format=uc($standard);
    $make =~ /^play:\s*\$\(TARGET\)\s*$/m
       or die "$makefile play target must depend on TARGET\n";
-   $make =~ /^\s*stella\s+-format\s+\Q$format\E\s+\$\(TARGET\)\s*$/m
+   $make =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-format\s+\Q$format\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
       or die "$makefile play target must force Stella -format $format\n";
 }
 

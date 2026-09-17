@@ -16,6 +16,6 @@ clean:
 	rm -f $(TARGET) *.hex *.map *.s26 *.o26 *.sym *.lst *.cfg
 
 play: $(TARGET)
-	stella $(TARGET)
+	stella -userdir "$(CURDIR)" "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play

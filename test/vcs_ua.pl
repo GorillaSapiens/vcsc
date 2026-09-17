@@ -72,9 +72,9 @@ for my $src_bank (0..1) {
    }
 }
 $mk =~ /^play-ua:\s*ua_diagnostic\.bin\s*$/m &&
-$mk =~ /^\s*stella\s+-bs\s+UA\s+ua_diagnostic\.bin\s*$/m &&
+$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+UA\s+"\$\(CURDIR\)\/ua_diagnostic\.bin"\s*$/m &&
 $mk =~ /^play-uasw:\s*uasw_diagnostic\.bin\s*$/m &&
-$mk =~ /^\s*stella\s+-bs\s+UASW\s+uasw_diagnostic\.bin\s*$/m
+$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+UASW\s+"\$\(CURDIR\)\/uasw_diagnostic\.bin"\s*$/m
    or die "UA/UASW play targets must force their exact Stella mapper\n";
 
 my @variants=(

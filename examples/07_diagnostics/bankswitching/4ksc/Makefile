@@ -25,7 +25,7 @@ fonts:
 	$(PERL) $(FONT_SUBSET_TOOL) $(FONT_SUBSET_FLAGS) $(SMALL_FONT) $(FONT_SUBSET_DIR)/cart_type_font.c26 cart_type_glyphs ' 4KSC'
 
 play: $(TARGET)
-	stella $(TARGET)
+	stella -userdir "$(CURDIR)" "$(CURDIR)/$(TARGET)"
 
 clean:
 	rm -f $(TARGET) 4ksc_diagnostic.map 4ksc_diagnostic.lst 4ksc_diagnostic.sym 4ksc_diagnostic.cfg

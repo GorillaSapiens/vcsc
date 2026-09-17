@@ -16,6 +16,6 @@ clean:
 	rm -f joystick.bin joystick.hex joystick.map joystick.s26 *.o26 joystick.sym joystick.lst joystick.cfg
 
 play:
-	stella *.bin
+	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play
