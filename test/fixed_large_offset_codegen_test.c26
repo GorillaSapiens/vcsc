@@ -11,5 +11,5 @@ void main(void) {
    uint8_t a[300];
    a[299] := 0x5a;
    uint8_t x := a[299];
-   _ := x;
+   (void) x;
 }

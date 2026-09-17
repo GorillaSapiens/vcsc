@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasmordered: sta dra_global
+// expectasmordered: sta dra_zp
+// expectasmordered: sta  $d012
+// expectasm: sta dra_a_store_register_transparent_test$dra_local
+// forbidasm: lda
+// forbidasm: ldx
+// forbidasm: ldy
+// forbidasm: tax
+// forbidasm: tay
+// forbidasm: txa
+// forbidasm: tya
+// forbidasm: pla
+// forbidasm: php
+// forbidasm: plp
+// forbidasm: clc
+// forbidasm: sec
+
+include "machine_6502.c26"
+
+uint8_t dra_global;
+zeropage uint8_t dra_zp;
+uint8_t dra_abs@[none/0xd012];
+
+void dra_a_store_register_transparent_test(void) {
+   uint8_t dra_local;
+   dra_global := $A;
+   dra_zp := $A;
+   dra_abs := $A;
+   dra_local := $A;
+}

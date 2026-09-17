@@ -61,7 +61,7 @@ bank255 void draw_3ex_max_visible(void) {
    // standard three-cycle component handoff.  80+19+1+11+81 = 192 lines.
    asm lda #$fb;
    asm sta $3f;
-   WSYNC := _;
+   WSYNC := $A;
    vcs_ntsc_component_handoff();
    cart_type_draw();
    vcs_ntsc_wait_visible_tail_scanlines(81);

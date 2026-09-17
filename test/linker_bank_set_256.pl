@@ -62,7 +62,7 @@ my $map = File::Spec->catfile($tmp, 'placement256.map');
 write_file($source, <<'C26');
 instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=256)
 uint8_t helper(void) { return 0x5a; }
-bank255 void main(void) { _ := helper(); while (1) { } }
+bank255 void main(void) { (void) helper(); while (1) { } }
 C26
 
 local $ENV{TERM} = $ENV{TERM} || 'xterm';

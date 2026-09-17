@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: direct store chain from $A requires directly addressable one-byte non-bitfield targets
+
+include "machine_6502.c26"
+
+uint16_t wide;
+uint8_t narrow;
+
+void dra_a_store_chain_wide_test(void) {
+   wide := narrow := $A;
+}

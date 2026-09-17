@@ -3,9 +3,9 @@
 
 include "machine_6502.c26"
 
-uint8_t discard_probe;
-uint8_t discard_probe1;
-uint8_t discard_probe2;
+uint8_t dra_probe;
+uint8_t dra_probe1;
+uint8_t dra_probe2;
 uint8_t calls;
 uint8_t value;
 
@@ -29,14 +29,14 @@ void main(void) {
    value := 4;
 
    asm lda #$5a;
-   discard_probe2 := discard_probe1 := discard_probe := _;
-   if (discard_probe != 0x5a || discard_probe1 != 0x5a ||
-       discard_probe2 != 0x5a) { fail(1); }
+   dra_probe2 := dra_probe1 := dra_probe := $A;
+   if (dra_probe != 0x5a || dra_probe1 != 0x5a ||
+       dra_probe2 != 0x5a) { fail(1); }
 
-   _ := touch();
+   (void) touch();
    if (calls != 1 || value != 7) { fail(2); }
 
-   _ := (value := 19);
+   (void) (value := 19);
    if (value != 19) { fail(3); }
 
    asm lda #$ff;

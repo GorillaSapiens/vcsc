@@ -23,15 +23,16 @@ three-line pulse with aligned assertion and deassertion phases:
 
 ```c
 for (uint8_t i := 192; i; i--) {
-   WSYNC := _;
+   WSYNC := $A;
 }
 ```
 
 The compiler proves that this straight-line loop cannot clobber X, keeps `i`
 entirely in X, and lowers the loop to `LDX` / `STA WSYNC` / `DEX` / `BNE`.
-`WSYNC := _` is the ordinary discard-store form: it stores the accumulator that
-is already live without manufacturing a source value. No RAM byte is allocated
-for the lexical loop index.
+`WSYNC := $A` is Direct Register Access: it stores the accumulator that is
+already live with one `STA`, without manufacturing a source value or hidden
+register-preservation traffic. No RAM byte is allocated for the lexical loop
+index.
 
 VBLANK and overscan are different: those are the normal places to run game
 logic. The example therefore starts the RIOT interval timer instead of wasting
@@ -45,7 +46,7 @@ TIM64T := 42;
 
 while (!(TIMINT & 0x80)) {
 }
-WSYNC := _;
+WSYNC := $A;
 VBLANK := 0;
 ```
 

@@ -10,6 +10,6 @@
 
 include "vcs.c26"
 
-void discard_store_chain_test(void) {
-   WSYNC := RESP1 := RESP0 := _;
+void dra_a_store_chain_test(void) {
+   WSYNC := RESP1 := RESP0 := $A;
 }

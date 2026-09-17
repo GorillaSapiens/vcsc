@@ -203,10 +203,10 @@ $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
 $src =~ /instantiate "four_paddles\.c26" as diagnostic_paddles.*?diagnostic_text_paddle_sample0.*?diagnostic_paddles_score_commit_latched0\(\).*?diagnostic_text_paddle_sample1.*?asm bit\.z CXM0P;.*?asm nop;.*?asm nop;.*?asm nop;.*?instantiate "six_glyph_component\.c26" as diagnostic_text .*?paddle_samples:=2/s &&
 $src =~ /asm lda #6;\s*diagnostic_paddles_score_account_a\(\);/s &&
-$src =~ /bank1 void diagnostic_draw_text_row\(void\).*?diagnostic_paddles_score_latch0123_fixed\(\);\s*diagnostic_paddles_score_commit_latched1\(\);\s*WSYNC := _;.*?diagnostic_text_draw\(\);/s &&
+$src =~ /bank1 void diagnostic_draw_text_row\(void\).*?diagnostic_paddles_score_latch0123_fixed\(\);\s*diagnostic_paddles_score_commit_latched1\(\);\s*WSYNC := \$A;.*?diagnostic_text_draw\(\);/s &&
 $src =~ /diagnostic_paddles_score_commit_latched2\(\);.*?diagnostic_paddles_score_commit_latched3\(\);/s &&
-$src =~ /diagnostic_paddles_score_commit_latched2\(\); WSYNC := _;\s*diagnostic_paddles_score_commit_latched3\(\); WSYNC := _;\s*diagnostic_paddles_advance_pair\(\);/s &&
-$src !~ /diagnostic_paddles_sample[0-3]\(\); WSYNC := _;/
+$src =~ /diagnostic_paddles_score_commit_latched2\(\); WSYNC := \$A;\s*diagnostic_paddles_score_commit_latched3\(\); WSYNC := \$A;\s*diagnostic_paddles_advance_pair\(\);/s &&
+$src !~ /diagnostic_paddles_sample[0-3]\(\); WSYNC := \$A;/
    or die "diagnostic lost simultaneous score-integrated paddle sampling\n";
 
 my %collision_expected=(
@@ -233,7 +233,7 @@ $src =~ /diagnostic_collision_enam0\[16\]/ &&
 $src =~ /diagnostic_collision_enam1\[16\]/ &&
 $src =~ /diagnostic_collision_enabl\[16\]/ &&
 $src =~ /diagnostic_collision_pf\[16\]/ &&
-$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?CXCLR := _;.*\@diagnostic_collision_position_loop.*?diagnostic_collision_grp0,x.*?diagnostic_collision_grp1,x.*?diagnostic_collision_enam0,x.*?diagnostic_collision_enam1,x.*?diagnostic_collision_enabl,x.*?diagnostic_collision_pf,x.*?asm lda CXM0P;.*?asm lda CXM1P;.*?asm lda CXP0FB;.*?asm lda CXP1FB;.*?asm lda CXM0FB;.*?asm lda CXM1FB;.*?asm lda CXBLPF;.*?asm lda CXPPMM;.*?cmp diagnostic_collision_expected_top,x.*?cmp diagnostic_collision_expected_bottom,x.*?cmp #\$ff;.*?cmp #\$fe;.*?DIAGNOSTIC_TEST_TIA_FREEZE.*?cmp #\$f0;.*?beq\.flex \@diagnostic_collision_phase_done;.*?adc #16.*?\@diagnostic_collision_phase_done/s
+$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?CXCLR := \$A;.*\@diagnostic_collision_position_loop.*?diagnostic_collision_grp0,x.*?diagnostic_collision_grp1,x.*?diagnostic_collision_enam0,x.*?diagnostic_collision_enam1,x.*?diagnostic_collision_enabl,x.*?diagnostic_collision_pf,x.*?asm lda CXM0P;.*?asm lda CXM1P;.*?asm lda CXP0FB;.*?asm lda CXP1FB;.*?asm lda CXM0FB;.*?asm lda CXM1FB;.*?asm lda CXBLPF;.*?asm lda CXPPMM;.*?cmp diagnostic_collision_expected_top,x.*?cmp diagnostic_collision_expected_bottom,x.*?cmp #\$ff;.*?cmp #\$fe;.*?DIAGNOSTIC_TEST_TIA_FREEZE.*?cmp #\$f0;.*?beq\.flex \@diagnostic_collision_phase_done;.*?adc #16.*?\@diagnostic_collision_phase_done/s
    or die "diagnostic lost exhaustive isolated A-through-O collision testing\n";
 $src =~ /DIAGNOSTIC_ROW_COUNT\s*:=\s*9/ && $src =~ /cartram uint8_t diagnostic_rows\[48\];\s*cartram uint8_t diagnostic_detail1_row\[6\];/s &&
 $src =~ /cartram uint8_t diagnostic_tia_top_mask;\s*cartram uint8_t diagnostic_tia_bottom_mask;\s*cartram uint8_t diagnostic_tia_current_top;\s*cartram uint8_t diagnostic_tia_current_bottom;\s*cartram uint8_t diagnostic_tia_pass;/s &&

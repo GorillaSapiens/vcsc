@@ -22,7 +22,7 @@ listed tersely at the end of this document.
 The largest differences from C are:
 
 - Assignment uses `:=`; `=` is not the assignment operator.
-- A lone underscore (`_`) is the discard token, not an identifier.
+- Direct Register Access uses dedicated `$...` pseudo-objects; lone `_` is obsolete.
 - Braces are required for `if`, `else`, `while`, `do`, and `for` bodies.
 - Integer and pointer types are declared by the target support source. There
   are no implicit `char`, `short`, `int`, `long`, or `bool` types.
@@ -1170,29 +1170,83 @@ loaded once and each `STA` forwards it to the next target, with no compiler
 scratch and no Y setup. Wider or otherwise general simple chains use one shared
 value slot for the whole chain rather than one nested slot per assignment.
 
-A lone underscore is a discard token usable only in simple assignment:
+### Direct Register Access
+
+Direct Register Access (DRA) exposes selected physical 6507 CPU state at the
+exact source point through dedicated `$...` pseudo-objects. They are not C26
+variables, have no address or storage, and are not preserved across ordinary
+statements. Every accepted spelling maps to a direct NMOS 6502/6507 operation;
+the compiler does not synthesize hidden scratch storage, stack traffic, or
+register save/restore around DRA.
+
+The register matrix is deliberately narrow:
+
+| C26 form | Required instruction |
+|---|---|
+| `$A := byte_object;`, `$A := constant;` | `LDA` |
+| `$X := byte_object;`, `$X := constant;` | `LDX` |
+| `$Y := byte_object;`, `$Y := constant;` | `LDY` |
+| `byte_object := $A;` | `STA` |
+| `byte_object := $X;` | `STX` |
+| `byte_object := $Y;` | `STY` |
+| `$X := $A;` | `TAX` |
+| `$Y := $A;` | `TAY` |
+| `$A := $X;` | `TXA` |
+| `$A := $Y;` | `TYA` |
+| `$X := $S;` | `TSX` |
+| `$S := $X;` | `TXS` |
+
+A `byte_object` here must be a directly addressable one-byte non-bitfield object
+or absolute `ref`; normal read/write legality still applies. Dynamic subscripts,
+pointer dereferences, wider objects, arithmetic/casts, function arguments or
+returns, compound assignment, increment/decrement, self-assignment, and register
+transfers without a native instruction are rejected rather than expanded into a
+sequence with hidden clobbers. In particular, `$X := $Y`, `$Y := $X`, and general
+memory access through `$S` are not DRA operations.
+
+`$C`, `$Z`, `$N`, and `$V` may be read directly in control-flow truth positions,
+including `!`, `&&`, and `||`; they remain machine flags and are never
+materialized as C26 bytes. `$I` and `$D` are not readable conditions because the
+6507 has no direct branch on them. Direct flag writes are limited to the native
+single-instruction cases:
+
+| C26 form | Required instruction |
+|---|---|
+| `$C := 0;`, `$C := 1;` | `CLC`, `SEC` |
+| `$I := 0;`, `$I := 1;` | `CLI`, `SEI` |
+| `$D := 0;`, `$D := 1;` | `CLD`, `SED` |
+| `$V := 0;` | `CLV` |
+
+`$V := 1`, writes to `$Z`/`$N`, and runtime-valued flag assignments are
+rejected. Instruction side effects are the real hardware side effects: loads and
+register transfers establish N/Z where the processor does, stores and TXS do
+not, and explicit DRA operations are optimizer barriers for the machine state
+they can change.
+
+A directly addressed one-byte target such as `foo := $A;` therefore lowers to
+one `STA` with no source-value load, conversion, scratch storage, or register
+preservation. A right-associated chain such as
+`WSYNC := RESP1 := RESP0 := $A;` emits the three stores from the innermost target
+outward while preserving the same accumulator value; no hidden load, Y setup,
+scratch, or stack traffic is introduced.
+
+There is intentionally no `$_`; explicit result discard is `(void) expression`.
+There is intentionally no ordinary `$P` pseudo-register either: whole-status
+transfer on the 6507 requires stack operations and visible A/stack effects, which
+DRA refuses to hide. The existing `$$` spelling is unrelated to DRA: it names a
+function's static return object, not a CPU register.
+
+Use a plain `(void)` cast when an expression must be evaluated only for its side
+effects:
 
 ```vcsc
-WSYNC := _;                       // store whatever is already in A
-WSYNC := RESP1 := RESP0 := _;    // store that same A value, inner to outer
-_ := update();                    // evaluate update() and discard its result
-_ := value + 1;                   // evaluate the expression only for its effects
+(void) update();
+(void) (value + 1);
 ```
 
-Assignment *from* `_` requires one-byte, non-bitfield lvalues. It generates no
-source-value load or conversion. A bare directly addressed byte object such as
-`foo := _;` lowers to exactly one `STA`, independent of whether `foo` is placed in
-zero page, ordinary RAM, a function activation, or at an absolute hardware address.
-That store is transparent to A, X, Y, S, and P. A right-associated chain ending in
-`_` emits its stores from the innermost target outward while preserving the
-accumulator value. Such chains require directly addressable targets, so pointer
-setup cannot destroy the raw accumulator source. Direct TIA-register chains require
-no register readback, compiler scratch, hardware-stack traffic, or index-register
-setup. Assignment *to* `_` evaluates the right-hand expression normally and
-creates no destination object. Both forms are value-less and are intended as
-expression statements, not operands in larger expressions. Identifiers
-containing underscores remain ordinary identifiers; only the exact one-character
-spelling `_` is reserved.
+The historical one-character discard spelling `_` is obsolete and rejected. The
+diagnostic points accumulator-store uses to `$A` and result-discard uses to
+`(void)`. Identifiers that merely contain underscores remain ordinary identifiers.
 
 Runtime division or remainder by a known positive power of two greater than one
 emits a performance warning. The compiler does not silently replace the
@@ -1373,12 +1427,12 @@ prefix `--i` is equivalent in the discarded `for` step clause. Proven countdowns
 nor a RAM object for `i`.
 
 Calls, inline assembly, nested control flow, address-taking, signed/BCD arithmetic,
-and other X-clobbering constructs reject the shortcut. A bare directly addressed
-one-byte discard store `foo := _;` is always register/flag transparent: it is one
-`STA`, regardless of the object's fixed address or placement. `WSYNC := _;` is just
-the hardware-register instance of that general rule and is therefore safe inside an
-X-backed countdown. Such a proven loop emits no activation object for its lexical
-index; X is restored around the supported `i + constant` array-store form. When an
+and other X-clobbering constructs reject the shortcut. A validated directly
+addressed one-byte DRA store `foo := $A;` is register/flag transparent because it is
+one `STA`; `WSYNC := $A;` is the hardware-register instance of the same rule and is
+therefore safe inside an X-backed countdown. Such a proven loop emits no activation
+object for its lexical index; X is restored around the supported `i + constant`
+array-store form. When an
 ascending `C < N` proves the loop nonempty, lowering uses a post-tested `CPX`/`BCC`
 loop and avoids a redundant entry test/back jump. An ascending loop that can be empty
 retains the pre-test. A zero-initialized downward loop is deliberately not classified

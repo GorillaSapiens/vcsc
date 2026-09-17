@@ -108,14 +108,14 @@ void main(void) {
 
    // The released FE idiom requires the switching JSR itself to start with
    // S=$FF so its low return-byte push addresses stack location $01FE.
-   asm ldx #$ff;
-   asm txs;
+   $X := 0xff;
+   $S := $X;
    if (bank1_probe() != 0xA5) { failure := 0x02; }
 
    // RTS must have selected the caller bank from the high return byte and
    // restored the hardware stack exactly.
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (stack_after != 0xFF) { failure := 0x03; }
    if (trace != 0x5A) { failure := 0x04; }
 

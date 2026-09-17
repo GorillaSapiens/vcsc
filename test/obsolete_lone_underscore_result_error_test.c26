@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: lone '_' is obsolete; use $A for accumulator stores or (void) expression for explicit result discard
+include "machine_6502.c26"
+uint8_t sink;
+void f(void) { _ := sink; }

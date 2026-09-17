@@ -75,6 +75,21 @@ Across all seven categories the tree contains **118 recursively discovered
 runnable example Makefiles**: 110 migrated examples plus eight examples added by
 the reorganization plan.
 
+## Direct Register Access in examples
+
+Maintained examples use the final Direct Register Access spelling for simple
+physical-register operations. In particular, an Atari write-only strobe that
+must store the accumulator is written `WSYNC := $A;` (and similarly for other
+strobe registers) rather than the retired lone `_` spelling. When an expression
+is evaluated only for side effects, examples use the ordinary `(void)` discard
+form. Lone `_` is no longer accepted by the compiler.
+
+DRA does not replace cycle-counted renderer assembly merely to reduce assembly
+usage. The example assembly allowlist retains beam-critical multi-instruction
+sequences whose exact scheduling belongs in assembly, while isolated native
+register/flag operations may use `$A`, `$X`, `$Y`, `$S`, and the supported
+status-flag forms documented in `compiler/README.md`.
+
 ## Assembly policy
 
 Public examples should use VCSC for ordinary application logic. Inline `asm` is

@@ -81,10 +81,12 @@ sub generated_source {
       my $value = 0x80 + $dest;
       my $err_value = 1 + $dest;
       my $stack_err = 0x40 + $dest;
-      $text .= "   asm tsx; asm stx matrix_sp_before;\n";
+      $text .= '   $X := $S;' . "\n";
+      $text .= '   matrix_sp_before := $X;' . "\n";
       $text .= sprintf("   if (matrix_probe%d() != 0x%02X) { matrix_failure := 0x%02X; }\n",
                        $dest, $value, $err_value);
-      $text .= "   asm tsx; asm stx matrix_sp_after;\n";
+      $text .= '   $X := $S;' . "\n";
+      $text .= '   matrix_sp_after := $X;' . "\n";
       $text .= sprintf("   if (matrix_sp_after != matrix_sp_before) { matrix_failure := 0x%02X; }\n",
                        $stack_err);
    }

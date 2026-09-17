@@ -58,7 +58,7 @@ for my $kind (qw(above below)) {
       or die "$kind demo does not use maintained player_color_181\n";
    $text =~ /instantiate "heart_score_component\.c26" as score \(line_markers:=1\)/
       or die "$kind demo does not enable heart line markers at instantiation\n";
-   $text =~ /WSYNC := _;/ && $text =~ /vcs_ntsc_component_handoff\(\);/
+   $text =~ /WSYNC := \$A;/ && $text =~ /vcs_ntsc_component_handoff\(\);/
       or die "$kind demo does not use the one-line measured component gap\n";
    $text !~ /vcs_ntsc_wait_component_scanlines\(4\);/
       or die "$kind demo still uses the obsolete four-line gap\n";

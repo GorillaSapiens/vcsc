@@ -25,17 +25,17 @@ zeropage uint8_t sink_zp;
 void main(void) {
    uint8_t sink_local;
    // A nonzero constant countdown can live entirely in X.  The hardware
-   // discard-store is a direct STA and therefore cannot clobber that counter.
+   // DRA store from $A is a direct STA and therefore cannot clobber that counter.
    for (uint8_t i := 192; i; i--) {
-      WSYNC := _;
+      WSYNC := $A;
    }
    for (uint8_t j := 37; j > 0; --j) {
-      WSYNC := _;
+      WSYNC := $A;
    }
    for (uint8_t k := 30; k != 0; k--) {
-      WSYNC := _;
-      sink_global := _;
-      sink_zp := _;
-      sink_local := _;
+      WSYNC := $A;
+      sink_global := $A;
+      sink_zp := $A;
+      sink_local := $A;
    }
 }

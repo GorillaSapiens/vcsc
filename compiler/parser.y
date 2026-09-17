@@ -89,7 +89,6 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token DRA_D
 %token DRA_V
 %token DRA_N
-%token DISCARD
 %token DO
 %token ELSE
 %token ENUM
@@ -662,8 +661,6 @@ assign_expr:
     conditional_expr                              { COVER; $$ = MAKE_NODE($1); }
   | dra_pseudo ASSIGN initializer                 { COVER; $$ = MAKE_NAMED_NODE("dra_assign", $1, $3); }
   | lvalue ASSIGN initializer                     { COVER; $$ = MAKE_NODE(make_identifier_leaf(":="), $1, $3); }
-  | lvalue ASSIGN DISCARD                         { COVER; $$ = MAKE_NAMED_NODE("discard_store", $1); }
-  | DISCARD ASSIGN assign_expr                    { COVER; $$ = MAKE_NAMED_NODE("discard_result", $3); }
   | lvalue ADD_ASSIGN assign_expr                 { COVER; $$ = MAKE_NODE(make_identifier_leaf("+="), $1, $3); }
   | lvalue SUB_ASSIGN assign_expr                 { COVER; $$ = MAKE_NODE(make_identifier_leaf("-="), $1, $3); }
   | lvalue MUL_ASSIGN assign_expr                 { COVER; $$ = MAKE_NODE(make_identifier_leaf("*="), $1, $3); }

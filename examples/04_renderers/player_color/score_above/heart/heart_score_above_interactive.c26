@@ -15,7 +15,7 @@ inline void draw_visible_components(void) {
    score_draw();
    // The enabled heart profile is ten lines; one blank line keeps the
    // composed visible field at 192 (10 + 1 + 181).
-   WSYNC := _;
+   WSYNC := $A;
    COLUPF := VCS_NTSC_GOLDENROD;
    CTRLPF := 0x21;
    vcs_ntsc_component_handoff();

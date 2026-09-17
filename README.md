@@ -174,13 +174,19 @@ shaped by the Atari 2600 rather than by hosted-computer conventions:
 - no direct or mutual recursion;
 - directly named call targets rather than function pointers;
 - explicit hardware references, memory regions, and inline assembly;
+- Direct Register Access pseudo-objects for exact A/X/Y/S and status-flag
+  operations without hidden register preservation or stack traffic;
 - whole-program memory overlay and hardware-stack sizing;
 - predictable integration with cycle-counted assembly components.
 
 VCSC is well suited to initialization, game-state updates, controller handling,
 score logic, VBLANK and overscan work, and orchestration of display components.
 Cycle-critical visible-scanline code remains separately assembled where exact
-instruction timing matters.
+instruction timing matters. DRA is deliberately narrow: `$A`, `$X`, and `$Y`
+support exact direct loads/stores and native register transfers; `$S` is only
+available through native TSX/TXS forms; selected status flags support direct
+branch tests and native flag-setting/clearing instructions. There is no `$_` or
+ordinary `$P`; `$$` remains the unrelated static function-return object.
 
 See [`compiler/README.md`](compiler/README.md) for the language reference and
 [`compiler/ABI.txt`](compiler/ABI.txt) for the calling and data-layout contract.

@@ -50,9 +50,9 @@ $p =~ /paddles_score_commit_latched23\(\);.*?asm lda #9;\s*paddles_score_account
    or die "four-player Paddleball no longer samples all four paddles through the score renderer\n";
 $p =~ /paddle 0\s+.*P0.*paddle 1\s+.*M0/s && $p =~ /paddle 2\s+.*P1.*paddle 3\s+.*M1/s
    or die "four-player team\/object allocation changed\n";
-$p =~ /paddles_sample0\(\);\s*WSYNC := _;/s &&
+$p =~ /paddles_sample0\(\);\s*WSYNC := \$A;/s &&
 $p =~ /paddles_sample1\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles_advance_pair\(\);/s &&
-$p =~ /paddles_sample2\(\);\s*WSYNC := _;/s &&
+$p =~ /paddles_sample2\(\);\s*WSYNC := \$A;/s &&
 $p =~ /paddles_sample3\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles_advance_pair\(\);/s
    or die "four-player renderer lost one-sample-per-scanline schedule\n";
 $p !~ /paddleball_pf2_pairs|paddleball_reposition_table/ &&

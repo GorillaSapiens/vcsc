@@ -100,7 +100,7 @@ $s =~ /AUDV1 := TANKS_ENGINE_VOLUME/ && $s =~ /TANKS_ENGINE_VOLUME := 2/
 
 $s =~ /CXM0P & 0x80/ && $s =~ /CXM1P & 0x80/ &&
 $s =~ /CXM0FB & 0x80/ && $s =~ /CXM1FB & 0x80/ &&
-$s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := _/ &&
+$s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := \$A/ &&
 $s =~ /tank_pf_escape\[2\]/ &&
 $s =~ /void tanks_process_knockback\(void\).*?tanks_update_player_collisions\(\);.*?for \(\s*uint8_t tank := 0;\s*tank < 2;\s*tank\+\+\s*\).*?tank_knockback_pending\[tank\].*?tanks_knockback_offsets\[tank_knockback_index\[tank\]\].*?tanks_knockback_delta\[direction\].*?tanks_x\[tank\] \+= delta;.*?tanks_x\[tank\] -= 145;.*?tanks_x\[tank\] -= delta;.*?tanks_x\[tank\] \+= 145;.*?tanks_knockback_delta\[direction \+ 8\].*?tanks_y\[tank\] \+= delta;.*?tanks_y\[tank\] -= 75;.*?tanks_y\[tank\] -= delta;.*?tanks_y\[tank\] \+= 75;.*?tank_pf_escape\[tank\] := 1;.*?tank_knockback_pending\[tank\] := 0;/s &&
 $s =~ /tanks_knockback_delta\[16\].*?0,23,32,23,0,23,32,23.*?16,11,0,11,16,11,0,11/s
@@ -121,8 +121,8 @@ $s =~ /void tanks_position_missiles\(void\).*?asm sta WSYNC;\s*asm nop;\s*asm ld
    or die "Tanks lost calibrated public-X missile RESP/HMOVE positioning\n";
 $s =~ /void tanks_position_players_after_score\(void\).*?tanks_pnext \+ 1.*?tanks_pnext \+ 0.*?sta REFP0.*?sta REFP1/s &&
 $s =~ /asm sta GRP0;\s*asm sty GRP1/ && $s =~ /asm cpx #2;.*?asm lda #\$10;\s*asm sta PF0/s &&
-$s =~ /tanks_draw\(\);\s*PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*GRP0 := 0;\s*GRP1 := 0;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;/ &&
-$s =~ /PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;\s*ENAM0 := 0;\s*ENAM1 := 0;\s*WSYNC := _;\s*WSYNC := _;/
+$s =~ /tanks_draw\(\);\s*PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*GRP0 := 0;\s*GRP1 := 0;\s*WSYNC := \$A;\s*WSYNC := \$A;\s*WSYNC := \$A;\s*WSYNC := \$A;/ &&
+$s =~ /PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;\s*ENAM0 := 0;\s*ENAM1 := 0;\s*WSYNC := \$A;\s*WSYNC := \$A;/
    or die "Tanks lost fixed score handoff or 192-line arena geometry\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-Map',$mapfile,$source,'-o',$bin);

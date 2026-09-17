@@ -722,7 +722,7 @@ void tanks_update_overscan(void) {
    tanks_validate_player_bounds();
    tanks_update_spin0();
    tanks_update_spin1();
-   _ := tanks_random();
+   (void) tanks_random();
 }
 
 inline void tanks_position_missiles(void) {
@@ -1009,7 +1009,7 @@ void main(void) {
       score_draw();
       vcs_ntsc_component_handoff();
       tanks_position_players_after_score();
-      CXCLR := _;
+      CXCLR := $A;
       PF0 := 0xff;
       PF1 := 0xff;
       PF2 := 0xff;
@@ -1019,17 +1019,17 @@ void main(void) {
       PF2 := 0xff;
       GRP0 := 0;
       GRP1 := 0;
-      WSYNC := _;
-      WSYNC := _;
-      WSYNC := _;
-      WSYNC := _;
+      WSYNC := $A;
+      WSYNC := $A;
+      WSYNC := $A;
+      WSYNC := $A;
       PF0 := 0;
       PF1 := 0;
       PF2 := 0;
       ENAM0 := 0;
       ENAM1 := 0;
-      WSYNC := _;
-      WSYNC := _;
+      WSYNC := $A;
+      WSYNC := $A;
       vcs_ntsc_begin_overscan();
       tanks_update_collisions();
       tanks_process_knockback();

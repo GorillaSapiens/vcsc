@@ -13,5 +13,5 @@ union Shared {
 extern Shared shared_union;
 
 void main(void) {
-   _ := shared_union.whole;
+   (void) shared_union.whole;
 }

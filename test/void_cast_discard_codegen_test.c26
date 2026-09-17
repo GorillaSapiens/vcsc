@@ -1,11 +1,22 @@
 // vcsc-cc1 -I .
 // expectasm: jsr side
+// expectasm: adc
+// expectasm: .export _ordinary_identifier
+// expectasm: .export ordinary_identifier_
 include "machine_6502.c26"
+
+uint8_t discard_count;
+uint8_t _ordinary_identifier;
+uint8_t ordinary_identifier_;
+
 int16_t side(void) {
+   discard_count++;
    return 1;
 }
+
 int16_t test_entry(void) {
-   (void)side();
+   (void) side();
+   (void) (discard_count + 1);
    return 0;
 }
 

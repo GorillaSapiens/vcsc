@@ -218,7 +218,7 @@ bank1 void diagnostic_draw_text_row(void) {
    // GRP write.
    diagnostic_paddles_score_latch0123_fixed();
    diagnostic_paddles_score_commit_latched1();
-   WSYNC := _;
+   WSYNC := $A;
    asm bit.z CXM0P;
    diagnostic_text_draw();
 }
@@ -228,7 +228,7 @@ bank1 void diagnostic_draw_text_row(void) {
 bank1 void diagnostic_prepare_detail1_row(void) {
    // Keep the alignment line explicit before the first pair expansion so this
    // timing-sensitive row stays phase-compatible with the generic prepare path.
-   WSYNC := _;
+   WSYNC := $A;
    asm ldy diagnostic_detail1_row+0;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+0;
    asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+1;
@@ -290,7 +290,7 @@ bank3 void diagnostic_prepare_logo(void) {
 // six_glyph_component.c26.  It intentionally reuses diagnostic_text scratch;
 // the logo is fixed, so no score state or second renderer instance is needed.
 bank3 void diagnostic_draw_logo(void) {
-   WSYNC := _;
+   WSYNC := $A;
    asm bit.z CXM0P;
 
    asm lda #$03;
@@ -349,7 +349,7 @@ bank3 void diagnostic_draw_logo(void) {
    GRP0 := 0;
    VDELP0 := 0;
    VDELP1 := 0;
-   WSYNC := _;
+   WSYNC := $A;
 }
 
 // Build six full pointers into the canonical Big-font hexadecimal subset.
@@ -403,7 +403,7 @@ bank3 void diagnostic_prepare_fingerprint(void) {
 // component's X=36,52,68,84,100,116 geometry while reusing the diagnostic's
 // existing pointer/row/delayed scratch instead of allocating another renderer.
 bank3 void diagnostic_draw_fingerprint(void) {
-   WSYNC := _;
+   WSYNC := $A;
    asm bit.z CXM0P;
 
    asm lda #$06;
@@ -463,7 +463,7 @@ bank3 void diagnostic_draw_fingerprint(void) {
    GRP0 := 0;
    VDELP0 := 0;
    VDELP1 := 0;
-   WSYNC := _;
+   WSYNC := $A;
 }
 
 bank3 void diagnostic_prepare_collision_top(void) {
@@ -555,7 +555,7 @@ bank3 void diagnostic_prepare_collision_bottom(void) {
 }
 
 bank3 void diagnostic_draw_collision_row(void) {
-   WSYNC := _;
+   WSYNC := $A;
    asm bit.z CXM0P;
 
    asm lda #$03;
@@ -615,7 +615,7 @@ bank3 void diagnostic_draw_collision_row(void) {
    GRP0 := 0;
    VDELP0 := 0;
    VDELP1 := 0;
-   WSYNC := _;
+   WSYNC := $A;
 }
 
 bank1 void diagnostic_component_init(void) {
@@ -646,7 +646,7 @@ bank1 void diagnostic_paddle_overscan(void) {
    // then commit from one shared midpoint timestamp; commit timing cannot bias
    // the physical sample.  The alignment WSYNC deliberately establishes one common early-line sampling
    // phase; the scheduler deadline absorbs it without changing frame length.
-   WSYNC := _;
+   WSYNC := $A;
    asm lda.z INPT0; asm sta.z diagnostic_paddles_score_latch0;
    asm lda.z INPT1; asm sta.z diagnostic_paddles_score_latch1;
    asm lda.z INPT2; asm sta.z diagnostic_paddles_score_latch2;
@@ -687,8 +687,8 @@ bank3 void diagnostic_keypad_overscan_impl(void) {
    diagnostic_right_keypad_select_row(diagnostic_keypad_scan_row);
    // 7 scanlines is about 446 us at NTSC and longer at PAL/SECAM, safely above
    // the CX50 matrix settle requirement for every supported TV standard.
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A;
    diagnostic_left_keypad_read_row(diagnostic_keypad_scan_row);
    diagnostic_right_keypad_read_row(diagnostic_keypad_scan_row);
    if (diagnostic_keypad_scan_row == 3) {
@@ -721,7 +721,7 @@ bank3 void diagnostic_bank3_task(uint8_t task) {
 
    // Cross-bank entry phase is irrelevant: align before touching the three
    // deterministic pointer-preparation scanlines.
-   WSYNC := _;
+   WSYNC := $A;
    diagnostic_prepare_collision_top();
    diagnostic_draw_collision_row();
    diagnostic_prepare_collision_bottom();
@@ -1180,12 +1180,12 @@ bank0 void diagnostic_draw_tia_panel(void) {
    REFP0 := 0; REFP1 := 0;
    VDELP0 := 0; VDELP1 := 0; VDELBL := 0;
    RESMP0 := 0; RESMP1 := 0;
-   HMCLR := _;
+   HMCLR := $A;
 
    // The UI itself uses P0/P1 and therefore dirties collision latches.  Clear
    // immediately before the isolated test lane so every captured bit belongs
    // to this frame's one controlled pair.
-   CXCLR := _;
+   CXCLR := $A;
 
    // Position P0, P1, M0, M1, and Ball at the same X.  Two scanlines per object
    // preserve the proven wrapped absolute,Y fine-motion lookup and keep RESP
@@ -1227,7 +1227,7 @@ bank0 void diagnostic_draw_tia_panel(void) {
 
    // Four identical scanlines make the currently exercised pair visible and
    // give every enabled object ample overlap time to set its sticky latch.
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
 
    // Pack the complete 15-bit hardware bitmap in the A..O display order.
    // These are scratch captures only; the displayed masks below are the most
@@ -1327,7 +1327,7 @@ bank0 void diagnostic_draw_tia_panel(void) {
    ENAM0 := 0; ENAM1 := 0; ENABL := 0;
    PF0 := 0; PF1 := 0; PF2 := 0;
    RESMP0 := 0; RESMP1 := 0;
-   HMCLR := _;
+   HMCLR := $A;
    CTRLPF := 0;
    COLUBK := 0;
 
@@ -1346,7 +1346,7 @@ bank0 void diagnostic_draw_tia_panel(void) {
    asm clc; asm adc #1;
    asm sta diagnostic_tia_phase;
 #endif
-   WSYNC := _;
+   WSYNC := $A;
 }
 
 // Alternate short, distinct beeps between the two TIA audio channels. The
@@ -1438,23 +1438,23 @@ bank1 void diagnostic_draw_controller_text(void) {
 // invoking the score renderer, matching the old non-score collision area for
 // paddle timing.
 inline void diagnostic_blank_collision_span(void) {
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A;
 }
 
 // The joystick-only TIA lane is replaced by an intentionally blank span in the
 // other controller renderers.  Its exact visible-tail compensation is calibrated
 // below by controller family; analog elapsed accounting is finished in overscan.
 inline void diagnostic_blank_tia_span(void) {
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
-   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
+   WSYNC := $A; WSYNC := $A; WSYNC := $A; WSYNC := $A;
 }
 
 // Each controller renderer owns its RIOT deadline poller in the same bank.
@@ -1541,8 +1541,8 @@ bank2 void diagnostic_joystick_frame(void) {
    diagnostic_joystick_finish_deadline();
    asm sta WSYNC
    asm sta VBLANK
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
-   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := $A; WSYNC := $A; }
+   else { WSYNC := $A; WSYNC := $A; WSYNC := $A; }
 
    diagnostic_bank3_task(3);
    diagnostic_draw_title_text();
@@ -1618,8 +1618,8 @@ bank1 void diagnostic_paddle_frame(void) {
    diagnostic_paddle_finish_deadline();
    asm sta WSYNC
    asm sta VBLANK
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
-   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := $A; WSYNC := $A; }
+   else { WSYNC := $A; WSYNC := $A; WSYNC := $A; }
 
    diagnostic_bank3_task(3);
    diagnostic_draw_title_text();
@@ -1631,8 +1631,8 @@ bank1 void diagnostic_paddle_frame(void) {
    // Channels 2/3 from the final blank text row still consume that row's shared
    // snapshot.  The analog inputs were captured at the same phase as 0/1.
    if (!diagnostic_frame_init_only) {
-      diagnostic_paddles_score_commit_latched2(); WSYNC := _;
-      diagnostic_paddles_score_commit_latched3(); WSYNC := _;
+      diagnostic_paddles_score_commit_latched2(); WSYNC := $A;
+      diagnostic_paddles_score_commit_latched3(); WSYNC := $A;
       diagnostic_paddles_advance_pair();
    }
 
@@ -1723,8 +1723,8 @@ bank3 void diagnostic_keypad_frame(void) {
    diagnostic_keypad_finish_deadline();
    asm sta WSYNC
    asm sta VBLANK
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
-   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := $A; WSYNC := $A; }
+   else { WSYNC := $A; WSYNC := $A; WSYNC := $A; }
 
    diagnostic_draw_logo();
    diagnostic_draw_title_text();
@@ -1796,8 +1796,8 @@ bank4 void diagnostic_driving_frame(void) {
    diagnostic_driving_finish_deadline();
    asm sta WSYNC
    asm sta VBLANK
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
-   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := $A; WSYNC := $A; }
+   else { WSYNC := $A; WSYNC := $A; WSYNC := $A; }
 
    diagnostic_bank3_task(3);
    diagnostic_draw_title_text();

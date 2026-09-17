@@ -35,7 +35,6 @@ my $source=File::Spec->catfile($repo,qw(test fixtures heart_score golden.c26));
 my $line_source=File::Spec->catfile($repo,qw(test fixtures heart_score lines.c26));
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
-my $sequence=File::Spec->catfile($repo,qw(test stella_png_sequence.pl));
 my @wanted_full=(
 '320 x 228 9c7cd035a63fe7b118918767c4a41828110d89645cd46870c1795b9de34762b3',
 '320 x 228 aaa906c18e06f9eb7d074f0b747e03558c0e8e3707db965828f59354ae215a2a',
@@ -182,15 +181,18 @@ for my $kind (qw(above below)) {
       if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${kind}_${label}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
       my $actual;
       if ($label eq 'move_right') {
-         # RIGHT is intentionally held continuously.  A one-shot F12 can land
-         # while P0 is still crossing the screen, so certify the completed-frame
-         # endpoint after the public X clamp at 159 has settled.
-         ok("snapshot heart score $kind $label",$perl,$keys,'--fast','--every-frame',
-            '--snapshot-dir',$snap,'--snapshot-count','20','--snapshot-timeout','30');
-         my @png=sort grep{-s$_}glob("$snap/*.png");
-         terminate($pid); @png>=20 or die "Stella produced only ".scalar(@png)." completed frames for heart score $kind $label\n";
-         my($stable,$se)=ok("stable heart score $kind $label endpoint",$perl,$sequence,'--stable-tail','3',@png);
-         $se eq '' or die $se; chomp $stable; $actual=$stable;
+         # RIGHT is held from Stella startup.  Snapshot production is not tied
+         # one-for-one to emulated game frames, so counting PNGs cannot prove
+         # that P0 has reached the public X=159 clamp.  Let the emulator run
+         # well beyond the 115 required movement frames, then take one reviewed
+         # completed-frame snapshot.  This still fails if the interactive demo
+         # stops moving, but it does not depend on host snapshot throughput.
+         select undef,undef,undef,5.0;
+         ok("snapshot heart score $kind $label",$perl,$keys,'--fast');
+         my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+         terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
+         my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
+         $ae eq '' or die $ae; chomp $value; $actual=$value;
       }
       else {
          ok("snapshot heart score $kind $label",$perl,$keys,'--fast');

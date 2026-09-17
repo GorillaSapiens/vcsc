@@ -152,36 +152,44 @@ bank0 void source_entry0(void) {
 
    current_destination := 0;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target0();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
       failure := 0xC0;
    }
 
    current_destination := 1;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target1();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
       failure := 0xC0;
    }
 
    current_destination := 2;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target2();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
       failure := 0xC0;
    }
 
    current_destination := 3;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target3();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
       failure := 0xC0;
    }
@@ -193,36 +201,44 @@ bank1 void source_entry1(void) {
 
    current_destination := 0;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target0();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
       failure := 0xC1;
    }
 
    current_destination := 1;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target1();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
       failure := 0xC1;
    }
 
    current_destination := 2;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target2();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
       failure := 0xC1;
    }
 
    current_destination := 3;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target3();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
       failure := 0xC1;
    }
@@ -234,36 +250,44 @@ bank2 void source_entry2(void) {
 
    current_destination := 0;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target0();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
       failure := 0xC2;
    }
 
    current_destination := 1;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target1();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
       failure := 0xC2;
    }
 
    current_destination := 2;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target2();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
       failure := 0xC2;
    }
 
    current_destination := 3;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target3();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
       failure := 0xC2;
    }
@@ -275,36 +299,44 @@ bank3 void source_entry3(void) {
 
    current_destination := 0;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target0();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
       failure := 0xC3;
    }
 
    current_destination := 1;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target1();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
       failure := 0xC3;
    }
 
    current_destination := 2;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target2();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
       failure := 0xC3;
    }
 
    current_destination := 3;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target3();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
       failure := 0xC3;
    }

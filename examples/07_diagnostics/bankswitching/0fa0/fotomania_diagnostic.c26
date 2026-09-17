@@ -135,18 +135,22 @@ bank0 void source_entry0(void) {
    // inline-target bankcall path.
    current_destination := 0;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target0();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
       failure := 0xC0;
    }
 
    current_destination := 1;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target1();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
       failure := 0xC0;
    }
@@ -158,9 +162,11 @@ bank1 void source_entry1(void) {
 
    current_destination := 0;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target0();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
       failure := 0xC1;
    }
@@ -168,9 +174,11 @@ bank1 void source_entry1(void) {
    // Same-bank 1->1 is an ordinary JSR.
    current_destination := 1;
    signature := 0;
-   asm tsx; asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    call_return := call_target1();
-   asm tsx; asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
       failure := 0xC1;
    }

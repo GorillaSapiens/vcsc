@@ -101,7 +101,7 @@ inline void drive_prepare_orbits(void) {
 // P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
 // right half at x=116. Position once at startup: neither player's X changes.
 inline void drive_position_players(void) {
-   HMCLR := _;
+   HMCLR := $A;
 
    asm sta WSYNC;
    asm ldx #0;
@@ -149,7 +149,7 @@ inline void drive_position_players(void) {
 // the already-positioned players. The NOP preserves the calibrated RESP phase
 // used by the fixed-position paddle tutorial while the x operand comes from RAM.
 inline void drive_position_missiles(void) {
-   HMCLR := _;
+   HMCLR := $A;
    ENAM0 := 0;
    ENAM1 := 0;
 

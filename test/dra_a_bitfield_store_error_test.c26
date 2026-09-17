@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: direct store from $A requires a directly addressable one-byte non-bitfield object or absolute ref
+
+include "machine_6502.c26"
+
+struct dra_bits {
+   uint8_t bit:1;
+};
+
+dra_bits bits;
+
+void dra_a_bitfield_store_test(void) {
+   bits.bit := $A;
+}

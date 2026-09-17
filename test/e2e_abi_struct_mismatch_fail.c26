@@ -14,5 +14,5 @@ struct Packet {
 extern Packet shared;
 
 void main(void) {
-   _ := shared.value;
+   (void) shared.value;
 }

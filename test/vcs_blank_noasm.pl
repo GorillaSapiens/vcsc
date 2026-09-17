@@ -54,18 +54,18 @@ my $mos_obj=File::Spec->catfile($mos_dir,'mos6502.o');
 
 my $text=read_file($source);
 for my $count (192) {
-   $text =~ /for\s*\(\s*uint8_t\s+i\s*:=\s*$count\s*;\s*i\s*;\s*i--\s*\)\s*\{\s*WSYNC\s*:=\s*_\s*;/s
+   $text =~ /for\s*\(\s*uint8_t\s+i\s*:=\s*$count\s*;\s*i\s*;\s*i--\s*\)\s*\{\s*WSYNC\s*:=\s*\$A\s*;/s
       or die "blank_noasm no longer uses the X-backed $count-line source countdown\n";
 }
 $text !~ /for\s*\(\s*uint8_t\s+i\s*:=\s*(?:37|30)\s*;/
    or die "blank_noasm regressed to WSYNC-counted blanking\n";
-$text =~ /WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*0\s*;/s
+$text =~ /WSYNC\s*:=\s*\$A\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*\$A\s*;\s*WSYNC\s*:=\s*\$A\s*;\s*WSYNC\s*:=\s*\$A\s*;\s*VSYNC\s*:=\s*0\s*;/s
    or die "blank_noasm lost exact same-phase VSYNC sequence\n";
 $text =~ /TIM64T\s*:=\s*42\s*;/ && $text =~ /TIM64T\s*:=\s*34\s*;/
    or die "blank_noasm lost calibrated VBLANK/overscan TIM64T deadlines\n";
-$text =~ /TIM64T\s*:=\s*42\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;\s*VBLANK\s*:=\s*0\s*;/s
+$text =~ /TIM64T\s*:=\s*42\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*\$A\s*;\s*VBLANK\s*:=\s*0\s*;/s
    or die "blank_noasm lost timer-owned VBLANK deadline/alignment\n";
-$text =~ /TIM64T\s*:=\s*34\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
+$text =~ /TIM64T\s*:=\s*34\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*\$A\s*;.*?WSYNC\s*:=\s*\$A\s*;/s
    or die "blank_noasm lost Stella-calibrated timer-owned overscan tail\n";
 my @timer_waits=($text =~ /while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\)/g);
 @timer_waits == 2 or die "blank_noasm must wait on TIMINT in both blanking phases\n";

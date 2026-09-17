@@ -61,7 +61,7 @@ join("\n",@direct) eq join("\n",sort @expected)
 }
 for my $rel (@c26_frame_owners) {
    my $t=read_file(File::Spec->catfile($repo,split('/', $rel)));
-   $t =~ /WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*0\s*;/s
+   $t =~ /WSYNC\s*:=\s*\$A\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*\$A\s*;\s*WSYNC\s*:=\s*\$A\s*;\s*WSYNC\s*:=\s*\$A\s*;\s*VSYNC\s*:=\s*0\s*;/s
       or die "$rel lost exact same-phase VSYNC sequence\n";
 }
 {

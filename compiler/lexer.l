@@ -2623,7 +2623,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 "$P"            { LEX_ERROR_HERE("$P is reserved for a future Direct Register Access facility and is not supported"); }
 "$_"            { LEX_ERROR_HERE("$_ is not supported; use (void) expression for explicit result discard"); }
 "$$"            return DOLLAR_DOLLAR;
-"_"             return DISCARD;
+"_"             { LEX_ERROR_HERE("lone '_' is obsolete; use $A for accumulator stores or (void) expression for explicit result discard"); }
 
 {FLAG} {
    yylval.str = strdup(yytext);

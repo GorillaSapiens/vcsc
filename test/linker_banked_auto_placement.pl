@@ -243,7 +243,7 @@ uint8_t uses_table(void) {
 }
 
 void main(void) {
-   _ := uses_table();
+   (void) uses_table();
 }
 C26
 write_file($handlers_s26, <<'ASM');

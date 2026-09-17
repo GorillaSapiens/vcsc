@@ -2383,28 +2383,39 @@ static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char
           !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
 }
 
-//! @brief Verify one bare discard store is transparent to an X-backed loop index.
+//! @brief Verify one direct store from physical A is transparent to an X-backed loop index.
 //!
-//! A valid fixed-address `foo := _;` lowers to a single STA.  STA changes none
+//! A validated fixed-address `foo := $A;` lowers to one STA.  STA changes none
 //! of A, X, Y, S, or P, independent of zero-page versus absolute placement.
-//! Runtime-addressed lvalues are intentionally excluded: their address setup is
-//! not a single transparent store.
-static bool counted_loop_x_safe_discard_store(ASTNode *stmt, Context *ctx,
-                                              const char *counter) {
-   ASTNode *u;
+//! Runtime-addressed lvalues are intentionally excluded because address setup
+//! would not be a single transparent store.
+static bool counted_loop_x_safe_dra_a_store(ASTNode *stmt, Context *ctx,
+                                             const char *counter) {
+   ASTNode *src;
+   ASTNode *target;
    LValueRef lv;
    const char *name;
+   const char *op;
 
-   if (!stmt || strcmp(stmt->name, "discard_store") || stmt->count != 1) return false;
-   u = (ASTNode *)unwrap_expr_node(stmt->children[0]);
-   name = expr_bare_identifier_name(u);
+   stmt = (ASTNode *)unwrap_expr_node(stmt);
+   if (!stmt || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+       !stmt->children[0]) return false;
+   op = stmt->children[0]->strval;
+   src = (ASTNode *)unwrap_expr_node(stmt->children[2]);
+   if (!op || strcmp(op, ":=") || !src || src->kind != AST_DRA ||
+       !src->strval || strcmp(src->strval, "$A")) return false;
+
+   target = (ASTNode *)unwrap_expr_node(stmt->children[1]);
+   name = expr_bare_identifier_name(target);
    if (!name || (counter && !strcmp(name, counter))) return false;
-   if (!resolve_ref_argument_lvalue(ctx, u, &lv) || lv.size != 1 ||
-       lv.is_bitfield || lv.indirect || lv.needs_runtime_address) {
+   if (!resolve_ref_argument_lvalue(ctx, target, &lv) || lv.size != 1 ||
+       lv.is_bitfield || lv.indirect || lv.needs_runtime_address || lv.is_swapram) {
       return false;
    }
+   if (lv.is_ref && !lv.is_absolute_ref) return false;
    if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) return false;
-   return true;
+   return lv.is_absolute_ref || lv.is_static || lv.is_zeropage || lv.is_global ||
+          lv.offset >= 0;
 }
 
 //! @brief Verify a small counted-loop body cannot clobber its X-backed counter.
@@ -2416,7 +2427,7 @@ static bool counted_loop_x_safe_body_range(ASTNode *body, Context *ctx,
       ASTNode *stmt = body->children[i];
       ASTNode *target;
       ASTNode *rhs;
-      if (counted_loop_x_safe_discard_store(stmt, ctx, counter)) continue;
+      if (counted_loop_x_safe_dra_a_store(stmt, ctx, counter)) continue;
       if (stmt && (!strcmp(stmt->name, "break_stmt") ||
                    !strcmp(stmt->name, "continue_stmt"))) {
          continue;

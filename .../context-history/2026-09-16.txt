@@ -317,3 +317,106 @@ corrected live-row mask; a fresh targeted `ntsc_driving` Stella 7 pinned-palette
 certification passes. A later attempt to run the four-case NTSC diagnostic batch
 hit the execution transport limit after `ntsc_joystick`; do not claim that batch
 or the full 12-case diagnostic matrix as rerun for this handoff.
+
+2026-09-16 18:49:27 PDT, complete DRA8 discard migration
+---------------------------------------------------------
+Removed the compiler's legacy lone-underscore DISCARD token, grammar productions,
+and dedicated discard-store/result lowering. Lone `_` now fails in the lexer with
+a focused diagnostic pointing accumulator stores to `$A` and explicit result
+discard to `(void)`. Existing direct-register assignment-chain lowering was
+verified against the pre-change discard chain: `WSYNC := RESP1 := RESP0 := $A`
+emits the same three STA instructions in the same inner-to-outer order with no
+load, Y setup, stack traffic, or scratch. Compiler-owned positive/negative tests
+were migrated to DRA/(void), including X-backed countdown-loop transparency; the
+counted-loop instruction sequence remains unchanged. Added DRA chain/bitfield
+negative coverage and two obsolete-underscore diagnostics. The focused DRA8/DRA
+set passes, the replacement simulator case passes, and the complete compile-only
+gate passes 580/580. Libraries/examples remain for DRA9/DRA10 as specified.
+
+2026-09-16 18:53:17 PDT, complete DRA9 ordinary migration
+---------------------------------------------------------
+Migrated all actual lone-underscore assignments in ordinary public examples:
+01_basics, 03_controllers, and 06_games now use `$A` for raw accumulator strobe
+stores, and Tanks uses `(void) tanks_random()` for explicit result discard. No
+library source had a true discard assignment; underscore matches there are data
+spellings rather than the obsolete token. Built the eight touched examples with
+the DRA7 compiler before migration and with the current compiler afterward; all
+eight 4K ROMs are byte-identical. Updated the ordinary-example source-contract
+tests and a transitional strobe audit that requires `$A` in DRA9 groups while
+leaving renderer/video/diagnostic groups for DRA10. Also migrated three e2e linker
+tests that generated obsolete `_ := expression` source; the affected eight e2e
+contract/linker tests pass 8/8.
+
+2026-09-16 19:03:32 PDT, complete DRA10 diagnostic migration
+------------------------------------------------------------
+Migrated the remaining maintained renderer/diagnostic lone-underscore accumulator
+stores to direct-register `$A` in the enhanced multisprite renderer, both
+interactive heart-score renderers, 3E max, 3EX max, and the field diagnostic.
+Recompiled all six sources with the DRA7 baseline compiler and current compiler
+using identical relative paths; generated assembly is byte-for-byte identical for
+all six, proving unchanged instruction selection and timing. The three 4K renderer
+ROMs and 512K 3E max ROM are also byte-identical to pre-migration baselines.
+Updated source contracts, including stale DRA9 VSYNC expectations and the 3E max
+handoff spelling. The strobe, heart, diagnostic source, renderer branch, static
+renderer, and assembly-allowlist contracts pass; the allowlist itself is unchanged.
+No maintained compiler/library/example C26 source contains accepted lone `_`
+assignment syntax; only intentional negative compiler fixtures retain it. The full
+3E max runtime certification advances past the migrated source contract but exceeds
+the available single-command execution window; equivalence is independently locked
+by identical generated assembly and ROM bytes.
+
+2026-09-16 19:19:52 PDT, DRA11 emergency handoff
+---------------------------------
+DRA11 is in progress, not complete. Converted isolated stack-pointer probe/restore
+idioms in the 0840, UA/UASW, 0FA0, F8/F6/F4, JANE, and FE bankswitch diagnostics
+toward direct-register `$S`/`$X` use; migrated the generated bankswitch call
+matrix similarly, tightened the assembly allowlist for removed asm, and added
+`test/dra_stack_probe_codegen_test.c26`. The user requested an immediate handoff
+before shutdown, so this partial DRA11 state is intentionally packaged before the
+planned assembly-equivalence comparisons and focused/broad verification. Resume
+from this tree, inspect the current changes, and finish DRA11 before DRA12.
+
+2026-09-16 19:19:32 PDT, complete DRA11 inline asm audit
+----------------------------------------------------------
+Audited maintained C26 for inline LDA/LDX/LDY, STA/STX/STY, register transfers,
+TSX/TXS, direct flag mutations, and flag branches that DRA could express. Kept
+beam/rendering assembly, the 6507 ARR/PHP/PLA fingerprint probes, CV indexed-store
+detector sequence, 3E/3EX raw mapper-select writes, and other multi-instruction or
+unsupported-addressing sequences in assembly; zero inline assembly is not a goal.
+Converted isolated stack-pointer certification idioms in 0840, UA/UASW, 0FA0,
+JANE, F8/F6/F4, and FE bankswitch diagnostics plus the generated call-matrix
+fixture to `$X/$S` DRA. Added `dra_stack_probe_codegen_test.c26`, which locks the
+replacement TSX/STX and LDX #$FF/TXS sequences; existing DRA negatives continue
+to reject hidden stack/register forms. Surrounding compiler output may improve
+where DRA exposes machine state that inline asm previously hid, so the migration
+locks the converted instruction sequences and functional mapper behavior rather
+than demanding whole-file assembly identity. Focused mapper tests pass for 0840,
+0FA0, JANE, UA/UASW, FE simulator behavior, the F8/F6/F4 simulator matrix, the
+F8/F6/F4 example Makefile build, and the exhaustive generated call matrix. The
+assembly allowlist passes, all 50 DRA compile tests pass, and all seven DRA
+simulator tests pass.
+
+
+2026-09-16 22:50:00 PDT, complete DRA12 certification
+-----------------------------------------------------
+Completed the final Direct Register Access documentation and certification slice.
+Public language documentation now records the complete pseudo-object matrix, lone
+`_` migration to `$A`/`(void)`, absence of `$_`, deliberate `$P` rejection, and
+the distinction between static function-return object `$$` and physical stack
+pointer `$S`; ABI notes explicitly state that function returns are not placed on
+the 6507 hardware stack. Example and test documentation use the final spellings.
+
+The heart-score interactive Stella oracle had a pre-existing host-timing race: it
+counted host PNG production as if each snapshot represented one emulated game
+frame. Current and pre-DRA compilers produce byte-identical heart ROMs, and the
+reviewed endpoint hashes were correct. The test now holds RIGHT from startup,
+allows Stella to run well beyond the required movement interval, then takes one
+completed-frame snapshot; the original reviewed hashes remain unchanged.
+
+Final DRA12 certification passes 581/581 compile-only tests and 392/392 e2e tests
+with packaged Stella 7.0, Xvfb, and the pinned NTSC/PAL/SECAM palette. The e2e run
+includes the complete 12-case diagnostic Stella matrix, the previously flaky
+`ntsc_driving` case, and the repaired heart-score raster certification. Staged
+`make installcheck` also passes, including installed-tool smoke tests and staged
+builds of blank_screen, Tanks, and the F8 bankswitch diagnostic. DRA1-DRA12 are
+now complete; the next non-DRA work is main-roadmap Item 57.

@@ -67,7 +67,7 @@ $src =~ /spinner_frame\+\+.*?spinner_frame\s*==\s*15.*?spinner_index\+\+/s
    or die "3E max spinner no longer advances every 15 NTSC frames\n";
 $src =~ /ram_phase\).*?torture_batch\s*:=\s*2.*?torture_batch\s*:=\s*10.*?step_3e_max_torture\(\).*?ram_phase\).*?torture_batch\s*:=\s*2.*?torture_batch\s*:=\s*8.*?step_3e_max_torture\(\)/s
    or die "3E max torture no longer uses bounded compiler-swapram/ROM VBLANK and overscan batches\n";
-$src =~ /vcs_ntsc_wait_component_scanlines\(80\).*?status_result_draw\(\).*?lda #\$fb.*?sta \$3f.*?WSYNC\s*:=\s*_.*?vcs_ntsc_component_handoff\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(81\)/s
+$src =~ /vcs_ntsc_wait_component_scanlines\(80\).*?status_result_draw\(\).*?lda #\$fb.*?sta \$3f.*?WSYNC\s*:=\s*\$A.*?vcs_ntsc_component_handoff\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(81\)/s
    or die "3E max banked-label handoff no longer preserves the 192-line visible frame\n";
 read_file($cart_font) =~ /Characters:\s*"3E max"/ or die "3E max font no longer encodes exact second line\n";
 my $status_text=read_file($status_font);

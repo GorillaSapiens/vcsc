@@ -110,6 +110,25 @@ inline assembly makes procedure timing opaque.
 sequences inside source `asm` statements and requires the exact sequence to
 survive unchanged with the pass both enabled and disabled.
 
+## Direct Register Access coverage
+
+The `dra_*.c26` compile tests lock the complete accepted pseudo-object surface
+and its rejection matrix. They require exact LDA/LDX/LDY and STA/STX/STY
+lowering for `$A`/`$X`/`$Y`, native TAX/TAY/TXA/TYA and TSX/TXS transfers,
+direct `$C`/`$Z`/`$N`/`$V` control-flow branches, direct C/I/D/V flag writes,
+compound short-circuit flag conditions, point-in-time flag/register semantics,
+and optimizer/register-lifetime barriers around explicit machine state.
+Simulator companions verify the instruction side effects rather than only the
+assembly spelling.
+
+Negative coverage rejects unsupported general-expression uses, hidden-clobber
+register transfers, memory or condition use of `$S`, readable `$I`/`$D`,
+non-native flag writes, runtime flag values, `$_`, and `$P`. Lone `_` is also an
+intentional compile error: accumulator-store tests use `$A`, while explicit
+result-discard tests use `(void)`. `dra_stack_probe_codegen_test.c26` and the
+bankswitch diagnostic coverage additionally lock `$X := $S` / `$S := $X` as the
+native replacement for isolated TSX/TXS probe/restore assembly.
+
 ## Stella test environment
 
 Stella and Xvfb are required for normal E2E testing.  Every maintained Stella
@@ -463,24 +482,20 @@ member/index, call, and other operators whose domain is not a scalar value are
 covered by their dedicated pointer/aggregate tests rather than being forced into
 this Cartesian product.
 
-`discard_store_codegen_test.c26`, `discard_store_register_transparent_codegen_test.c26`,
-`discard_store_chain_codegen_test.c26`, and `discard_result_codegen_test.c26` cover the dedicated lone-underscore
-discard token. They lock direct `WSYNC := _` lowering to a bare `STA`, prove that
-bare byte-object discard stores across global, zeropage, absolute, and automatic-local
-placement emit only `STA` and therefore preserve A/X/Y/S/P, require
-`WSYNC := RESP1 := RESP0 := _` to emit three ordered stores with no load,
-scratch, or Y traffic, verify that `_ := expression` preserves calls and other
-evaluation, and confirm that longer identifiers containing underscores remain
-ordinary names. Companion rejection tests require assignment-from-discard
-targets to be one-byte non-bitfield lvalues and require chained targets to be
-directly addressable so every store preserves A without hidden stack traffic.
-`e2e_discard_assignment_verify.c26` verifies that one incoming A value reaches
-all three targets and that discarded-expression side effects remain intact.
+The former discard-store/result regressions now certify the two explicit forms
+that replaced lone `_`. Direct hardware-strobe stores use `$A`: tests require
+`WSYNC := $A` to lower to a bare `STA`, require
+`WSYNC := RESP1 := RESP0 := $A` to emit three ordered stores with no load,
+scratch, Y, or stack traffic, and verify the incoming accumulator reaches every
+target. Explicit result discard uses `(void) expression` and must preserve calls
+and other side effects. Dedicated rejection coverage requires lone `_` to fail
+with a diagnostic pointing to those two replacements, while longer identifiers
+containing underscores remain ordinary names.
 
 `vcs_example_discard_strobes.pl` audits editable examples for TIA registers whose
 write data is ignored. C26 assignments to WSYNC/RSYNC, RESP0/RESP1, RESM0/RESM1,
-RESBL, HMOVE, HMCLR, and CXCLR must terminate in the discard token so the source
-does not materialize a meaningless value merely to trigger the hardware strobe.
+RESBL, HMOVE, HMCLR, and CXCLR must terminate in `$A` so the source expresses an
+accumulator strobe without materializing a meaningless value.
 
 `assign_expr_value_codegen_test.c26`,
 `assign_expr_condition_codegen_test.c26`, and
@@ -1270,8 +1285,8 @@ its loop local instead of reserving X, preventing the compact path from silently
 claiming a register the body can clobber. `register_counted_loop_zero_iteration_codegen_test.c26`
 requires potentially empty X-backed loops to retain their entry `CPX`/`BCS` test, while
 `register_counted_loop_downward_codegen_test.c26` pins nonzero downward truth/`> 0`/
-`!= 0` loops to X-backed `DEX`/`BNE` lowering, including direct `WSYNC := _` hardware
-discard stores with no materialized counter or compiler scratch. The execution test
+`!= 0` loops to X-backed `DEX`/`BNE` lowering, including direct `WSYNC := $A` hardware
+strobe stores with no materialized counter or compiler scratch. The execution test
 `e2e_register_counted_loop_verify.c26` covers ascending loops, a nonempty downward
 countdown, and the zero-initialized downward fallback, catching both register-lifetime
 mistakes and accidental loss of zero-iteration semantics.

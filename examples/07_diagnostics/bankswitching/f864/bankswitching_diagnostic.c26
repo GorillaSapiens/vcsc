@@ -431,8 +431,8 @@ bank0 void source_entry0(void) {
    }
    source_seen := 0;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -487,8 +487,8 @@ bank0 void source_entry0(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC0;
@@ -504,8 +504,8 @@ bank1 void source_entry1(void) {
    }
    source_seen := 1;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -560,8 +560,8 @@ bank1 void source_entry1(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC1;
@@ -578,8 +578,8 @@ bank2 void source_entry2(void) {
    }
    source_seen := 2;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -634,8 +634,8 @@ bank2 void source_entry2(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC2;
@@ -649,8 +649,8 @@ bank3 void source_entry3(void) {
    }
    source_seen := 3;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -705,8 +705,8 @@ bank3 void source_entry3(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC3;
@@ -723,8 +723,8 @@ bank4 void source_entry4(void) {
    }
    source_seen := 4;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -779,8 +779,8 @@ bank4 void source_entry4(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC4;
@@ -794,8 +794,8 @@ bank5 void source_entry5(void) {
    }
    source_seen := 5;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -850,8 +850,8 @@ bank5 void source_entry5(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC5;
@@ -865,8 +865,8 @@ bank6 void source_entry6(void) {
    }
    source_seen := 6;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -921,8 +921,8 @@ bank6 void source_entry6(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC6;
@@ -936,8 +936,8 @@ bank7 void source_entry7(void) {
    }
    source_seen := 7;
    signature := 0;
-   asm tsx;
-   asm stx stack_before;
+   $X := $S;
+   stack_before := $X;
    if (current_destination == 0) {
       call_return := call_target0();
       if (call_return != 0x5A40`uint16_t) {
@@ -992,8 +992,8 @@ bank7 void source_entry7(void) {
       }
    }
 #endif
-   asm tsx;
-   asm stx stack_after;
+   $X := $S;
+   stack_after := $X;
    if (signature != 0x40 + current_destination ||
        stack_before != stack_after) {
       failure := 0xC7;

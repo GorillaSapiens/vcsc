@@ -3,12 +3,13 @@ DIRECT REGISTER ACCESS (DRA) -- DESIGN AND ROADMAP
 
 Status
 ------
-DRA1-DRA7 are complete: the dedicated pseudo-object surface/rejection matrix,
+DRA1-DRA12 are complete. The dedicated pseudo-object surface/rejection matrix,
 exact A/X/Y loads/stores and native transfers, direct C/Z/N/V flag conditions and
-writes, compound short-circuit flag control flow, and optimizer/register-lifetime
-integration are implemented and covered. Explicit DRA instructions/branches are
-optimizer-visible but non-elidable, and existing lone `_` behavior remains
-unchanged. DRA8 is the next implementation slice.
+writes, compound short-circuit flag control flow, optimizer/register-lifetime
+integration, compiler/source migration away from lone `_`, the bounded
+inline-assembly audit, final documentation, and broad certification are complete.
+Lone `_` is rejected intentionally; `$A` and `(void)` own its two former use
+cases.
 
 Purpose
 -------
@@ -379,7 +380,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
     * Add generic structural tests independent of source symbol names, plus
       regressions around the existing direct-u8/register-lifetime optimizations.
 
-[ ] DRA8. Replace the compiler's `_` discard-store/result implementation.
+[x] DRA8. Replace the compiler's `_` discard-store/result implementation.
 
     * First add/verify direct-register assignment-chain support needed to replace
       every `... := _` chain without changing store order or A.
@@ -390,7 +391,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
     * Delete obsolete discard-specific compiler helpers/tests only after their
       behavior is represented by DRA/(void) coverage.
 
-[ ] DRA9. Migrate libraries and ordinary examples from lone `_`.
+[x] DRA9. Migrate libraries and ordinary examples from lone `_`.
 
     * Convert non-diagnostic library/example `target := _` to `target := $A`.
     * Convert `_ := expression` to `(void) expression` where explicit discard is
@@ -401,7 +402,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
       same STA/evaluation sequence.
     * Keep this slice away from the large diagnostic cart to bound review time.
 
-[ ] DRA10. Migrate diagnostic/rendering sources and exact-timing guards.
+[x] DRA10. Migrate diagnostic/rendering sources and exact-timing guards.
 
     * Convert the remaining maintained C26 sources, including the diagnostic
       cart and timing-sensitive renderers, one reviewed group at a time.
@@ -411,7 +412,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
       genuinely replaces; do not weaken ceilings or add exceptions.
     * Confirm the source tree contains no accepted lone-`_` C26 syntax.
 
-[ ] DRA11. Audit trivial inline assembly that DRA can now express.
+[x] DRA11. Audit trivial inline assembly that DRA can now express.
 
     * Search for isolated LDA/LDX/LDY, STA/STX/STY, TAX/TAY/TXA/TYA, TSX/TXS,
       CLC/SEC/CLI/SEI/CLD/SED/CLV, and direct flag-branch idioms outside code
@@ -421,7 +422,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
     * Leave legitimate beam-path and other multi-instruction timing assembly in
       assembly; zero inline asm is not a goal.
 
-[ ] DRA12. Final documentation and broad certification.
+[x] DRA12. Final documentation and broad certification.
 
     * Update `compiler/README.md`, root language summary, ABI-facing notes if
       needed, examples, and test documentation with the final pseudo-object
@@ -435,4 +436,5 @@ quickly; later slices depend on exact contracts proven by earlier ones.
 
 Immediate next step
 -------------------
-DRA7 is complete. When continuing DRA, do DRA8 only.
+The DRA workstream is complete. Resume the main roadmap at Item 57 in
+`.../roadmap.txt` when DRA is no longer the selected workstream.

@@ -108,11 +108,11 @@ void main(void) {
    while (1) {
       // Exactly 3 scanlines VSYNC: align first, then use the same phase
       // for assertion and deassertion.
-      WSYNC := _;
+      WSYNC := $A;
       VSYNC := 2;
-      WSYNC := _;
-      WSYNC := _;
-      WSYNC := _;
+      WSYNC := $A;
+      WSYNC := $A;
+      WSYNC := $A;
       VSYNC := 0;
 
       // 37 scanlines vertical blank. A real game can read controls, update
@@ -124,13 +124,13 @@ void main(void) {
       // remains of the timer-owned budget and align the visible phase once.
       while (!(TIMINT & 0x80)) {
       }
-      WSYNC := _;
+      WSYNC := $A;
       VBLANK := 0;
 
       // 192 visible scanlines. There is nothing to draw except COLUBK, but the
       // visible region still has scanline deadlines.
       for (uint8_t i := 192; i; i--) {
-         WSYNC := _;
+         WSYNC := $A;
       }
 
       // 30 scanlines overscan. This is another timer-owned game-logic budget.
@@ -144,13 +144,13 @@ void main(void) {
       // music_tick() has short and long paths. Align once after useful work so
       // the timer poll always begins on a scanline boundary; this avoids
       // making frame length depend on which score path ran this frame.
-      WSYNC := _;
+      WSYNC := $A;
       while (!(TIMINT & 0x80)) {
       }
 
       // One final blanked boundary remains here; the leading alignment WSYNC
       // of the next exact VSYNC pulse supplies the second frame boundary.
-      WSYNC := _;
+      WSYNC := $A;
 
    }
 }

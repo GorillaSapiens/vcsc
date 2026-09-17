@@ -126,7 +126,7 @@ void paddle_prepare_patterns(void) {
 // Fixed horizontal positioning. This runs once at startup while VBLANK is
 // asserted; the paddle X coordinates never change afterward.
 inline void paddle_position_objects(void) {
-   HMCLR := _;
+   HMCLR := $A;
 
    asm sta WSYNC;
    asm ldx #0;

@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectasmordered: tsx
+// expectasmordered: stx stack_before
+// expectasmordered: ldx #$ff
+// expectasmordered: txs
+include "machine_6502.c26"
+uint8_t stack_before;
+void probe(void) {
+   $X := $S;
+   stack_before := $X;
+   $X := 0xff;
+   $S := $X;
+}
