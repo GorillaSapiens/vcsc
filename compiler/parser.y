@@ -79,6 +79,16 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token DEFAULT
 %token DIV_ASSIGN
 %token DOLLAR_DOLLAR
+%token DRA_A
+%token DRA_X
+%token DRA_Y
+%token DRA_S
+%token DRA_C
+%token DRA_Z
+%token DRA_I
+%token DRA_D
+%token DRA_V
+%token DRA_N
 %token DISCARD
 %token DO
 %token ELSE
@@ -178,6 +188,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %type <node> defdecl_stmt
 %type <node> direct_declarator
 %type <node> do_stmt
+%type <node> dra_pseudo
 %type <node> enum_decl_stmt
 %type <node> enum_names
 %type <node> enum_value
@@ -504,6 +515,7 @@ pointer:
 direct_declarator:
     IDENTIFIER                               { COVER; $$ = MAKE_NODE(make_identifier_leaf($1)); }
   | DOLLAR_DOLLAR                            { COVER; $$ = MAKE_NODE(make_identifier_leaf(strdup("$$"))); }
+  | dra_pseudo                               { COVER; $$ = MAKE_NODE($1); }
   | '(' declarator ')'                       { COVER; $$ = MAKE_NODE($2); }
   | direct_declarator '[' INTEGER ']'        { COVER; $$ = append_child($1, make_integer_leaf($3)); }
   | direct_declarator '(' parameter_list ')' { COVER; $$ = append_child($1, $3); }
@@ -648,6 +660,7 @@ conditional_expr:
 
 assign_expr:
     conditional_expr                              { COVER; $$ = MAKE_NODE($1); }
+  | dra_pseudo ASSIGN initializer                 { COVER; $$ = MAKE_NAMED_NODE("dra_assign", $1, $3); }
   | lvalue ASSIGN initializer                     { COVER; $$ = MAKE_NODE(make_identifier_leaf(":="), $1, $3); }
   | lvalue ASSIGN DISCARD                         { COVER; $$ = MAKE_NAMED_NODE("discard_store", $1); }
   | DISCARD ASSIGN assign_expr                    { COVER; $$ = MAKE_NAMED_NODE("discard_result", $3); }
@@ -793,8 +806,22 @@ num_primary_expr:
 nonnum_primary_expr:
     STRING                                   { COVER; $$ = do_xform(make_string_leaf($1), NULL); }
   | STRING '`' XFORMNAME                     { COVER; $$ = do_xform(make_string_leaf($1), $3); }
+  | dra_pseudo                               { COVER; $$ = $1; }
   | lvalue %prec LOWER_THAN_RPAREN           { COVER; $$ = $1; }
   | '(' expr ')'                             { COVER; $$ = $2; }
+  ;
+
+dra_pseudo:
+    DRA_A                                    { COVER; $$ = make_dra_leaf("$A"); }
+  | DRA_X                                    { COVER; $$ = make_dra_leaf("$X"); }
+  | DRA_Y                                    { COVER; $$ = make_dra_leaf("$Y"); }
+  | DRA_S                                    { COVER; $$ = make_dra_leaf("$S"); }
+  | DRA_C                                    { COVER; $$ = make_dra_leaf("$C"); }
+  | DRA_Z                                    { COVER; $$ = make_dra_leaf("$Z"); }
+  | DRA_I                                    { COVER; $$ = make_dra_leaf("$I"); }
+  | DRA_D                                    { COVER; $$ = make_dra_leaf("$D"); }
+  | DRA_V                                    { COVER; $$ = make_dra_leaf("$V"); }
+  | DRA_N                                    { COVER; $$ = make_dra_leaf("$N"); }
   ;
 
 arg_list:

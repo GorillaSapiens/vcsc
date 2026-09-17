@@ -190,6 +190,124 @@ bool emit_store_a_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst) {
    return true;
 }
 
+//! @brief Load one directly addressable byte lvalue into X without hidden transfers.
+bool emit_load_direct_byte_lvalue_to_x(Context *ctx, const LValueRef *src) {
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!src || src->is_swapram || src->size != 1 || src->is_bitfield || src->indirect ||
+       src->needs_runtime_address) {
+      return false;
+   }
+   require_lvalue_readable(src);
+   if (src->is_absolute_ref) {
+      if (!src->read_expr || !*src->read_expr) return false;
+      formatted = assembler_address_expr(src->read_expr, expr_buf, sizeof(expr_buf));
+      if (src->offset == 0) emit(&es_code, "    ldx  %s\n", formatted);
+      else emit(&es_code, "    ldx  %s + %d\n", formatted, src->offset);
+      return true;
+   }
+   if (!(src->is_static || src->is_zeropage || src->is_global)) return false;
+   entry = (ContextEntry){ .name = src->name, .type = src->type,
+      .declarator = src->declarator, .is_static = src->is_static,
+      .is_zeropage = src->is_zeropage, .is_global = src->is_global,
+      .offset = src->offset, .size = src->size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   if (src->offset == 0) emit(&es_code, "    ldx %s\n", formatted);
+   else emit(&es_code, "    ldx %s + %d\n", formatted, src->offset);
+   return true;
+}
+
+//! @brief Load one directly addressable byte lvalue into Y without hidden transfers.
+bool emit_load_direct_byte_lvalue_to_y(Context *ctx, const LValueRef *src) {
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!src || src->is_swapram || src->size != 1 || src->is_bitfield || src->indirect ||
+       src->needs_runtime_address) return false;
+   require_lvalue_readable(src);
+   if (src->is_absolute_ref) {
+      if (!src->read_expr || !*src->read_expr) return false;
+      formatted = assembler_address_expr(src->read_expr, expr_buf, sizeof(expr_buf));
+      if (src->offset == 0) emit(&es_code, "    ldy  %s\n", formatted);
+      else emit(&es_code, "    ldy  %s + %d\n", formatted, src->offset);
+      return true;
+   }
+   if (!(src->is_static || src->is_zeropage || src->is_global)) return false;
+   entry = (ContextEntry){ .name = src->name, .type = src->type,
+      .declarator = src->declarator, .is_static = src->is_static,
+      .is_zeropage = src->is_zeropage, .is_global = src->is_global,
+      .offset = src->offset, .size = src->size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   if (src->offset == 0) emit(&es_code, "    ldy %s\n", formatted);
+   else emit(&es_code, "    ldy %s + %d\n", formatted, src->offset);
+   return true;
+}
+
+//! @brief Store X into one directly addressable byte lvalue without hidden transfers.
+bool emit_store_x_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst) {
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!dst || dst->is_swapram || dst->size != 1 || dst->is_bitfield || dst->indirect ||
+       dst->needs_runtime_address) return false;
+   require_lvalue_writable(dst);
+   if (dst->is_absolute_ref) {
+      if (!dst->write_expr || !*dst->write_expr) return false;
+      formatted = assembler_address_expr(dst->write_expr, expr_buf, sizeof(expr_buf));
+      if (dst->offset == 0) emit(&es_code, "    stx  %s\n", formatted);
+      else emit(&es_code, "    stx  %s + %d\n", formatted, dst->offset);
+      return true;
+   }
+   if (!(dst->is_static || dst->is_zeropage || dst->is_global)) return false;
+   entry = (ContextEntry){ .name = dst->name, .type = dst->type,
+      .declarator = dst->declarator, .is_static = dst->is_static,
+      .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
+      .offset = dst->offset, .size = dst->size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   if (dst->offset == 0) emit(&es_code, "    stx %s\n", formatted);
+   else emit(&es_code, "    stx %s + %d\n", formatted, dst->offset);
+   return true;
+}
+
+//! @brief Store Y into one directly addressable byte lvalue without hidden transfers.
+bool emit_store_y_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst) {
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!dst || dst->is_swapram || dst->size != 1 || dst->is_bitfield || dst->indirect ||
+       dst->needs_runtime_address) return false;
+   require_lvalue_writable(dst);
+   if (dst->is_absolute_ref) {
+      if (!dst->write_expr || !*dst->write_expr) return false;
+      formatted = assembler_address_expr(dst->write_expr, expr_buf, sizeof(expr_buf));
+      if (dst->offset == 0) emit(&es_code, "    sty  %s\n", formatted);
+      else emit(&es_code, "    sty  %s + %d\n", formatted, dst->offset);
+      return true;
+   }
+   if (!(dst->is_static || dst->is_zeropage || dst->is_global)) return false;
+   entry = (ContextEntry){ .name = dst->name, .type = dst->type,
+      .declarator = dst->declarator, .is_static = dst->is_static,
+      .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
+      .offset = dst->offset, .size = dst->size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   if (dst->offset == 0) emit(&es_code, "    sty %s\n", formatted);
+   else emit(&es_code, "    sty %s + %d\n", formatted, dst->offset);
+   return true;
+}
+
 //! @brief Copy an already converted fixed-symbol value to an lvalue without readback.
 bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
                                           const char *symbol, int size) {

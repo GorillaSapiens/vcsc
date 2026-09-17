@@ -114,7 +114,7 @@ for my$standard (
       @png>=10 or die"$name Stella produced only ".scalar(@png)." completed-frame snapshots\n";
       # The Stella launcher installs the pinned NTSC/PAL/SECAM user palette,
       # so all three standards are certified with exact RGB outside live rows.
-      my@digest_mask=('--mask-rows','109-126');
+      my@digest_mask=('--mask-rows','125-133','--mask-rows','138-146');
       my@tail_digest;
       for my$frame (@png[-3..-1]) {
          my($value,$err)=ok("$name stable completed-frame digest",$perl,$digest,@digest_mask,$frame);

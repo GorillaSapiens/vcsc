@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$07
+// expectasmordered: lda #$07
+// expectasmordered: sta dra_sink
+// expectasmordered: sta dra_sink
+include "machine_6502.c26"
+uint8_t dra_sink;
+void dra_a_optimizer_observable(void) {
+   $A := 7;
+   $A := 7;
+   dra_sink := $A;
+   dra_sink := $A;
+}

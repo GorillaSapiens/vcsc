@@ -15,7 +15,8 @@ enum ASTKind {
     AST_INTEGER,
     AST_STRING,
     AST_ASM,
-    AST_EMPTY
+    AST_EMPTY,
+    AST_DRA
 };
 
 //! Variable-width AST node; child pointers are stored inline after the fixed header.
@@ -55,6 +56,7 @@ ASTNode *make_integer_leaf_with_type(const char *intval, ASTNode *typename);
 ASTNode *increment_integer_leaf(ASTNode *node);
 ASTNode *make_string_leaf(const char *strval);
 ASTNode *make_asm_leaf(const char *strval);
+ASTNode *make_dra_leaf(const char *strval);
 ASTNode *make_identifier_leaf(const char *strval);
 ASTNode *make_typename_leaf(const char *strval);
 ASTNode *make_empty_leaf(void);

@@ -2476,9 +2476,42 @@ bool compile_direct_u8_update_if_adjust(ASTNode *update_stmt, ASTNode *if_stmt,
    return true;
 }
 
+//! @brief Emit one exact DRA5 conditional branch for a bare/negated readable flag.
+static bool compile_dra_flag_branch_false(ASTNode *expr, const char *false_label) {
+   ASTNode *flag;
+   const char *name;
+   const char *mnemonic = NULL;
+   bool negated = false;
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (expr && expr->count == 1 && expr->name && !strcmp(expr->name, "!")) {
+      negated = true;
+      expr = (ASTNode *) unwrap_expr_node(expr->children[0]);
+   }
+   flag = expr;
+   if (!flag || flag->kind != AST_DRA || !(name = flag->strval)) return false;
+
+   /* compile_condition_branch_false branches when the source truth value is
+      false.  Unary ! therefore selects the branch for the flag being set. */
+   if (!strcmp(name, "$C")) mnemonic = negated ? "bcs" : "bcc";
+   else if (!strcmp(name, "$Z")) mnemonic = negated ? "beq" : "bne";
+   else if (!strcmp(name, "$N")) mnemonic = negated ? "bmi" : "bpl";
+   else if (!strcmp(name, "$V")) mnemonic = negated ? "bvs" : "bvc";
+   else return false;
+
+   emit(&es_code, "%s\n", EMIT_DRA_BEGIN_MARKER);
+   emit(&es_code, "    %s %s\n", mnemonic, false_label);
+   emit(&es_code, "%s\n", EMIT_DRA_END_MARKER);
+   return true;
+}
+
 //! @brief Lower condition branch false from AST/semantic state into generated assembly or linker-visible metadata.
 bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *false_label) {
    expr = (ASTNode *) unwrap_expr_node(expr);
+
+   if (compile_dra_flag_branch_false(expr, false_label)) {
+      return true;
+   }
 
    if (!expr || is_empty(expr)) {
       emit(&es_code, "    jmp %s\n", false_label);
@@ -3674,6 +3707,242 @@ static bool compile_discard_store_chain(Context *ctx, ASTNode *node) {
    return true;
 }
 
+//! @brief Return whether an lvalue can be named by one exact 6502 byte load/store.
+static bool dra_direct_byte_lvalue(const LValueRef *lv) {
+   if (!lv || lv->size != 1 || lv->is_bitfield || lv->is_swapram ||
+       lv->indirect || lv->needs_runtime_address) {
+      return false;
+   }
+   if (lv->is_ref && !lv->is_absolute_ref) {
+      return false;
+   }
+   return lv->is_absolute_ref || lv->is_static || lv->is_zeropage || lv->is_global;
+}
+
+//! @brief Bracket one explicit DRA instruction so peephole tracks but never rewrites it.
+static void emit_dra_begin(void) {
+   emit(&es_code, "%s\n", EMIT_DRA_BEGIN_MARKER);
+}
+
+static void emit_dra_end(void) {
+   emit(&es_code, "%s\n", EMIT_DRA_END_MARKER);
+}
+
+//! @brief Lower DRA2/DRA3 direct register loads exactly to LDA/LDX/LDY.
+static bool compile_dra_register_load(ASTNode *node, Context *ctx) {
+   ASTNode *src;
+   const char *reg;
+   const char *mnemonic;
+   long long value;
+   LValueRef lv;
+   bool emitted = false;
+
+   if (!node || strcmp(node->name, "dra_assign") || node->count != 2 ||
+       !node->children[0] || node->children[0]->kind != AST_DRA ||
+       !(reg = node->children[0]->strval) ||
+       (strcmp(reg, "$A") && strcmp(reg, "$X") && strcmp(reg, "$Y"))) {
+      return false;
+   }
+   mnemonic = !strcmp(reg, "$A") ? "lda" : (!strcmp(reg, "$X") ? "ldx" : "ldy");
+
+   src = (ASTNode *) unwrap_expr_node(node->children[1]);
+   if (src && src->kind == AST_INTEGER) {
+      if (!expr_is_integer_constant_expr(src, &value) || value < 0 || value > 0xff) {
+         error_user("[%s:%d.%d] %s immediate Direct Register Access load requires a byte value in 0..255",
+                    src->file, src->line, src->column, reg);
+      }
+      emit_dra_begin();
+      emit(&es_code, "    %s #$%02llx\n", mnemonic, value & 0xff);
+      emit_dra_end();
+      return true;
+   }
+
+   if (!resolve_ref_argument_lvalue(ctx, src, &lv) || !dra_direct_byte_lvalue(&lv)) {
+      error_user("[%s:%d.%d] %s direct load requires a directly addressable one-byte non-bitfield object or absolute ref",
+                 node->file, node->line, node->column, reg);
+   }
+   if (lv.is_absolute_ref && (!lv.read_expr || !*lv.read_expr)) {
+      error_user("[%s:%d.%d] absolute external binding '%s' is write-only",
+                 node->file, node->line, node->column,
+                 lv.name ? lv.name : "<unnamed>");
+   }
+
+   require_lvalue_readable(&lv);
+   emit_lvalue_semantic_use(ctx, &lv, "read");
+   emit_dra_begin();
+   if (!strcmp(reg, "$A")) emitted = emit_load_direct_byte_lvalue_to_a(ctx, &lv);
+   else if (!strcmp(reg, "$X")) emitted = emit_load_direct_byte_lvalue_to_x(ctx, &lv);
+   else emitted = emit_load_direct_byte_lvalue_to_y(ctx, &lv);
+   if (!emitted) {
+      error_user("internal error: validated DRA %s load could not be emitted directly", reg);
+   }
+   emit_dra_end();
+   return true;
+}
+
+//! @brief Emit one exact direct-register store to a validated direct-byte lvalue.
+static bool emit_dra_register_store_lvalue(Context *ctx, const LValueRef *lv,
+                                            const char *reg) {
+   bool emitted;
+
+   if (!ctx || !lv || !reg) return false;
+   emit_lvalue_semantic_use(ctx, lv, "write");
+   emit_dra_begin();
+   if (!strcmp(reg, "$A")) emitted = emit_store_a_to_direct_byte_lvalue(ctx, lv);
+   else if (!strcmp(reg, "$X")) emitted = emit_store_x_to_direct_byte_lvalue(ctx, lv);
+   else if (!strcmp(reg, "$Y")) emitted = emit_store_y_to_direct_byte_lvalue(ctx, lv);
+   else emitted = false;
+   emit_dra_end();
+   return emitted;
+}
+
+//! @brief Lower a discarded right-associated assignment chain from physical A/X/Y.
+//!
+//! The terminal DRA source is observed once, with no materialization. Stores run
+//! from the innermost target outward, exactly matching ordinary assignment-chain
+//! order while each native STA/STX/STY preserves its source register.
+static bool compile_dra_register_store_chain(ASTNode *node, Context *ctx) {
+   LValueRef targets[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *sites[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *cursor = (ASTNode *) unwrap_expr_node(node);
+   const char *reg;
+   int count = 0;
+
+   while (cursor && !strcmp(cursor->name, "assign_expr") && cursor->count == 3) {
+      const char *op = cursor->children[0] ? cursor->children[0]->strval : NULL;
+      ASTNode *next_rhs = cursor->children[2];
+
+      if (!op || strcmp(op, ":=") || initializer_is_list(unwrap_expr_node(next_rhs)) ||
+          count >= DIRECT_BYTE_ASSIGN_CHAIN_MAX ||
+          !resolve_lvalue(ctx, cursor->children[1], &targets[count])) {
+         return false;
+      }
+      sites[count] = cursor;
+      count++;
+      cursor = (ASTNode *) unwrap_expr_node(next_rhs);
+   }
+
+   if (count < 2 || !cursor || cursor->kind != AST_DRA || !(reg = cursor->strval) ||
+       (strcmp(reg, "$A") && strcmp(reg, "$X") && strcmp(reg, "$Y"))) {
+      return false;
+   }
+
+   for (int i = 0; i < count; i++) {
+      if (!dra_direct_byte_lvalue(&targets[i])) {
+         error_user("[%s:%d.%d] direct store chain from %s requires directly addressable one-byte non-bitfield targets",
+                    sites[i]->file, sites[i]->line, sites[i]->column, reg);
+      }
+      if (targets[i].is_absolute_ref &&
+          (!targets[i].write_expr || !*targets[i].write_expr)) {
+         error_user("[%s:%d.%d] absolute external binding '%s' is read-only",
+                    sites[i]->file, sites[i]->line, sites[i]->column,
+                    targets[i].name ? targets[i].name : "<unnamed>");
+      }
+   }
+
+   for (int i = count - 1; i >= 0; i--) {
+      require_lvalue_writable(&targets[i]);
+      if (!emit_dra_register_store_lvalue(ctx, &targets[i], reg)) {
+         error_user("internal error: validated DRA %s store chain could not be emitted directly",
+                    reg);
+      }
+   }
+   return true;
+}
+
+//! @brief Lower DRA2/DRA3 direct register stores exactly to STA/STX/STY.
+static bool compile_dra_register_store(ASTNode *node, Context *ctx) {
+   const char *op;
+   const char *reg;
+   ASTNode *src;
+   LValueRef lv;
+   bool emitted = false;
+
+   if (!node || strcmp(node->name, "assign_expr") || node->count != 3) {
+      return false;
+   }
+   op = node->children[0] ? node->children[0]->strval : NULL;
+   src = (ASTNode *) unwrap_expr_node(node->children[2]);
+   if (!op || strcmp(op, ":=") || !src || src->kind != AST_DRA ||
+       !(reg = src->strval) ||
+       (strcmp(reg, "$A") && strcmp(reg, "$X") && strcmp(reg, "$Y"))) {
+      return false;
+   }
+
+   if (!resolve_lvalue(ctx, node->children[1], &lv) || !dra_direct_byte_lvalue(&lv)) {
+      error_user("[%s:%d.%d] direct store from %s requires a directly addressable one-byte non-bitfield object or absolute ref",
+                 node->file, node->line, node->column, reg);
+   }
+   if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) {
+      error_user("[%s:%d.%d] absolute external binding '%s' is read-only",
+                 node->file, node->line, node->column,
+                 lv.name ? lv.name : "<unnamed>");
+   }
+
+   require_lvalue_writable(&lv);
+   emitted = emit_dra_register_store_lvalue(ctx, &lv, reg);
+   if (!emitted) {
+      error_user("internal error: validated DRA %s store could not be emitted directly", reg);
+   }
+   return true;
+}
+
+//! @brief Lower DRA4 register transfers that map to one native 6502 opcode.
+static bool compile_dra_transfer(ASTNode *node) {
+   ASTNode *src;
+   const char *dst_name;
+   const char *src_name;
+   const char *mnemonic = NULL;
+
+   if (!node || strcmp(node->name, "dra_assign") || node->count != 2 ||
+       !node->children[0] || node->children[0]->kind != AST_DRA ||
+       !(dst_name = node->children[0]->strval)) {
+      return false;
+   }
+   src = (ASTNode *) unwrap_expr_node(node->children[1]);
+   if (!src || src->kind != AST_DRA || !(src_name = src->strval)) return false;
+
+   if (!strcmp(dst_name, "$X") && !strcmp(src_name, "$A")) mnemonic = "tax";
+   else if (!strcmp(dst_name, "$Y") && !strcmp(src_name, "$A")) mnemonic = "tay";
+   else if (!strcmp(dst_name, "$A") && !strcmp(src_name, "$X")) mnemonic = "txa";
+   else if (!strcmp(dst_name, "$A") && !strcmp(src_name, "$Y")) mnemonic = "tya";
+   else if (!strcmp(dst_name, "$X") && !strcmp(src_name, "$S")) mnemonic = "tsx";
+   else if (!strcmp(dst_name, "$S") && !strcmp(src_name, "$X")) mnemonic = "txs";
+   else return false;
+
+   emit_dra_begin();
+   emit(&es_code, "    %s\n", mnemonic);
+   emit_dra_end();
+   return true;
+}
+
+//! @brief Lower DRA6 constant flag writes to their one exact status opcode.
+static bool compile_dra_flag_write(ASTNode *node) {
+   ASTNode *src;
+   const char *dst_name;
+   const char *mnemonic = NULL;
+   long long value;
+
+   if (!node || strcmp(node->name, "dra_assign") || node->count != 2 ||
+       !node->children[0] || node->children[0]->kind != AST_DRA ||
+       !(dst_name = node->children[0]->strval)) {
+      return false;
+   }
+   src = (ASTNode *) unwrap_expr_node(node->children[1]);
+   if (!expr_is_integer_constant_expr(src, &value)) return false;
+
+   if (!strcmp(dst_name, "$C")) mnemonic = value ? "sec" : "clc";
+   else if (!strcmp(dst_name, "$I")) mnemonic = value ? "sei" : "cli";
+   else if (!strcmp(dst_name, "$D")) mnemonic = value ? "sed" : "cld";
+   else if (!strcmp(dst_name, "$V") && value == 0) mnemonic = "clv";
+   else return false;
+
+   emit_dra_begin();
+   emit(&es_code, "    %s\n", mnemonic);
+   emit_dra_end();
+   return true;
+}
+
 //! @brief Lower expr from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_expr(ASTNode *node, Context *ctx) {
    if (!node || is_empty(node)) {
@@ -3706,6 +3975,23 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (!compile_call_expr_to_slot(node, ctx, NULL)) {
          error_user("[%s:%d.%d] invalid call expression", node->file, node->line, node->column);
       }
+      return;
+   }
+
+   if (!strcmp(node->name, "dra_assign")) {
+      if (!compile_dra_flag_write(node) && !compile_dra_transfer(node) &&
+          !compile_dra_register_load(node, ctx)) {
+         error_user("[%s:%d.%d] unsupported Direct Register Access lowering",
+                    node->file, node->line, node->column);
+      }
+      return;
+   }
+
+   if (compile_dra_register_store(node, ctx)) {
+      return;
+   }
+
+   if (compile_dra_register_store_chain(node, ctx)) {
       return;
    }
 

@@ -1,0 +1,17 @@
+// vcsc-cc1 -I .
+// expectasmordered: sta f$i
+// expectasmordered: lda f$i
+// expectasmordered: cmp #$04
+// expectasmordered: ldx #$55
+// expectasmordered: ldx f$i
+// expectasmordered: sta table,x
+// expectasmordered: inc f$i
+// forbidasm: cpx #$04
+include "machine_6502.c26"
+uint8_t table[4];
+void f(void) {
+   for (uint8_t i := 0; i < 4; i++) {
+      $X := 0x55;
+      table[i] := 1;
+   }
+}

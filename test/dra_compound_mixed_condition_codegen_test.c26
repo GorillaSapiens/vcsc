@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectasmordered: bcc @if_false_
+// expectasmordered: lda dra_value
+// expectasmordered: beq @if_false_
+include "machine_6502.c26"
+uint8_t dra_value;
+void dra_compound_mixed_condition(void) {
+   if ($C && dra_value) { asm nop; }
+}

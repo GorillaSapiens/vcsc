@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$80
+// expectasmordered: stx dra_x_sink
+// expectasmordered: ldy dra_source
+// expectasmordered: sty dra_y_sink
+// expectasmordered: ldx  $30
+// expectasmordered: sty  $31
+// expectasmordered: ldy  $32
+// expectasmordered: stx  $33
+// forbidasm: tax
+// forbidasm: tay
+// forbidasm: txa
+// forbidasm: tya
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+uint8_t dra_source;
+uint8_t dra_x_sink;
+uint8_t dra_y_sink;
+uint8_t dra_ro @[0x30/none];
+uint8_t dra_wo @[none/0x31];
+uint8_t dra_rw @[0x32/0x33];
+void f(void) {
+   $X := 0x80;
+   dra_x_sink := $X;
+   $Y := dra_source;
+   dra_y_sink := $Y;
+   $X := dra_ro;
+   dra_wo := $Y;
+   $Y := dra_rw;
+   dra_rw := $X;
+}

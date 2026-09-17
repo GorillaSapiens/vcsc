@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectsim: OK
+// expectexit: 0
+include "machine_6502.c26"
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+uint8_t sink;
+uint8_t zeroer;
+void print_ok(void) { asm lda #0; asm ldx #<ok; asm ldy #>ok; asm jsr $ffff; }
+void print_bad(void) { asm lda #0; asm ldx #<bad; asm ldy #>bad; asm jsr $ffff; }
+void pass(void) { asm lda #$ff; asm ldx #0; asm ldy #0; asm jsr $ffff; }
+void fail(void) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+void main(void) {
+   $A := 0x11;
+   sink := $A;
+   zeroer := 0;                 // ordinary generated LDA #0 establishes Z
+   if (!($Z && ($C || !$C))) { asm jmp @bad_flags; }
+   sink := $A;                  // observes the ordinary statement's current A
+   if (sink != 0) { asm jmp @bad_flags; }
+
+   $A := 0x80;                  // establishes N and clears Z
+   if (!($N && !$Z)) { asm jmp @bad_flags; }
+   zeroer := 1;                 // ordinary generated code changes A/N/Z again
+   if ($N || $Z) { asm jmp @bad_flags; }
+   sink := $A;
+   if (sink != 1) { asm jmp @bad_flags; }
+
+   print_ok(); pass(); return;
+   asm @bad_flags:;
+   print_bad(); fail();
+}

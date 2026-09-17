@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: $V supports only the direct assignment $V := 0; for '$V'
+include "machine_6502.c26"
+void f(void) { $V := 1; }

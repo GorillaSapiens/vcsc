@@ -1,0 +1,52 @@
+// vcsc-cc1 -I .
+// expectsim: OK
+// expectexit: 0
+include "machine_6502.c26"
+
+uint8_t source := 0x80;
+uint8_t sink_n;
+uint8_t sink_z;
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+void print_ok(void) {
+   asm lda #0; asm ldx #<ok; asm ldy #>ok; asm jsr $ffff;
+}
+void print_bad(void) {
+   asm lda #0; asm ldx #<bad; asm ldy #>bad; asm jsr $ffff;
+}
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+void fail(void) {
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   $A := source;
+   sink_n := $A;
+   asm bpl @bad_flags;
+
+   $A := 0;
+   sink_z := $A;
+   asm bne @bad_flags;
+
+   if (sink_n != 0x80 || sink_z != 0) {
+      print_bad();
+      fail();
+      return;
+   }
+   print_ok();
+   pass();
+   return;
+
+   asm @bad_flags:;
+   print_bad();
+   fail();
+}

@@ -216,3 +216,104 @@ clocks at Stella's 2x horizontal presentation) by four scanlines.  The focused
 runtime/frame test, VSYNC contract, 33-source assembly allowlist, hygiene,
 example-reorg inventory, recursive public-example shard 1/8, and complete
 537/537 compile-only gate pass.
+
+2026-09-16 15:45:19 PDT, complete DRA1 parser surface
+-------------------------------------------------------
+Implemented DRA1 only. The compiler now gives the ten planned Direct Register
+Access spellings dedicated lexer tokens and AST leaves, reserves `$P` and `$_`
+with intentional diagnostics, and parses the deliberately narrow assignment and
+flag-condition surface without treating the pseudo-objects as ordinary
+identifiers. A pre-codegen DRA validator rejects declarations, address-taking,
+general-expression use, unsupported register transfers, invalid status uses,
+and non-direct assignment shapes. Valid DRA source is intentionally stopped
+before optimization/code generation so this slice cannot emit functioning DRA
+machine code. Existing lone `_` discard behavior is unchanged.
+
+Added 13 focused DRA tests covering the accepted parser/AST surface, reserved
+spellings, rejection cases, and the deliberate no-codegen boundary. Existing
+discard-result/store and `(void)` regressions continue to pass. The exhaustive
+`blanket.c26` and `coverage.c26` parser fixtures now exercise every new DRA
+grammar production rather than exempting it. Focused DRA/discard/coverage tests
+pass 18/18 and the complete compile-only suite passes 550/550. The full e2e
+suite was not rerun for this syntax-only slice.
+
+
+2026-09-16 16:28:42 PDT, fix diagnostic live-row certification
+------------------------------------------------------
+The user-reported DRA1 full-suite failure was traced to a stale Stella raster mask,
+not DRA compiler output. The diagnostic certification still claimed to mask the two
+live controller-detail rows at 109..126, but the current renderer places those live
+bands at 125..133 and 138..146. Driving-button phase changes therefore leaked into
+the supposedly stable digest as a four-pixel F0/P0 difference. Updated the mask and
+its source-tree-hygiene contract to the actual two live bands; headings, collision
+areas, first-lit-row checks, and exact pinned-palette RGB outside those bands remain
+strict. A fresh ntsc_driving Stella certification and source-tree hygiene pass.
+
+2026-09-16 16:28:42 PDT, complete DRA2 accumulator access
+-------------------------------------------------
+Implemented DRA2 exact accumulator access. `$A := byte/immediate` lowers directly to
+LDA and `byte := $A` directly to STA for one-byte non-bitfield directly addressable
+objects and legal absolute refs, with byte-range and directional-ref diagnostics.
+Added DRA emission markers that are removed from final assembly but make explicit DRA
+instructions non-rewritable/non-elidable while still feeding the peephole register
+and N/Z state model. No hidden scratch, pointer setup, save/restore, or `_` changes
+were introduced. Focused DRA2 exact-code/negative/simulator tests pass 10/10; the
+simulator locks value transfer plus LDA N/Z behavior through an intervening STA. The
+complete compile-only suite passes 558/558.
+
+2026-09-16 16:30:44 PDT, complete DRA3 X/Y direct access
+------------------------------------------------
+Implemented exact LDX/LDY and STX/STY DRA lowering for the same direct-byte/immediate operand class as A, including directional absolute refs and byte/non-bitfield constraints. No implicit transfer through A is generated. Focused exact-code, negative, and simulator coverage passes 9/9; the simulator locks X/Y values and load-established N/Z through direct stores.
+
+2026-09-16 16:31:33 PDT, complete DRA4 native transfers
+--------------------------------------------
+Implemented the six native DRA transfers TAX/TAY/TXA/TYA/TSX/TXS with no hidden intermediate register or stack traffic. Existing DRA1 diagnostics continue to reject X<->Y, unsupported S forms, memory<->S, and self-transfer. Focused exact-opcode/negative/simulator coverage passes 7/7; simulator checks transfer-established N/Z and TXS no-flag behavior.
+
+2026-09-16 16:35:49 PDT, complete DRA5 direct flag conditions
+------------------------------------------------
+Implemented bare and unary-negated `$C/$Z/$N/$V` truth tests in if, while,
+do/while, and for condition positions as direct native conditional branches. The
+false-branch mappings are BCC/BCS, BNE/BEQ, BPL/BMI, and BVC/BVS respectively;
+DRA emission barriers keep those explicit branches non-rewritable while leaving
+them as normal bare/flex compiler branches for ordinary placement/relaxation.
+No byte, stack, or hidden register operation is materialized. `$I/$D` reads,
+compound flag conditions, and flag value uses remain rejected. Focused codegen,
+negative, and simulator coverage passes 10/10, including taken and not-taken
+execution for every readable flag and all four statement-condition positions.
+The existing complete compile-only gate passed 565/565 after the compiler change;
+newly added DRA5 fixtures passed separately.
+
+
+2026-09-16 16:39:00 PDT, complete DRA6 direct writable flags
+-------------------------------------------------------------
+Implemented constant-only direct writes for `$C/$I/$D := 0/1` and `$V := 0`,
+lowering exactly to CLC/SEC, CLI/SEI, CLD/SED, and CLV. `$V := 1`, `$Z/$N`
+writes, runtime/nonconstant RHS values, out-of-range constants, and compound
+assignments remain intentional errors. Focused exact-code, negative, and simulator
+coverage verifies opcode selection and resulting processor flags without hidden
+storage or register traffic.
+
+
+2026-09-16 16:52:00 PDT, complete DRA7 control-flow/lifetime integration
+---------------------------------------------------------------------
+Extended readable `$C/$Z/$N/$V` tests through nested `!`, `&&`, and `||` using
+the compiler's ordinary short-circuit branch lowering, while retaining intentional
+errors for `$I/$D` reads and value-producing flag uses. Added optimizer/lifetime
+regressions proving explicit DRA A/X writes invalidate affected ordinary register
+and N/Z facts rather than allowing stale reuse, plus mixed ordinary/DRA condition
+coverage and a simulator point-in-time test across intervening state changes.
+Explicit DRA operations remain optimizer-visible barriers rather than opaque asm.
+The focused DRA7 set passes 9/9 and the complete compile-only gate passes 580/580.
+The user-reported diagnostic instability remains fixed separately by the corrected
+Stella live-row mask; a fresh targeted `ntsc_driving` certification passes with
+Stella 7 and the pinned palette.
+
+2026-09-16 17:05:00 PDT, DRA7 handoff verification
+--------------------------------------------------
+Revalidated the completed DRA7 checkpoint after the chat transport interruptions.
+All 49 DRA-focused compiler/simulator tests pass, and the complete compile-only
+suite passes 580/580. The user-reported diagnostic failure is covered by the
+corrected live-row mask; a fresh targeted `ntsc_driving` Stella 7 pinned-palette
+certification passes. A later attempt to run the four-case NTSC diagnostic batch
+hit the execution transport limit after `ntsc_joystick`; do not claim that batch
+or the full 12-case diagnostic matrix as rerun for this handoff.

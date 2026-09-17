@@ -26,6 +26,8 @@ typedef struct {
    bool is_blank_or_comment;
    bool is_inline_asm;
    bool is_inline_asm_marker;
+   bool is_dra;
+   bool is_dra_marker;
    bool size_relax_safe;
    bool keep;
    int size;
@@ -277,6 +279,8 @@ static void parse_line(PeepholeLine *line) {
    line->is_blank_or_comment = false;
    line->is_inline_asm = false;
    line->is_inline_asm_marker = false;
+   line->is_dra = false;
+   line->is_dra_marker = false;
    line->size_relax_safe = false;
    line->keep = true;
    line->size = 0;
@@ -284,6 +288,11 @@ static void parse_line(PeepholeLine *line) {
    if (!strcmp(line->trim, EMIT_INLINE_ASM_BEGIN_MARKER) || !strcmp(line->trim, EMIT_INLINE_ASM_END_MARKER)) {
       line->is_blank_or_comment = true;
       line->is_inline_asm_marker = true;
+      return;
+   }
+   if (!strcmp(line->trim, EMIT_DRA_BEGIN_MARKER) || !strcmp(line->trim, EMIT_DRA_END_MARKER)) {
+      line->is_blank_or_comment = true;
+      line->is_dra_marker = true;
       return;
    }
 
@@ -365,6 +374,24 @@ static void annotate_inline_asm_lines(PeepholeLine *lines, int count) {
    }
 }
 
+//! @brief Mark explicit DRA instruction ranges as optimizer-visible but non-rewritable.
+static void annotate_dra_lines(PeepholeLine *lines, int count) {
+   bool in_dra = false;
+
+   for (int i = 0; i < count; i++) {
+      if (lines[i].is_dra_marker) {
+         lines[i].keep = false;
+         if (!strcmp(lines[i].trim, EMIT_DRA_BEGIN_MARKER))
+            in_dra = true;
+         else
+            in_dra = false;
+         continue;
+      }
+      if (in_dra)
+         lines[i].is_dra = true;
+   }
+}
+
 //! @brief Mark pure compiler-generated procedures as safe for cycle-changing size relaxations.
 static void annotate_size_relax_safe_procedures(PeepholeLine *lines, int count) {
    int proc_start = -1;
@@ -426,7 +453,7 @@ static bool invert_branch_over_jump(PeepholeLine *lines, int count, int index,
    PeepholeLine *jump;
    char buf[1024];
 
-   if (!branch->keep || !branch->is_generated || branch->is_inline_asm ||
+   if (!branch->keep || !branch->is_generated || branch->is_inline_asm || branch->is_dra ||
        !branch->size_relax_safe || !is_branch_mnemonic(branch->mnemonic) ||
        !(inverse = inverse_branch_mnemonic(branch->mnemonic)) ||
        !branch->operand || !*branch->operand) {
@@ -435,7 +462,7 @@ static bool invert_branch_over_jump(PeepholeLine *lines, int count, int index,
    jump_index = next_kept_effective_index(lines, count, index);
    if (jump_index < 0) return false;
    jump = &lines[jump_index];
-   if (!jump->is_generated || jump->is_inline_asm || !jump->size_relax_safe ||
+   if (!jump->is_generated || jump->is_inline_asm || jump->is_dra || !jump->size_relax_safe ||
        !jump->is_instruction || strcmp(jump->mnemonic, "jmp") ||
        !jump->operand || !*jump->operand ||
        !target_is_immediately_following_label(lines, count, jump_index, branch->operand)) {
@@ -974,7 +1001,9 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          continue;
       }
 
-      if ((!strcmp(line->mnemonic, "jmp") || is_branch_mnemonic(line->mnemonic)) && target_is_immediately_following_label(lines, count, i, line->operand)) {
+      if (!line->is_dra &&
+          (!strcmp(line->mnemonic, "jmp") || is_branch_mnemonic(line->mnemonic)) &&
+          target_is_immediately_following_label(lines, count, i, line->operand)) {
          line->keep = false;
          stats->pass_removed++;
          stats->pass_saved += line->size;
@@ -991,7 +1020,8 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          continue;
       }
 
-      if (is_branch_mnemonic(line->mnemonic) && branch_is_never_taken(line->mnemonic, flags_value, carry_state, overflow_state)) {
+      if (!line->is_dra && is_branch_mnemonic(line->mnemonic) &&
+          branch_is_never_taken(line->mnemonic, flags_value, carry_state, overflow_state)) {
          remove_never_taken_branch(line, stats, i, &changed);
          continue;
       }
@@ -1008,7 +1038,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          else if (!strcmp(line->mnemonic, "clv"))
             status_slot = &overflow_state;
 
-         if (status_slot && simple_status_write_is_same(*status_slot, line->mnemonic)) {
+         if (!line->is_dra && status_slot && simple_status_write_is_same(*status_slot, line->mnemonic)) {
             remove_redundant_status(line, stats, i, &changed);
             continue;
          }
@@ -1023,7 +1053,8 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
 
          prev = previous_kept_effective_line(lines, i);
 
-         if (prev && prev->is_generated && prev->is_instruction && !prev->is_inline_asm &&
+         if (!line->is_dra && prev && prev->is_generated && prev->is_instruction &&
+             !prev->is_inline_asm && !prev->is_dra &&
              !strcmp(prev->mnemonic, "lda") && parse_immediate_byte(prev->operand, &lhs) && parse_immediate_byte(line->operand, &rhs)) {
             if (!strcmp(line->mnemonic, "and"))
                result = lhs & rhs;
@@ -1042,7 +1073,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
 
       if (!strcmp(line->mnemonic, "lda") || !strcmp(line->mnemonic, "ldx") || !strcmp(line->mnemonic, "ldy")) {
          PeepholeLine *prev = previous_kept_effective_line(lines, i);
-         if (previous_same_reg_load_is_dead(prev, line)) {
+         if (!line->is_dra && prev && !prev->is_dra && previous_same_reg_load_is_dead(prev, line)) {
             remove_dead_load(prev, stats, (int) (prev - lines), &changed);
             if (!strcmp(line->mnemonic, "lda"))
                clear_state(&reg_a);
@@ -1054,7 +1085,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          }
       }
 
-      if (!strcmp(line->mnemonic, "lda") && operand_is_safe_load_value(line->operand) && load_is_redundant(lines, count, i, reg_a, flags_value, line->operand, mem_values)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "lda") && operand_is_safe_load_value(line->operand) && load_is_redundant(lines, count, i, reg_a, flags_value, line->operand, mem_values)) {
          line->keep = false;
          stats->pass_removed++;
          stats->pass_saved += line->size;
@@ -1064,7 +1095,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          changed = 1;
          continue;
       }
-      if (!strcmp(line->mnemonic, "ldx") && operand_is_safe_load_value(line->operand) && load_is_redundant(lines, count, i, reg_x, flags_value, line->operand, mem_values)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "ldx") && operand_is_safe_load_value(line->operand) && load_is_redundant(lines, count, i, reg_x, flags_value, line->operand, mem_values)) {
          line->keep = false;
          stats->pass_removed++;
          stats->pass_saved += line->size;
@@ -1074,7 +1105,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          changed = 1;
          continue;
       }
-      if (!strcmp(line->mnemonic, "ldy") && operand_is_safe_load_value(line->operand) && load_is_redundant(lines, count, i, reg_y, flags_value, line->operand, mem_values)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "ldy") && operand_is_safe_load_value(line->operand) && load_is_redundant(lines, count, i, reg_y, flags_value, line->operand, mem_values)) {
          line->keep = false;
          stats->pass_removed++;
          stats->pass_saved += line->size;
@@ -1085,19 +1116,19 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          continue;
       }
 
-      if (!strcmp(line->mnemonic, "tax") && transfer_is_redundant(lines, count, i, reg_x, reg_a, flags_value)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "tax") && transfer_is_redundant(lines, count, i, reg_x, reg_a, flags_value)) {
          remove_redundant_transfer(line, stats, i, "dup_tax", &changed);
          continue;
       }
-      if (!strcmp(line->mnemonic, "tay") && transfer_is_redundant(lines, count, i, reg_y, reg_a, flags_value)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "tay") && transfer_is_redundant(lines, count, i, reg_y, reg_a, flags_value)) {
          remove_redundant_transfer(line, stats, i, "dup_tay", &changed);
          continue;
       }
-      if (!strcmp(line->mnemonic, "txa") && transfer_is_redundant(lines, count, i, reg_a, reg_x, flags_value)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "txa") && transfer_is_redundant(lines, count, i, reg_a, reg_x, flags_value)) {
          remove_redundant_transfer(line, stats, i, "dup_txa", &changed);
          continue;
       }
-      if (!strcmp(line->mnemonic, "tya") && transfer_is_redundant(lines, count, i, reg_a, reg_y, flags_value)) {
+      if (!line->is_dra && !strcmp(line->mnemonic, "tya") && transfer_is_redundant(lines, count, i, reg_a, reg_y, flags_value)) {
          remove_redundant_transfer(line, stats, i, "dup_tya", &changed);
          continue;
       }
@@ -1112,7 +1143,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          set_loaded_reg_state(&reg_y, &flags_value, line->operand, mem_values);
       }
       else if (!strcmp(line->mnemonic, "sta")) {
-         if (store_is_redundant(mem_values, line->operand, reg_a)) {
+         if (!line->is_dra && store_is_redundant(mem_values, line->operand, reg_a)) {
             remove_redundant_store(line, stats, i, "dup_sta", &changed);
             continue;
          }
@@ -1123,7 +1154,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          }
       }
       else if (!strcmp(line->mnemonic, "stx")) {
-         if (store_is_redundant(mem_values, line->operand, reg_x)) {
+         if (!line->is_dra && store_is_redundant(mem_values, line->operand, reg_x)) {
             remove_redundant_store(line, stats, i, "dup_stx", &changed);
             continue;
          }
@@ -1134,7 +1165,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
          }
       }
       else if (!strcmp(line->mnemonic, "sty")) {
-         if (store_is_redundant(mem_values, line->operand, reg_y)) {
+         if (!line->is_dra && store_is_redundant(mem_values, line->operand, reg_y)) {
             remove_redundant_store(line, stats, i, "dup_sty", &changed);
             continue;
          }
@@ -1325,6 +1356,7 @@ void emit_peephole_optimize(EmitSink *es, bool enabled) {
       parse_line(&lines[i]);
    }
    annotate_inline_asm_lines(lines, count);
+   annotate_dra_lines(lines, count);
    annotate_size_relax_safe_procedures(lines, count);
    free(raw_lines);
    free(joined);

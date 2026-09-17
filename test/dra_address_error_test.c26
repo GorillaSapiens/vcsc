@@ -1,0 +1,8 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: cannot take the address of Direct Register Access pseudo-object '$A'
+include "machine_6502.c26"
+uint8_t *dra_pointer;
+void dra_address(void) {
+   dra_pointer := &$A;
+}

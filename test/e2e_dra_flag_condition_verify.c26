@@ -1,0 +1,54 @@
+// vcsc-cc1 -I .
+// expectsim: OK
+// expectexit: 0
+include "machine_6502.c26"
+uint8_t seen;
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+void print_ok(void) { asm lda #0; asm ldx #<ok; asm ldy #>ok; asm jsr $ffff; }
+void print_bad(void) { asm lda #0; asm ldx #<bad; asm ldy #>bad; asm jsr $ffff; }
+void pass(void) { asm lda #$ff; asm ldx #0; asm ldy #0; asm jsr $ffff; }
+void fail(void) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+void bad_path(void) { print_bad(); fail(); }
+void main(void) {
+   seen := 0;
+
+   asm clc;
+   if ($C) { bad_path(); return; }
+   asm sec;
+   if ($C) { seen++; }
+   asm sec;
+   if (!$C) { bad_path(); return; }
+   asm clc;
+   if (!$C) { seen++; }
+
+   asm lda #0;
+   if (!$Z) { bad_path(); return; }
+   asm lda #0;
+   if ($Z) { seen++; }
+   asm lda #1;
+   if ($Z) { bad_path(); return; }
+   asm lda #1;
+   if (!$Z) { seen++; }
+
+   asm lda #$7f;
+   if ($N) { bad_path(); return; }
+   asm lda #$80;
+   if ($N) { seen++; }
+   asm lda #$80;
+   if (!$N) { bad_path(); return; }
+   asm lda #$7f;
+   if (!$N) { seen++; }
+
+   asm clv;
+   if ($V) { bad_path(); return; }
+   asm lda #$40; asm clc; asm adc #$40;
+   if ($V) { seen++; }
+   asm lda #$40; asm clc; asm adc #$40;
+   if (!$V) { bad_path(); return; }
+   asm clv;
+   if (!$V) { seen++; }
+
+   if (seen != 8) { bad_path(); return; }
+   print_ok(); pass();
+}

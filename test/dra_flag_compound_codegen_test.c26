@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectasmordered: bcc @if_false_
+// expectasmordered: beq @or_end_
+// expectasmordered: bmi @if_false_
+// forbidasm: php
+// forbidasm: pla
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+void f(void) {
+   if ($C && (!!$Z || !$N)) {
+      asm nop;
+   }
+}

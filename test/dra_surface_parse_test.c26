@@ -1,0 +1,46 @@
+// vcsc-cc1 -I . -X dumpast -X parseonly
+// expectasm: dra $A
+// expectasm: dra $X
+// expectasm: dra $Y
+// expectasm: dra $S
+// expectasm: dra $C
+// expectasm: dra $Z
+// expectasm: dra $I
+// expectasm: dra $D
+// expectasm: dra $V
+// expectasm: dra $N
+
+include "machine_6502.c26"
+
+uint8_t dra_a;
+uint8_t dra_b;
+
+void dra_surface(void) {
+   $A := dra_a;
+   $X := 7;
+   $Y := dra_b;
+   dra_a := $A;
+   dra_b := $X;
+   dra_a := $Y;
+
+   $A := $X;
+   $A := $Y;
+   $X := $A;
+   $X := $S;
+   $Y := $A;
+   $S := $X;
+
+   $C := 0;
+   $C := 1;
+   $I := 0;
+   $I := 1;
+   $D := 0;
+   $D := 1;
+   $V := 0;
+
+   if ($C) { }
+   if (!$Z) { }
+   while ($N) { break; }
+   do { } while (!$V);
+   for (; $C; ) { break; }
+}

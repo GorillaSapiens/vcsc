@@ -404,7 +404,7 @@ for my $path (@stella_test_scripts) {
       or die "$path does not use the pinned Stella palette helper\n";
 }
 my $diagnostic_stella=slurp(File::Spec->catfile($test,'vcs_diagnostic_cartridge_stella.pl'));
-index($diagnostic_stella,q{my@digest_mask=('--mask-rows','109-126');}) >= 0
+index($diagnostic_stella,q{my@digest_mask=('--mask-rows','125-133','--mask-rows','138-146');}) >= 0
    or die "diagnostic Stella certification no longer uses exact RGB with only live rows masked\n";
 index($diagnostic_stella,'stella_pinned.png') >= 0
    or die "diagnostic Stella certification is not using pinned-palette references\n";

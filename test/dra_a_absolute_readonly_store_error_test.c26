@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: absolute external binding 'ro' is read-only
+include "machine_6502.c26"
+uint8_t ro @[0x30/none];
+void f(void) { ro := $A; }

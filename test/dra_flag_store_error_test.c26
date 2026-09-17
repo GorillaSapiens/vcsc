@@ -1,0 +1,8 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: only $A, $X, or $Y can be stored directly to memory; unsupported source '$C'
+include "machine_6502.c26"
+uint8_t dra_value;
+void dra_flag_store_error(void) {
+   dra_value := $C;
+}

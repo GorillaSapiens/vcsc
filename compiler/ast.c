@@ -164,6 +164,21 @@ ASTNode *make_asm_leaf(const char *strval) {
    return ret;
 }
 
+//! @brief Create a Direct Register Access pseudo-object leaf.
+ASTNode *make_dra_leaf(const char *strval) {
+   ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
+   ret->name = "dra";
+   ret->file = strdup(current_filename);
+   ret->line = yylineno;
+   ret->column = yycolumn;
+   ret->kind = AST_DRA;
+   ret->strval = strval ? strdup(strval) : NULL;
+   ret->source_spelling = strval ? strdup(strval) : NULL;
+   ret->handled = false;
+   return ret;
+}
+
 //! @brief Create identifier leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_identifier_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
@@ -296,6 +311,7 @@ void dump_ast_flat(const ASTNode *node,
           case AST_STRING:     printf(" \"%s\"", node->strval); break;
           case AST_IDENTIFIER: printf(" %s", node->strval); break;
           case AST_TYPENAME:   printf(" %s", node->strval); break;
+          case AST_DRA:        printf(" %s", node->strval); break;
           case AST_EMPTY:      printf(" <empty>"); break;
           default: break;
        }

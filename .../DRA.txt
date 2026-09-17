@@ -3,9 +3,12 @@ DIRECT REGISTER ACCESS (DRA) -- DESIGN AND ROADMAP
 
 Status
 ------
-Design only. No Direct Register Access syntax or code generation is implemented
-at this checkpoint. The existing lone `_` discard token and all current compiler
-behavior remain unchanged until the roadmap below is executed deliberately.
+DRA1-DRA7 are complete: the dedicated pseudo-object surface/rejection matrix,
+exact A/X/Y loads/stores and native transfers, direct C/Z/N/V flag conditions and
+writes, compound short-circuit flag control flow, and optimizer/register-lifetime
+integration are implemented and covered. Explicit DRA instructions/branches are
+optimizer-visible but non-elidable, and existing lone `_` behavior remains
+unchanged. DRA8 is the next implementation slice.
 
 Purpose
 -------
@@ -310,7 +313,7 @@ one roughly 25-minute execution window, including focused tests and a handoff
 archive. Do not combine adjacent items merely because implementation starts
 quickly; later slices depend on exact contracts proven by earlier ones.
 
-[ ] DRA1. Add lexer/parser/AST surface and rejection matrix only.
+[x] DRA1. Add lexer/parser/AST surface and rejection matrix only.
 
     * Recognize dedicated `$A`, `$X`, `$Y`, `$S`, `$C`, `$Z`, `$I`, `$D`, `$V`,
       and `$N` tokens/pseudo-nodes without treating them as identifiers.
@@ -322,7 +325,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
       outside the explicitly planned surface.
     * Preserve all existing `_` behavior during this slice.
 
-[ ] DRA2. Implement `$A` direct byte load/store.
+[x] DRA2. Implement `$A` direct byte load/store.
 
     * `$A := direct_byte` / `$A := immediate` emit LDA.
     * `direct_byte := $A` emits STA.
@@ -331,7 +334,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
     * Add exact generated-assembly tests plus simulator tests proving values and
       LDA-established N/Z behavior. Keep `_` unchanged for now.
 
-[ ] DRA3. Implement `$X` and `$Y` direct byte load/store.
+[x] DRA3. Implement `$X` and `$Y` direct byte load/store.
 
     * Add exact LDX/LDY and STX/STY lowering for the same deliberately narrow
       operand class used by `$A`.
@@ -339,7 +342,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
       require an implicit transfer through another register.
     * Add exact-code, absolute-ref legality, side-effect, and N/Z tests.
 
-[ ] DRA4. Implement native register transfers and `$S`.
+[x] DRA4. Implement native register transfers and `$S`.
 
     * Add TAX/TAY/TXA/TYA for A<->X/Y.
     * Add TSX/TXS for X<->S.
@@ -347,7 +350,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
       self-assignment, and every form requiring a hidden intermediate clobber.
     * Lock exact opcodes and the correct N/Z-versus-no-flag side effects.
 
-[ ] DRA5. Add simple direct flag conditions.
+[x] DRA5. Add simple direct flag conditions.
 
     * Support bare and unary-negated `$C/$Z/$N/$V` in `if`, `while`, `do/while`,
       and `for` condition positions using direct conditional branches.
@@ -356,7 +359,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
     * Add exact branch-direction tests, taken/not-taken simulator cases, and
       branch-placement/timing coverage.
 
-[ ] DRA6. Add direct writable flags.
+[x] DRA6. Add direct writable flags.
 
     * Implement constant-only `$C/$I/$D := 0/1` and `$V := 0`.
     * Reject `$V := 1`, `$Z/$N` writes, nonconstant RHS values, and compound
@@ -364,7 +367,7 @@ quickly; later slices depend on exact contracts proven by earlier ones.
     * Add exact CLC/SEC/CLI/SEI/CLD/SED/CLV codegen and flag-state simulator
       coverage.
 
-[ ] DRA7. Integrate DRA with control-flow/register-lifetime optimization.
+[x] DRA7. Integrate DRA with control-flow/register-lifetime optimization.
 
     * Teach existing live-register/live-N/Z machinery that explicit DRA reads
       and writes observe/change physical state and are optimization barriers for
@@ -432,4 +435,4 @@ quickly; later slices depend on exact contracts proven by earlier ones.
 
 Immediate next step
 -------------------
-No implementation has started. When the user asks to begin DRA, do DRA1 only.
+DRA7 is complete. When continuing DRA, do DRA8 only.

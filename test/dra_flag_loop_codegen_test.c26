@@ -1,0 +1,25 @@
+// vcsc-cc1 -I .
+// expectasmordered: @while_before:
+// expectasmordered: bcc @while_end_
+// expectasmordered: @while_body:
+// expectasmordered: @do_body:
+// expectasmordered: beq @do_end_
+// expectasmordered: @for_before:
+// expectasmordered: bpl @for_end_
+// expectasmordered: @for_body:
+// expectasmordered: @for_not_v_before:
+// expectasmordered: bvs @for_end_
+// expectasmordered: @for_not_v_body:
+include "machine_6502.c26"
+void f(void) {
+   asm @while_before:;
+   while ($C) { asm @while_body:; break; }
+
+   do { asm @do_body:; break; } while (!$Z);
+
+   asm @for_before:;
+   for (; $N; ) { asm @for_body:; break; }
+
+   asm @for_not_v_before:;
+   for (; !$V; ) { asm @for_not_v_body:; break; }
+}

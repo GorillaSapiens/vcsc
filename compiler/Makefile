@@ -57,6 +57,7 @@ SRCSRC = \
    compile_toplevel.c \
    compile_type.c \
    coverage.c \
+   dra.c \
    emit.c \
    enumname.c \
    expropt.c \

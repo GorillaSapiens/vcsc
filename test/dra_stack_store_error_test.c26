@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: only $A, $X, or $Y can be stored directly to memory; unsupported source '$S'
+include "machine_6502.c26"
+uint8_t value;
+void f(void) { value := $S; }

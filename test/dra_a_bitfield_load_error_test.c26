@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: $A direct load requires a directly addressable one-byte non-bitfield object or absolute ref
+include "machine_6502.c26"
+struct bits { uint8_t low:4; uint8_t high:4; };
+bits packed;
+void f(void) { $A := packed.low; }

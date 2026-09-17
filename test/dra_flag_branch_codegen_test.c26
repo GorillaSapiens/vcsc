@@ -1,0 +1,49 @@
+// vcsc-cc1 -I .
+// expectasmordered: @if_c_before:
+// expectasmordered: bcc @if_false_
+// expectasmordered: @if_c_body:
+// expectasmordered: @if_not_c_before:
+// expectasmordered: bcs @if_false_
+// expectasmordered: @if_not_c_body:
+// expectasmordered: @if_z_before:
+// expectasmordered: bne @if_false_
+// expectasmordered: @if_z_body:
+// expectasmordered: @if_not_z_before:
+// expectasmordered: beq @if_false_
+// expectasmordered: @if_not_z_body:
+// expectasmordered: @if_n_before:
+// expectasmordered: bpl @if_false_
+// expectasmordered: @if_n_body:
+// expectasmordered: @if_not_n_before:
+// expectasmordered: bmi @if_false_
+// expectasmordered: @if_not_n_body:
+// expectasmordered: @if_v_before:
+// expectasmordered: bvc @if_false_
+// expectasmordered: @if_v_body:
+// expectasmordered: @if_not_v_before:
+// expectasmordered: bvs @if_false_
+// expectasmordered: @if_not_v_body:
+// forbidasm: lda
+// forbidasm: cmp
+// forbidasm: php
+// forbidasm: pla
+// forbidasm: plp
+include "machine_6502.c26"
+void f(void) {
+   asm @if_c_before:;
+   if ($C) { asm @if_c_body:; asm nop; }
+   asm @if_not_c_before:;
+   if (!$C) { asm @if_not_c_body:; asm nop; }
+   asm @if_z_before:;
+   if ($Z) { asm @if_z_body:; asm nop; }
+   asm @if_not_z_before:;
+   if (!$Z) { asm @if_not_z_body:; asm nop; }
+   asm @if_n_before:;
+   if ($N) { asm @if_n_body:; asm nop; }
+   asm @if_not_n_before:;
+   if (!$N) { asm @if_not_n_body:; asm nop; }
+   asm @if_v_before:;
+   if ($V) { asm @if_v_body:; asm nop; }
+   asm @if_not_v_before:;
+   if (!$V) { asm @if_not_v_body:; asm nop; }
+}

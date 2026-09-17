@@ -142,6 +142,14 @@ Open workstreams
    markers, left stick for P0/P1/Ball and SELECT to cycle. See
    `.../heart_score.txt`.
 
+7. **Direct Register Access**
+   `.../DRA.txt` is authoritative. DRA1-DRA7 are complete: the dedicated DRA
+   parser/AST/rejection surface, exact `$A/$X/$Y` direct loads/stores, native
+   register transfers, direct flag reads/writes, compound short-circuit flag
+   conditions, and optimizer/register-lifetime barriers are implemented. Explicit
+   DRA operations remain optimizer-visible but cannot be deleted or rewritten;
+   existing lone `_` behavior remains unchanged. DRA8 discard migration is next.
+
 Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. `vcsc-rt1-simple.s26` is the
@@ -225,6 +233,9 @@ Focused source/build/controller regressions, source-tree hygiene, the 33-source
 assembly allowlist, the affected recursive public-example shards, Stella visual
 geometry checks, and the complete 537/537 compile-only gate pass after these tutorial
 changes. The full e2e suite has not been rerun after these isolated tutorial changes.
+DRA1 then added 13 focused compiler tests and updated the parser-coverage fixtures;
+the complete compile-only gate is now 550/550. No DRA machine-code path exists yet,
+and the full e2e suite has not been rerun for DRA1.
 
 The ER1-ER25 example reorganization is complete. Final ER25 certification covers
 all 112 recursively discovered editable cartridge entry points through the
@@ -237,5 +248,15 @@ matrix, and the relocated bankswitching Stella profiles pass.
 
 Immediate TODO
 --------------
-Main-roadmap work begins with Item 57 in `.../roadmap.txt`.
-DRA is design-only; see `.../DRA.txt`. If selected, do DRA1 next.
+The selected DRA workstream is active. DRA1-DRA7 are complete; do DRA8 next,
+following `.../DRA.txt`. If DRA is not selected, main-roadmap work begins
+with Item 57 in `.../roadmap.txt`.
+
+DRA7 handoff verification
+-------------------------
+The completed DRA7 checkpoint was revalidated after chat transport interruptions:
+all 49 DRA-focused tests pass and the complete compile-only gate is 580/580. The
+specific user-reported `ntsc_driving` Stella diagnostic case passes with Stella 7
+and the pinned palette after the corrected live-row mask. The complete 12-case
+Stella diagnostic matrix was not rerun in this handoff; a four-case NTSC batch
+attempt hit the execution transport limit after `ntsc_joystick`.

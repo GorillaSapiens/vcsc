@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: writable status flag requires compile-time 0 or 1 for '$C'
+include "machine_6502.c26"
+uint8_t value;
+void f(void) { $C := value; }

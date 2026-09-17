@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: status flag is not directly branchable and cannot be read as a condition '$I'
+include "machine_6502.c26"
+uint8_t gate;
+void f(void) {
+   if ($C && (gate || $I)) { gate := 1; }
+}

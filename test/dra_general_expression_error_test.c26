@@ -1,0 +1,8 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: Direct Register Access pseudo-object is not a general expression '$A'
+include "machine_6502.c26"
+uint8_t dra_value;
+void dra_general_expression(void) {
+   dra_value := $A + 1;
+}

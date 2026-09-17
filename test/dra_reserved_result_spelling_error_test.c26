@@ -1,0 +1,7 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: $_ is not supported; use (void) expression for explicit result discard
+include "machine_6502.c26"
+void dra_reserved_result_spelling(void) {
+   $_ := 0;
+}

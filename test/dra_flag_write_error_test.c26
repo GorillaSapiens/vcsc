@@ -1,0 +1,7 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: status flag is read-only through Direct Register Access '$Z'
+include "machine_6502.c26"
+void dra_flag_write_error(void) {
+   $Z := 1;
+}

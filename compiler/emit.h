@@ -11,6 +11,8 @@
 
 #define EMIT_INLINE_ASM_BEGIN_MARKER "; vcsc-cc1:inline-asm-begin"
 #define EMIT_INLINE_ASM_END_MARKER   "; vcsc-cc1:inline-asm-end"
+#define EMIT_DRA_BEGIN_MARKER        "; vcsc-cc1:dra-begin"
+#define EMIT_DRA_END_MARKER          "; vcsc-cc1:dra-end"
 
 //! One chunk in an emission sink; allocated by emit() and linked in output order.
 struct EmitPiece;

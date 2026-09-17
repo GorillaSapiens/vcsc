@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: DRA flag conditions may use only nested !, &&, and || around readable flags; general use is unsupported for '$C'
+include "machine_6502.c26"
+void f(void) {
+   if (($C + 1) != 0) { asm nop; }
+}

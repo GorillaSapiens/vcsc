@@ -1,0 +1,7 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: status flag is not directly branchable and cannot be read as a condition '$I'
+include "machine_6502.c26"
+void dra_condition_error(void) {
+   if ($I) { }
+}

@@ -1,0 +1,27 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$7f
+// expectasmordered: lda dra_source
+// expectasmordered: sta dra_sink
+// expectasmordered: lda  $30
+// expectasmordered: sta  $31
+// expectasmordered: lda  $32
+// expectasmordered: sta  $33
+// forbidasm: __vcsc_scratch_
+// forbidasm: ptr0
+include "machine_6502.c26"
+
+uint8_t dra_source;
+uint8_t dra_sink;
+uint8_t dra_ro @[0x30/none];
+uint8_t dra_wo @[none/0x31];
+uint8_t dra_rw @[0x32/0x33];
+
+void dra_a_codegen(void) {
+   $A := 0x7f;
+   $A := dra_source;
+   dra_sink := $A;
+   $A := dra_ro;
+   dra_wo := $A;
+   $A := dra_rw;
+   dra_rw := $A;
+}

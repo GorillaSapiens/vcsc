@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$01
+// expectasmordered: sta value
+// expectasmordered: lda #$00
+// expectasmordered: lda value
+// expectasmordered: beq @if_false_
+include "machine_6502.c26"
+uint8_t value;
+void f(void) {
+   value := 1;
+   $A := 0;
+   if (value) { asm nop; }
+}

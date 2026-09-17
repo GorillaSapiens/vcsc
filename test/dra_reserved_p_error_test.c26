@@ -1,0 +1,7 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: $P is reserved for a future Direct Register Access facility and is not supported
+include "machine_6502.c26"
+void dra_reserved_p(void) {
+   $P := 0;
+}

@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: Direct Register Access pseudo-object is not a general expression '$Z'
+include "machine_6502.c26"
+void sink(uint8_t value) { (void) value; }
+void f(void) { sink($Z); }

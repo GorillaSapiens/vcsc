@@ -353,3 +353,18 @@ int16_t function4(void) {
 
 inline void inline_coverage(void) {
 }
+
+// DRA1 parser-surface coverage.  -X coverage exits before DRA semantic validation.
+uint8_t $A;
+void dra_parser_surface_coverage(void) {
+   $A := 1;
+   $X;
+   $Y;
+   $S;
+   $C;
+   $Z;
+   $I;
+   $D;
+   $V;
+   $N;
+}

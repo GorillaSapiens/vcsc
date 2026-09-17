@@ -1,0 +1,7 @@
+// vcsc-cc1 -I . -X parseonly
+// expectfail
+// expecterr: unsupported direct-register transfer from '$Y'
+include "machine_6502.c26"
+void dra_transfer_error(void) {
+   $X := $Y;
+}

@@ -1,0 +1,20 @@
+// vcsc-cc1 -I .
+// expectasmordered: tax
+// expectasmordered: tay
+// expectasmordered: txa
+// expectasmordered: tya
+// expectasmordered: tsx
+// expectasmordered: txs
+// forbidasm: pha
+// forbidasm: pla
+// forbidasm: php
+// forbidasm: plp
+include "machine_6502.c26"
+void f(void) {
+   $X := $A;
+   $Y := $A;
+   $A := $X;
+   $A := $Y;
+   $X := $S;
+   $S := $X;
+}

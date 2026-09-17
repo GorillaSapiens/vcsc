@@ -15,6 +15,7 @@
 
 #include "ast.h"
 #include "compile.h"
+#include "dra.h"
 #include "compile_inline_inliner.h"
 #include "compile_inline_identity.h"
 #include "coverage.h"
@@ -296,6 +297,7 @@ char *strndup(const char *s, size_t n)
 //! @brief Entry point for the compiler command; parses arguments, runs the requested pipeline, and returns process status.
 int main(int argc, char** argv) {
    int ret;
+   bool has_dra;
    const char *input = NULL;
 
    arg0 = argv[0];
@@ -375,6 +377,11 @@ int main(int argc, char** argv) {
 
    if (ret == 0) {
       debug(";Parse successful.\n");
+      if (get_xray(XRAY_COVERAGE)) {
+         coverage_report();
+         exit(0);
+      }
+      has_dra = dra_validate_surface(root);
       if (get_xray(XRAY_PARSEONLY)) {
          exit(0);
       }
@@ -383,9 +390,8 @@ int main(int argc, char** argv) {
       exit(-1);
    }
 
-   if (get_xray(XRAY_COVERAGE)) {
-      coverage_report();
-      exit(0);
+   if (has_dra) {
+      dra_reject_unimplemented_codegen(root);
    }
 
    do_expropt();

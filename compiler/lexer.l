@@ -2610,6 +2610,18 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 "^="            return XOR_ASSIGN;
 "..."           { LEX_ERROR_HERE("variadic declarations are not supported"); }
 "$exactops"     { LEX_ERROR_HERE("$exactops is not supported"); }
+"$A"            return DRA_A;
+"$X"            return DRA_X;
+"$Y"            return DRA_Y;
+"$S"            return DRA_S;
+"$C"            return DRA_C;
+"$Z"            return DRA_Z;
+"$I"            return DRA_I;
+"$D"            return DRA_D;
+"$V"            return DRA_V;
+"$N"            return DRA_N;
+"$P"            { LEX_ERROR_HERE("$P is reserved for a future Direct Register Access facility and is not supported"); }
+"$_"            { LEX_ERROR_HERE("$_ is not supported; use (void) expression for explicit result discard"); }
 "$$"            return DOLLAR_DOLLAR;
 "_"             return DISCARD;
 
