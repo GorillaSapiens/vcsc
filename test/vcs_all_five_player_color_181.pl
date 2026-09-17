@@ -104,7 +104,7 @@ for my$j(@interactive_jobs){
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
    $interactive_map{$n}=$im;
-   $im =~ /^  [Rr][Oo][Mm]\s+used=3873 bytes .* free=217 bytes/m
+   $im =~ /^  [Rr][Oo][Mm]\s+used=3880 bytes .* free=210 bytes/m
       or die "$n interactive example ROM footprint changed\n";
    $im =~ /^  ram\s+used=124 bytes .* free=4 bytes/m
       or die "$n interactive example RAM footprint changed\n";
@@ -206,7 +206,7 @@ for my$n(qw(above below)){
    $e eq '' or die "$n frame timing stderr: $e";
    ($r,$s,$o,$e)=capture($timing,$interactive_bin{$n},'50','--no-audio','--raw-lines','264','--released-inputs');
    $r==0&&!$s or die "$n interactive frame timing failed\n$o$e";
-   $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
+   $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"
       or die "bad $n interactive frame timing output: $o";
    $e eq '' or die "$n interactive frame timing stderr: $e";
 }

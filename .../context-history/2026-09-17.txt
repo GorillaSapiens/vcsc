@@ -55,3 +55,35 @@ audio is muted before the longer memory initialization.
 `vcs_startup_selection.pl` now requires the linked clear loop in representative
 simple, DATA, and full images.
 Runtime/test documentation and hot startup state were updated accordingly.
+
+2026-09-17 08:29:00 PDT, safe compact TIA startup normalization
+---------------------------------------------------------------
+The earlier all-register `$00-$2C` startup sweep was too broad because it strobed
+beam/control registers. A temporary sparse inert-register replacement avoided
+those strobes but cost 17 ROM bytes and still omitted VDELP0/VDELP1/VDELBL, which
+let randomized delayed graphics leak into Stella output.
+
+Replaced that checkpoint with a nine-byte descending `$04-$2C` sweep in all three
+stock startups and the faithful/enhanced private startup bodies. This deliberately
+leaves VSYNC/VBLANK/WSYNC/RSYNC (`$00-$03`) untouched. In descending order HMCLR
+is written immediately before HMOVE, so HMOVE applies zero motion, while graphics
+and enables are already cleared before the RESP/RESM/RESBL position strobes are
+reached. VDEL state, audio, playfield, colors, motion, enables, and collisions are
+also normalized. The DATA startup reuses the sweep's zero A value for its RIOT
+clear, removing a redundant `lda #0`; its net cost versus the pre-normalization
+DATA startup is seven bytes. Full startup cases that cannot use the blanket DATA
+path pay the full nine-byte sweep cost.
+
+Updated startup-selection byte contracts, linked-image/ROM-accounting fixtures,
+and frame-timing expectations where the deliberate startup AUDV0=0 write is now
+observable. The animated-gallery authoritative JSON was remeasured only for the
+seven-byte ROM delta; RAM/layout contracts are unchanged.
+
+Focused validation: `vcs_startup_tia_stella.pl` passes with Stella developer TIA
+randomization for simple, DATA, and full stock startups; the previously failing
+HEART_LINES=0 pinned Stella raster again matches exactly. The heart examples build
+again without overflow. The original size/timing regressions checked so far pass,
+including E0/F0/FC 262-line timing, all-five player-color 181/192, multisprite
+profiles, 170-line dual score, six-glyph wide/big-wide, banked standard renderer,
+three-plus-three score, faithful legacy multisprite, linker page containment/image
+model, and example-build shard 6/8.

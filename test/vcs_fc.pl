@@ -151,7 +151,7 @@ my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_fc');
 require_ok('compile FC frame timing','g++','-std=c++17','-Wall','-Wextra','-Werror','-pedantic',
    '-DILLEGAL_OPCODES','-I'.$mos_dir,$timing_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$timing);
 my($timing_out,$timing_err)=require_ok('time FC PASS/FAIL frames',$timing,$visible,'50','--no-audio','--raw-lines','264');
-$timing_out eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
+$timing_out eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"
    or die "FC frame timing was not exactly 262 scanlines:\n$timing_out";
 $timing_err eq '' or die "FC frame timing wrote stderr:\n$timing_err";
 

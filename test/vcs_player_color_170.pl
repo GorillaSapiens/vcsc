@@ -98,7 +98,7 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 for my $case (
    ['timing-smoke','vcs_frame_timing.cpp',$bin,[50,'--no-audio','--raw-lines',264],qr/^vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n$/],
    ['phase-smoke','vcs_playfield_phase.cpp',$bin,[10,10,44],qr/^vcs_playfield_raster ok: 10 rows x 16 lines x 160 pixels\n$/],
-   ['timing-dual','vcs_frame_timing.cpp',$dual_bin,[50,'--no-audio','--raw-lines',264],qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n$/],
+   ['timing-dual','vcs_frame_timing.cpp',$dual_bin,[50,'--no-audio','--raw-lines',264],qr/^vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n$/],
    ['phase-dual','vcs_playfield_phase.cpp',$dual_bin,[10,10,55],qr/^vcs_playfield_raster ok: 10 rows x 16 lines x 160 pixels\n$/],
    ['objects','vcs_standard_objects.cpp',$bin,['--players-hblank'],qr/^vcs_player_extreme_right ok: checkerboard P0\/P1 commits remain in HBLANK\n$/],
 ) {

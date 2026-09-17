@@ -153,8 +153,11 @@ Open workstreams
 Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. All three stock paths establish the
-same deterministic TIA baseline first by clearing the `$00-$2C` write-register
-window; real TIA power-on contents are unspecified and Stella developer-mode TIA
+same deterministic TIA baseline first by clearing the non-beam `$04-$2C` write-register
+window while leaving `VSYNC`/`VBLANK`/`WSYNC`/`RSYNC` (`$00-$03`) untouched. The
+descending sweep reaches `HMCLR` immediately before `HMOVE`, so the strobe applies
+zero motion; it also clears VDEL, graphics/audio, position, color, and collision
+state. Real TIA power-on contents are unspecified and Stella developer-mode TIA
 randomization must not leak graphics/audio into compiled programs.
 `vcsc-rt1-simple.s26` is the smallest path for ordinary RIOT BSS with no
 DATA/runtime initializer work. `vcsc-rt1-data.s26` is selected for initialized

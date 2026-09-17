@@ -1009,7 +1009,7 @@ private BSS marker emission, rejection outside uninitialized mutable file-scope
 definitions, simple startup for ordinary RIOT BSS, DATA startup for initialized
 DATA/runtime initializers when blanket RIOT clearing is safe, full table-driven
 startup when RIOT `noinit` storage or split/non-RIOT BSS is present, the same
-compact `$00-$2C` TIA clear in all three stock startup bodies, and omission of
+compact `$04-$2C` non-beam TIA clear in all three stock startup bodies, and omission of
 both ordinary and split-address `noinit` objects from ZERO
 records. `vcs_startup_tia_stella.pl` independently enables Stella developer TIA
 randomization and requires representative simple, DATA, and full/noinit carts

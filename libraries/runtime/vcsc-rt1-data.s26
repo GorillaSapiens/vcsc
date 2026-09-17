@@ -39,21 +39,21 @@ __reset:
    ldx #$ff
    txs
 
-   ; Real TIA power-on state is unspecified.  Establish a deterministic inert
-   ; baseline before any potentially long RAM/DATA initialization so randomized
-   ; emulator startup cannot leak graphics or audio into the first frame.
-   ; The compact indexed clear is smaller than enumerating the visible/audio
-   ; subset and also resets delayed graphics, motion, and collision state.
    lda #0
-   ldx #$2c
+   ; Real TIA power-on state is unspecified.  Clear the non-beam write window
+   ; $04-$2C while deliberately leaving VSYNC/VBLANK/WSYNC/RSYNC ($00-$03)
+   ; alone.  Descending order reaches HMCLR immediately before HMOVE, so HMOVE
+   ; applies zero motion; graphics/enables are cleared before the position-reset
+   ; strobes at $10-$14.  This also clears VDEL state and collision latches.
+   ldx #$28
 @clear_tia:
-   sta $00,x
+   sta $04,x
    dex
    bpl.same @clear_tia
 
    ; This startup is selected only when every ordinary BSS/ZP object that needs
    ; reset initialization lives in RIOT RAM and there are no noinit objects.
-   lda #0
+   ; A is still zero from the TIA sweep above.
    ldx #$7f
 _clear_ram:
    sta $80,x

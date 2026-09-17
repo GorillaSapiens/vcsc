@@ -26,10 +26,14 @@ __reset:
    dex
    bpl.same @clear_ram
 
-   ; Clear the TIA write-register window to a known startup state.
-   ldx #$2c
+   ; Real TIA power-on state is unspecified.  Clear the non-beam write window
+   ; $04-$2C while deliberately leaving VSYNC/VBLANK/WSYNC/RSYNC ($00-$03)
+   ; alone.  Descending order reaches HMCLR immediately before HMOVE, so HMOVE
+   ; applies zero motion; graphics/enables are cleared before the position-reset
+   ; strobes at $10-$14.  This also clears VDEL state and collision latches.
+   ldx #$28
 @clear_tia:
-   sta $00,x
+   sta $04,x
    dex
    bpl.same @clear_tia
 

@@ -70,10 +70,10 @@ sub sym_addr {
 
 sub require_tia_clear {
    my ($case, $what) = @_;
-   # LDA #0; LDX #$2C; loop: STA $00,X; DEX; BPL loop.  This is the
-   # compact stock-runtime contract which makes real/ randomized-emulator TIA
-   # startup state deterministic before main or any long DATA initialization.
-   my $pattern = pack('C*', 0xA9, 0x00, 0xA2, 0x2C, 0x95, 0x00, 0xCA, 0x10, 0xFB);
+   # LDA #0; LDX #$28; loop: STA $04,X; DEX; BPL loop.  This clears
+   # TIA $04-$2C while leaving the beam-control/sync strobes at $00-$03 alone.
+   # Descending order executes HMCLR immediately before HMOVE.
+   my $pattern = pack('C*', 0xA9, 0x00, 0xA2, 0x28, 0x95, 0x04, 0xCA, 0x10, 0xFB);
    index($case->{bin}, $pattern) >= 0
       or die "$what is missing the stock TIA clear loop\n";
 }

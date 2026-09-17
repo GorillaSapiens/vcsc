@@ -160,7 +160,7 @@ my $mos_dir=File::Spec->catdir($repo,qw(simulator mos6502)); my $mos_source=File
 my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_e0');
 require_ok('compile E0 frame timing','g++','-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-DILLEGAL_OPCODES','-I'.$mos_dir,$timing_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$timing);
 my($timing_out,$timing_err)=require_ok('time E0 PASS/FAIL frames',$timing,$visible,'50','--no-audio','--raw-lines','264');
-$timing_out eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n" or die "E0 frame timing was not exactly 262 scanlines:\n$timing_out";
+$timing_out eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n" or die "E0 frame timing was not exactly 262 scanlines:\n$timing_out";
 $timing_err eq '' or die "E0 frame timing wrote stderr:\n$timing_err";
 
 my $s26=File::Spec->catfile($tmp,'e0-visible.s26'); require_ok('disassemble E0 diagnostic',$disas,'-o',$s26,$visible);
