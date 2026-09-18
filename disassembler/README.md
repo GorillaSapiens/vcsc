@@ -552,14 +552,24 @@ Recognized TIA and RIOT accesses use the canonical VCSC names (`COLUBK`,
 `GRP0`, `SWCHA`, `TIM64T`, and so on). Generated files contain the equates they
 actually use, so they remain self-contained for the existing assembler.
 
-A noncanonical mirrored access keeps the exact encoded operand and names the
-register the hardware really selects, for example:
+Mirrored TIA/RIOT accesses use the canonical register symbol plus the encoded
+mirror offset rather than a second alias namespace. The conventional `$40-$6C`
+TIA write mirror therefore remains explicit and readable, including indexed base
+operands such as the stock startup clear loop:
+
+```asm
+    STA COLUBK + $40
+    STA NUSIZ0 + $40,X
+```
+
+The same rule applies to higher mirrors, for example:
 
 ```asm
     STA COLUBK + $0100      ; mirror of COLUBK ($0009)
 ```
 
-The mirror is never normalized to a different address merely to look nicer.
+The expression preserves the exact encoded address; the disassembler never
+normalizes a mirror to the base-page address merely to look nicer.
 
 ## Deliberately tricky 6502 code
 

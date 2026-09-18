@@ -154,10 +154,11 @@ Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. All three stock paths establish the
 same deterministic TIA baseline first by clearing the non-beam `$04-$2C` write-register
-window while leaving `VSYNC`/`VBLANK`/`WSYNC`/`RSYNC` (`$00-$03`) untouched. The
-descending sweep reaches `HMCLR` immediately before `HMOVE`, so the strobe applies
-zero motion; it also clears VDEL, graphics/audio, position, color, and collision
-state. Real TIA power-on contents are unspecified and Stella developer-mode TIA
+window through its `$40` mirror (`$44-$6C`), leaving
+`VSYNC`/`VBLANK`/`WSYNC`/`RSYNC` untouched and avoiding mapper-owned low-page
+addresses used by 3E/3F/WD. The descending sweep reaches `HMCLR` immediately before
+`HMOVE`, so the strobe applies zero motion; it also clears VDEL, graphics/audio,
+position, color, and collision state. Real TIA power-on contents are unspecified and Stella developer-mode TIA
 randomization must not leak graphics/audio into compiled programs.
 `vcsc-rt1-simple.s26` is the smallest path for ordinary RIOT BSS with no
 DATA/runtime initializer work. `vcsc-rt1-data.s26` is selected for initialized
@@ -214,15 +215,26 @@ acceptance gates.
 
 Last validation state
 ---------------------
-The current post-DRA/post-launcher/documentation-audit tree is clean with
-packaged Stella 7.0 and Xvfb: 582/582 compile-only tests and 392/392 e2e tests
-pass. This includes the 792-byte palette contract, every maintained
-mapper/renderer Stella launcher, the heart exact-RGB oracle, all 12
-NTSC/PAL/SECAM diagnostic rasters, and the full example-tree inventory. Mapper
-and video-standard play-target contracts preserve their required `-bs`/`-format`
-options while also requiring the isolated `-userdir "$(CURDIR)"` and absolute
-ROM path. PAL monochrome/dark-gray normalization remains retired; all reviewed
-standards use exact RGB under the checked-in user palette.
+The last broad baseline was clean with packaged Stella 7.0 and Xvfb: 582/582
+compile-only tests and 392/392 e2e tests passed. Since that baseline, startup TIA
+normalization moved to the universal `$44-$6C` mirror and the affected
+bankswitching example Makefiles gained runtime/mapper/tool build dependencies so
+`make play` cannot silently reuse a stale ROM after those inputs change. The compile-only suite is clean at 583/583. Focused e2e certification passes for
+startup selection/randomized TIA state, 3F/3E under Stella bank/TIA randomization,
+E0, F0, FE, 3E-max, 3F-max, the example build-dependency contract, and source-tree
+hygiene. The exhaustive 3EX-max test exceeded the local execution
+window; its separately documented Stella >64K RAM-offset truncation remains an
+upstream emulator limitation. The three reported post-mapper regressions in
+`linker_banked_image_model.pl`, `vcs_mapper_entry_source.pl`, and
+`vcs_examples_build_1of8.test` were stale contracts; focused reruns now pass,
+including 14/112 example builds plus byte-exact disassembler round trips. The
+short-lived `MIRROR_*` disassembler aliases have also been replaced by canonical
+register-plus-offset spelling such as `COLUBK + $40` and `NUSIZ0 + $40,X`; compact
+offsets use two hex digits while larger offsets retain four. The user's subsequent
+full e2e run reached 391/393, with only two stale four-digit mirror-format assertions
+failing. Those assertions are now updated, and focused reruns pass for
+`vcs_3f_3e.pl --stella` and the full `vcsc_disassembler.pl` regression. A fresh
+whole-suite rerun has not yet been performed after those two test-only fixes.
 
 Since that baseline, the public joystick, paddle, and driving-controller tutorials
 were simplified into direct visual demonstrations. Joystick uses independently
@@ -254,5 +266,8 @@ matrix, and the relocated bankswitching Stella profiles pass.
 
 Immediate TODO
 --------------
-The selected DRA workstream is complete through DRA12. Return to main-roadmap
-Item 57 in `.../roadmap.txt` when DRA is no longer the selected workstream.
+Have the mapper diagnostics rechecked manually from fresh `make play` builds.
+`3ex_max` is expected to remain limited by Stella's documented >64K 3EX RAM-offset
+bug. The `faithful_legacy_multisprite` visual jitter is intentionally deferred
+until the mapper/startup work is settled; do not infer its cause from the old
+"flickersort" routine name.

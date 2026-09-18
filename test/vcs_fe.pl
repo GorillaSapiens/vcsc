@@ -120,6 +120,21 @@ $mem->[$sym{failure}]==0 or die sprintf("FE self-test failed: failure=\$%02X\n",
 $mem->[$sym{trace}]==0x5A or die "FE bank-1 function did not execute\n";
 $mem->[$sym{stack_after}]==0xFF or die "FE RTS did not restore the caller bank/stack\n";
 
+# VCSC images are robust to Stella/real-hardware startup in physical bank 1.
+# Bank 1's reset bridge arms the delayed latch with BIT $01FE; the following
+# $EA opcode selects bank 0, whose same physical offset continues with JMP.
+substr($rom,4096+0x0fe0,4) eq pack('C*',0x2c,0xfe,0x01,0xea)
+   or die "FE bank1 randomized-start RESET bridge is missing\n";
+my $bank1_reset=ord(substr($rom,4096+0x0ffc,1)) |
+                (ord(substr($rom,4096+0x0ffd,1))<<8);
+$bank1_reset==0xdfe0 or die sprintf("FE bank1 RESET vector is \$%04X, expected \$DFE0\n",$bank1_reset);
+my($bout2,$berr2)=require_ok('simulate FE starting in physical bank 1',$sim,'--map',$map_path,
+   '--start-bank=1',sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
+$berr2 eq '' or die "FE bank1 startup wrote stderr:\n$berr2";
+my $bmem2=parse_hex_dump($bout2);
+$bmem2->[$sym{failure}]==0 && $bmem2->[$sym{trace}]==0x5A && $bmem2->[$sym{stack_after}]==0xFF
+   or die "FE randomized bank1 startup did not normalize to bank0 and complete the diagnostic\n";
+
 # Poison the bank-1 copy of the JSR target-high fetch address. Correct FE
 # hardware does not switch on the $01FE write itself: that write only arms the
 # latch, so the following high-byte fetch must still come from startup bank 0.
@@ -204,7 +219,7 @@ if ($stella_mode) {
    if ($pid==0) {
       open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')) or die $!;
       open(STDERR,'>&STDOUT') or die $!;
-      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FE',
+      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-startbank','1','-dev.tiarandom','1','-bs','FE',
            '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
            '-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible);
       die "exec Stella: $!\n";

@@ -70,10 +70,10 @@ sub sym_addr {
 
 sub require_tia_clear {
    my ($case, $what) = @_;
-   # LDA #0; LDX #$28; loop: STA $04,X; DEX; BPL loop.  This clears
-   # TIA $04-$2C while leaving the beam-control/sync strobes at $00-$03 alone.
+   # LDA #0; LDX #$28; loop: STA $44,X; DEX; BPL loop.  This clears
+   # TIA $04-$2C through its $40 mirror while leaving the beam-control/sync strobes at $00-$03 alone.
    # Descending order executes HMCLR immediately before HMOVE.
-   my $pattern = pack('C*', 0xA9, 0x00, 0xA2, 0x28, 0x95, 0x04, 0xCA, 0x10, 0xFB);
+   my $pattern = pack('C*', 0xA9, 0x00, 0xA2, 0x28, 0x95, 0x44, 0xCA, 0x10, 0xFB);
    index($case->{bin}, $pattern) >= 0
       or die "$what is missing the stock TIA clear loop\n";
 }

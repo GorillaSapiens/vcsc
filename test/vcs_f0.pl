@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
-# runner: perl @FILE@ @REPO@ @TMP@
+# runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# timeout: 120
+# timeout: 600
 # expectstdout: F0 diagnostics passed: 16-bank complete matrix and hardware-startup edge
 # expectexit: 0
 
@@ -12,6 +12,7 @@ use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
 use IO::Select;
+use POSIX qw(:sys_wait_h);
 use Symbol qw(gensym);
 
 sub capture {
@@ -27,6 +28,19 @@ sub require_ok { my($label,@cmd)=@_; my($rc,$sig,$out,$err)=capture(@cmd);
    $rc==0 && !$sig or die "$label failed rc=$rc sig=$sig\n@cmd\nstdout:\n$out\nstderr:\n$err";
    return ($out,$err);
 }
+sub find_executable {
+   my($name)=@_; return abs_path($name) if $name =~ m{/} && -x $name;
+   for my $dir (split(/:/,$ENV{PATH} // '')) {
+      my $p=File::Spec->catfile($dir,$name); return abs_path($p) if -x $p;
+   }
+   return undef;
+}
+sub terminate_child {
+   my($pid)=@_; return if !$pid;
+   kill 'TERM',$pid;
+   for (1..20) { my $d=waitpid($pid,WNOHANG); return if $d==$pid || $d==-1; select undef,undef,undef,0.05; }
+   kill 'KILL',$pid; waitpid($pid,0);
+}
 sub read_file { my($p)=@_; open(my $fh,'<:raw',$p) or die "read $p: $!\n"; local $/; my $d=<$fh>; close($fh); return $d // ''; }
 sub map_symbol { my($map,$name)=@_; $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n"; return hex($1); }
 sub parse_hex_dump { my($text)=@_; my @mem=(0)x65536; for my $line (split /\n/,$text) {
@@ -35,8 +49,10 @@ sub parse_hex_dump { my($text)=@_; my @mem=(0)x65536; for my $line (split /\n/,$
    for my $i (0..$n-1) { $mem[$a+$i]=hex(substr($data,$i*2,2)); }
 } return \@mem; }
 
-my $repo=abs_path(shift @ARGV // die "usage: $0 REPO TMP\n");
-my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n"; @ARGV and die "usage: $0 REPO TMP\n";
+my $repo=abs_path(shift @ARGV // die "usage: $0 REPO TMP [--stella]\n");
+my $tmp=shift @ARGV // die "usage: $0 REPO TMP [--stella]\n";
+my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
+@ARGV and die "usage: $0 REPO TMP [--stella]\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $sim=File::Spec->catfile($repo,qw(simulator vcsc-sim));
@@ -53,7 +69,7 @@ for ($driver,$sim,$disas,$source,$profile,$bankcall,$entry,$makefile) { -e $_ or
 my $pt=read_file($profile);
 my $bank_decl_count=()=$pt =~ /^bank\s+bank\d+\s*\{/mg;
 $bank_decl_count==16 or die "F0 profile contains $bank_decl_count bank declarations instead of 16\n";
-$pt =~ /cartridge\s*\{.*?\$bankcall.*?\$signature:F0.*?\$trampoline_offset:0x0f00.*?\$trampoline_size:0x0060.*?\$vector_bridge_offset:0x0ee0/s
+$pt =~ /cartridge\s*\{.*?\$bankcall.*?\$signature:F0.*?\$trampoline_offset:0x0f00.*?\$trampoline_size:0x0060.*?\$vector_bridge_offset:0x0f60.*?\$vector_bridge_size:0x0090/s
    or die "F0 profile lost bankcall/hotspot-safe corridor contract\n";
 for my $bank (0..15) {
    my $hex=sprintf('%02x',$bank);
@@ -73,8 +89,9 @@ $bc =~ /lda\s+#VCSC_BANKCALL_SOURCE_DESCRIPTOR/ && $bc =~ /adc\s+#3/
 $bc =~ /__vcsc_generic_bankcall_reserved_end\s*=\s*\$6060/
    or die "F0 trampoline reservation is no longer 96 bytes\n";
 my $en=read_file($entry);
-$en =~ /__vcsc_mapper_entry_begin:\s*\n__vcsc_mapper_entry_end:/s
-   or die "F0 entry is no longer intentionally empty\n";
+my $reset_advance_count=()=$en =~ /op0C\s+\$1FF0/g;
+$reset_advance_count==15
+   or die "F0 entry must contain the 15-step randomized-start advance ladder\n";
 
 my $src=read_file($source);
 for my $s (0..15) { for my $d (0..15) {
@@ -92,6 +109,14 @@ my($build_out,$build_err)=require_ok('build F0 simulator diagnostic',$driver,'-I
 $build_err eq '' or die "F0 diagnostic build wrote stderr:\n$build_err";
 -s $bin==16*4096 or die "F0 diagnostic output is not exactly 64K\n";
 my $rom=read_file($bin); substr($rom,-8,4) eq "F0\0\0" or die "F0 signature missing from final physical bank\n";
+for my $bank (0..15) {
+   my $vo=$bank*4096+0x0ffc;
+   my $rv=ord(substr($rom,$vo,1)) | (ord(substr($rom,$vo+1,1))<<8);
+   my $want=0xff60 + 48 + $bank*3;
+   $rv==$want
+      or die sprintf("F0 bank %d RESET vector is \$%04X, expected \$%04X\n",
+                     $bank,$rv,$want);
+}
 my $map=read_file($map_path);
 for my $bank (0..15) { $map =~ /^\s+bank\Q$bank\E\s+file-index=\Q$bank\E\b.*cpu=\$F000/m or die "F0 map lost bank $bank/file-index identity\n"; }
 $map =~ /^\s+bank15\s+file-index=15\b.*startup=yes/m or die "F0 map lost startup bank 15\n";
@@ -104,6 +129,16 @@ my $mem=parse_hex_dump($sim_out);
 $mem->[$sym{failure}]==0 or die sprintf("F0 matrix failed: failure=\$%02X\n",$mem->[$sym{failure}]);
 my $count=$mem->[$sym{call_count}] | ($mem->[$sym{call_count}+1]<<8);
 $count==256 or die "F0 matrix did not execute exactly 256 probe calls (got $count)\n";
+for my $start (0..15) {
+   my($forced_out,$forced_err)=require_ok("simulate F0 from physical bank $start",
+      $sim,'--map',$map_path,"--start-bank=$start",
+      sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
+   $forced_err eq '' or die "F0 forced-start bank $start wrote stderr:\n$forced_err";
+   my $forced=parse_hex_dump($forced_out);
+   $forced->[$sym{failure}]==0
+      or die sprintf("F0 forced-start bank %d failed: failure=\$%02X\n",
+                     $start,$forced->[$sym{failure}]);
+}
 
 my $visible=File::Spec->catfile($tmp,'f0-visible.bin'); my $visible_map=File::Spec->catfile($tmp,'f0-visible.map');
 require_ok('build visible F0 diagnostic',$driver,'-I',$vcs,'-I',$dir,'-Map',$visible_map,$source,'-o',$visible);
@@ -122,5 +157,50 @@ my $dis=read_file($s26);
 $dis =~ /^; mapper: F0 \(high confidence;/m or die "vcsc-disas did not infer F0 with high confidence\n";
 $dis =~ /^; reset\/power-on bank: 15 \(F0 hardware bank 15\)$/m or die "F0 disassembly lost hardware startup annotation\n";
 $dis =~ /^; F0 switching: every read or write of \$1FF0 advances physical bank \(bank\+1\)&15;/m or die "F0 disassembly lost incremental switching annotation\n";
+
+if ($stella_mode) {
+   my $stella=find_executable($ENV{VCSC_STELLA} || $ENV{STELLA} || 'stella');
+   require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
+   defined($stella) && -x $stella or die "F0 Stella certification requires Stella\n";
+   my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb')
+      or die "F0 Stella certification requires Xvfb\n";
+   my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
+   my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
+   my $snap=File::Spec->catdir($tmp,'stella-snap');
+   my $user=File::Spec->catdir($tmp,'stella-user');
+   make_path($snap,$user); unlink glob(File::Spec->catfile($snap,'*.png'));
+   my $display_num=200+($$%30); $display_num++ while -e "/tmp/.X11-unix/X$display_num";
+   my $display=':'.$display_num;
+   my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
+   if ($xpid==0) {
+      open(STDOUT,'>',File::Spec->catfile($tmp,'xvfb.log')) or die $!;
+      open(STDERR,'>&STDOUT') or die $!;
+      exec($xvfb,$display,'-ac','-screen','0','1600x1200x24'); die "exec Xvfb: $!\n";
+   }
+   select undef,undef,undef,0.20;
+   my $xdg=File::Spec->catdir($tmp,'xdg'); make_path($xdg);
+   local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp;
+   local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
+   my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
+   if ($pid==0) {
+      open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')) or die $!;
+      open(STDERR,'>&STDOUT') or die $!;
+      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1',
+           '-audio.enabled','0','-startbank','0','-dev.tiarandom','1','-bs','F0',
+           '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+           '-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible);
+      die "exec Stella: $!\n";
+   }
+   select undef,undef,undef,0.35;
+   require_ok('snapshot forced-bank0 F0 in Stella',$^X,$keys);
+   my @png;
+   for (1..40) {
+      @png=grep { -s $_ } glob(File::Spec->catfile($snap,'*.png'));
+      last if @png==1; select undef,undef,undef,0.05;
+   }
+   terminate_child($pid); terminate_child($xpid);
+   @png==1 or die "Stella F0 produced ".scalar(@png)." snapshots\n";
+   require_ok('grade forced-bank0 F0 Stella frame',$^X,$grade,$png[0],'pass','F0');
+}
 
 print "F0 diagnostics passed: 16-bank complete matrix and hardware-startup edge\n";

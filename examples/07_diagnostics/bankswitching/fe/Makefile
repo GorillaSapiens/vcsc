@@ -2,6 +2,9 @@
 ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
+VCSC_BUILD_DEPS := $(VCSC) $(ROOT)/compiler/vcsc-cc1 $(ROOT)/assembler/vcsc-as \
+	$(ROOT)/linker/vcsc-ld $(ROOT)/libraries/runtime/libvcsc.l26 \
+	$(wildcard $(VCS_DIR)/*.c26) $(wildcard $(VCS_DIR)/FE/*.c26 $(VCS_DIR)/FE/*.s26)
 PERL ?= perl
 FONT_SUBSET_TOOL := $(VCS_DIR)/fonts/make_font_subset.pl
 BIG_FONT := $(VCS_DIR)/fonts/big_ascii.c26
@@ -14,7 +17,7 @@ TARGET := fe_diagnostic.bin
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(COMMITTED_FONT_SUBSETS)
+$(TARGET): $(SOURCE) $(COMMITTED_FONT_SUBSETS) $(VCSC_BUILD_DEPS)
 	$(VCSC) -I $(VCS_DIR) -Map fe_diagnostic.map $(SOURCE) -o $@
 
 fonts:

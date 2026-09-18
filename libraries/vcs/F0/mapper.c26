@@ -9,8 +9,9 @@ cartridge {
    $bankcall
    $fill:0xff $signature:F0
    $trampoline_offset:0x0f00 $trampoline_size:0x0060
-   // Keep reset bridges below $FFF0: fetching $FFF0 itself advances F0.
-   $vector_bridge_offset:0x0ee0 $vector_bridge_size:0x0012
+   // Three 48-byte vector ladders exactly fill $FF60-$FFEF.  $FFF0 is the
+   // increment hotspot, so no generated instruction fetch reaches it.
+   $vector_bridge_offset:0x0f60 $vector_bridge_size:0x0090
    $vectors_offset:0x0ffa $vectors_size:0x0006
 };
 

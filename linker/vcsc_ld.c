@@ -2575,7 +2575,7 @@ static void validate_c26_e0_topology(const linker_config_t *cfg)
 
    if (cfg->topology_cartridge.trampoline_offset != 0x0370u ||
        cfg->topology_cartridge.trampoline_size < VCSC_E0_BANKCALL_RESERVED_SIZE ||
-       cfg->topology_cartridge.vector_bridge_offset != 0x0360u ||
+       cfg->topology_cartridge.vector_bridge_offset != 0x0340u ||
        cfg->topology_cartridge.vectors_offset != 0x03fau) {
       fprintf(stderr,
               "vcsc-ld: E0 automatic-call profile requires the maintained 1K bankcall/vector layout\n");
@@ -11973,8 +11973,25 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
          size_t plane = link_image_plane_for_bank_name(cfg, cfg->banks[i].name);
          image_write_generated(image, plane, bank_bridge, bridge,
                                bridge_size, "vector bridge");
-         image_write_generated(image, plane, bank_vectors, vectors,
-                               sizeof(vectors), "vectors");
+         if (c26_topology_is_f0(cfg)) {
+            uint8_t f0_vectors[6];
+            uint16_t step = (uint16_t)(cfg->banks[i].bankcall_descriptor * 3u);
+            uint16_t target[3] = {
+               (uint16_t)(bridge_base + nmi_offset + step),
+               (uint16_t)(bridge_base + reset_offset + step),
+               (uint16_t)(bridge_base + irqbrk_offset + step)
+            };
+            size_t vi;
+            for (vi = 0; vi < 3u; ++vi) {
+               f0_vectors[vi * 2u] = (uint8_t)(target[vi] & 0xffu);
+               f0_vectors[vi * 2u + 1u] = (uint8_t)((target[vi] >> 8) & 0xffu);
+            }
+            image_write_generated(image, plane, bank_vectors, f0_vectors,
+                                  sizeof(f0_vectors), "F0 bank-specific vectors");
+         } else {
+            image_write_generated(image, plane, bank_vectors, vectors,
+                                  sizeof(vectors), "vectors");
+         }
       }
 
       if (c26_topology_is_3ex(cfg)) {
@@ -12033,6 +12050,49 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       vectors[4] = (uint8_t)(irqbrk & 0xFFu);
       vectors[5] = (uint8_t)((irqbrk >> 8) & 0xFFu);
       image_write_generated(image, plane, vector_base, vectors, sizeof(vectors), "vectors");
+
+      if (cfg && c26_topology_is_fe(cfg)) {
+         const cartridge_bank_t *bank0 = NULL;
+         const cartridge_bank_t *bank1 = NULL;
+         const uint16_t slot_offset[3] = { 0x0fd8u, 0x0fe0u, 0x0fe8u };
+         const uint16_t handler[3] = { nmi, reset, irqbrk };
+         uint8_t arm[4] = { 0x2cu, 0xfeu, 0x01u, 0xeau }; /* BIT $01FE; NOP */
+         size_t k;
+
+         for (bi = 0; bi < cfg->bank_count; ++bi) {
+            if (cfg->banks[bi].start == 0xf000u) bank0 = &cfg->banks[bi];
+            if (cfg->banks[bi].start == 0xd000u) bank1 = &cfg->banks[bi];
+         }
+         if (!bank0 || !bank1) {
+            fprintf(stderr, "vcsc-ld: FE randomized-start bridge requires F000/D000 banks\n");
+            exit(1);
+         }
+         for (k = 0; k < 3u; ++k) {
+            uint8_t jump[3] = { 0x4cu,
+               (uint8_t)(handler[k] & 0xffu),
+               (uint8_t)((handler[k] >> 8) & 0xffu) };
+            size_t p1 = link_image_plane_for_bank_name(cfg, bank1->name);
+            size_t p0 = link_image_plane_for_bank_name(cfg, bank0->name);
+            image_write_generated(image, p1,
+               (uint16_t)(bank1->start + slot_offset[k]), arm, sizeof(arm),
+               "FE bank1 startup recovery");
+            image_write_generated(image, p0,
+               (uint16_t)(bank0->start + slot_offset[k] + sizeof(arm)),
+               jump, sizeof(jump), "FE bank0 startup continuation");
+         }
+         {
+            uint8_t bank1_vectors[6];
+            uint16_t base = (uint16_t)(bank1->start + bank1->size - 6u);
+            for (k = 0; k < 3u; ++k) {
+               uint16_t target = (uint16_t)(bank1->start + slot_offset[k]);
+               bank1_vectors[k * 2u] = (uint8_t)(target & 0xffu);
+               bank1_vectors[k * 2u + 1u] = (uint8_t)((target >> 8) & 0xffu);
+            }
+            image_write_generated(image, link_image_plane_for_bank_name(cfg, bank1->name),
+                                  base, bank1_vectors, sizeof(bank1_vectors),
+                                  "FE bank1 recovery vectors");
+         }
+      }
    }
 }
 

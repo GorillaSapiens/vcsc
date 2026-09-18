@@ -12101,8 +12101,40 @@ static void emit_hw_operand(FILE *fp, const hw_symbol_t *sym, uint16_t operand)
    }
    else {
       uint16_t delta = (uint16_t)(operand - sym->canonical);
-      fprintf(fp, "%s + $%04X", sym->name, delta);
+      if (delta <= 0xffu)
+         fprintf(fp, "%s + $%02X", sym->name, delta);
+      else
+         fprintf(fp, "%s + $%04X", sym->name, delta);
    }
+}
+
+/* Presentation may name the literal base operand of an indexed access without
+ * claiming that the unknown runtime index selects one fixed hardware register.
+ * Keep this separate from hardware_symbol(), which is also used by analysis. */
+static int presentation_hardware_symbol(uint8_t opcode, address_mode_t mode,
+                                        uint16_t operand, hw_symbol_t *out)
+{
+   uint16_t bus, lane;
+   unsigned reg;
+   const char *name = NULL;
+
+   if (hardware_symbol(opcode, mode, operand, out)) return 1;
+   if (opcode_memory_access(opcode) != ACCESS_WRITE) return 0;
+   if (mode != AM_ZERO_PAGE_X && mode != AM_ZERO_PAGE_Y &&
+       mode != AM_ABSOLUTE_X && mode != AM_ABSOLUTE_Y)
+      return 0;
+
+   bus = (uint16_t)(operand & 0x1fffu);
+   if ((bus & 0x1080u) != 0u) return 0;
+   lane = bus & 0x007fu;
+   if (lane < 0x40u || lane > 0x6cu) return 0;
+   reg = lane - 0x40u;
+   if (!tia_write_symbol(reg, &name)) return 0;
+
+   out->name = name;
+   out->canonical = (uint16_t)reg;
+   out->mirrored = operand != out->canonical;
+   return 1;
 }
 
 static int analysis_uses_hardware_symbols(const analysis_t *a)
@@ -12123,7 +12155,7 @@ static int analysis_uses_hardware_symbols(const analysis_t *a)
          operand = a->rom[b->file_offset + off + 1u];
          if (b->inst_len[off] >= 3u)
             operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
-         if (hardware_symbol(opcode, mode, operand, &sym)) return 1;
+         if (presentation_hardware_symbol(opcode, mode, operand, &sym)) return 1;
       }
    }
    return 0;
@@ -14592,7 +14624,7 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
    hw_symbol_t hw;
    int have_hw = 0;
    if (b->inst_len[off] >= 3u) operand |= (uint16_t)p[2] << 8;
-   have_hw = hardware_symbol(opcode, mode, operand, &hw);
+   have_hw = presentation_hardware_symbol(opcode, mode, operand, &hw);
 
    fprintf(fp, "    %s", mn);
    if (mode == AM_RELATIVE) {
@@ -14632,10 +14664,11 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
          else fprintf(fp, "$%02X", (unsigned)operand);
          break;
       case AM_ZERO_PAGE_X:
-         fprintf(fp, " $%02X,X", (unsigned)operand);
-         break;
       case AM_ZERO_PAGE_Y:
-         fprintf(fp, " $%02X,Y", (unsigned)operand);
+         fputc(' ', fp);
+         if (have_hw) emit_hw_operand(fp, &hw, operand);
+         else fprintf(fp, "$%02X", (unsigned)operand);
+         fprintf(fp, ",%c", mode == AM_ZERO_PAGE_X ? 'X' : 'Y');
          break;
       case AM_ABSOLUTE:
          fputc(' ', fp);
@@ -14668,9 +14701,11 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
          size_t toff;
          uint16_t canonical;
          fputc(' ', fp);
-         if (cart_target_offset(b, operand, &toff) &&
-             (b->roles[toff] & ROLE_LABEL) &&
-             (canonical = (uint16_t)(b->origin + (uint16_t)toff)) == operand)
+         if (have_hw)
+            emit_hw_operand(fp, &hw, operand);
+         else if (cart_target_offset(b, operand, &toff) &&
+                  (b->roles[toff] & ROLE_LABEL) &&
+                  (canonical = (uint16_t)(b->origin + (uint16_t)toff)) == operand)
             print_exact_cart_reference(fp, a, bi, toff);
          else
             fprintf(fp, "$%04X", operand);
@@ -16330,10 +16365,11 @@ static void emit_hardware_equates(FILE *fp)
       "CXM0FB=$34","CXM1FB=$35","CXBLPF=$36","CXPPMM=$37","INPT0=$38","INPT1=$39",
       "INPT2=$3A","INPT3=$3B","INPT4=$3C","INPT5=$3D","SWCHA=$0280","SWACNT=$0281",
       "SWCHB=$0282","SWBCNT=$0283","INTIM=$0284","TIMINT=$0285","TIM1T=$0294",
-      "TIM8T=$0295","TIM64T=$0296","T1024T=$0297", NULL
+      "TIM8T=$0295","TIM64T=$0296","T1024T=$0297",
+      NULL
    };
    const char *const *line;
-   fputs("; canonical TIA/RIOT symbols used by this disassembly\n", fp);
+   fputs("; TIA/RIOT symbols used by this disassembly\n", fp);
    for (line = lines; *line; ++line) fprintf(fp, "%s\n", *line);
    fputc('\n', fp);
 }

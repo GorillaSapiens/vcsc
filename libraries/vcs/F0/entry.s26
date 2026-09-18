@@ -1,11 +1,36 @@
 ; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 ;
-; F0 powers up in physical/file bank 15.  There is no absolute selector that
-; can normalize an unknown mapper state, so hardware startup is the contract
-; and this maintained entry is an empty fragment by design.
-.segmentdef "CODE", $6000, $0010
+; F0 normally powers up in physical bank 15, but Stella developer mode can
+; deliberately start in any physical bank.  F0 has no absolute selector: every
+; access to $1FF0 advances one bank modulo 16.
+;
+; The linker replicates this fifteen-access ladder before each vector handler
+; in every physical bank, then gives each bank a vector that enters the ladder
+; at a bank-specific offset.  Bank 0 executes all fifteen advances, bank 14
+; executes one, and bank 15 enters the linker-appended JMP directly.  After an
+; access switches banks, the next instruction is fetched from the identical
+; next ladder position in the new bank.  No register, flag, stack, or RAM state
+; is touched before the ordinary runtime starts.
+
+.segmentdef "CODE", $6000, $0040
 .segment "CODE"
 .export __vcsc_mapper_entry_begin
 .export __vcsc_mapper_entry_end
+
 __vcsc_mapper_entry_begin:
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
+    op0C $1FF0
 __vcsc_mapper_entry_end:

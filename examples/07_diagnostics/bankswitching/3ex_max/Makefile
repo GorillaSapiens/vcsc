@@ -2,6 +2,9 @@
 ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
+VCSC_COMPILE_DEPS := $(VCSC) $(ROOT)/compiler/vcsc-cc1 $(ROOT)/assembler/vcsc-as \
+	$(wildcard $(VCS_DIR)/*.c26) $(wildcard $(VCS_DIR)/3EX/*.c26 $(VCS_DIR)/3EX/*.s26)
+VCSC_LINK_DEPS := $(ROOT)/linker/vcsc-ld $(ROOT)/libraries/runtime/libvcsc.l26
 PERL ?= perl
 FONT_SUBSET_TOOL := $(VCS_DIR)/fonts/make_font_subset.pl
 MESSAGE_FONT_TOOL := $(VCS_DIR)/fonts/make_message_glyphs.pl
@@ -26,16 +29,16 @@ MAP ?= 3ex_max_diagnostic.map
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS) $(COMMITTED_FONT_SUBSETS)
+$(TARGET): $(OBJECTS) $(COMMITTED_FONT_SUBSETS) $(VCSC_LINK_DEPS)
 	$(VCSC) -Map $(MAP) $(OBJECTS) -o $@
 
 $(BUILD_DIR):
 	mkdir -p $@
 
-$(BUILD_DIR)/%.o26: %.c26 | $(BUILD_DIR)
+$(BUILD_DIR)/%.o26: %.c26 $(VCSC_COMPILE_DEPS) | $(BUILD_DIR)
 	$(VCSC) -I $(VCS_DIR) -I . -c $< -o $@
 
-$(BUILD_DIR)/%.o26: %.s26 | $(BUILD_DIR)
+$(BUILD_DIR)/%.o26: %.s26 $(VCSC_COMPILE_DEPS) | $(BUILD_DIR)
 	$(VCSC) -I $(VCS_DIR) -I . -c $< -o $@
 
 fonts:

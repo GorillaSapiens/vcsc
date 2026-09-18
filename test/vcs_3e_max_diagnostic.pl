@@ -190,7 +190,7 @@ my @memory_oracle=(
 );
 my($timing_out,$timing_err)=require_ok('time and verify complete 3E max run',$timing,$bin,'22000',
    '--no-audio','--raw-lines','264',@memory_oracle);
-$timing_out eq "vcs_frame_timing ok: 21997 frames at 262 lines, 0 AUDV0 writes\n"
+$timing_out eq "vcs_frame_timing ok: 21997 frames at 262 lines, 1 AUDV0 writes\n"
    or die "3E max complete WAIT/result frame timing was not exactly 262 scanlines:\n$timing_out";
 $timing_err eq '' or die "3E max frame timing wrote stderr:\n$timing_err";
 

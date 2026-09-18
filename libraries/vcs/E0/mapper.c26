@@ -22,7 +22,7 @@ include "vcs.c26"
 cartridge {
    $bankcall
    $fill:0xff $signature:E0
-   $vector_bridge_offset:0x0360 $vector_bridge_size:0x0009
+   $vector_bridge_offset:0x0340 $vector_bridge_size:0x0024
    $trampoline_offset:0x0370 $trampoline_size:0x0070
    $vectors_offset:0x03fa $vectors_size:0x0006
 };
@@ -39,14 +39,14 @@ bank bank7 { $image_size:0x0400 $file_index:7 $image_offset:0 $link_start:0x1c00
 // Leave the replicated vector bridge and bankcall block out of ordinary ROM
 // allocation.  The $1FE0-$1FF7 selectors, signature, and vectors naturally lie
 // beyond bank7's allocatable prefix as well.
-mem bank0 { $start:0x1000 $size:0x0360 $ro $bank:bank0 };
-mem bank1 { $start:0x1400 $size:0x0360 $ro $bank:bank1 };
-mem bank2 { $start:0x1000 $size:0x0360 $ro $bank:bank2 };
-mem bank3 { $start:0x1400 $size:0x0360 $ro $bank:bank3 };
-mem bank4 { $start:0x1000 $size:0x0360 $ro $bank:bank4 };
-mem bank5 { $start:0x1400 $size:0x0360 $ro $bank:bank5 };
-mem bank6 { $start:0x1800 $size:0x0360 $ro $bank:bank6 };
-mem bank7 { $start:0x1c00 $size:0x0360 $ro $bank:bank7 $priority:2 };
+mem bank0 { $start:0x1000 $size:0x0340 $ro $bank:bank0 };
+mem bank1 { $start:0x1400 $size:0x0340 $ro $bank:bank1 };
+mem bank2 { $start:0x1000 $size:0x0340 $ro $bank:bank2 };
+mem bank3 { $start:0x1400 $size:0x0340 $ro $bank:bank3 };
+mem bank4 { $start:0x1000 $size:0x0340 $ro $bank:bank4 };
+mem bank5 { $start:0x1400 $size:0x0340 $ro $bank:bank5 };
+mem bank6 { $start:0x1800 $size:0x0340 $ro $bank:bank6 };
+mem bank7 { $start:0x1c00 $size:0x0340 $ro $bank:bank7 $priority:2 };
 
 // Dynamic pair-state shadow used only by E0's automatic-call trampoline.  It is
 // initialized before C26 init functions run; hardware startup is state 2 too.

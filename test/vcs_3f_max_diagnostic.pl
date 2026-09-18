@@ -146,7 +146,7 @@ my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_3f_max');
 require_ok('compile 3F max frame timing','g++','-std=c++17','-Wall','-Wextra','-Werror','-pedantic',
    '-DILLEGAL_OPCODES','-I'.$mos_dir,$timing_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$timing);
 my($timing_out,$timing_err)=require_ok('time 3F max wait/result frames',$timing,$bin,'3800','--no-audio','--raw-lines','264');
-$timing_out eq "vcs_frame_timing ok: 3797 frames at 262 lines, 0 AUDV0 writes\n"
+$timing_out eq "vcs_frame_timing ok: 3797 frames at 262 lines, 1 AUDV0 writes\n"
    or die "3F max WAIT/result frame timing was not exactly 262 scanlines:\n$timing_out";
 $timing_err eq '' or die "3F max frame timing wrote stderr:\n$timing_err";
 

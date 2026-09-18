@@ -31,8 +31,9 @@ bank bank1 {
    $link_start:0xd000 $cpu_start:0xd000 $map_size:0x1000
 };
 
-// Keep RESET/NMI/IRQ vectors out of bank0 allocation. The final-bank mapper
-// signature occupies offsets $FF8-$FFB in physical bank 1, so reserve that
-// tail there as well.
-mem bank0 { $start:0xf000 $size:0x0ffa $ro $priority:2 };
-mem bank1 { $start:0xd000 $size:0x0ff8 $ro };
+// Reserve $xFD8-$xFFF in both banks for linker-generated randomized-start
+// recovery, vectors, and final-bank mapper metadata.  If reset begins in
+// physical bank 1, a tiny delayed-latch bridge switches to bank 0 before
+// entering the ordinary runtime.
+mem bank0 { $start:0xf000 $size:0x0fd8 $ro $priority:2 };
+mem bank1 { $start:0xd000 $size:0x0fd8 $ro };

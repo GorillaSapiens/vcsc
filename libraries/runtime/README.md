@@ -51,8 +51,9 @@ workspace expected by generated code.
     imports those cells
 
 The selected startup sequence runs after every entry through `__reset`, not only
-at cartridge power-on. All three stock paths first clear TIA `$04-$2C` with A=0,
-leaving the beam-control/sync registers `$00-$03` untouched. The descending sweep
+at cartridge power-on. All three stock paths first clear TIA `$04-$2C` with A=0
+through its `$40` mirror (`$44-$6C`), leaving the beam-control/sync registers
+`$00-$03` untouched and avoiding mapper-owned low-page addresses. The descending sweep
 hits `HMCLR` immediately before `HMOVE`, so the HMOVE strobe applies zero motion;
 it then clears delay, graphics/audio, position, color, and collision state before
 main, removing dependency on unspecified TIA power-on contents or Stella developer

@@ -36,11 +36,20 @@ for my $mapper (@mapper) {
    my $src = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'entry.s26');
    -f $src or die "missing $mapper mapper entry source\n";
    my $text = read_file($src);
-   if ($mapper eq '3F' || $mapper eq '3E' || $mapper eq '3EX' || $mapper eq 'FC' || $mapper eq 'F0' || $mapper eq 'E0') {
+   if ($mapper eq '3F' || $mapper eq '3E' || $mapper eq '3EX' || $mapper eq 'FC') {
       $text =~ /__vcsc_mapper_entry_begin:\s*__vcsc_mapper_entry_end:/s &&
       $text !~ /^\s*(?:nop|op[0-9a-f]{2})\b/gmi &&
       index($text, 'empty fragment') >= 0
          or die "$mapper entry must be an empty fixed-bank hook\n";
+   }
+   elsif ($mapper eq 'F0') {
+      my @step = ($text =~ /^\s*op0C\s+\$1FF0\b/gmi);
+      @step == 15
+         or die "F0 entry must contain the 15-step randomized-start bank-advance ladder\n";
+   }
+   elsif ($mapper eq 'E0') {
+      $text =~ /__vcsc_mapper_entry_begin:\s*op0C\s+\$1FE4\b.*?op0C\s+\$1FED\b.*?op0C\s+\$1FF6\b.*?__vcsc_mapper_entry_end:/si
+         or die "E0 entry must normalize switchable segments to banks 4, 5, and 6\n";
    }
    else {
       my $hex = sprintf('%04X', $selector{$mapper});
@@ -87,8 +96,8 @@ $generated =~ /vcsc_m3f_entry_size = 0u;/ &&
 $generated =~ /vcsc_m3e_entry_size = 0u;/ &&
 $generated =~ /vcsc_m3ex_entry_size = 0u;/ &&
 $generated =~ /vcsc_fc_entry_size = 0u;/ &&
-$generated =~ /vcsc_f0_entry_size = 0u;/ &&
-$generated =~ /vcsc_e0_entry_size = 0u;/ &&
+$generated =~ /vcsc_f0_entry_size = 45u;/ &&
+$generated =~ /vcsc_e0_entry_size = 9u;/ &&
 $generated =~ /vcsc_f8_entry_size = 3u;/ &&
 index($generated, 'VCSC_MAPPER_ENTRY_SIZE') < 0
    or die "generated mapper entry header is not variable-length\n";

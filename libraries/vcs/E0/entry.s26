@@ -1,11 +1,20 @@
 ; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 ;
-; E0 hardware powers up in [4,5,6,7], exactly VCSC state 2.  The maintained
-; mapper entry is therefore an empty fragment.  The C26 profile initializes the separate
-; _vcsc_e0_state RAM byte to 2 through normal startup data initialization.
+; E0 keeps bank 7 permanently visible at $1C00-$1FFF, including RESET and
+; this vector bridge.  Real hardware normally powers up as [4,5,6,7], but
+; Stella developer mode can deliberately randomize the three switchable
+; segments.  Normalize them before the ordinary runtime sees any banked ROM.
+;
+; op0C is the raw NMOS 6502/6507 absolute-NOP opcode.  Each addressed read
+; selects one E0 segment without changing registers or flags.
+
 .segmentdef "CODE", $6000, $0010
 .segment "CODE"
 .export __vcsc_mapper_entry_begin
 .export __vcsc_mapper_entry_end
+
 __vcsc_mapper_entry_begin:
+    op0C $1FE4        ; segment 0 -> bank 4
+    op0C $1FED        ; segment 1 -> bank 5
+    op0C $1FF6        ; segment 2 -> bank 6
 __vcsc_mapper_entry_end:

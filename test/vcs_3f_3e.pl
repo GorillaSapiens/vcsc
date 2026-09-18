@@ -135,6 +135,12 @@ for my $c (@cases) {
    require_ok("build $m simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map_path,$source,'-o',$bin);
    -s $bin==8192 or die "$m diagnostic output size is not 8K\n";
    my $rom=read_file($bin); substr($rom,-8,4) eq "$m\0\0" or die "$m signature missing\n";
+   my $tia_mirror_clear = pack('C*', 0xA9, 0x00, 0xA2, 0x28, 0x95, 0x44, 0xCA, 0x10, 0xFB);
+   my $tia_low_clear = pack('C*', 0xA9, 0x00, 0xA2, 0x28, 0x95, 0x04, 0xCA, 0x10, 0xFB);
+   index($rom,$tia_mirror_clear) >= 0
+      or die "$m startup lost the safe TIA \$40-mirror clear\n";
+   index($rom,$tia_low_clear) < 0
+      or die "$m startup regressed to mapper-owned low-page TIA writes\n";
    for my $fb (0..2) {
       substr($rom,$fb*2048+2040,4) ne "$m\0\0" or die "$m signature duplicated into physical bank $fb\n";
    }
@@ -167,7 +173,7 @@ $map";
    my $vrom=read_file($visible); length($vrom)==8192 && substr($vrom,-8,4) eq "$m\0\0"
       or die "visible $m diagnostic lost its 8K/signature layout\n";
    my($timing_out,$timing_err)=require_ok("time $m visible frame",$timing,$visible,'50','--no-audio','--raw-lines','264');
-   $timing_out eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
+   $timing_out eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"
       or die "$m frame timing was not exactly 262 scanlines:\n$timing_out";
    $timing_err eq '' or die "$m frame timing wrote stderr:\n$timing_err";
    my $s26=File::Spec->catfile($tmp,"$lc-visible.s26");
@@ -184,7 +190,7 @@ $map";
       $dis =~ /^; 3E cartridge RAM: /m
          or die "3E disassembly did not report banked RAM semantics\n";
    }
-   $dis =~ /STA VSYNC \+ \$0040\s+; mirror of VSYNC \(\$0000\)/
+   $dis =~ /STA VSYNC \+ \$40\s+; mirror of VSYNC \(\$0000\)/
       or die "$m disassembly did not preserve the required TIA mirror address\n";
 
 
@@ -251,7 +257,8 @@ if ($stella_mode) {
       my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
       if ($pid==0) {
          open(STDOUT,'>',File::Spec->catfile($root,'stella.log')) or die $!; open(STDERR,'>&STDOUT') or die $!;
-         exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs',$m,
+         exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0',
+              '-dev.settings','1','-dev.bankrandom','1','-dev.tiarandom','1','-bs',$m,
               '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
               '-exitlauncher','0','-confirmexit','0','-userdir',$user,$c->{visible});
          die "exec Stella: $!\n";

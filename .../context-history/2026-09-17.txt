@@ -87,3 +87,94 @@ including E0/F0/FC 262-line timing, all-five player-color 181/192, multisprite
 profiles, 170-line dual score, six-glyph wide/big-wide, banked standard renderer,
 three-plus-three score, faithful legacy multisprite, linker page containment/image
 model, and example-build shard 6/8.
+
+2026-09-17 10:40:22 PDT, safe universal TIA mirror startup
+----------------------------------------------------------
+The compact startup TIA normalization now writes `$44-$6C`, the `$40` mirror of
+TIA `$04-$2C`, in all stock and private startup bodies. This preserves the nine-
+byte descending loop and its HMCLR-before-HMOVE ordering while avoiding mapper-
+owned low-page addresses. The supported mapper audit found no hotspot in
+`$40-$6C`: 3E/3F reserve low writes through `$3F`, WD uses low reads `$30-$3F`,
+and the other supported selectors live elsewhere. The mirror is therefore the
+safe universal startup form rather than a mapper-specific exception.
+
+This fixes a concrete 3F/3E bug in the prior `$04-$2C` form. On those cartridges
+the low-page stores were mapper operations instead of ordinary TIA writes, so
+random power-on audio state could survive; that explains the reported horrible
+3F/3F-max sound. `vcs_startup_selection.pl` now locks the `$44` byte sequence,
+and `vcs_3f_3e.pl` additionally requires the safe mirror sequence while rejecting
+the old low-page sequence. Stella randomized-TIA startup certification and 3F/3E
+random-bank/random-TIA certification pass.
+
+The reported manual mapper failures also exposed stale example binaries. The
+automated mapper tests build fresh ROMs in temporary directories, but the public
+bankswitching example Makefiles previously depended mostly on local diagnostic
+sources. A prior `.bin` could therefore survive runtime, linker, compiler,
+assembler, or mapper-library changes and `make play` would launch it unchanged.
+The 3E, 3E-max, 3EX-max, E0, F0, FE, 3F, and 3F-max Makefiles now track the
+relevant built tools, runtime archive, and mapper sources; 3EX-max preserves its
+separate compile/link dependency structure. A new regression locks this build-
+dependency contract.
+
+Fresh focused certification passes for E0, F0, FE, 3E-max, and 3F-max in addition
+to 3F/3E. Fresh manual Stella launches of 3E-max and 3F-max reached their normal
+WAIT displays under bank/TIA randomization. The exhaustive 3EX-max regression ran
+past the local execution window; its maintained documentation already records the
+independent Stella 3EX >64K RAM-offset truncation bug, so no VCSC behavior was
+weakened to accommodate that emulator defect. Faithful-legacy multisprite jitter
+was explicitly deferred until this mapper/startup work is settled. The compile-only
+suite is clean at 583/583 after the new regression, and source-tree hygiene passes.
+2026-09-17 11:02:27 PDT, name TIA $40 write mirror
+`vcsc-disas` now gives the conventional TIA $40-$6C write-register mirror
+explicit `MIRROR_*` equates instead of spelling those operands as base-page
+symbols plus `$0040`.  Direct `$49` therefore emits `MIRROR_COLUBK`, and
+presentation-only indexed naming lets the stock startup pattern `STA $44,X`
+emit `STA MIRROR_NUSIZ0,X` without teaching mapper/evidence analysis to assume
+an unknown X/Y selects one fixed TIA register.  Other mirrors such as `$0109`
+retain the existing `COLUBK + $0100` form.  `$6D-$6F` remain numeric because
+there are no writable TIA registers $2D-$2F.
+
+`disassembler/README.md` documents the convention.  The hardware fixture covers
+direct, indexed, and explicitly-wide indexed forms; its generated source
+round-trips byte-for-byte through `vcsc-as`.  `vcsc-disas` builds cleanly with
+`-Werror`.  The monolithic `vcsc_disassembler.pl` regression exceeded a 120 s
+single-command execution window before reaching its final summary; no failure
+was used to justify or weaken this change.
+
+2026-09-17 11:13:32 PDT, simplify TIA mirror spelling
+The short-lived MIRROR_* alias scheme is superseded. vcsc-disas now uses the
+canonical TIA/RIOT register symbol plus the actual mirror offset, so $49 emits
+COLUBK + $40 and startup-style $44,X emits NUSIZ0 + $40,X. Higher mirrors
+retain the same convention, e.g. COLUBK + $0100. Offsets through $ff use two
+hex digits; larger offsets retain four. Indexed $40-page naming remains a
+presentation-only aid and does not strengthen mapper/evidence assumptions.
+
+2026-09-17 11:19:12 PDT, repair post-mapper regression contracts
+----------------------------------------------------------
+The three failures reported from the pre-disassembler handoff were stale test
+contracts exposed by intentional startup/mapper changes, not new implementation
+failures. `linker_banked_image_model.pl` now pins the new stock 4K image hash
+produced by the universal TIA mirror clear (`$44-$6C`). `vcs_mapper_entry_source.pl`
+continues to require empty hooks for 3F/3E/3EX/FC, but now explicitly requires
+F0's fifteen `$1FF0` advance reads and E0's `$1FE4/$1FED/$1FF6` normalization
+sequence; the generated entry sizes are locked at 45 and 9 bytes respectively.
+`vcs_examples_build.pl` now recognizes FE's physical bank-1 recovery vectors in
+the `$D000-$DFFF` CPU window instead of incorrectly requiring the tail-bank
+vectors to point into `$F000-$FFFF`.
+
+Focused reruns pass: `linker_banked_image_model.pl`, `vcs_mapper_entry_source.pl`,
+and `vcs_examples_build.pl --shard 1/8` (14/112 examples, including FE, with
+byte-exact disassembler round trips). No broad suite was rerun at this checkpoint.
+2026-09-17 20:09:05 PDT, fix compact mirror-offset regressions
+The two failures after the canonical-symbol-plus-offset disassembler change were
+stale presentation assertions, not semantic disassembler failures. The established
+format deliberately uses the shortest fixed hex width that preserves the encoded
+offset: the 3F/3E diagnostic now expects `STA VSYNC + $40`, and the detached RIOT
+timer fixture expects `LDA INTIM + $12`. Larger offsets such as `+ $0100` retain
+four digits. The RIOT read of $0296 was independently reproduced as a legal INTIM
+mirror and the speculative island was promoted correctly; no bus-legality logic
+changed.
+
+Focused reruns pass for `vcs_3f_3e.pl` both with and without Stella and for the full
+`vcsc_disassembler.pl` regression. The latter still intentionally prints the
+negative-test diagnostic for `speculative_without_reset.bin` while exiting cleanly.

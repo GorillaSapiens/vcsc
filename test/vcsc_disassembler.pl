@@ -2229,9 +2229,13 @@ my $dynamic_exit = make_rom(4096, 0xF000, 0x0100,
    "\x4C\x80\x00");            # JMP $0080 (RIOT RAM)
 write_bin(File::Spec->catfile($in, 'dynamic_exit.bin'), $dynamic_exit);
 
-# Canonical and mirrored hardware accesses, including RIOT.
+# Canonical and mirrored hardware accesses, including the conventional
+# $40-$6C TIA write mirror and RIOT.
 my $hw = make_rom(4096, 0xF000, 0x0100,
    "\x85\x09" .             # STA COLUBK
+   "\x85\x49" .             # STA COLUBK + $40
+   "\x95\x44" .             # STA NUSIZ0 + $40,X
+   "\x9D\x44\x00" .       # STA.ax NUSIZ0 + $40,X
    "\x8D\x09\x01" .       # STA.a COLUBK mirror
    "\xAD\x3C\x03" .       # LDA.a INPT4 mirror
    "\xAD\x80\x03" .       # LDA.a SWCHA mirror
@@ -4124,7 +4128,12 @@ my $hardware = slurp(File::Spec->catfile($out, 'hardware.s26'));
 require_re($hardware, qr/STA\s+COLUBK\b/, 'canonical TIA symbol without redundant zero-page suffix');
 die "canonical zero-page TIA access retained redundant .z suffix\n"
    if $hardware =~ /STA\.z\s+COLUBK\b/;
-require_re($hardware, qr/COLUBK\s*\+\s*\$0100.*mirror of COLUBK/i, 'TIA mirror comment');
+die "$40-page TIA mirror unexpectedly emitted MIRROR_* aliases\n"
+   if $hardware =~ /^MIRROR_/m;
+require_re($hardware, qr/STA\s+COLUBK\s*\+\s*\$40\b/, '$40-page direct TIA mirror expression');
+require_re($hardware, qr/STA\s+NUSIZ0\s*\+\s*\$40,X\b/, '$40-page indexed TIA mirror expression');
+require_re($hardware, qr/STA\.ax\s+NUSIZ0\s*\+\s*\$40,X\b/, '$40-page indexed wide TIA mirror preserves addressing mode');
+require_re($hardware, qr/COLUBK\s*\+\s*\$0100.*mirror of COLUBK/i, 'other TIA mirror comment');
 require_re($hardware, qr/INPT4\s*\+\s*\$0300.*mirror of INPT4/i, 'TIA read mirror comment');
 require_re($hardware, qr/SWCHA\s*\+\s*\$0100.*mirror of SWCHA/i, 'RIOT read mirror comment');
 require_re($hardware, qr/TIM64T\s*\+\s*\$0100.*mirror of TIM64T/i, 'RIOT write mirror comment');
@@ -4300,7 +4309,7 @@ die "invalid TIA read candidate was promoted\n"
       $spec_bad_tia =~ /speculative instruction island.*\nL_F203:/i;
 
 my $spec_riot_timer = slurp(File::Spec->catfile($out, 'speculative_riot_timer_read.s26'));
-require_re($spec_riot_timer, qr/^L_F203:\n\s*LDA\s+INTIM\s*\+\s*\$0012/m,
+require_re($spec_riot_timer, qr/^L_F203:\n\s*LDA\s+INTIM\s*\+\s*\$12/m,
    'read of TIM64T write address is legal RIOT INTIM mirror');
 
 my $spec_tia_canonical = slurp(File::Spec->catfile($out, 'speculative_tia_canonical.s26'));

@@ -249,7 +249,7 @@ require_ok('unbanked C26-profile link', $vcsc, '-I', $vcs,
            '-o', $unbanked_bin, $unbanked_src);
 my $unbanked = slurp($unbanked_bin);
 length($unbanked) == 4096 or die "stock 4K output size changed\n";
-sha256_hex($unbanked) eq 'c8b692807ae47aeabe5e7546a61a4864853e87eb14d9bfb1bfc47d1b4c5b442b'
+sha256_hex($unbanked) eq 'e958e38f1d354e1a24bc34198c072f2208f1bb250543379af7cf6fe1728b2629'
    or die "stock 4K C26-profile output changed byte-for-byte\n";
 
 print "banked image model enforced\n";

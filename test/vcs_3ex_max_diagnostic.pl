@@ -198,7 +198,7 @@ $sim_err eq '' or die "3EX max fast oracle wrote stderr:\n$sim_err";
 # contract and catches any batch that steals a scanline while the torture runs.
 my($timing_out,$timing_err)=require_ok('time 3EX max wait frames',$timing,$bin,'4000',
    '--no-audio','--raw-lines','264');
-$timing_out eq "vcs_frame_timing ok: 3997 frames at 262 lines, 0 AUDV0 writes\n"
+$timing_out eq "vcs_frame_timing ok: 3997 frames at 262 lines, 1 AUDV0 writes\n"
    or die "3EX max WAIT frame timing was not exactly 262 scanlines:\n$timing_out";
 $timing_err eq '' or die "3EX max frame timing wrote stderr:\n$timing_err";
 

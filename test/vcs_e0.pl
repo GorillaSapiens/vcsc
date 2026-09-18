@@ -68,7 +68,7 @@ for ($driver,$sim,$disas,$roundtrip,$profile,$bankcall,$entry,$source,$example_m
 
 my $pt=read_file($profile);
 (()=$pt =~ /^bank\s+bank\d+\s*\{/mg)==8 or die "E0 profile must contain exactly eight physical banks\n";
-$pt =~ /cartridge\s*\{.*?\$bankcall.*?\$signature:E0.*?\$vector_bridge_offset:0x0360.*?\$trampoline_offset:0x0370.*?\$trampoline_size:0x0070/s
+$pt =~ /cartridge\s*\{.*?\$bankcall.*?\$signature:E0.*?\$vector_bridge_offset:0x0340.*?\$trampoline_offset:0x0370.*?\$trampoline_size:0x0070/s
    or die "E0 profile lost automatic-call transition corridor\n";
 my @start=(0x1000,0x1400,0x1000,0x1400,0x1000,0x1400,0x1800,0x1c00);
 my @desc=(0,0,1,1,2,2,0xff,0xff);
@@ -87,7 +87,8 @@ $bc =~ /lda\s+VCSC_BANKCALL_SELECTOR_BASE\s*\n\s*pha/s &&
 $bc =~ /__vcsc_generic_bankcall_reserved_end\s*=\s*\$6070/
    or die "E0 trampoline lost resident sentinel, pair switching, dynamic-state save, or 112-byte reservation\n";
 my $en=read_file($entry);
-$en =~ /__vcsc_mapper_entry_begin:\s*\n__vcsc_mapper_entry_end:/s or die "E0 entry should be empty because hardware starts [4,5,6,7]\n";
+$en =~ /op0C\s+\$1FE4/ && $en =~ /op0C\s+\$1FED/ && $en =~ /op0C\s+\$1FF6/
+   or die "E0 entry must normalize randomized segments to [4,5,6,7]\n";
 
 my $src=read_file($source);
 for my $s (0..7) { for my $d (0..7) {
@@ -194,7 +195,8 @@ if ($stella_mode) {
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
    if ($pid==0) {
       open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')) or die $!; open(STDERR,'>&STDOUT') or die $!;
-      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','E0',
+      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0',
+           '-dev.settings','1','-dev.bankrandom','1','-dev.tiarandom','1','-bs','E0',
            '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
            '-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible);
       die "exec Stella: $!\n";
