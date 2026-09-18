@@ -127,8 +127,10 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_player0_y;
    asm lda.z TEMPLATE_player1_y;
    asm clc;
-   // P1 is staged one two-scanline pair before draw() begins.
-   asm adc #2;
+   // Match P0's public Y origin. P1 is primed during VBLANK, but that priming
+   // already consumes its extra pipeline decrement; an additional +1 here
+   // displaced P1 two visible scanlines below the same public Y coordinate.
+   asm adc #1;
    asm sta.z TEMPLATE_player1_y;
    asm lda.z TEMPLATE_ball_y;
    asm clc;

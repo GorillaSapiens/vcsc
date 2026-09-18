@@ -325,7 +325,10 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 0;
    asm lda.z TEMPLATE_player1_y;
    asm clc;
-   asm adc #2;
+   // Match P0's public Y origin.  The P1 half already pays its pipeline
+   // decrement; the old +2 bias displaced equal public Y coordinates one
+   // two-scanline pair below P0.
+   asm adc #1;
    asm sta.z TEMPLATE_object_masks + 1;
    asm lda #0;
    asm sta.z TEMPLATE_object_masks + 2;

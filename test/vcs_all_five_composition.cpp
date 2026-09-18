@@ -507,7 +507,11 @@ bool span_pixel(bool enabled,unsigned origin,unsigned width,unsigned pixel) {
 uint8_t expected_player_value(Object object,int relative_line) {
    static constexpr std::array<uint8_t,7> p0{{0x3c,0x66,0x66,0x7e,0x66,0x66,0x66}};
    static constexpr std::array<uint8_t,7> p1{{0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c}};
-   const int first=object==P0 ? 22 : 144;
+   // The 192-line scoreless path now gives P1 the same public-Y origin as
+   // P0.  Its visible pipeline had historically carried an extra +1 pair
+   // bias, so only that profile moves P1 two scanlines earlier.  The 181-line
+   // score-composition choreography is a separate path and remains unchanged.
+   const int first=object==P0 ? 22 : (scoreless ? 142 : 144);
    if (relative_line<first || relative_line>=first+14) return 0;
    return (object==P0 ? p0 : p1)[static_cast<size_t>((relative_line-first)/2)];
 }

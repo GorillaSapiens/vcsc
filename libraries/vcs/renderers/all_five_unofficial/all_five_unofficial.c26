@@ -370,7 +370,10 @@ require inline void TEMPLATE_vblank(void) {
    asm lda.z TEMPLATE_player1_y;
    asm sta.z TEMPLATE_object_masks + 31;
    asm clc;
-   asm adc #2;
+   // P1 uses the same public Y origin as P0.  The P1 half already incurs its
+   // pipeline decrement, so the old +2 bias placed equal public coordinates
+   // one two-scanline pair below P0.
+   asm adc #1;
    asm sta.z TEMPLATE_player1_y;
 
    // Position all five objects during VBLANK with the same calibrated

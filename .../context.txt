@@ -215,26 +215,23 @@ acceptance gates.
 
 Last validation state
 ---------------------
-The last broad baseline was clean with packaged Stella 7.0 and Xvfb: 582/582
-compile-only tests and 392/392 e2e tests passed. Since that baseline, startup TIA
-normalization moved to the universal `$44-$6C` mirror and the affected
-bankswitching example Makefiles gained runtime/mapper/tool build dependencies so
-`make play` cannot silently reuse a stale ROM after those inputs change. The compile-only suite is clean at 583/583. Focused e2e certification passes for
-startup selection/randomized TIA state, 3F/3E under Stella bank/TIA randomization,
-E0, F0, FE, 3E-max, 3F-max, the example build-dependency contract, and source-tree
-hygiene. The exhaustive 3EX-max test exceeded the local execution
-window; its separately documented Stella >64K RAM-offset truncation remains an
-upstream emulator limitation. The three reported post-mapper regressions in
-`linker_banked_image_model.pl`, `vcs_mapper_entry_source.pl`, and
-`vcs_examples_build_1of8.test` were stale contracts; focused reruns now pass,
-including 14/112 example builds plus byte-exact disassembler round trips. The
-short-lived `MIRROR_*` disassembler aliases have also been replaced by canonical
-register-plus-offset spelling such as `COLUBK + $40` and `NUSIZ0 + $40,X`; compact
-offsets use two hex digits while larger offsets retain four. The user's subsequent
-full e2e run reached 391/393, with only two stale four-digit mirror-format assertions
-failing. Those assertions are now updated, and focused reruns pass for
-`vcs_3f_3e.pl --stella` and the full `vcsc_disassembler.pl` regression. A fresh
-whole-suite rerun has not yet been performed after those two test-only fixes.
+The last broad user run after the startup/mirror/disassembler work reached 389/393
+e2e tests: only the player-color Y-calibration contracts failed.  Those four
+reported failures are now fixed at the root.  Equal public P0/P1 Y coordinates
+use the same visible origin in the 192/228-line `player_color`,
+`all_five_player_color`, `all_five`, and `all_five_unofficial` paths; the stale
+P1 +1-pair bias is gone.  The reviewed player-color Stella raster and the
+coordinate-aware animation/orientation oracles were updated accordingly.
+Focused certification passes for the four formerly failing tests, all-five 192,
+all-five 228, all-five unofficial profiles, all-five-player-color 192,
+player-color 192, pinned Stella player-color/all-five equivalence, and the PAL/
+SECAM 228 matrix plus full video-standard Stella examples.  A fresh whole-suite
+rerun has not yet been performed after this renderer correction.
+
+The earlier mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
+random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
+and canonical disassembler mirror spelling such as `COLUBK + $40`.  Focused
+mapper/disassembler regressions were clean before the player-color change.
 
 Since that baseline, the public joystick, paddle, and driving-controller tutorials
 were simplified into direct visual demonstrations. Joystick uses independently

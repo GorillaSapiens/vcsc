@@ -1252,7 +1252,7 @@ index($pf_phase,'15/22/51/54')<0
    or die "player-color-192 asymmetric playfield regression coverage is incomplete
 ";
 my $pc192_reference=File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_pinned.png');
-sha256_hex(slurp($pc192_reference)) eq '79c39e7eb7c608660b03499032988209b31d760869784d4ea3bfab0049b4b587'
+sha256_hex(slurp($pc192_reference)) eq '23aab067b09544262b1fd02f3d5e0acd779572b3ec362b11b805a20b1bd0371f'
    or die "reviewed player-color-192 Stella reference PNG changed without updating its contract
 ";
 

@@ -162,6 +162,9 @@ void expect_nonzero_lines(uint16_t address,const std::vector<uint64_t> &lines,
    if (got.size()!=lines.size() || got.size()!=values.size()) {
       std::fprintf(stderr,"vcs_player_color_192: %s has %zu nonzero writes; expected %zu\n",
                    what,got.size(),lines.size());
+      for (const TimedWrite &event:got)
+         std::fprintf(stderr,"  got line %llu value %02x\n",
+                      static_cast<unsigned long long>(event.line),event.value);
       std::exit(1);
    }
    for (size_t i=0;i<got.size();++i) {
@@ -170,6 +173,11 @@ void expect_nonzero_lines(uint16_t address,const std::vector<uint64_t> &lines,
             "vcs_player_color_192: %s write %zu is line %llu value %02x; expected line %llu value %02x\n",
             what,i,static_cast<unsigned long long>(got[i].line),got[i].value,
             static_cast<unsigned long long>(lines[i]),values[i]);
+         std::fprintf(stderr,"  actual:");
+         for (const TimedWrite &event:got)
+            std::fprintf(stderr," %llu:%02x",
+                         static_cast<unsigned long long>(event.line),event.value);
+         std::fprintf(stderr,"\n");
          std::exit(1);
       }
    }
@@ -316,8 +324,10 @@ void verify_object_pixel_raster(const std::string &mode) {
       ? selected_alien_sprite(true)
       : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
    const bool terminal=mode=="terminal";
-   const int p0_first=terminal ? 204 : 166;
-   const int p1_first=terminal ? 206 : 112;
+   // P0 and P1 share one public Y coordinate convention.  Each public Y step
+   // is one two-scanline pair, with the same visible origin for both players.
+   const int p0_first=26+2*memory_image[y_address[0]];
+   const int p1_first=26+2*memory_image[y_address[1]];
    const int ball_first=mode=="ball-top" ? 36 :
                         mode=="ball-row-edge" ? 52 :
                         terminal ? 214 : 126;
@@ -459,13 +469,13 @@ int main(int argc,char **argv) {
       : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
    if (mode=="terminal") {
       expect_nonzero_lines(kGrp0,{202,204,206,208,210,212,214,216},p0,"terminal P0");
-      expect_nonzero_lines(kGrp1,{206,208,210,212,214,215,217,220},p1,"terminal P1");
+      expect_nonzero_lines(kGrp1,{204,206,208,210,212,214,215,217},p1,"terminal P1");
       expect_nonzero_lines(kEnabl,{213,216,217,219},{2,2,2,2},"terminal Ball");
       std::printf("vcs_player_color_192 terminal ok: P0/P1/Ball reach the uniform twelfth-row raster\n");
    }
    else {
       expect_nonzero_lines(kGrp0,{164,166,168,170,172,174,176,178},p0,"static P0");
-      expect_nonzero_lines(kGrp1,{112,114,116,118,119,121,124,126},p1,"static P1");
+      expect_nonzero_lines(kGrp1,{110,112,114,116,118,119,121,124},p1,"static P1");
       if (mode=="ball-top") {
          expect_nonzero_lines(kEnabl,{41},{2},"top-edge Ball");
          std::printf("vcs_player_color_192 ball-top ok: Ball clips cleanly at the visible top edge\n");

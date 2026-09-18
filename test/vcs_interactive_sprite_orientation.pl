@@ -200,7 +200,7 @@ my($snapshot_rows,$snapshot_non_sprite)=png_rgb_rows($stella_reference);
 # itself a visible reference change and must therefore fail this guard.
 same(snapshot_sprite_rows($snapshot_rows,$snapshot_non_sprite,86,139,'P0'),$pc192_p0->[$p0_frame],
    'player-color-192 Stella reference P0');
-same(snapshot_sprite_rows($snapshot_rows,$snapshot_non_sprite,214,85,'P1'),$pc192_p1->[$p1_frame],
+same(snapshot_sprite_rows($snapshot_rows,$snapshot_non_sprite,214,83,'P1'),$pc192_p1->[$p1_frame],
    'player-color-192 Stella reference P1');
 
 for my $parts (@definitions) {

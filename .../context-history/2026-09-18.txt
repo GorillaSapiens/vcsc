@@ -1,0 +1,19 @@
+2026-09-18 10:25:56 PDT, align P1 public Y origins
+The 192-line player_color path had biased P1 by one extra two-scanline pair:
+its private working Y used public_y+2 while P0 used public_y+1.  Changed P1 to
++1 and regenerated the reviewed pinned Stella reference.  Equal public P0/P1
+coordinates now overlap vertically in the direct renderer.
+
+The same stale calibration existed in the 192/228 all_five_player_color,
+all_five, and all_five_unofficial paths.  Changed their P1 bias by one pair as
+well.  Updated the animation pixel oracle (P1 lines 114..129), interactive
+reference crop (P1 y=83), reviewed PNG hash, and scoreless all-five object oracle
+(P1 first relative line 142; 181-line score-composition path remains 144).
+
+Focused passes: source_tree_hygiene.pl, vcs_interactive_sprite_orientation.pl,
+vcs_player_color_192_animation.pl, vcs_all_five_player_color_192_stella.pl,
+vcs_all_five_192.pl, vcs_all_five_228.pl, vcs_all_five_unofficial_profiles.pl,
+vcs_all_five_player_color_192.pl, vcs_player_color_192.pl,
+vcs_player_color_192_stella.pl, vcs_video_standard_228_matrix.pl, and
+vcs_video_standard_examples_stella.pl.  Full suite not rerun yet.
+

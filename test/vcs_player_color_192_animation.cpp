@@ -204,7 +204,7 @@ void verify_pixels(const Capture &c,size_t index) {
          while (event<events.size() && events[event].beam_cycle*3<=color_clock) apply(state,events[event++]);
          if (line<39) continue;
          const int row0=(line>=136 && line<152)?(line-136)/2:-1;
-         const int row1=(line>=116 && line<132)?(line-116)/2:-1;
+         const int row1=(line>=114 && line<130)?(line-114)/2:-1;
          const uint8_t want0=row0>=0?source_row(c.p0_pointer,row0):0;
          const uint8_t want1=row1>=0?source_row(c.p1_pointer,row1):0;
          const bool actual0=player_pixel(state.grp0_display,state.nusiz0,state.refp0,c.player0_x,x);
