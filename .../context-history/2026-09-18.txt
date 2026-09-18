@@ -17,7 +17,7 @@ vcs_all_five_player_color_192.pl, vcs_player_color_192.pl,
 vcs_player_color_192_stella.pl, vcs_video_standard_228_matrix.pl, and
 vcs_video_standard_examples_stella.pl.  Full suite not rerun yet.
 
-2026-09-18, roadmap priority and max-diagnostic Stella speed
+2026-09-18 11:20:00 PDT, roadmap priority and max-diagnostic Stella speed
 Moved unfinished roadmap item 59 (compiler/driver Stella palette-file support for
 RGB builtins) ahead of item 57 without renumbering; item 59 is now the main-roadmap
 next action.  Stella 7's CLI supports `-speed` at 10..1000 percent and `-turbo 1`
