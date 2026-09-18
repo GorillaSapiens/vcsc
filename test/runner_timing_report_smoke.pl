@@ -25,6 +25,16 @@ sub run_ok {
 run_ok('--jobs', '2', '--timings', $timings, $slow, $fast);
 run_ok('--jobs', '2', '--timings', $timings, '--timings-append', $fast);
 
+# TEST_TIMINGS=0 is the supported Makefile opt-out.  Historically it was passed
+# through as a literal filename and left test/0 behind.
+my $zero_report = File::Spec->catfile($Bin, '0');
+unlink($zero_report) if -e $zero_report;
+run_ok('--timings', '0', $fast);
+if (-e $zero_report) {
+   unlink($zero_report);
+   die "--timings 0 created a literal test/0 report\n";
+}
+
 open(my $fh, '<', $timings) or die "could not open timing report: $!\n";
 my @lines = <$fh>;
 close($fh);

@@ -25,6 +25,8 @@ my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 @python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
 
 my $test_runner=slurp(File::Spec->catfile($test,'test.pl'));
+-e File::Spec->catfile($test,'0') and
+   die "stray test/0 timing report remains; TEST_TIMINGS=0 must disable timings\n";
 $test_runner =~ /timeout\s*=>\s*45\s*,/
    or die "test runner default timeout is not 45 seconds\n";
 my @short_timeout_headers;

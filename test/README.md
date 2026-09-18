@@ -187,7 +187,8 @@ seconds status  phase   test
 (The actual file uses tabs, not spaces.) Timing rows are flushed as each
 source-order result is reported, so an interrupted or timed-out suite still
 leaves useful partial measurements behind. Set `TEST_TIMINGS=/path/to/file.tsv`
-to choose another filename. Direct runner invocations can use `--timings FILE`;
+to choose another filename; `TEST_TIMINGS=0` disables timing output. Direct
+runner invocations can use `--timings FILE` (or `--timings 0` to disable it);
 `--timings-append` appends rows without repeating the header and is used by the
 Makefile to combine its compile and E2E phases into one report.
 

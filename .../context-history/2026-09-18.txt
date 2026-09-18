@@ -17,7 +17,7 @@ vcs_all_five_player_color_192.pl, vcs_player_color_192.pl,
 vcs_player_color_192_stella.pl, vcs_video_standard_228_matrix.pl, and
 vcs_video_standard_examples_stella.pl.  Full suite not rerun yet.
 
-2026-09-18 11:20:00 PDT, roadmap priority and max-diagnostic Stella speed
+2026-09-18 11:20:00 PDT, roadmap priority and max-diagnostic speed
 Moved unfinished roadmap item 59 (compiler/driver Stella palette-file support for
 RGB builtins) ahead of item 57 without renumbering; item 59 is now the main-roadmap
 next action.  Stella 7's CLI supports `-speed` at 10..1000 percent and `-turbo 1`
@@ -25,3 +25,11 @@ for uncapped maximum speed.  The 3e_max, 3ex_max, and 3f_max example `make play`
 targets now default to `-speed 1000` (10x), with `STELLA_SPEED` overridable (100
 for normal speed).  A build-dependency regression locks the accelerated play
 contract.
+
+2026-09-18 11:31:01 PDT, disable zero timing residue
+Traced stray `test/0` to the timing runner: `TEST_TIMINGS=0` was forwarded by the
+nested test Makefile as literal `--timings 0`, so a full compile timing report was
+opened as `test/0`.  `--timings 0` now explicitly disables timing output, including
+the Makefile's append phase; the timing-runner smoke locks the behavior and source
+tree hygiene rejects any future `test/0` residue.  Removed the existing report and
+documented `TEST_TIMINGS=0` / `--timings 0` as the timing opt-out.

@@ -49,6 +49,13 @@ GetOptions(
 die usage() if $help;
 die usage() if $compile_only && $e2e_only;
 die "[$FAIL] --jobs must be at least 1\n" if $jobs < 1;
+# TEST_TIMINGS=0 is the Makefile-level opt-out.  The nested test Makefile
+# still passes --timings 0 (and, for the second phase, --timings-append),
+# so normalize the sentinel before opening a report or validating append mode.
+if (defined($timings_file) && $timings_file eq '0') {
+   undef $timings_file;
+   $timings_append = 0;
+}
 die "[$FAIL] --timings-append requires --timings FILE\n" if $timings_append && !defined($timings_file);
 
 my $test_root = abs_path('.');
