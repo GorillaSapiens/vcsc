@@ -66,3 +66,5 @@ stella -bs 3EX 3ex_max_diagnostic.bin
 
 `make torture` regenerates the torture sources; `make fonts` regenerates the
 committed font subsets and then the torture payloads that embed those fonts.
+
+`make play` runs Stella at 1000% (10x) speed by default because this is a long-running stress diagnostic. Set `STELLA_SPEED=100` to run at normal speed.

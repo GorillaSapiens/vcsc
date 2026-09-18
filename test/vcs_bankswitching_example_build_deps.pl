@@ -43,6 +43,16 @@ for my $dir (sort keys %mapper_for) {
       or die "$dir play target no longer rebuilds TARGET before launch\n";
 }
 
+
+for my $dir (qw(3e_max 3f_max)) {
+   my $path=File::Spec->catfile($repo,qw(examples 07_diagnostics bankswitching),$dir,'Makefile');
+   my $mk=slurp($path);
+   $mk =~ /^STELLA_SPEED\s*\?=\s*1000\s*$/m
+      or die "$dir make play no longer defaults to 10x Stella speed\n";
+   $mk =~ /^\t\$\(STELLA\) -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
+      or die "$dir make play no longer passes the configured Stella speed\n";
+}
+
 my $xdir='3ex_max';
 my $xpath=File::Spec->catfile($repo,qw(examples 07_diagnostics bankswitching),$xdir,'Makefile');
 my $x=slurp($xpath);
@@ -58,5 +68,9 @@ $x =~ /^\$\(BUILD_DIR\)\/%\.o26:\s*%\.s26\s+\$\(VCSC_COMPILE_DEPS\)/m
    or die "3ex_max assembly objects do not depend on VCSC_COMPILE_DEPS\n";
 $x =~ /^play:\s*\$\(TARGET\)\s*$/m
    or die "3ex_max play target no longer rebuilds TARGET before launch\n";
+$x =~ /^STELLA_SPEED\s*\?=\s*1000\s*$/m
+   or die "3ex_max make play no longer defaults to 10x Stella speed\n";
+$x =~ /^\t\$\(STELLA\) -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
+   or die "3ex_max make play no longer passes the configured Stella speed\n";
 
 print "bankswitching example build dependencies passed\n";

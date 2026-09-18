@@ -2,6 +2,8 @@
 ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
+STELLA ?= stella
+STELLA_SPEED ?= 1000
 VCSC_BUILD_DEPS := $(VCSC) $(ROOT)/compiler/vcsc-cc1 $(ROOT)/assembler/vcsc-as \
 	$(ROOT)/linker/vcsc-ld $(ROOT)/libraries/runtime/libvcsc.l26 \
 	$(wildcard $(VCS_DIR)/*.c26) $(wildcard $(VCS_DIR)/3E/*.c26 $(VCS_DIR)/3E/*.s26)
@@ -39,6 +41,6 @@ clean:
 	rm -f 3e_max_diagnostic.bin 3e_max_diagnostic.map 3e_max_diagnostic.hex 3e_max_diagnostic.sym 3e_max_diagnostic.lst 3e_max_diagnostic.cfg
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs 3E "$(CURDIR)/$(TARGET)"
+	$(STELLA) -speed $(STELLA_SPEED) -userdir "$(CURDIR)" -bs 3E "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts torture

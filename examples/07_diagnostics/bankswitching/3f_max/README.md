@@ -56,3 +56,5 @@ the display switches to the normal PASS/FAIL result.
 The big WAIT and PASS/FAIL glyph bytes are generated from the committed font
 subsets and embedded in physical banks 253 and 254 by `make_torture.pl`, keeping
 the common lower-bank call entry points at `$1000` and `$1100`.
+
+`make play` runs Stella at 1000% (10x) speed by default because this is a long-running stress diagnostic. Set `STELLA_SPEED=100` to run at normal speed.
