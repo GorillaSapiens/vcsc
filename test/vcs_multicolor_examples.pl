@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 60
-# expectstdout: vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks
+# expectstdout: vcs_multicolor_examples ok: seven interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks
 # expectexit: 0
 
 use strict;
@@ -31,11 +31,6 @@ $color_component =~ /parameter\s+mutable_color\s*:=\s*0/
    && $color_component =~ /asm sta NUSIZ1;\s*#if TEMPLATE_mutable_color\s*.*?asm ldy TEMPLATE_offsets\+1;\s*asm bit\.z TEMPLATE_offsets;\s*asm nop;\s*#else/s
    or die "mutable-color score mode lost its color or positioning contract\n";
 my @cases=(
- {
-   dir=>'04_renderers/faithful_legacy_player_color',
-   stem=>'faithful_legacy_playercolors_interactive', profile=>'legacy', prefix=>'legacy',
-   score=>'legacy_score', color=>'legacy_score_color', extra=>['-Wa,--illegals'],
- },
  {
    dir=>'04_renderers/player_color/no_score',
    stem=>'player_color_192_interactive', profile=>'192', prefix=>'game',
@@ -88,7 +83,7 @@ for my $case (@cases) {
    my $src=File::Spec->catfile($repo,'examples',$dir,"$stem.c26");
    my $text=read_file($src);
    my $behavior_text=$text;
-   if ($profile ne 'legacy' && $profile ne '192') {
+   if ($profile ne '192') {
       $behavior_text .= read_file(File::Spec->catfile($repo,qw(examples _common player_color_181_interactive_common.c26)));
    }
    $text =~ /^include "color_ntsc\.c26"$/m or die "$dir lacks named NTSC colors\n";
@@ -102,13 +97,7 @@ for my $case (@cases) {
       or die "$dir does not cycle P0, P1, and Ball\n";
    $behavior_text !~ /SELECTED_MISSILE|SELECTED_M0|SELECTED_M1/
       or die "$dir exposes missiles absent from the public player-color profile\n";
-   if ($profile eq 'legacy') {
-      $text =~ /faithful_legacy_playercolors/ or die "$dir does not use the faithful legacy renderer\n";
-      $text =~ /alias VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER 1/
-         or die "$dir does not opt into human left-to-right packed-BCD score order\n";
-      $text =~ /legacy_score\s*:=\s*123456;/
-         or die "$dir does not initialize visible score 123456 as packed BCD\n";
-   } elsif ($profile eq '192') {
+   if ($profile eq '192') {
       $text =~ m{renderers/player_color/player_color[.]c26} && $text =~ /lines:=192/
          or die "$dir does not use player_color lines:=192\n";
       $text !~ /six_glyph_component|selected_score_digit|score_draw/
@@ -160,4 +149,4 @@ for my $case (@cases) {
       or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks\n";
+print "vcs_multicolor_examples ok: seven interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks\n";

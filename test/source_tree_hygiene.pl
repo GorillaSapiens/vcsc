@@ -353,12 +353,6 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'vcs_all_five_player_color_192_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_all_five_player_color_181_stella.pl') &&
 -f File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_pinned.png') &&
--f File::Spec->catfile($test,'vcs_faithful_legacy_multisprite.pl') &&
--f File::Spec->catfile($test,'vcs_faithful_legacy_multisprite_stella.pl') &&
--f File::Spec->catfile($test,'fixtures','faithful_legacy_multisprite','reference_diagnostic_stella_pinned.png') &&
--f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','README.md') &&
--f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','faithful_legacy_multisprite.c26') &&
--f File::Spec->catfile($repo,'examples','04_renderers','faithful_legacy_multisprite','faithful_legacy_multisprite_diagnostic.c26') &&
 -f File::Spec->catfile($test,'vcs_multisprite_profiles.pl') &&
 -f File::Spec->catfile($test,'vcs_multisprite_profiles.cpp') &&
 -f File::Spec->catfile($test,'vcs_multisprite_stella.pl') &&
@@ -431,7 +425,6 @@ index($top_make,'stella-renderer-bank-test: tools')>=0 &&
 index($top_make,'stella-wide-score-test: tools')>=0 &&
 index($top_make,'stella-player-color-192-test: tools')>=0 &&
 index($top_make,'stella-all-five-player-color-192-test: tools')>=0 &&
-index($top_make,'stella-faithful-multisprite-test: tools')>=0 &&
 index($top_make,'stella-multisprite-test: tools')>=0 &&
 index($top_make,'packaging/install_manifest.pl install')>=0 &&
 index($top_make,'stage-release-payload:')>=0 &&
@@ -446,13 +439,17 @@ index($top_make,'sieve: tools')<0 &&
 -f File::Spec->catfile($test,'sieve.pl') &&
 -f File::Spec->catfile($test,'install_manifest.pl') &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26")>=0 &&
-index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26\tlibraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tlibraries/vcs/renderers/multisprite/multisprite.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/6507.c26\tlibraries/vcs/6507.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_wide_component.c26\tlibraries/vcs/six_glyph_wide_component.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_big_wide_component.c26\tlibraries/vcs/six_glyph_big_wide_component.c26")>=0 &&
 -f File::Spec->catfile($repo,'examples','04_renderers','multisprite','no_score','multisprite_192_interactive.c26') &&
--f File::Spec->catfile($repo,'examples','04_renderers','all_five_player_color','no_score','all_five_player_color_192_interactive.c26')
+-f File::Spec->catfile($repo,'examples','04_renderers','all_five_player_color','no_score','all_five_player_color_192_interactive.c26') &&
+!-e File::Spec->catdir($repo,qw(examples 04_renderers faithful_legacy_player_color)) &&
+!-e File::Spec->catdir($repo,qw(examples 04_renderers faithful_legacy_multisprite)) &&
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers faithful_legacy_playercolors)) &&
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers faithful_legacy_multisprite)) &&
+index($install_manifest,'faithful_legacy_')<0
    or die "top-level installed simulator/Stella and manifest coverage is incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&

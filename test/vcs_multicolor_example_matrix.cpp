@@ -62,7 +62,6 @@ struct Profile {
 };
 
 Profile parse_profile(const std::string &name) {
-   if (name == "legacy") return {"legacy", 264, 78, 87, true, 123456};
    if (name == "192") return {"192", 264, 70, 95, false, 0};
    if (name == "above") return {"above", 264, 70, 87, true, 123456};
    if (name == "below") return {"below", 264, 70, 87, true, 123456};
@@ -391,7 +390,7 @@ Machine *Machine::active_ = nullptr;
 int main(int argc, char **argv) {
    if (argc != 13) {
       std::fprintf(stderr,
-         "usage: %s ROM legacy|192|above|below object_x p0_y p1_y ball_y "
+         "usage: %s ROM 192|above|below object_x p0_y p1_y ball_y "
          "selected select_ready score|none score_digit|none score_ready|none "
          "score_color|none\n", argv[0]);
       return 2;

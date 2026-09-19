@@ -413,13 +413,12 @@ also rejects ambiguous ownership when `$bank` is omitted and rejects Intel HEX
 when distinct physical planes overlap in logical address.
 
 `vcs_interactive_sprite_orientation.pl` keeps every maintained interactive
-example visually aligned with the faithful legacy player-color example. It
-checks the shared and direct source definitions for the required bottom-to-top
-geometry convention, verifies that per-row player colors follow the same visual
-rows, and ensures every discovered non-legacy interactive cartridge uses one of those
-normalized definitions. The discovery check is intentionally count-free, so adding a
-new interactive example automatically brings it under this regression instead of
-requiring a magic source-count update. The animated sprite gallery retains its own independent
+example aligned to the standard player-color sprite contract. It checks the
+shared and direct source definitions for the required bottom-to-top geometry
+convention, verifies that per-row player colors follow the same visual rows, and
+ensures every discovered interactive cartridge uses one of those normalized
+definitions. The reviewed player-color Stella snapshot independently locks the
+visible orientation. The animated sprite gallery retains its own independent
 frame-table convention.
 
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
@@ -602,9 +601,9 @@ playfield RAM exhaustion. It also proves byte identity between the new generic
 4K component-owned build, the deprecated compatibility cfg, and a reconstructed
 pre-item-27 cfg with metadata stripped from the renderer object.
 
-`vcs_standard_renderer_normalization.pl` enforces deterministic renderer-source
-normalization. It regenerates the selected source beside the checked-in outputs
-and requires byte identity, checks all five deliberate macro ports and the
+`vcs_standard_renderer_source.pl` enforces the maintained standard renderer
+source and assembly contracts directly. It checks all five deliberate macro
+ports and the
 selected DASM transformations, requires the legal `AND`/`LSR`,
 `TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting renderer
 without unofficial-opcode mode, verifies its segment map and score table, and
@@ -736,17 +735,15 @@ packed BCD `012345` with their pointers redirected to the six VCSC-logo slices.
 The harness locks the separate RESP/HMOVE phases and late GRP-write windows while
 the complete cartridge retains its 262-line frame period.
 
-`vcs_multicolor_examples.pl` builds the four public interactive renderer
-cartridges: faithful legacy, scoreless 192-line, 181-line score-above, and
-181-line score-below. Its 6502 harness presents idle/pressed console inputs and
+`vcs_multicolor_examples.pl` builds the seven maintained public player-color
+interactive cartridges across the scoreless, score-above, score-below, wide, and
+unofficial profiles. Its 6502 harness presents idle/pressed console inputs and
 checks one-unit P0/P1/Ball motion, held-SELECT suppression, complete X/Y endpoint
 clamps, immediate one-shot right-joystick presses, held-input suppression,
 neutral re-arming, direction-roll suppression, selected-digit score-color cycling,
 decimal `10^n` score changes, exact normal frame periods, and reset-vector state
-restoration. It also requires the faithful demo to opt into the same human
-left-to-right packed-BCD digit order used by the eleven-line score components.
-The legacy and
-192-line initial scenes retain their separate exact sprite/raster checks.
+restoration. The 192-line initial scene retains its separate exact
+sprite/raster check.
 
 `vcs_player_color_181.pl` and `vcs_player_color_192.pl` require every gameplay
 GRP0 and GRP1 handoff, including zero GRP1 transfers, to occur during horizontal
@@ -863,7 +860,7 @@ packed masks, state lost through horizontal-position scratch reuse, and any
 whole-frame vertical displacement that instruction-level cycle tests miss.
 
 `vcs_standard_playercolors.pl` builds the separate no-missile P0+P1+BL
-profile and private static/motion fixtures. It checks deterministic normalization,
+profile and private static/motion fixtures. It checks maintained source assembly,
 official-opcode assembly, page and stack contracts, the exact standard frame
 period, absence of missile enables, eight distinct logical-row colors for each
 player, exact P0/P1/BL raster rows, and 320 frames of full-range P0/P1/BL
@@ -1330,7 +1327,7 @@ and stable 262-line standalone scheduling.
 procedure executable as documentation policy. It requires the HOWTO to retain
 profile isolation, lifecycle and visible-handoff contracts, public/private state,
 scheduler ownership, TIA/clobber and delayed-latch rules, hidden-stack accounting,
-RAM/ROM and linker/page constraints, reproducible normalization, cycle/flag timing
+RAM/ROM and linker/page constraints, maintained source contracts, cycle/flag timing
 rules, layered Stella regressions, public examples, and staged installation.
 
 `vcs_visible_component_handoff.pl` locks the machine-readable draw-entry,
@@ -1411,21 +1408,6 @@ Superchip usage, 12 hardware-stack bytes, 20140-cycle frame length, exact raster
 identity, mapper restoration, and the consolidated one-cartridge public example.
 
 ## Multisprite renderer certification
-
-`vcs_faithful_legacy_multisprite.pl` locks the first roadmap-item-28 milestone:
-the minimal NTSC, unbanked, non-Superchip retained multisprite profile.  It
-requires reproducible normalization, the exact `$80-$F9` 122-byte state object,
-six physical hardware-stack bytes at `$FA-$FF`, zero compiler activation RAM in
-the fixed diagnostic, the retained unofficial-opcode and TXS/PHP enable path,
-1472 bytes of diagnostic ROM, stable 264-line frames, and a complete 391-event
-visible TIA-write oracle.  The raster oracle independently pins P0 plus all five
-logical P1 sprites in upright display order, their colors/reposition phases,
-the explicit P0 trailing clear that prevents stale-HMOVE stripes, asymmetric
-playfield, and integrated score timing.
-
-`vcs_faithful_legacy_multisprite_stella.pl` is the independent pinned-palette Stella
-certification for the same fixed cartridge and is part of normal e2e. Run
-`make stella-faithful-multisprite-test STELLA=/path/to/stella` for a focused rerun.
 
 `vcs_multisprite_profiles.pl` locks the modern item-28 derivative. It requires
 one `renderers/multisprite/multisprite.c26` source with compile-time

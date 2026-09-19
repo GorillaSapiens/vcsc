@@ -68,9 +68,6 @@ for my $parts (
    [qw(libraries runtime vcsc-zp-ptr1.s26)],
    [qw(libraries runtime vcsc-zp-ptr2.s26)],
    [qw(libraries vcs vcs.c26)],
-   [qw(libraries vcs LEGACY_RENDERER_CONVERSION.md)],
-   [qw(libraries vcs legacy-basic-renderers standard std_renderer.asm)],
-   [qw(libraries vcs legacy-basic-renderers multisprite multisprite_renderer.asm)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required renamed/retained file is missing: $path\n";
@@ -201,8 +198,7 @@ for my $path (@markdown) {
    my $prefix = "```text\n$banner\n```\n\n";
    index($data, $prefix) == 0 or die "documentation lacks VCSC FIGlet banner: $path\n";
 }
-for my $rel ('compiler/ABI.txt', '.../context.txt',
-             'libraries/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt') {
+for my $rel ('compiler/ABI.txt', '.../context.txt') {
    my $path = File::Spec->catfile($repo, split('/', $rel));
    my $data = slurp($path);
    index($data, "$banner\n\n") == 0 or die "text documentation lacks VCSC FIGlet banner: $path\n";

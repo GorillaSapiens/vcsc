@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
-# expectstdout: generic target bundle pruned; VCS and legacy renderer references retained
+# expectstdout: generic target bundle pruned; VCS references retained
 # expectexit: 0
 # phase: e2e
 
@@ -50,17 +50,16 @@ for my $parts (
    [qw(libraries vcs F4SC/mapper.c26)],
    [qw(test vcs_direct_8k.c26)],
    [qw(libraries vcs OMNI/mapper.c26)],
-   [qw(libraries vcs legacy-basic-renderers standard std_renderer.asm)],
-   [qw(libraries vcs legacy-basic-renderers multisprite multisprite_renderer.asm)],
    [qw(test machine_6502.c26)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
-   -f $path or die "required VCS/conversion/test material is missing: $path\n";
+   -f $path or die "required VCS/test material is missing: $path\n";
 }
 
 
 my @vcs_linker_cfg;
 require File::Find;
+no warnings 'once';
 File::Find::find(sub {
    return unless -f $_ && /\.cfg\z/;
    push @vcs_linker_cfg, $File::Find::name;
@@ -75,4 +74,4 @@ $runtime_make !~ /\bn\.cfg\b/ or die "runtime install still exports the generic 
 my $top_readme = slurp(File::Spec->catfile($repo, 'README.md'));
 $top_readme !~ /\bruntime\/n\.cfg\b/ or die "top-level install documentation still advertises runtime/n.cfg\n";
 
-print "generic target bundle pruned; VCS and legacy renderer references retained\n";
+print "generic target bundle pruned; VCS references retained\n";

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_standard_renderer_normalization ok
+# expectstdout: vcs_standard_renderer_source ok
 # expectexit: 0
 
 
@@ -50,30 +50,8 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $assembler=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $profile=File::Spec->catdir($repo,'libraries','vcs','renderers','standard_4k_ntsc');
-my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $macros=File::Spec->catfile($profile,'standard_4k_ntsc_macros.inc');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
-my $generated=File::Spec->catdir($tmp,'normalized');
-make_path($generated);
-
-my ($check_exit,$check_sig,$check_out,$check_err)=run_capture($normalizer,'--check');
-$check_exit == 0 && !$check_sig
-   or die "normalization check exited $check_exit signal $check_sig\nstdout:\n$check_out\nstderr:\n$check_err";
-$check_out eq "standard_4k_ntsc normalization is current\n"
-   or die "unexpected normalization-check stdout:\n$check_out";
-$check_err eq '' or die "normalization check wrote stderr:\n$check_err";
-
-my ($gen_exit,$gen_sig,$gen_out,$gen_err)=run_capture(
-   $normalizer,'--output-dir',$generated);
-$gen_exit == 0 && !$gen_sig
-   or die "normalization generation exited $gen_exit signal $gen_sig\nstdout:\n$gen_out\nstderr:\n$gen_err";
-$gen_err eq '' or die "normalization generation wrote stderr:\n$gen_err";
-for my $name ('standard_4k_ntsc_macros.inc','standard_4k_ntsc_renderer.s26') {
-   my $checked=read_file(File::Spec->catfile($profile,$name));
-   my $fresh=read_file(File::Spec->catfile($generated,$name));
-   $fresh eq $checked or die "$name is not reproducibly generated\n";
-}
-
 my $macro_text=read_file($macros);
 my $renderer_text=read_file($renderer);
 my @macro_defs=($macro_text =~ /^MACRO\s+([A-Za-z_][A-Za-z0-9_]*)\b/mg);
@@ -230,4 +208,4 @@ my $macro_object_text=read_file($macro_object);
 index($macro_object_text,"\x24\x00\xA9\x02") >= 0
    or die "SLEEP 3 did not emit legal BIT \$00 before VERTICAL_SYNC\n";
 
-print "vcs_standard_renderer_normalization ok\n";
+print "vcs_standard_renderer_source ok\n";

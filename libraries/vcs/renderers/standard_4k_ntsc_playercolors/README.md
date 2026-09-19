@@ -14,8 +14,8 @@
 > lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`; there
 > is no active roadmap requirement to retire this working profile.
 
-This directory defines a separate standard-renderer profile that restores the
-retained legacy `playercolors` and `player1colors` behavior. It does **not**
+This directory defines a separate standard-renderer compatibility profile that
+preserves the historical `playercolors` and `player1colors` behavior. It does **not**
 change the existing `standard_4k_ntsc` all-five-object profile.
 
 The trade is explicit:
@@ -35,19 +35,13 @@ independent color on every physical scanline.
 ## Files
 
 - `standard_4k_ntsc_playercolors.c26` — source-level state and API contract;
-- `standard_4k_ntsc_playercolors_renderer.s26` — checked-in normalized renderer;
-- `standard_4k_ntsc_playercolors_macros.inc` — assembler macros;
-- `normalize.pl` — deterministic derivation from the maintained legal standard
-  profile, guarded by the retained legacy player-color branches.
+- `standard_4k_ntsc_playercolors_renderer.s26` — maintained renderer source;
+- `standard_4k_ntsc_playercolors_macros.inc` — maintained assembler macros.
 
-Run:
-
-```sh
-libraries/vcs/renderers/standard_4k_ntsc_playercolors/normalize.pl --check
-```
-
-The normalizer fails if the selected all-five base profile or the retained
-legacy `playercolors` source relationship changes unexpectedly.
+These checked-in files are authoritative VCSC source. The historical generation
+step from imported upstream BASIC source was retired together with that upstream
+snapshot; behavioral, timing, and source-contract regressions now guard the
+profile directly.
 
 ## Application contract
 
@@ -174,9 +168,7 @@ Public componentized examples now live under renderer-specific paths:
   `-Wa,--illegals` explicitly.
 
 Linked size is checked by the build and install tests but is not a stable public
-contract. The faithful legacy example is maintained separately under
-`examples/04_renderers/faithful_legacy_player_color/` because it exercises the retained
-compatibility profile rather than this componentized implementation.
+contract.
 
 ## Timing and validation
 
@@ -185,10 +177,7 @@ loads and `COLUP0`/`COLUP1` writes. The final row is precomputed during VBLANK.
 Both ENAM registers are cleared before the visible field and never enabled.
 
 `test/vcs_standard_playercolors.pl` verifies the predecessor profile against
-private golden cartridges under `test/fixtures/vcs_examples/`.
-`test/vcs_faithful_legacy_example.pl` certifies the public example under
-`examples/04_renderers/faithful_legacy_player_color/` against the independently built
-pristine BASIC 1.9 ROM; it does not certify this component profile. Public
+private golden cartridges under `test/fixtures/vcs_examples/`. Public
 componentized examples are grouped under `examples/04_renderers/player_color/no_score/`,
 `examples/04_renderers/player_color/score_{above,below}/`, and
 `examples/04_renderers/player_color_unofficial/`; each maintained interactive diagnostic has
@@ -197,7 +186,7 @@ and reset coverage.
 
 It verifies:
 
-- deterministic normalization;
+- direct maintained-source and assembly contracts;
 - assembly without unofficial opcodes;
 - page placement of playfield, graphics, colors, code, and score table;
 - measured RAM and stack contracts;

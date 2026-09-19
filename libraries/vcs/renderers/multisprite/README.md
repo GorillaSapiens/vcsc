@@ -10,7 +10,7 @@
 # Parameterized multisprite renderer
 
 `multisprite.c26` is the modern composable derivative of the retained
-`faithful_legacy_multisprite` raster. It draws one independent P0 plus five
+upstream BASIC multisprite raster. It draws one independent P0 plus five
 logical sprites multiplexed through P1 and a profile-sized asymmetric playfield. The
 required `lines` instantiation parameter selects one of the three maintained,
 cycle-proven visible profiles:
@@ -22,7 +22,7 @@ instantiate "renderers/multisprite/multisprite.c26" as game (lines:=181)
 ```
 
 `lines` is compile-time only. Unsupported values are rejected at compile time.
-The renderer retains the stable/common NMOS `LAX` used by the faithful beam
+The renderer retains the stable/common NMOS `LAX` used by the retained beam
 path, so cartridges using it must be assembled with `-Wa,--illegals`.
 
 ## Profiles
@@ -34,15 +34,15 @@ path, so cartridges using it must be assembled with `-Wa,--illegals`.
 | 181 | 89 | one independent 11-line score above or below | 72 bytes |
 
 The legacy logical Y counter is not a physical scanline count. After restoring
-the faithful two-scanline cadence, the native 228 profile enters the retained
+the retained two-scanline cadence, the native 228 profile enters the retained
 core at logical Y=113, the measured 192 profile at Y=95, and the 181 profile
 at Y=89. When it follows or precedes a score component,
-its draw path spends two owned lines in the faithful divide-by-15 P0
+its draw path spends two owned lines in the retained divide-by-15 P0
 repositioner before entering the hot multiplexing loop, so P0 remains legal over
 the complete X=0..159 range. Adjacent visible components use
 `vcs_ntsc_component_handoff()`.
 
-All three profiles preserve the faithful five-P1 multiplexing algorithm and
+All three profiles preserve the retained five-P1 multiplexing algorithm and
 beam-critical scheduling. The 228 profile retains eight playfield rows while
 the 192/181 profiles retain six. All profiles keep the same P0 trailing clear,
 TXS/PHP enable pipeline, and beam-critical reposition schedule. Graphics-pointer adjustment is fully 16-bit for both P0
@@ -96,7 +96,7 @@ ordinary right-edge bucket made top-ranked X=143..151 jump or wrap. Public P1
 coordinates are never biased or restored, so vertical sort/flicker transitions
 cannot leak an internal coordinate mutation into application state.
 
-All three profiles preserve the faithful renderer's **frame-persistent
+All three profiles preserve the retained renderer's **frame-persistent
 flicker-sort order**. When two or more logical P1 sprites occupy overlapping
 vertical bands, the sorter omits the conflicting sprite for the current frame
 and rotates it behind the other sprite(s) for the next frame. The conflicting
@@ -121,7 +121,7 @@ The maintained legal Y ranges are exposed as `PLAYER0_MAX_Y` and
 for `lines:=181`. Y increases
 upward. The P1 maxima are the highest public coordinates that still reach the
 first gameplay line in the calibrated raster. Y=0 is the completely clipped
-bottom position; `vblank()` guards the faithful P0 predecrement so that zero
+bottom position; `vblank()` guards the retained P0 predecrement so that zero
 cannot underflow to 255 and turn stale P0 pixels into a full-height stripe. The
 five multiplexed sprites may move vertically independently within the P1 range;
 their initial spacing is not a fixed timing schedule.
@@ -130,7 +130,7 @@ The maintained minimal profiles deliberately keep M0, M1, and Ball outside the
 active gameplay field. Making those three objects active changes the retained
 multiplexing timing and is not part of this component contract.
 
-Beam timing is deliberately structural. The faithful three-cycle mask reads,
+Beam timing is deliberately structural. The retained three-cycle mask reads,
 short K1 branches, branch-page constraints, and the local cycle-balanced
 reposition decision must not be simplified as ordinary code. Every conditional
 branch executed by `draw()` has a hard page-timing annotation. The maintained

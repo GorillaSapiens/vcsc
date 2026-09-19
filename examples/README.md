@@ -35,8 +35,6 @@ the example contract.
 `04_renderers/` names the renderer being demonstrated rather than the old source
 bucket it came from:
 
-- `faithful_legacy_player_color/` — retained legacy player-color baseline with
-  its historical unofficial-opcode behavior.
 - `player_color/` — official-opcode P0/P1/Ball renderer, including scoreless,
   animated, 181-line score-composition, and 170-line dual-score examples.
 - `player_color_unofficial/` — matched stable/common-NMOS unofficial-opcode peer.
@@ -44,8 +42,6 @@ bucket it came from:
 - `all_five_unofficial/` — matched unofficial-opcode all-five peer; its Makefiles
   visibly opt in with `-Wa,--illegals`.
 - `all_five_player_color/` — all-five renderer with independent P0/P1 row colors.
-- `faithful_legacy_multisprite/` — retained legacy P0 + five multiplexed-P1
-  baseline.
 - `multisprite/` — maintained parameterized multisprite renderer.
 - `enhanced_multisprite/` — maintained asymmetric-playfield enhanced multisprite
   renderer.
@@ -71,8 +67,8 @@ and controller diagnostic, and the complete mapper diagnostic family under
 `f864`, `ua`, `3e_max`, and `3ex_max`; F8/F6/F4 and UA/UASW deliberately keep
 multiple related ROMs in a single leaf.
 
-Across all seven categories the tree contains **118 recursively discovered
-runnable example Makefiles**: 110 migrated examples plus eight examples added by
+Across all seven categories the tree contains **116 recursively discovered
+runnable example Makefiles**: 108 migrated examples plus eight examples added by
 the reorganization plan.
 
 ## Direct Register Access in examples

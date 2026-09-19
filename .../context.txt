@@ -90,8 +90,9 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 57, playfield-color renderer support, followed by the
-   side-scroller/platform example.
+   work begins with Item 59, Stella palette-file support for RGB builtins,
+   followed by Item 57 playfield-color renderer support and the side-scroller/
+   platform example.
    Completed placement/compiler cleanup is owned by executable regressions and
    dated history rather than this hot file.
    Active workstream: `.../roadmap.txt`.
@@ -253,8 +254,8 @@ assembly allowlist, affected recursive public-example shards, and Stella visual
 geometry checks cover these tutorial changes; the current full-suite result above
 now supersedes the earlier focused-only checkpoint.
 The ER1-ER25 example reorganization is complete. Final ER25 certification covers
-all 112 recursively discovered editable cartridge entry points through the
-direct-driver compile/link/disassembly round-trip verifier and all 118 public
+all 110 recursively discovered editable cartridge entry points through the
+direct-driver compile/link/disassembly round-trip verifier and all 116 public
 Makefile leaves through `make clean` + `make all`. The seven public purpose
 categories plus non-runnable `_common` are enforced by the reorg inventory; no
 retired numbered top-level group or `01_interactive` shell remains. Installcheck,
@@ -265,6 +266,4 @@ Immediate TODO
 --------------
 Have the mapper diagnostics rechecked manually from fresh `make play` builds.
 `3ex_max` is expected to remain limited by Stella's documented >64K 3EX RAM-offset
-bug. The `faithful_legacy_multisprite` visual jitter is intentionally deferred
-until the mapper/startup work is settled; do not infer its cause from the old
-"flickersort" routine name.
+bug.

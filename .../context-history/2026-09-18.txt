@@ -33,3 +33,34 @@ opened as `test/0`.  `--timings 0` now explicitly disables timing output, includ
 the Makefile's append phase; the timing-runner smoke locks the behavior and source
 tree hygiene rejects any future `test/0` residue.  Removed the existing report and
 documented `TEST_TIMINGS=0` / `--timings 0` as the timing opt-out.
+
+2026-09-18 13:17:10 PDT, excise faithful legacy renderers
+Removed the broken/redundant faithful_legacy_player_color and
+faithful_legacy_multisprite public examples and the corresponding renderer
+libraries.  Removed their dedicated retained-source/pristine-BASIC tests,
+Stella fixture, upstream oracle payload, package entries, and focused Stella
+target.  No maintained example or renderer depended on those libraries.
+
+The maintained player_color 192-line example is now the source baseline for
+interactive sprite orientation; its pinned Stella raster remains the independent
+visible check.  Removed legacy-only support from the multicolor example harness,
+updated the example inventory to 108 migrated + 8 reorg-added Makefile leaves,
+and kept the 110 editable example entry points under direct build/round-trip
+coverage.  Focused hygiene, inventory, portability, orientation, multicolor,
+install-manifest, and all eight example-build shards pass.  Full suite not rerun.
+
+2026-09-18 17:14:48 PDT, retire imported renderer source tree
+Removed the vendored libraries/vcs/legacy-basic-renderers tree, the obsolete
+LEGACY_RENDERER_CONVERSION.md inventory, and the two normalization scripts that
+regenerated already-maintained standard renderer sources from that import.
+Kept standard_4k_ntsc, standard_4k_ntsc_playercolors, the banked standard-renderer
+diagnostic, and their behavioral/timing coverage intact; only provenance/generator
+dependencies were retired.  Checked-in C26/S26/macro files are now the source of
+truth, and vcs_standard_renderer_source.pl directly preserves the former useful
+source/assembly contracts without requiring the upstream snapshot.
+
+Updated renderer/package/test documentation and install/branding/suffix checks to
+match the narrower source tree.  Focused standard renderer, player-color, banked,
+Stella banked, install-adjacent, branding, suffix, and hygiene regressions pass.
+A broad make test completed all 583 compile tests and reached 239/388 e2e tests
+with no failures before the local execution timeout terminated the run.

@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
-// Modern composable derivative of the faithful legacy BASIC multisprite raster.
+// Modern composable derivative of the retained upstream BASIC multisprite raster.
 // One P0 plus five logical sprites multiplexed through P1. The visible gameplay
 // height is selected at instantiation time; frame scheduling and scores are owned
 // by independent components. This renderer intentionally retains the stable/common
@@ -54,7 +54,7 @@ extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_192_or_228];
 
 // Machine-readable visible-component handoff. The 192 profile owns the whole
 // standard visible field. The 181 profile spends its first two owned lines in
-// the faithful P0 repositioner after an adjacent score component, then runs the
+// the retained P0 repositioner after an adjacent score component, then runs the
 // retained multiplexing core.
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_lines,
@@ -84,7 +84,7 @@ alias TEMPLATE_PLAYER0_GLYPH(a,b,c,d,e,f,g,h) 0,h,g,f,e,d,c,b,a
 uint8_t TEMPLATE_state[67];
 uint8_t TEMPLATE_player0_color;
 uint8_t TEMPLATE_player0_nusiz;
-// The faithful flicker-sort order is frame-persistent. state[60..64] is
+// The retained flicker-sort order is frame-persistent. state[60..64] is
 // reused for packed horizontal controls before draw(), so retain the exact
 // five-value permutation nibble-packed in three bytes between frames.
 uint8_t TEMPLATE_sprite_sort[3];

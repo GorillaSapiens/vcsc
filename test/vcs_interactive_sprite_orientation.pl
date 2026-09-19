@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# expectstdout: interactive sprite orientation matches faithful legacy example
+# expectstdout: interactive sprite orientation contract passed
 # expectexit: 0
 
 use strict;
@@ -66,7 +66,7 @@ sub plain_values {
 sub same {
    my($got,$want,$label)=@_;
    join("\n",@$got) eq join("\n",@$want)
-      or die "$label does not match the faithful legacy visual orientation\n";
+      or die "$label does not match the standard visual orientation\n";
 }
 
 sub read_binary {
@@ -158,21 +158,19 @@ sub decimal_assignment {
 }
 
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
-my $faithful_path=File::Spec->catfile($repo,qw(examples 04_renderers faithful_legacy_player_color faithful_legacy_playercolors_interactive.c26));
-my $faithful=read_file($faithful_path);
-my $p0_frames=frames(initializer($faithful,'p0_animation',32),'legacy_SPRITE_GLYPH');
-my $p1_frames=frames(initializer($faithful,'p1_animation',32),'legacy_SPRITE_GLYPH');
-@$p0_frames==4 && @$p1_frames==4 or die "faithful legacy animation must have four frames per player\n";
-my @p0_reverse_frames=map { [reverse @$_] } @$p0_frames;
-my @p1_reverse_frames=map { [reverse @$_] } @$p1_frames;
-my $p0c=args(initializer($faithful,'p0c'),'legacy_SPRITE_ROWS');
-my $p1c=args(initializer($faithful,'p1c'),'legacy_SPRITE_ROWS');
+my $baseline_path=File::Spec->catfile($repo,qw(examples 04_renderers player_color no_score player_color_192_interactive.c26));
+my $baseline=read_file($baseline_path);
+my $p0_frames=frames(initializer($baseline,'p0_animation',32),'game_SPRITE_GLYPH');
+my $p1_frames=frames(initializer($baseline,'p1_animation',32),'game_SPRITE_GLYPH');
+@$p0_frames==4 && @$p1_frames==4 or die "standard animation must have four frames per player\n";
+my $p0c=plain_values(initializer($baseline,'game_player0_colors'));
+my $p1c=plain_values(initializer($baseline,'game_player1_colors'));
 my @p0c_reverse=reverse @$p0c;
 my @p1c_reverse=reverse @$p1c;
-$faithful =~ /legacy_player0_graphics\s*\+=\s*\(\(legacy_PLAYER0_X\s*\^\s*legacy_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
-   or die "faithful legacy P0 animation selector changed\n";
-$faithful =~ /legacy_player1_graphics\s*\+=\s*\(\(legacy_PLAYER1_X\s*\^\s*legacy_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
-   or die "faithful legacy P1 animation selector changed\n";
+$baseline =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
+   or die "standard P0 animation selector changed\n";
+$baseline =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
+   or die "standard P1 animation selector changed\n";
 
 my @definitions=(
    [qw(examples 04_renderers player_color no_score player_color_192_interactive.c26)],
@@ -207,15 +205,15 @@ for my $parts (@definitions) {
    my $path=File::Spec->catfile($repo,@$parts);
    my $text=read_file($path);
    if ($text =~ /\bp0_animation\s*\[32\]/) {
-      same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),\@p0_reverse_frames,"$path P0");
-      same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),\@p1_reverse_frames,"$path P1");
+      same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),$p0_frames,"$path P0");
+      same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),$p1_frames,"$path P1");
       $text =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
          or die "$path P0 animation selector changed\n";
       $text =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
          or die "$path P1 animation selector changed\n";
    } else {
-      same(args(initializer($text,'p0_graphics'),'game_SPRITE_GLYPH'),$p0_reverse_frames[0],"$path P0");
-      same(args(initializer($text,'p1_graphics'),'game_SPRITE_GLYPH'),$p1_reverse_frames[0],"$path P1");
+      same(args(initializer($text,'p0_graphics'),'game_SPRITE_GLYPH'),$p0_frames->[0],"$path P0");
+      same(args(initializer($text,'p1_graphics'),'game_SPRITE_GLYPH'),$p1_frames->[0],"$path P1");
    }
    next if $path =~ /all_five/;
    if ($path =~ /player_color_192_interactive/) {
@@ -234,13 +232,12 @@ find(sub {
    my $text=read_file($path);
    push @animation_sources,$path if $text =~ /\bp0_animation\s*\[32\]/;
 },File::Spec->catdir($repo,'examples'));
-@animation_sources==16
-   or die "expected 16 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
+@animation_sources==15
+   or die "expected 15 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
 for my $path (@animation_sources) {
-   next if $path eq $faithful_path;
    my $text=read_file($path);
-   same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),\@p0_reverse_frames,"$path P0");
-   same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),\@p1_reverse_frames,"$path P1");
+   same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),$p0_frames,"$path P0");
+   same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),$p1_frames,"$path P1");
    $text =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
       or die "$path P0 animation selector changed\n";
    $text =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
@@ -277,11 +274,7 @@ find(sub {
    push @leaves,$path;
 },File::Spec->catdir($repo,'examples'));
 @leaves or die "found no interactive sources\n";
-my $faithful_seen=grep { $_ eq $faithful_path } @leaves;
-$faithful_seen==1
-   or die "interactive source discovery did not find the faithful legacy baseline\n";
 for my $path (@leaves) {
-   next if $path eq $faithful_path;
    my $text=local_include_closure($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
                $text =~ /\bp0_animation\s*\[32\]/ ||
@@ -289,4 +282,4 @@ for my $path (@leaves) {
    $covered or die "$path does not use a normalized interactive sprite definition\n";
 }
 
-print "interactive sprite orientation matches faithful legacy example\n";
+print "interactive sprite orientation contract passed\n";

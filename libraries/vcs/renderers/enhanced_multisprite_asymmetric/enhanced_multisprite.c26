@@ -10,7 +10,7 @@
 
 parameter lines;
 //
-// Unlike the faithful multisprite renderer, neither TIA player is permanently
+// Unlike the retained single-P0 multisprite design, neither TIA player is permanently
 // assigned to one logical sprite. VBLANK greedily colors the six logical
 // eight-row intervals onto two hardware lanes. Two overlapping sprites are
 // therefore solid; when three or more overlap, a rotating frame priority keeps
@@ -512,7 +512,7 @@ void TEMPLATE_preload_top(void) {
    asm sta COLUP1;
    asm @TEMPLATE_PreloadTopColorDone:;
 
-   // The faithful divide-by-15 positioner uses the legacy X origin, seven
+   // The retained divide-by-15 positioner uses the original X origin, seven
    // logical pixels to the right of this renderer's public convention. Rotate
    // by -7 modulo 160; 153..159 intentionally wrap through the TIA left edge.
    asm lda.zx TEMPLATE_x,X;

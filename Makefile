@@ -23,7 +23,6 @@ STELLA_HEART_SCORE_TEST_TMP ?= $(CURDIR)/.stella-heart-score-test
 STELLA_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-player-color-192-test
 STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-192-test
 STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-181-test
-STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
 STELLA_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-multisprite-test
 STELLA_50HZ_TEST_TMP ?= $(CURDIR)/.stella-50hz-test
 STELLA_DIAGNOSTIC_TEST_TMP ?= $(CURDIR)/.stella-diagnostic-test
@@ -100,7 +99,6 @@ exam:
 		$(MAKE) -C "$$each" && \
 		$(MAKE) -C "$$each" play ; \
 	done
-#	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 exbs:
 	@for each in $$(find examples/07_diagnostics/bankswitching -type f -name Makefile \
@@ -113,7 +111,7 @@ exbs:
 	done
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP) $(STELLA_HEART_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP) $(STELLA_DIAGNOSTIC_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP) $(STELLA_HEART_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP) $(STELLA_DIAGNOSTIC_TEST_TMP)
 	rm -f test-times.tsv
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
@@ -458,12 +456,6 @@ stella-all-five-player-color-181-test: tools
 	  "$(CURDIR)" "$(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP)"
 	rm -rf $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP)
 
-stella-faithful-multisprite-test: tools
-	rm -rf $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
-	VCSC_STELLA="$(STELLA)" perl test/vcs_faithful_legacy_multisprite_stella.pl \
-	  "$(CURDIR)" "$(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)"
-	rm -rf $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
-
 stella-multisprite-test: tools
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 	VCSC_STELLA="$(STELLA)" perl test/vcs_multisprite_stella.pl \
@@ -471,4 +463,4 @@ stella-multisprite-test: tools
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
 
-.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-libraries install-data uninstall uninstall-examples uninstall-libraries uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-heart-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs
+.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-libraries install-data uninstall uninstall-examples uninstall-libraries uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-heart-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-multisprite-test stella-diagnostic-test docs

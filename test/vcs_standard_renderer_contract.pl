@@ -127,7 +127,7 @@ my @required_readme=(
    'Selected configuration', 'Frame ownership', 'State ownership and RAM cost',
    'What the 48-byte playfield represents', 'Demonstrable placement constraints',
    'Register, flag, and hardware-register clobbers', 'Hidden hardware-stack use',
-   'ROM and feature-cost ledger', 'Retained-source boundary used by the normalizer',
+   'ROM and feature-cost ledger', 'Historical source lineage',
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
    '.callstackextra 4', 'Mandatory module-declared RAM', '80',
    'vcs_standard_overscan_hook', 'weak no-op', '**next** frame', 'Banked composition',

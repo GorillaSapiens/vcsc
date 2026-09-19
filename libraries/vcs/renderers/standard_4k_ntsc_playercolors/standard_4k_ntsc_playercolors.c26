@@ -4,7 +4,7 @@
 //
 // Include vcs.c26 before this module. The application must define exactly one
 // contiguous 48-byte ROM object named vcs_standard_color_playfield. This
-// profile faithfully restores the retained playercolors/player1colors timing
+// profile preserves the original playercolors/player1colors timing
 // tradeoff: P0 and P1 each have a color table, BL remains available, and M0/M1
 // are deliberately absent.
 

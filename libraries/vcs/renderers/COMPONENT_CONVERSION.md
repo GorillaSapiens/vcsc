@@ -24,8 +24,8 @@ enough to retire them.
 | `standard_4k_ntsc_playercolors` | P0, P1, BL plus per-row P0/P1 colors | 17 bytes | 60 bytes | 77 bytes | 88 bytes |
 
 The two profiles in this table are retained **legacy monolithic profiles**. They
-remain installed because they provide useful compatibility, normalization, linker,
-timing, and upstream-regression coverage. New programs should compose the explicit
+remain installed because they provide useful compatibility, linker, timing,
+and independent regression coverage. New programs should compose the explicit
 lifecycle components below. Retirement of these working profiles is not a completion
 gate for the component roadmap.
 

@@ -14,18 +14,17 @@
 > lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`; there
 > is no active roadmap requirement to retire this working profile.
 
-This directory defines the first source-integration contract for the retained
-standard renderer. It is deliberately narrower than “the standard renderer” as a
-whole. Its original reference cartridge is the non-reflected, unbanked 4K NTSC
+This directory defines the standalone source-integration contract for the
+standard compatibility renderer. It is deliberately narrower than “the standard
+renderer” as a whole. Its original reference cartridge is the non-reflected, unbanked 4K NTSC
 configuration.  The same maintained object is now also certified as a component
 of F8, F6, F4, and F8SC cartridges when the bank-local requirements below are
 followed.
 
-A deterministic source normalizer and checked-in `vcsc-as` output live beside
-this contract. The normalized source assembles independently to a reviewable
-`.o26` object. Linking that object into the first complete cartridge and
-verifying its final placement and scanline timing remain separate integration
-work.
+The checked-in C26/S26 sources are authoritative VCSC source and assemble
+independently to a reviewable `.o26` object. They were originally derived from
+the upstream BASIC standard renderer, but no imported upstream source or generator
+is required to build, test, install, or maintain this profile.
 
 ## Selected configuration
 
@@ -50,51 +49,20 @@ The profile exposes one optional end-of-frame application boundary:
 so an application pays no source-code cost unless it defines the exact
 `void(void)` hook. No other optional renderer feature is enabled.
 
-## Reproducible normalized source
+## Maintained assembly source
 
-The normalization artifacts are:
+The maintained assembly artifacts are:
 
-- `normalize.pl` — the deliberately narrow deterministic translator;
-- `standard_4k_ntsc_macros.inc` — explicit `vcsc-as` ports of `SLEEP`,
-  `VERTICAL_SYNC`, `CLEAN_START`, `SET_POINTER`, and `RETURN`; and
-- `standard_4k_ntsc_renderer.s26` — the selected overscan, visible renderer, and
-  88-byte default score table normalized into current assembler syntax.
+- `standard_4k_ntsc_macros.inc` — explicit `vcsc-as` implementations of
+  `SLEEP`, `VERTICAL_SYNC`, `CLEAN_START`, `SET_POINTER`, and `RETURN`; and
+- `standard_4k_ntsc_renderer.s26` — the overscan, visible renderer, and
+  88-byte default score table in current VCSC assembler syntax.
 
-Regenerate and verify them from the repository root with:
+They are edited and tested directly. The historical import/normalization pipeline
+was retired when the upstream source snapshot was removed; preserving a generator
+for already-maintained VCSC source would add a second source of truth.
 
-```sh
-libraries/vcs/renderers/standard_4k_ntsc/normalize.pl
-libraries/vcs/renderers/standard_4k_ntsc/normalize.pl --check
-```
-
-The normalizer reads only the retained-source boundary listed below, embeds the
-SHA-256 of every input in both outputs, and fails if the selected source
-relationships no longer match. A fresh generation is byte-compared with the
-checked-in files by the test suite. `normalize.pl` is a source-checkout
-development tool and is not installed, because the installed support bundle does
-not carry all retained generator inputs; the generated `.s26` and `.inc` files are
-installed.
-
-The conversion is intentionally not a general DASM-compatibility mode. It
-selects only this profile's active conditional branches, changes bare DASM
-labels to procedure-local `@label:` definitions, binds retained fixed-map names
-to the module symbols, converts forced `.w` addressing to `.a`/`.ax`/`.ay`,
-replaces the selected profile's final `ASR`, `SBX`, and odd-delay `NOP.z` sites
-with scheduled legal instructions, preserves the two retained code-page guards,
-and adds an explicit page boundary before the score table. DASM's address-dependent page-tail `REPEAT` cannot use
-`vcsc-as`'s pre-layout `.repeat`; the normalizer emits a guarded
-`.align 256, $FA, $EA`, which produces the same zero-to-sixteen bytes of NOP
-padding to low byte `$FA` without hand-expanded conditional slots.
-Retained comments are copied without symbol rewriting.
-
-The historical unofficial forms and their task-20r legal replacements are
-recorded in [`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md). A direct source scan finds no unofficial mnemonics, every checked-in profile
-recipe assembles without `--illegals`, and the linked-profile regression rejects
-unofficial instruction bytes even when they are introduced with a raw `opXX`
-spelling. The former empty TSV inventory was retired after the linked-byte gate
-made it redundant.
-
-The normalized source itself now assembles without unofficial mnemonics:
+The maintained source assembles without unofficial mnemonics:
 
 ```sh
 vcsc-as \
@@ -103,15 +71,11 @@ vcsc-as \
   libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26
 ```
 
-That produces an unresolved relocatable renderer object by design.
-The exact standard-renderer regression cartridges live under
-`test/fixtures/vcs_examples/`; user-facing examples are only smoke-built and
-may be edited without changing test harness constants.
-
-`test/fixtures/vcs_examples/05_static_renderer/golden.c26` is the retained complete integration: it links the
-object to module state, enforces final page placement, checks the legalized
-cycle schedule, and has been verified by Stella 7.0 at a stable 262 lines and
-60.0 Hz.
+That produces an unresolved relocatable renderer object by design. The linked
+regressions verify official opcode bytes, page placement, cycle-sensitive source
+contracts, object behavior, and final frame timing. The exact cartridges live
+under `test/fixtures/vcs_examples/`; user-facing examples remain smoke-buildable
+without becoming golden-source fixtures.
 
 ## Source-level inclusion
 
@@ -361,21 +325,15 @@ contractual. A feature may be added only as a later profile revision with
 measured linked ROM bytes, module-declared RAM changes, stack changes, and a
 timing regression.
 
-## Retained-source boundary used by the normalizer
+## Historical source lineage
 
-The deterministic normalizer draws only from these retained inputs:
-
-- `common/macro.h` for `SLEEP`, `VERTICAL_SYNC`, `CLEAN_START`, and
-  `SET_POINTER`;
-- `RETURN` and the active symbol relationships from `common/2600basic.h`;
-- `standard/std_renderer.asm`;
-- `standard/std_overscan.asm`; and
-- the default data from `common/score_graphics.asm`.
-
-The retained startup, footer vectors, generated application fragments,
-playfield helper libraries, vertical-reflect source, status-bar source,
-multisprite source, and bank/Superchip manifests are excluded. The retained
-source tree remains untouched; adapted files live beside this contract.
+This profile was originally derived from the upstream BASIC standard renderer and
+then progressively adapted to VCSC allocation, linking, legal-opcode, and timing
+contracts. The imported upstream snapshot and deterministic conversion scripts
+are no longer part of the tree. The checked-in C26, S26, and macro sources in
+this directory are the maintained source of truth. Behavioral and cycle-sensitive
+regressions preserve the useful compatibility contract without retaining an
+obsolete upstream source dependency.
 
 ## Application sprite and projectile notes
 

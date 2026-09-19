@@ -54,7 +54,6 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc_playercolors));
 my $contract=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors.c26');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors_renderer.s26');
-my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $static_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 07_playercolor_static golden.c26));
 my $motion_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 08_playercolor_motion golden.c26));
 my $static_bin=File::Spec->catfile($tmp,'playercolor_static_test.bin');
@@ -62,11 +61,7 @@ my $static_map=File::Spec->catfile($tmp,'playercolor_static_test.map');
 my $motion_bin=File::Spec->catfile($tmp,'playercolor_motion_test.bin');
 my $motion_map=File::Spec->catfile($tmp,'playercolor_motion_test.map');
 
-my($rc,$sig,$out,$err)=capture($^X,$normalizer,'--check');
-$rc==0 && !$sig or die "player-color normalization check failed\n$out$err";
-$out eq "standard_4k_ntsc_playercolors normalization current\n"
-   or die "unexpected normalizer output: $out";
-$err eq '' or die "normalizer wrote stderr: $err";
+my($rc,$sig,$out,$err);
 
 # The standalone renderer must assemble with only the official opcode table.
 my $renderer_object=File::Spec->catfile($tmp,'standard_4k_ntsc_playercolors_renderer.o26');

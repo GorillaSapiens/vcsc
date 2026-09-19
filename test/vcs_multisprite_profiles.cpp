@@ -1,4 +1,4 @@
-//! @file vcs_faithful_legacy_compare.cpp
+//! @file vcs_multisprite_profiles.cpp
 //! @brief Compare visible TIA writes and stable frame spacing from two 4K VCS cartridges.
 
 #include <cstdint>

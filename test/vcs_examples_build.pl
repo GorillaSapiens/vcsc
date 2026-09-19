@@ -51,7 +51,6 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 -f $roundtrip or die "missing disassembler round-trip verifier $roundtrip\n";
-my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_multisprite));
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;
 sub source_closure_text {
@@ -216,10 +215,6 @@ for my $entry (@examples) {
       # C26 owns cartridge and cartridge-RAM topology.
    } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
-   } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
-      push @extra,'-Wa,--illegals';
-   } elsif ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
-      push @extra,'-nostdlib','-Wa,--illegals';
    } elsif ($file =~ /\Amultisprite_.*\.c26\z/ ||
             $source_text =~ /instantiate\s+"renderers\/multisprite\/multisprite\.c26"/) {
       push @extra,'-Wa,--illegals';
@@ -245,12 +240,7 @@ for my $entry (@examples) {
       push @renderer,File::Spec->catfile(
          $vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
    }
-   if ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
-      push @renderer,
-         File::Spec->catfile($source_dir,'faithful_legacy_multisprite_diagnostic_data.s26'),
-         File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_renderer.s26'),
-         File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_startup.s26');
-   } elsif ($file eq 'vcsc_diagnostic.c26') {
+   if ($file eq 'vcsc_diagnostic.c26') {
       push @renderer,File::Spec->catfile($source_dir,'diagnostic_boot.s26');
    } elsif (defined($local_startup)) {
       push @renderer,$local_startup;

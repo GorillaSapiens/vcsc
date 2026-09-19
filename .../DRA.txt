@@ -436,5 +436,5 @@ quickly; later slices depend on exact contracts proven by earlier ones.
 
 Immediate next step
 -------------------
-The DRA workstream is complete. Resume the main roadmap at Item 57 in
+The DRA workstream is complete. Resume the main roadmap at Item 59 in
 `.../roadmap.txt` when DRA is no longer the selected workstream.

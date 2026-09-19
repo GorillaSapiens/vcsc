@@ -484,8 +484,8 @@ Use existing profiles as focused examples rather than copying one wholesale:
   ROM is traded for exact visible timing;
 - `multisprite/`: branch-page annotations, hidden stack accounting, multiplexing,
   and 181/192 parameterized composition;
-- `standard_4k_ntsc/`: deterministic legacy-source normalization, linker object
-  placement, hidden stack, and retained monolithic compatibility contract;
+- `standard_4k_ntsc/`: maintained standalone assembly, linker object placement,
+  hidden stack, and monolithic compatibility contract;
 - the six-glyph and two-plus-two score components in `libraries/vcs/`: compact
   font/page placement, delayed-player pipelines, mutable versus fixed caller
   state, and score-specific TIA ownership.

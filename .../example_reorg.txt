@@ -23,10 +23,8 @@ Use these rules:
   (192/181/170/228) is an implementation/composition detail and normally does
   not appear in the path.  `no_score`, `score_above`, `score_below`, and
   `score_above_and_below` describe the visible composition instead.
-* Renderer identities remain peers.  In particular `faithful_legacy_player_color`
-  is not a subtype of `player_color`; `faithful_legacy_multisprite` is not a
-  subtype of `multisprite`; and `all_five_unofficial` is a different renderer
-  from `all_five`.  The same rule keeps `player_color_unofficial` separate from
+* Renderer identities remain peers. `all_five_unofficial` is a different
+  renderer from `all_five`, and `player_color_unofficial` remains separate from
   `player_color`.
 * `05_video_standards` exists specifically to compare NTSC/PAL/SECAM behavior.
   It is organized by demonstration first and standard second so the three
@@ -72,9 +70,6 @@ examples/
 │   └── driving/
 │
 ├── 04_renderers/
-│   ├── faithful_legacy_player_color/
-│   ├── faithful_legacy_multisprite/
-│   │
 │   ├── player_color/
 │   │   ├── no_score/
 │   │   ├── animated_sprites/
@@ -240,10 +235,6 @@ moves.
 * `01_basic/09_paddleball`, `10_four_player_paddleball`, `13_tanks`
   -> `06_games/`.  They are games, not controller tutorials.
 * `01_basic/05_fingerprint` -> `07_diagnostics/6507_fingerprint`.
-* `02_faithful_legacy_playercolors` ->
-  `04_renderers/faithful_legacy_player_color`.
-* `10_faithful_legacy_multisprite` ->
-  `04_renderers/faithful_legacy_multisprite`.
 * `03_player_color_192` -> `04_renderers/player_color/no_score` plus
   `04_renderers/player_color/animated_sprites`.
 * `04_player_color_181` -> the official `player_color` score-above/score-below

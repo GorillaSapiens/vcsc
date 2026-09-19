@@ -26,5 +26,5 @@ my@portable=(
 for my$rel(@portable){my$p=File::Spec->catfile($vcs,split('/', $rel));my$s=read_file($p);$s=~ /TEMPLATE_VISIBLE_SCANLINES/ or die"$rel lacks visible-line contract\n";my$c=$s;$c=~s{//[^\n]*}{}g;$c=~s{/\*.*?\*/}{}gs;$c!~ /\b(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT)\b/ or die"$rel touches frame-owned state\n";}
 my$doc=read_file(File::Spec->catfile($vcs,'VIDEO_STANDARDS.md'));
 for my$rel(@portable){$doc=~ /\Q$rel\E/ or die"portability doc omits $rel\n";}
-for my$rel(qw(renderers/standard_4k_ntsc/ renderers/standard_4k_ntsc_playercolors/ renderers/faithful_legacy_multisprite/ renderers/faithful_legacy_playercolors/)){$doc=~ /\Q$rel\E/ or die"portability doc omits NTSC-only $rel\n";}
+for my$rel(qw(renderers/standard_4k_ntsc/ renderers/standard_4k_ntsc_playercolors/)){$doc=~ /\Q$rel\E/ or die"portability doc omits NTSC-only $rel\n";}
 print "vcs_video_standard_portability ok\n";

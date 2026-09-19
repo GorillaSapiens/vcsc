@@ -31,7 +31,7 @@ instantiate "renderers/all_five/all_five.c26" as game (lines:=228)
 
 // These source rows are intentionally bottom-to-top. The maintained renderers
 // reverse macro arguments for highest-index-to-zero traversal, so this makes
-// the displayed sprites match the faithful legacy interactive example.
+// the displayed sprites use the standard interactive orientation.
 // Four-frame versions of the two standard interactive-example sprites.
 // Frame zero is the original artwork; the frame is selected from X/Y.
 page const uint8_t p0_animation[32] := {

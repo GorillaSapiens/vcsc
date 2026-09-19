@@ -28,7 +28,6 @@ find({
       my $path = $File::Find::name;
       my $rel = File::Spec->abs2rel($path, $repo);
       return if $rel =~ m{^\.\.\.(?:/|$)};
-      return if $rel =~ m{^libraries/vcs/legacy-basic-renderers(?:/|$)};
       push @bad, $rel if $rel =~ /\.s\z/;
    },
 }, $repo);
