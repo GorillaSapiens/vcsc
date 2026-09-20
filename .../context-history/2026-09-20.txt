@@ -34,3 +34,19 @@ renderer contract, while positive counts use instance-qualified
 `TEMPLATE_playfield_colors[N*2]` and `TEMPLATE_playfield_data[N*6]` arrays.
 `.../stripes.txt` owns the staged one-renderer-at-a-time plan, starting with
 `all_five` and including timing, Stella, examples, install, and public docs.
+
+2026-09-20 13:06:32 PDT, consolidate renderer stripe roadmap
+Expanded item 57's design checkpoint before implementation.  The roadmap now
+creates `libraries/vcs/components/` for reusable lifecycle/score/display
+components (including `poison_debug_score`), consolidates the duplicated modern
+gameplay renderer profiles behind compile-time feature selection, retires the
+unofficial variants after preserving useful coverage, and retires the two
+legacy `standard_4k_ntsc*` monolithic profiles after migrating any unique
+behavioral coverage.  `multisprite` and `enhanced_multisprite_asymmetric` remain
+separate renderer architectures and receive the same stripe ABI later.
+
+The stripe ABI itself is unchanged: `stripes:=0` is the zero-cost compatibility
+path; positive counts use instance-qualified playfield color/data arrays and
+fixed screen-space stripe boundaries.  The roadmap is deliberately flat so each
+migration/refactor/certification step is a bounded checkpoint.  S2, moving
+reusable components without behavior changes, is now the next action.

@@ -22,11 +22,12 @@ Current next action: Item 57, add renderer playfield/color stripes.
 
 [ ] 57. Add playfield/color stripes as an explicit renderer capability.
 
-        * `.../stripes.txt` owns the active ABI, staged renderer-by-renderer
-          roadmap, timing/compatibility invariants, documentation, and
-          acceptance criteria.
-        * Start with `renderers/all_five/all_five.c26`; do not bulk-convert the
-          other renderer families before that schedule is independently proven.
+        * `.../stripes.txt` owns the active ABI, renderer/component consolidation
+          roadmap, timing/compatibility invariants, documentation, and acceptance
+          criteria.
+        * Consolidate the duplicated gameplay-renderer family first, preserving
+          each established schedule as a compile-time specialization; implement
+          stripes once that unified renderer is certified.
 
 [ ] 58. Add a public side-scroller/platform example.
 

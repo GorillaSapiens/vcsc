@@ -89,12 +89,13 @@ Open workstreams
    maintained scheduler invariants and next allocator-quality work.
 
 2. **Main roadmap**
-   `.../roadmap.txt` contains only unfinished main items. Item 57 is active:
-   compile-time vertical playfield/color stripes, implemented and certified one
-   renderer family at a time beginning with `all_five`. `.../stripes.txt` owns
-   its detailed ABI and staged roadmap. Item 58 follows after stripes. Completed
-   placement/compiler cleanup is owned by executable regressions and dated
-   history rather than this hot file.
+   `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
+   `.../stripes.txt` now begins with renderer/component consolidation: create
+   `libraries/vcs/components/`, collapse the duplicated gameplay-renderer family
+   into one compile-time-specialized renderer, retire the unofficial and legacy
+   monolithic profiles after preserving useful coverage, then implement vertical
+   playfield/color stripes once in the unified renderer before extending the same
+   ABI to the distinct multisprite renderers. Item 58 follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -234,6 +235,7 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S2: prove the cycle/storage feasibility of
-`all_five(lines:=192, stripes:=3)` with an asymmetric PF0/PF1/PF2 and PF/BK
-stripe fixture before changing the other renderer families.
+Execute `.../stripes.txt` S2: create `libraries/vcs/components/`, move the
+reusable component sources (including `poison_debug_score`) there without
+behavior changes, and update all callers/manifests/docs before renderer
+consolidation begins.
