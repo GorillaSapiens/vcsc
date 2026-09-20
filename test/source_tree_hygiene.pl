@@ -1006,6 +1006,7 @@ my %hot_limits=(
    'README.md' => 8*1024,
    'context.txt' => 16*1024,
    'roadmap.txt' => 12*1024,
+   'stripes.txt' => 12*1024,
    'bankswitching.txt' => 16*1024,
    '3ex.txt' => 12*1024,
    'disassembler.txt' => 16*1024,

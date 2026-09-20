@@ -27,3 +27,10 @@ Regenerated `standard_4k_ntsc_timing_inventory.tsv` with its authoritative
 are unchanged; every recorded source line moved by -8.  Focused play-contract,
 timing-inventory, source-tree-hygiene, and bankswitching Makefile-dependency
 checks pass.  Full e2e was not rerun after this correction.
+
+2026-09-20 12:07:18 PDT, define renderer stripe roadmap
+Roadmap item 57 now uses compile-time `stripes`; `stripes:=0` preserves the old
+renderer contract, while positive counts use instance-qualified
+`TEMPLATE_playfield_colors[N*2]` and `TEMPLATE_playfield_data[N*6]` arrays.
+`.../stripes.txt` owns the staged one-renderer-at-a-time plan, starting with
+`all_five` and including timing, Stella, examples, install, and public docs.

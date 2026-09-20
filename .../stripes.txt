@@ -1,0 +1,89 @@
+VCSC RENDERER STRIPES ROADMAP
+=============================
+
+Goal
+----
+Implement roadmap item 57 one renderer at a time, starting with
+`renderers/all_five/all_five.c26`.
+
+Public ABI
+----------
+Participating renderers gain:
+
+    parameter stripes := 0;
+
+`stripes:=0` is the existing compatibility path: same caller data, raster,
+timing, ROM/RAM accounting, and no stripe arrays.
+
+For `stripes:=N`, N > 0, an instance `as game` requires:
+
+    game_playfield_colors[N * 2]
+    game_playfield_data[N * 6]
+
+Inside the template these are `TEMPLATE_playfield_colors` and
+`TEMPLATE_playfield_data`. Layout:
+
+    colors[n*2+0] = COLUPF       colors[n*2+1] = COLUBK
+    data[n*6+0] = left PF0       data[n*6+3] = right PF0
+    data[n*6+1] = left PF1       data[n*6+4] = right PF1
+    data[n*6+2] = left PF2       data[n*6+5] = right PF2
+
+PF bytes are raw TIA register values. Storage/page/alignment rules are
+renderer-specific and must be measured before documentation.
+
+Stripes are fixed screen-space bands. For L visible lines, stripe i owns:
+
+    floor(i*L/N) .. floor((i+1)*L/N)-1
+
+Thus `lines:=192, stripes:=3` is 64/64/64. With `stripes>0`, these arrays are
+the playfield/color source; do not also require redundant legacy packed data.
+Unconverted line profiles must reject `stripes>0` explicitly.
+
+Invariants
+----------
+* Left/right PF0/PF1/PF2 are independent; do not reduce this to reflection.
+* Boundaries change COLUPF, COLUBK and all six PF values at the documented line.
+* Object state, visible-line count, handoffs, and scheduler ownership are stable.
+* Beam-critical write phases must be measured; equal total cycles are not proof.
+* `stripes:=0` compiles the feature away and requires no dummy arrays.
+
+Steps
+-----
+
+S1. Contract checkpoint (current)
+    Record this ABI/geometry and point item 57 here. No renderer code changes.
+
+S2. `all_five`, 192-line feasibility
+    Build a hostile `lines:=192, stripes:=3` fixture with distinct colors and
+    asymmetric nonzero PF0/PF1/PF2. Measure legal write slots and derive array
+    mutability/placement/alignment from the measured schedule.
+
+S3. `all_five`, 192-line implementation
+    Add `stripes:=0`; preserve the old zero path. Positive stripes use compile-
+    time boundaries with no runtime divide or per-scanline mode test.
+
+S4. `all_five`, 192-line certification
+    Add API/rejection, frame/TIA-phase, simulator/Stella stripe raster, five-
+    object motion, and `stripes:=0` byte/ROM/RAM/raster compatibility tests.
+
+S5. Finish `all_five`
+    Extend independently to `lines:=228`, `181`, and `170`. Include a
+    non-divisible 228-line case and preserve the 181/170 score handoffs. Each
+    profile needs its own timing/raster proof.
+
+S6. `all_five` public/docs closeout
+    Add/adapt a public stripe example. Document names, layout, boundaries,
+    storage, costs and line profiles in the renderer README; update catalogs,
+    test docs, AUTHORING guidance and package/install manifests as applicable.
+
+S7. Repeat one renderer at a time
+    After `all_five` is clean, use the same feasibility -> implementation ->
+    certification -> documentation sequence for: `player_color`,
+    `all_five_unofficial`, `all_five_player_color_192`,
+    `all_five_player_color_181`, `multisprite`, then
+    `enhanced_multisprite_asymmetric`. Review compatibility/specialized
+    renderers explicitly rather than casually changing their ABI.
+
+Item 57 closes only after every chosen renderer is implemented/documented,
+nonparticipants are explicitly classified, examples/install payloads are
+coherent, and the normal compile/e2e/Stella suite is clean.

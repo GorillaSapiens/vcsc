@@ -44,6 +44,11 @@ every turn.
 Only unfinished main-project roadmap items and their acceptance criteria.
 Completed main-roadmap material is historical.
 
+### `stripes.txt`
+
+Focused roadmap and public ABI contract for main-roadmap item 57 renderer
+playfield/color stripes. Read it only while that workstream is active.
+
 ### `DRA.txt`
 
 Design-only Direct Register Access contract and unfinished implementation roadmap.

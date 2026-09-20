@@ -89,11 +89,12 @@ Open workstreams
    maintained scheduler invariants and next allocator-quality work.
 
 2. **Main roadmap**
-   `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 57 playfield-color renderer support, followed by the
-   side-scroller/platform example.
-   Completed placement/compiler cleanup is owned by executable regressions and
-   dated history rather than this hot file.
+   `.../roadmap.txt` contains only unfinished main items. Item 57 is active:
+   compile-time vertical playfield/color stripes, implemented and certified one
+   renderer family at a time beginning with `all_five`. `.../stripes.txt` owns
+   its detailed ABI and staged roadmap. Item 58 follows after stripes. Completed
+   placement/compiler cleanup is owned by executable regressions and dated
+   history rather than this hot file.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -233,6 +234,6 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Have the mapper diagnostics rechecked manually from fresh `make play` builds.
-`3ex_max` is expected to remain limited by Stella's documented >64K 3EX RAM-offset
-bug.
+Execute `.../stripes.txt` S2: prove the cycle/storage feasibility of
+`all_five(lines:=192, stripes:=3)` with an asymmetric PF0/PF1/PF2 and PF/BK
+stripe fixture before changing the other renderer families.

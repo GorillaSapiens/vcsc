@@ -18,16 +18,15 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 57, add playfield-color support as an explicit renderer capability.
+Current next action: Item 57, add renderer playfield/color stripes.
 
-[ ] 57. Add playfield-color support as an explicit renderer capability.
+[ ] 57. Add playfield/color stripes as an explicit renderer capability.
 
-        * Define whether colors are global, per logical row, or both.
-        * Schedule every COLUPF write against the beam.
-        * Preserve existing renderer output when the feature is unused.
-        * Expose a clear application data/API contract.
-        * Add static, motion, transition, installation, and pixel/color-oracle
-          coverage for every supported profile.
+        * `.../stripes.txt` owns the active ABI, staged renderer-by-renderer
+          roadmap, timing/compatibility invariants, documentation, and
+          acceptance criteria.
+        * Start with `renderers/all_five/all_five.c26`; do not bulk-convert the
+          other renderer families before that schedule is independently proven.
 
 [ ] 58. Add a public side-scroller/platform example.
 
