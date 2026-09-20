@@ -14,6 +14,7 @@
 #endif
 
 #include "ast.h"
+#include "builtin_rgb.h"
 #include "compile.h"
 #include "dra.h"
 #include "compile_inline_inliner.h"
@@ -36,6 +37,7 @@ static void opt_define(char *);
 static void opt_peephole(char *);
 static void opt_no_peephole(char *);
 static void opt_listing_provenance(char *);
+static void opt_stella_palette(char *);
 static void opt_inline_select(char *);
 static void opt_inline_candidates(char *);
 static void opt_inline_prune_dead(char *);
@@ -80,6 +82,16 @@ static void opt_no_peephole(char *unused) {
 static void opt_listing_provenance(char *unused) {
    (void) unused;
    set_listing_provenance_enabled(true);
+}
+
+//! @brief Load one Stella combined NTSC/PAL/SECAM palette for RGB builtins.
+static void opt_stella_palette(char *path) {
+   char error[512];
+
+   if (!builtin_rgb_load_stella_palette(path, error, sizeof(error))) {
+      fprintf(stderr, "%s: %s\n", arg0, error);
+      exit(1);
+   }
 }
 
 //! @brief Select one optimizer-inline candidate already approved by the final-link driver.
@@ -154,6 +166,7 @@ static struct option_def options[] = {
    { 0, "fpeephole", NULL, "enable compiler assembly peephole optimization (default)", opt_peephole },
    { 0, "fno-peephole", NULL, "disable all compiler assembly peephole rewrites", opt_no_peephole },
    { 0, "flisting-provenance", NULL, "internal: preserve C26 source locations for linked listings", opt_listing_provenance },
+   { 0, "stella-palette", "file", "use Stella combined 792-byte palette for RGB builtins", opt_stella_palette },
    { 0, "finline-select", "name", "internal: select one measured optimizer-inline candidate", opt_inline_select },
    { 0, "finline-candidates", "file", "internal: write legal optimizer-inline candidates", opt_inline_candidates },
    { 0, "finline-prune-dead", NULL, "internal: remove safe unreachable internal functions", opt_inline_prune_dead },

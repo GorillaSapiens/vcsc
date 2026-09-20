@@ -207,6 +207,13 @@ palettes are approximations: real hardware, televisions, capture equipment, and
 emulator settings can render different RGB values. These builtins are source
 color conveniences, not promises about a particular display.
 
+`vcsc-cc1 --stella-palette FILE` replaces those three reference tables for the
+current compilation with Stella's combined 792-byte user-palette format: 384
+bytes of NTSC RGB triples, 384 bytes of PAL RGB triples, then 24 bytes for the
+eight SECAM colors. The public `vcsc` driver accepts the same option and forwards
+it to every C26 compilation stage. Omitting the option preserves the compiled-in
+tables exactly. Files must be readable and exactly 792 bytes.
+
 `builtin.c` contains the name/type/arity/argument-contract registry and shared
 dispatch used by both the parser and conditional preprocessor. Domain-specific
 evaluators live in `builtin_rgb.c`, which owns the reference tables and reusable

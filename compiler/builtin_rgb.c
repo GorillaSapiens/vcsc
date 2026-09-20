@@ -3,15 +3,17 @@
 //! @ingroup compiler
 
 #include <stdbool.h>
+#include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "builtin_rgb.h"
 
 /* Stella-compatible NTSC reference RGB palette used by the VCS color include.
- * The triplets match the NTSC table published with the retained legacy BASIC
- * playfield editor. Odd TIA values select the same color as the preceding even value, so
- * only the 128 meaningful even values are represented here. */
+ * Odd TIA values select the same color as the preceding even value, so only the
+ * 128 meaningful even values are represented here. */
 static const BuiltinRgbColor ntsc_palette[] = {
    {0x00,0x00,0x00,0x00}, {0x02,0x3f,0x3f,0x3e}, {0x04,0x64,0x64,0x63}, {0x06,0x84,0x84,0x83},
    {0x08,0xa2,0xa2,0xa1}, {0x0a,0xba,0xba,0xb9}, {0x0c,0xd2,0xd2,0xd1}, {0x0e,0xea,0xea,0xe9},
@@ -99,6 +101,89 @@ static const BuiltinRgbColor secam_palette[] = {
    {0x0e,0xff,0xff,0xff}
 };
 
+enum {
+   STELLA_NTSC_COLORS = 128,
+   STELLA_PAL_COLORS = 128,
+   STELLA_SECAM_COLORS = 8,
+   STELLA_PALETTE_BYTES = (STELLA_NTSC_COLORS + STELLA_PAL_COLORS +
+                           STELLA_SECAM_COLORS) * 3
+};
+
+static BuiltinRgbColor override_ntsc_palette[STELLA_NTSC_COLORS];
+static BuiltinRgbColor override_pal_palette[STELLA_PAL_COLORS];
+static BuiltinRgbColor override_secam_palette[STELLA_SECAM_COLORS];
+static bool override_palette_loaded = false;
+
+static void palette_error(char *out, size_t out_size, const char *path,
+                          const char *message) {
+   if (out && out_size) {
+      snprintf(out, out_size, "Stella palette '%s': %s",
+               path ? path : "", message);
+   }
+}
+
+bool builtin_rgb_load_stella_palette(const char *path, char *error_out,
+                                     size_t error_out_size) {
+   unsigned char data[STELLA_PALETTE_BYTES + 1];
+   FILE *fp;
+   size_t count;
+   size_t offset = 0;
+
+   if (!path || !*path) {
+      palette_error(error_out, error_out_size, path, "empty filename");
+      return false;
+   }
+
+   fp = fopen(path, "rb");
+   if (!fp) {
+      char message[256];
+      snprintf(message, sizeof(message), "could not read file: %s", strerror(errno));
+      palette_error(error_out, error_out_size, path, message);
+      return false;
+   }
+   count = fread(data, 1, sizeof(data), fp);
+   if (ferror(fp)) {
+      char message[256];
+      snprintf(message, sizeof(message), "could not read file: %s", strerror(errno));
+      fclose(fp);
+      palette_error(error_out, error_out_size, path, message);
+      return false;
+   }
+   fclose(fp);
+
+   if (count != STELLA_PALETTE_BYTES) {
+      char message[128];
+      if (count > STELLA_PALETTE_BYTES) {
+         snprintf(message, sizeof(message),
+                  "file is longer than %d bytes", STELLA_PALETTE_BYTES);
+      }
+      else {
+         snprintf(message, sizeof(message),
+                  "expected %d bytes, got %zu", STELLA_PALETTE_BYTES, count);
+      }
+      palette_error(error_out, error_out_size, path, message);
+      return false;
+   }
+
+   for (size_t i = 0; i < STELLA_NTSC_COLORS; i++, offset += 3) {
+      override_ntsc_palette[i] = (BuiltinRgbColor){
+         (uint8_t)(i * 2), data[offset], data[offset + 1], data[offset + 2]
+      };
+   }
+   for (size_t i = 0; i < STELLA_PAL_COLORS; i++, offset += 3) {
+      override_pal_palette[i] = (BuiltinRgbColor){
+         (uint8_t)(i * 2), data[offset], data[offset + 1], data[offset + 2]
+      };
+   }
+   for (size_t i = 0; i < STELLA_SECAM_COLORS; i++, offset += 3) {
+      override_secam_palette[i] = (BuiltinRgbColor){
+         (uint8_t)(i * 2), data[offset], data[offset + 1], data[offset + 2]
+      };
+   }
+   override_palette_loaded = true;
+   return true;
+}
+
 bool builtin_rgb_nearest(const BuiltinRgbColor *palette, size_t count,
                          long long r, long long g, long long b,
                          long long *value_out) {
@@ -128,21 +213,24 @@ bool builtin_rgb_nearest(const BuiltinRgbColor *palette, size_t count,
 
 bool builtin_ntsc_rgb_eval(long long r, long long g, long long b,
                            long long *value_out) {
-   return builtin_rgb_nearest(ntsc_palette,
-                              sizeof(ntsc_palette) / sizeof(ntsc_palette[0]),
-                              r, g, b, value_out);
+   const BuiltinRgbColor *palette = override_palette_loaded ? override_ntsc_palette : ntsc_palette;
+   size_t count = override_palette_loaded ? STELLA_NTSC_COLORS :
+                  sizeof(ntsc_palette) / sizeof(ntsc_palette[0]);
+   return builtin_rgb_nearest(palette, count, r, g, b, value_out);
 }
 
 bool builtin_pal_rgb_eval(long long r, long long g, long long b,
                           long long *value_out) {
-   return builtin_rgb_nearest(pal_palette,
-                              sizeof(pal_palette) / sizeof(pal_palette[0]),
-                              r, g, b, value_out);
+   const BuiltinRgbColor *palette = override_palette_loaded ? override_pal_palette : pal_palette;
+   size_t count = override_palette_loaded ? STELLA_PAL_COLORS :
+                  sizeof(pal_palette) / sizeof(pal_palette[0]);
+   return builtin_rgb_nearest(palette, count, r, g, b, value_out);
 }
 
 bool builtin_secam_rgb_eval(long long r, long long g, long long b,
                             long long *value_out) {
-   return builtin_rgb_nearest(secam_palette,
-                              sizeof(secam_palette) / sizeof(secam_palette[0]),
-                              r, g, b, value_out);
+   const BuiltinRgbColor *palette = override_palette_loaded ? override_secam_palette : secam_palette;
+   size_t count = override_palette_loaded ? STELLA_SECAM_COLORS :
+                  sizeof(secam_palette) / sizeof(secam_palette[0]);
+   return builtin_rgb_nearest(palette, count, r, g, b, value_out);
 }

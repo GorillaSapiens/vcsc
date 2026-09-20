@@ -90,9 +90,8 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 59, Stella palette-file support for RGB builtins,
-   followed by Item 57 playfield-color renderer support and the side-scroller/
-   platform example.
+   work begins with Item 57 playfield-color renderer support, followed by the
+   side-scroller/platform example.
    Completed placement/compiler cleanup is owned by executable regressions and
    dated history rather than this hot file.
    Active workstream: `.../roadmap.txt`.
@@ -216,51 +215,17 @@ acceptance gates.
 
 Last validation state
 ---------------------
-The last broad user run after the startup/mirror/disassembler work reached 389/393
-e2e tests: only the player-color Y-calibration contracts failed.  Those four
-reported failures are now fixed at the root.  Equal public P0/P1 Y coordinates
-use the same visible origin in the 192/228-line `player_color`,
-`all_five_player_color`, `all_five`, and `all_five_unofficial` paths; the stale
-P1 +1-pair bias is gone.  The reviewed player-color Stella raster and the
-coordinate-aware animation/orientation oracles were updated accordingly.
-Focused certification passes for the four formerly failing tests, all-five 192,
-all-five 228, all-five unofficial profiles, all-five-player-color 192,
-player-color 192, pinned Stella player-color/all-five equivalence, and the PAL/
-SECAM 228 matrix plus full video-standard Stella examples.  A fresh whole-suite
-rerun has not yet been performed after this renderer correction.
+Item 59 is complete: `vcsc` and `vcsc-cc1` accept `--stella-palette FILE` in
+Stella's combined 792-byte NTSC/PAL/SECAM format, and the three RGB builtins use
+their corresponding slices.  The built-in tables remain the exact default.
+The checked-in Stella palette is regression-tested as code-generation-equivalent
+to those defaults; custom-slice selection and bad-file diagnostics are covered.
+All 583 compile/unit tests pass after the change, plus the focused palette and
+tool-option e2e regressions.  The full e2e suite has not been rerun for Item 59.
 
-The earlier mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
+The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
-and canonical disassembler mirror spelling such as `COLUBK + $40`.  Focused
-mapper/disassembler regressions were clean before the player-color change.
-
-Since that baseline, the public joystick, paddle, and driving-controller tutorials
-were simplified into direct visual demonstrations. Joystick uses independently
-controlled red P0 and blue P1 sprites on black, with the centered 4x4 square and the
-requested fire outline in matched 8-row bitmaps. Paddle shows four equally spaced
-white 2x8 P0/M0/M1/P1 markers at X=20,60,100,140; paddle 0..3 move them vertically
-and each becomes alternating-scanline dotted while its button is held. Driving keeps
-its P0/P1 hexadecimal accumulated-rotation display and now adds M0/M1 as 4x4 dots
-moving through 16 clockwise/counterclockwise orbit positions around the matching
-glyph; fire changes both the glyph and its inherited-color missile from white to red.
-The driving orbit uses a fixed 48-line visible scene and native 4-pixel missile width.
-M0/M1 horizontal positions are established during VBLANK; vertical missile-enable
-boundaries are prepared in RAM one scanline ahead and copied to ENAM0/1 immediately
-after WSYNC. This keeps the far-left B/C orbit positions from being clipped by a
-mid-scanline enable write. Stella 7 forced-phase captures verify full 4x4 left-side
-dots at both B and C.
-Focused source/build/controller regressions, source-tree hygiene, the 33-source
-assembly allowlist, affected recursive public-example shards, and Stella visual
-geometry checks cover these tutorial changes; the current full-suite result above
-now supersedes the earlier focused-only checkpoint.
-The ER1-ER25 example reorganization is complete. Final ER25 certification covers
-all 110 recursively discovered editable cartridge entry points through the
-direct-driver compile/link/disassembly round-trip verifier and all 116 public
-Makefile leaves through `make clean` + `make all`. The seven public purpose
-categories plus non-runnable `_common` are enforced by the reorg inventory; no
-retired numbered top-level group or `01_interactive` shell remains. Installcheck,
-install/release payload regressions, the complete 18-cell NTSC/PAL/SECAM Stella
-matrix, and the relocated bankswitching Stella profiles pass.
+and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------

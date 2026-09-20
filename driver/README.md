@@ -22,6 +22,7 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `--no-map`, `--no-sym`, `--no-list`, and `--no-cfg` sidecar suppression
 - `-Wc,...`, `-Wa,...`, `-Wl,...` and `-Xcompiler`, `-Xassembler`, `-Xlinker` for stage-specific arguments
 - `-fno-peephole` to disable compiler assembly peephole rewrites, and `-fpeephole` to re-enable them
+- `--stella-palette FILE` to use Stella's combined 792-byte NTSC/PAL/SECAM palette for compile-time RGB builtins
 - automatic single-callsite ref/readonly-parameter specialization during compilation; `-finline-profit` additionally enables measured whole-program inlining/dead pruning at final link
 - `-v` and `-###` to print the subordinate commands
 
@@ -52,6 +53,11 @@ RAM regresses. The trial loop is opt-in because each candidate requires real
 recompile/assemble/link measurements and can materially increase build time on
 large source/example sets. It is silent unless `-v` is used. `-c` and `-S` do not
 run final-link profitability trials.
+
+`--stella-palette FILE` is a compiler-stage option. It is forwarded to every
+C26 translation unit, where `__builtin_ntsc_rgb`, `__builtin_pal_rgb`, and
+`__builtin_secam_rgb` use the corresponding slices of Stella's combined 792-byte
+user palette. Without the option, the compiler uses its built-in canonical tables.
 
 Intermediate `.s26` and `.o26` files live in a private `vcsc.XXXXXX` directory under `$TMPDIR`, or `/tmp` when `TMPDIR` is unset. The driver removes that directory on both successful completion and normal failing exits from any pipeline stage.
 

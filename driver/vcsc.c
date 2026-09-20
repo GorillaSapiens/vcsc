@@ -87,6 +87,7 @@ typedef struct {
    bool no_list;
    bool no_cfg;
    bool inline_profit;
+   const char *stella_palette;
    strvec_t include_dirs;
    strvec_t lib_dirs;
    strvec_t libs;
@@ -451,6 +452,7 @@ static void usage(FILE *fp)
       "  -fpeephole           Enable compiler peephole optimization (default)\n"
       "  -fno-peephole        Disable compiler peephole optimization\n"
       "  -finline-profit      Enable measured whole-program inlining/dead pruning\n"
+      "  --stella-palette FILE Use Stella combined 792-byte palette for RGB builtins\n"
       "  -L DIR               Add DIR to archive search path for -l\n"
       "  -lNAME               Link archive NAME (tries libNAME.l26 then NAME.l26)\n"
       "  -nostdlib            Do not link default runtime libraries automatically\n"
@@ -1100,6 +1102,18 @@ static void parse_args(int argc, char **argv, driver_options_t *opt,
          opt->no_cfg = true;
          continue;
       }
+      if (strcmp(arg, "--stella-palette") == 0) {
+         if (++i >= argc)
+            die("missing argument for --stella-palette");
+         opt->stella_palette = argv[i];
+         continue;
+      }
+      if (strncmp(arg, "--stella-palette=", 17) == 0) {
+         if (arg[17] == '\0')
+            die("missing argument for --stella-palette");
+         opt->stella_palette = arg + 17;
+         continue;
+      }
       if (strcmp(arg, "-fpeephole") == 0 || strcmp(arg, "-fno-peephole") == 0) {
          strvec_push(&opt->cc_extra, arg);
          continue;
@@ -1201,6 +1215,20 @@ static bool defines_have_consumer(const driver_options_t *opt)
    return false;
 }
 
+//! @brief Return whether a requested Stella palette will reach a C26 compile stage.
+static bool stella_palette_has_consumer(const driver_options_t *opt)
+{
+   size_t i;
+
+   if (!opt->stella_palette)
+      return true;
+   for (i = 0; i < opt->inputs.count; ++i)
+      if (opt->inputs.items[i].kind == INPUT_VCSC)
+         return true;
+   return false;
+}
+
+
 //! @brief Add include flags to driver pipeline state, growing storage or preserving uniqueness as needed.
 static void add_include_flags(strvec_t *cmd, const strvec_t *dirs)
 {
@@ -1273,6 +1301,10 @@ static void run_cc_variant(const char *cc_path, const driver_options_t *opt,
          strvec_push(&cmd, "-finline-select");
          strvec_push(&cmd, inline_selected->items[i]);
       }
+   }
+   if (opt->stella_palette) {
+      strvec_push(&cmd, "--stella-palette");
+      strvec_push(&cmd, opt->stella_palette);
    }
    for (size_t i = 0; i < opt->cc_extra.count; ++i)
       strvec_push(&cmd, opt->cc_extra.items[i]);
@@ -1606,6 +1638,9 @@ int main(int argc, char **argv)
 
    if (!defines_have_consumer(&opt))
       die("-D supplied, but no compile or assemble stage will use it");
+
+   if (!stella_palette_has_consumer(&opt))
+      die("--stella-palette supplied, but no C26 compile stage will use it");
 
    active_temp_store = &temps;
    if (atexit(temp_store_cleanup_at_exit) != 0)

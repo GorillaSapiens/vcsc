@@ -1,0 +1,15 @@
+2026-09-20 09:08:37 PDT, Stella palette compiler option
+Completed roadmap item 59.  `vcsc` and `vcsc-cc1` now accept
+`--stella-palette FILE`, loading Stella's exact 792-byte combined user-palette
+layout: 128 NTSC RGB triples, 128 PAL RGB triples, then 8 SECAM RGB triples.
+The three compile-time RGB builtins select only their corresponding slice; no
+option preserves the compiled-in tables exactly.
+
+Added clear diagnostics for unreadable, short, long, and empty palette paths.
+A focused e2e regression supplies deliberately different colors in all three
+slices, verifies driver forwarding, checks short/long/missing-file failures, and
+proves the checked-in test/fixtures/stella/stella.pal generates byte-identical
+assembly to the compiled-in canonical tables for all three full palette fixtures.
+Documented the option in compiler/README.md, driver/README.md, and the Stella
+fixture README.  All 583 compile/unit tests plus focused palette/CLI tests pass;
+full e2e was not rerun for this item.  Item 57 is now the main-roadmap next action.
