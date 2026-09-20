@@ -12,7 +12,8 @@ $(TARGET): $(SOURCE) $(STARTUP) ../../../_common/multisprite_228_interactive_com
 	$(VCSC) -nostdlib -I $(VCS_DIR) -DMULTISPRITE_NO_RETAINED_PF_ROWS $(SOURCE) $(STARTUP) -o $@
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -format PAL "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -format PAL "$(CURDIR)/$(TARGET)"
 
 clean:
 	rm -f $(TARGET) *.map *.lst *.sym *.cfg

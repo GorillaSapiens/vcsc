@@ -13,7 +13,8 @@ $(TARGET): $(SOURCE)
 	@test `wc -c < $@` -eq 4096
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -format NTSC "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -format NTSC "$(CURDIR)/$(TARGET)"
 
 clean:
 	rm -f $(TARGET) *.map *.lst *.sym *.cfg *.hex *.s26 *.o26

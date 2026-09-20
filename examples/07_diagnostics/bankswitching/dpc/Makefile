@@ -25,6 +25,7 @@ clean:
 	rm -f dpc_diagnostic.bin dpc_diagnostic.map dpc_diagnostic.hex dpc_diagnostic.sym dpc_diagnostic.lst dpc_diagnostic.cfg
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs DPC "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs DPC "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

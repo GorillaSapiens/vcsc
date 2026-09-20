@@ -23,6 +23,7 @@ clean:
 	rm -f $(TARGET) $(TARGET:.bin=.cfg) $(TARGET:.bin=.lst) $(TARGET:.bin=.map) $(TARGET:.bin=.sym)
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

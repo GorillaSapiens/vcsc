@@ -39,6 +39,7 @@ clean:
 	rm -f 3f_max_diagnostic.bin 3f_max_diagnostic.map 3f_max_diagnostic.hex 3f_max_diagnostic.sym 3f_max_diagnostic.lst 3f_max_diagnostic.cfg
 
 play: $(TARGET)
-	$(STELLA) -speed $(STELLA_SPEED) -userdir "$(CURDIR)" -bs 3F "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	$(STELLA) -dev.tv.jitter 0 -basedir "$(CURDIR)" -speed $(STELLA_SPEED) -userdir "$(CURDIR)" -bs 3F "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts torture

@@ -12,6 +12,7 @@ clean:
 	rm -f keypad.bin keypad.map keypad.lst keypad.sym keypad.cfg
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

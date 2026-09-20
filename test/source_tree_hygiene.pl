@@ -510,7 +510,7 @@ index($test_readme,'return_local_coalescing.pl')>=0
 
 my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','Makefile'));
 $banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
-$banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
+$banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*echo WARNING: ignoring user specific settings\s*\n\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
 $banked_renderer_make !~ /f6\.bin|f4\.bin|f8sc\.bin/ &&
 index($banked_renderer_make,'vcs_standard_4k_ntsc.cfg')<0
    or die "banked standard renderer must remain one consolidated F8 public diagnostic\n";

@@ -34,7 +34,8 @@ play: $(TARGETS)
 	for spec in $(PLAY_SPECS); do \
 		bin=$${spec%%:*}; \
 		mapper=$${spec##*:}; \
-		stella -userdir "$(CURDIR)" -bs "$$mapper" "$(CURDIR)/$${bin#./}"; \
+		echo WARNING: ignoring user specific settings; \
+		stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs "$$mapper" "$(CURDIR)/$${bin#./}"; \
 	done;
 
 play-ua: ua_diagnostic.bin

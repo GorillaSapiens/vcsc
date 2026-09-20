@@ -14,6 +14,7 @@ clean:
 	rm -f blank_screen.bin blank_screen.hex blank_screen.map blank_screen.sym blank_screen.lst blank_screen.cfg
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

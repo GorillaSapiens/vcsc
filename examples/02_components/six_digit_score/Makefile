@@ -14,6 +14,7 @@ clean:
 	rm -f score.bin score.hex score.map score.s26 score.sym score.lst score.cfg
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

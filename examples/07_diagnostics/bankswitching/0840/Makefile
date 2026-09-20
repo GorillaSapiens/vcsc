@@ -23,5 +23,6 @@ fonts:
 clean:
 	rm -f econobanking_diagnostic.bin econobanking_diagnostic.map econobanking_diagnostic.hex econobanking_diagnostic.sym econobanking_diagnostic.lst econobanking_diagnostic.cfg
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs 0840 "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs 0840 "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

@@ -56,7 +56,7 @@ $s =~ /paddles_overscan\(\)/ && $s =~ /paddles_dump\(\)/
 my$m=read_file($make);
 $m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m && $m =~ /four_paddles\.c26/ &&
 $m !~ /two_paddles\.c26/ &&
-$m =~ /^play:\s*\n\tstella -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
+$m =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
    or die "paddle tutorial Makefile dependencies or play target regressed\n";
 my$r=read_file($readme);
 $r =~ /X=20, 60, 100, and\s+140/s && $r =~ /2 pixels wide and 8 pixels tall/i &&

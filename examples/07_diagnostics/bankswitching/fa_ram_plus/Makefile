@@ -31,6 +31,7 @@ clean:
 		fa_ram_plus_diagnostic.lst fa_ram_plus_diagnostic.cfg
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs FA "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs FA "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

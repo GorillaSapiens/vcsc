@@ -107,7 +107,7 @@ $status_font =~ /bank5 const uint8_t status_glyphs\[128\]/ && $cart_font =~ /ban
    or die "E0 visible glyphs must live in canonical state-2 bank 5\n";
 my $mk=read_file($example_make);
 $mk =~ /FONT_SUBSET_FLAGS := --license examples\/LICENSE\.txt --bank bank5 --no-page/ &&
-$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+E0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+E0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "E0 Makefile lost bank5 font generation or forced Stella mapper\n";
 
 my $bin=File::Spec->catfile($tmp,'e0.bin'); my $map_path=File::Spec->catfile($tmp,'e0.map');

@@ -27,7 +27,8 @@ fonts:
 	$(PERL) $(FONT_SUBSET_TOOL) $(FONT_SUBSET_FLAGS) $(SMALL_FONT) $(FONT_SUBSET_DIR)/cart_type_font.c26 cart_type_glyphs ' CV'
 
 play: $(TARGET)
-	$(STELLA) $(TARGET)
+	echo WARNING: ignoring user specific settings
+	$(STELLA) -dev.tv.jitter 0 -basedir "$(CURDIR)" $(TARGET)
 
 clean:
 	rm -f cv_diagnostic.bin cv_diagnostic.map cv_diagnostic.hex \

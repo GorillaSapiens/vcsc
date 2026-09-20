@@ -82,7 +82,7 @@ $s =~ /game_player1_y--/ && $s =~ /game_player1_y\+\+/
 my$m=read_file($make);
 $m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m &&
 $m =~ /renderers\/player_color\/player_color\.c26/ &&
-$m =~ /^play:\s*\n\tstella -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
+$m =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
    or die "joystick Makefile dependencies, source-tree root, or play target regressed\n";
 my$r=read_file($readme);
 $r =~ /left joystick moves the red square/i &&

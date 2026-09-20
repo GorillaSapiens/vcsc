@@ -12,6 +12,7 @@ clean:
 	rm -f drive.bin drive.map drive.lst drive.sym drive.cfg
 
 play:
-	stella -userdir "$(CURDIR)" -lc driving -rc driving "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -lc driving -rc driving "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

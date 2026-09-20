@@ -15,6 +15,7 @@ clean:
 	rm -f $(TARGET) $(TARGET:.bin=.hex) $(TARGET:.bin=.map) $(TARGET:.bin=.s26) *.o26 $(TARGET:.bin=.sym) $(TARGET:.bin=.lst) $(TARGET:.bin=.cfg)
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -format SECAM "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -format SECAM "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play

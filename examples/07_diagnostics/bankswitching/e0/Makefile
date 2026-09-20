@@ -26,5 +26,6 @@ fonts:
 clean:
 	rm -f e0_diagnostic.bin e0_diagnostic.map e0_diagnostic.hex e0_diagnostic.sym e0_diagnostic.lst e0_diagnostic.cfg
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs E0 "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs E0 "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

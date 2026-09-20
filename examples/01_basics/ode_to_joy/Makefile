@@ -14,6 +14,7 @@ clean:
 	rm -f ode_to_joy.bin ode_to_joy.hex ode_to_joy.map ode_to_joy.sym ode_to_joy.lst ode_to_joy.cfg
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

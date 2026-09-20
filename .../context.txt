@@ -208,8 +208,10 @@ private HOME/XDG roots, and the checked-in 792-byte `test/fixtures/stella/stella
 that one file pins the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`,
 neutralizes palette adjustments/effects, and makes reviewed raster references
 exact-RGB contracts independent of Stella's host-version built-in palette. Example
-`make play` recipes set Stella's `-userdir` to the example directory and pass an
-absolute ROM path so ROM-specific debugger files cannot inherit stale test paths.
+`make play` recipes warn that user-specific settings are ignored, set Stella's
+`-basedir` and `-userdir` to the example directory, disable developer TV jitter,
+and pass an absolute ROM path so ROM-specific debugger files cannot inherit stale
+test paths.
 Focused `stella-*` Make targets are reruns of normal-suite coverage, not separate
 acceptance gates.
 
@@ -221,7 +223,9 @@ their corresponding slices.  The built-in tables remain the exact default.
 The checked-in Stella palette is regression-tested as code-generation-equivalent
 to those defaults; custom-slice selection and bad-file diagnostics are covered.
 All 583 compile/unit tests pass after the change, plus the focused palette and
-tool-option e2e regressions.  The full e2e suite has not been rerun for Item 59.
+tool-option e2e regressions.  A subsequent full e2e run reached 388/389 with only
+the standard-renderer timing inventory stale; that inventory was regenerated and
+its focused regression now passes.  Full e2e has not been rerun after that fix.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,

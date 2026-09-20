@@ -23,5 +23,6 @@ fonts:
 clean:
 	rm -f fotomania_diagnostic.bin fotomania_diagnostic.map fotomania_diagnostic.hex fotomania_diagnostic.sym fotomania_diagnostic.lst fotomania_diagnostic.cfg
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs 0FA0 "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs 0FA0 "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

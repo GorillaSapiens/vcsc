@@ -13,3 +13,17 @@ assembly to the compiled-in canonical tables for all three full palette fixtures
 Documented the option in compiler/README.md, driver/README.md, and the Stella
 fixture README.  All 583 compile/unit tests plus focused palette/CLI tests pass;
 full e2e was not rerun for this item.  Item 57 is now the main-roadmap next action.
+
+2026-09-20 10:04:48 PDT, deterministic example Stella play
+Updated every example `make play` Stella launch to print
+`WARNING: ignoring user specific settings` immediately before Stella and pass
+`-dev.tv.jitter 0 -basedir "$(CURDIR)"`.  The existing example-local `-userdir`
+and absolute-ROM-path behavior remains unchanged where it already applied, and
+the three max diagnostics retain their configurable 10x `-speed` option.  The
+common example play-contract regression now checks all 115 play launches.
+
+Regenerated `standard_4k_ntsc_timing_inventory.tsv` with its authoritative
+`inventory.pl`, fixing the stale-inventory e2e failure.  All 101 semantic rows
+are unchanged; every recorded source line moved by -8.  Focused play-contract,
+timing-inventory, source-tree-hygiene, and bankswitching Makefile-dependency
+checks pass.  Full e2e was not rerun after this correction.

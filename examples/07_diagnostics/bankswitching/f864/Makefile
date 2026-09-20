@@ -60,7 +60,8 @@ clean:
 
 play:
 	for bin in $$(find . -type f -name '*.bin' | sort); do \
-		stella -userdir "$(CURDIR)" "$(CURDIR)/$${bin#./}"; \
+		echo WARNING: ignoring user specific settings; \
+		stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)/$${bin#./}"; \
 	done;
 
 .PHONY: all ordinary superchip poisoned fonts clean play

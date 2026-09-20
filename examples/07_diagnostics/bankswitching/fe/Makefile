@@ -28,6 +28,7 @@ clean:
 	rm -f fe_diagnostic.bin fe_diagnostic.map fe_diagnostic.hex fe_diagnostic.sym fe_diagnostic.lst fe_diagnostic.cfg
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -bs FE "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs FE "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts

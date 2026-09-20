@@ -49,7 +49,7 @@ for my $dir (qw(3e_max 3f_max)) {
    my $mk=slurp($path);
    $mk =~ /^STELLA_SPEED\s*\?=\s*1000\s*$/m
       or die "$dir make play no longer defaults to 10x Stella speed\n";
-   $mk =~ /^\t\$\(STELLA\) -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
+   $mk =~ /^\t\$\(STELLA\) -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
       or die "$dir make play no longer passes the configured Stella speed\n";
 }
 
@@ -70,7 +70,7 @@ $x =~ /^play:\s*\$\(TARGET\)\s*$/m
    or die "3ex_max play target no longer rebuilds TARGET before launch\n";
 $x =~ /^STELLA_SPEED\s*\?=\s*1000\s*$/m
    or die "3ex_max make play no longer defaults to 10x Stella speed\n";
-$x =~ /^\t\$\(STELLA\) -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
+$x =~ /^\t\$\(STELLA\) -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
    or die "3ex_max make play no longer passes the configured Stella speed\n";
 
 print "bankswitching example build dependencies passed\n";

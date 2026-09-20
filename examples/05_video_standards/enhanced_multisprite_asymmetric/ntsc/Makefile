@@ -10,7 +10,8 @@ $(TARGET): $(SOURCE) $(STARTUP)
 	$(VCSC) -nostdlib -I $(VCS_DIR) -DVCS_NTSC_EXTENDED_VBLANK -DMULTISPRITE_NO_RETAINED_PF_ROWS $(SOURCE) $(STARTUP) -o $@
 	@test `wc -c < $@` -eq 4096
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" -format NTSC -bs 4K "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -format NTSC -bs 4K "$(CURDIR)/$(TARGET)"
 clean:
 	rm -f $(TARGET) *.map *.lst *.sym *.cfg *.hex *.s26 *.o26
 .PHONY: all play clean

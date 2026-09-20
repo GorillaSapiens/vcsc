@@ -14,6 +14,7 @@ clean:
 	rm -f big_wide_score.bin big_wide_score.hex big_wide_score.map big_wide_score.s26 big_wide_score.sym big_wide_score.lst big_wide_score.cfg
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

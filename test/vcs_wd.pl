@@ -97,7 +97,7 @@ $mk =~ /SMALL_FONT := .*default_ascii\.c26/ &&
 $mk =~ /status_font\.c26 status_glyphs ' pasFAIL'/ &&
 $mk =~ /cart_type_font\.c26 cart_type_glyphs ' WD'/ &&
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+WD\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+WD\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "WD Makefile lost generated big PASS\/FAIL fonts, small WD font, or forced Stella mapper\n";
 
 my $pt=read_file($profile);

@@ -14,6 +14,7 @@ clean:
 	rm -f paddleball.bin paddleball.hex paddleball.map paddleball.s26 paddleball.sym paddleball.lst paddleball.cfg
 
 play:
-	stella -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

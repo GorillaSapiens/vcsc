@@ -85,7 +85,7 @@ my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "FE play target must force Stella -bs FE\n";
 my $pt=read_file($profile);
 $pt =~ /\$signature:FE\b/ && $pt !~ /\$select_access:/ &&

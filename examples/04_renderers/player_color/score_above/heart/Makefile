@@ -16,6 +16,7 @@ clean:
 	rm -f $(TARGET) *.hex *.map *.s26 *.o26 *.sym *.lst *.cfg
 
 play: $(TARGET)
-	stella -userdir "$(CURDIR)" "$(CURDIR)/$(TARGET)"
+	echo WARNING: ignoring user specific settings
+	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play
