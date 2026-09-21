@@ -10,9 +10,9 @@
 # Unbanked 4K NTSC P0+P1+BL per-row-color renderer
 
 > **Legacy monolithic profile.** This profile remains installed as a stable
-> regression and compatibility target. New applications should use the explicit
-> lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`; there
-> is no active roadmap requirement to retire this working profile.
+> regression and compatibility target while renderer-stripes roadmap S10 ports
+> its useful coverage and retires it. New applications should use the explicit
+> lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`.
 
 This directory defines a separate standard-renderer compatibility profile that
 preserves the historical `playercolors` and `player1colors` behavior. It does **not**

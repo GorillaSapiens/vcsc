@@ -1002,9 +1002,8 @@ for my $name (qw(missing size start type)) {
 -f File::Spec->catfile($test,'vcs_f6_f4_profiles.pl')
    or die "certified F6/F4 profiles or their regression test are missing\n";
 
-# The two complete drawscreen profiles remain installed intentionally.  They are
-# legacy compatibility/regression targets, not preferred component APIs and not
-# a deletion milestone in the active roadmap.
+# The two complete drawscreen profiles remain installed only while item 57 ports
+# their useful compatibility/regression coverage; S10 is their deletion gate.
 for my $rel (
    'libraries/vcs/renderers/standard_4k_ntsc/README.md',
    'libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md',
@@ -1019,8 +1018,8 @@ $vcs_catalog =~ /standard_4k_ntsc_playercolors\/.*legacy monolithic/s
    or die "VCS catalog does not identify both retained legacy monolithic profiles\n";
 my $component_guide=slurp(File::Spec->catfile(
    $repo,'libraries','vcs','renderers','COMPONENT_CONVERSION.md'));
-index($component_guide,'Retirement of these working profiles is not a completion')>=0
-   or die "component guide restored retirement as a roadmap gate\n";
+index($component_guide,'S10 then retires both monoliths')>=0
+   or die "component guide lost the item-57 legacy retirement gate\n";
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my %hot_limits=(

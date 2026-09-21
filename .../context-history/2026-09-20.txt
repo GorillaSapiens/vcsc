@@ -80,3 +80,27 @@ source-tree hygiene, and visible-component handoff focused checks also pass. A
 broader score-composition raster rerun exceeded the container execution timeout,
 so the complete 389-test suite was not rerun after this one-line regression fix.
 S3 remains the next stripes action.
+
+2026-09-20 20:16:26 PDT, inventory gameplay renderer profiles
+User reports the complete 389-test suite passes after the post-S2 poison-debug
+path correction. Completed renderer-stripes S3 by inventorying the six modern
+gameplay profiles and two legacy monolithic profiles in `.../stripes.txt`.
+The inventory records ABI families, 228/192 versus 181/170 schedule classes,
+module RAM/playfield resources, public example groups, CPU/TIA raster oracles,
+pinned-palette Stella equivalence coverage, and principal regressions that must
+survive consolidation.
+
+The inventory exposed and corrected stale public documentation: `all_five` now
+lists the unofficial twin's 228-line mode; `all_five_player_color_181` now
+matches its tested 46-byte mask/21-byte cache and 88-byte module-RAM contract
+and current fixture/example footprints; the 192 combined-color example footprint
+is current; and both legacy `standard_4k_ntsc*` READMEs now acknowledge planned
+retirement in S10 instead of claiming no retirement roadmap. S4 is next.
+
+2026-09-20 20:52:26 PDT, compact S3 handoff records
+Completed the post-S3 hot-record cleanup without weakening the 64 KiB developer
+record gate. Removed stale duplicated context that still described S3 inventory as
+the next action; hot records now total 65,229 bytes and correctly point to S4.
+Source-tree hygiene and branding pass. After a minimal tools build using the stored
+Debian dependencies, vcs_poison_debug_score and vcs_visible_component_handoff also
+pass. The user's reported full 389-test pass remains the broad baseline.

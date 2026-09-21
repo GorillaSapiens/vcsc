@@ -3,75 +3,70 @@ VCSC RENDERER / STRIPES ROADMAP
 
 Goal
 ----
-For item 57, consolidate the duplicated gameplay renderers before adding stripes.
-Reusable lifecycle/input/score/display components live under
-`libraries/vcs/components/`, including `poison_debug_score`. `all_five`,
-`player_color`, and both `all_five_player_color_*` profiles become compile-time
-specializations selected by `lines`, missiles, player colors, and later `stripes`.
-Retire both unofficial and both `standard_4k_ntsc*` legacy profiles after
-preserving useful coverage. `multisprite` and
-`enhanced_multisprite_asymmetric` remain distinct.
+Consolidate gameplay renderers before item 57 stripes. Components live under
+`libraries/vcs/components/`. Unify `all_five`, `player_color`, and both
+`all_five_player_color_*` profiles behind compile-time `lines`, missiles, player
+colors, then `stripes`; retire both unofficial and both `standard_4k_ntsc*`
+after preserving coverage. `multisprite` and `enhanced_multisprite_asymmetric`
+remain distinct.
 
 Stripe ABI
 ----------
-Participating renderers gain `parameter stripes := 0;`. Zero preserves the old
-path and needs no arrays. `stripes:=N` requires instance-qualified:
+Add `parameter stripes := 0;`; zero preserves the old path with no arrays.
+`stripes:=N` requires `game_playfield_colors[N*2]` and
+`game_playfield_data[N*6]` (`TEMPLATE_playfield_colors/data`). Store COLUPF/COLUBK
+then left/right PF0/PF1/PF2; stripe i owns
+`floor(i*L/N)..floor((i+1)*L/N)-1`. Preserve raster/timing/handoffs/resources/write
+phases; no runtime division or per-line feature test.
 
-    game_playfield_colors[N * 2]
-    game_playfield_data[N * 6]
+Renderer inventory
+------------------
+Modern schedules: draw entry 3, return 0, terminal WSYNC, VBLANK <=1800.
+Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
+181/170: one entry HMOVE + successor; overscan <=58 all-five, <=40 player-color.
 
-Template names are `TEMPLATE_playfield_colors` and `TEMPLATE_playfield_data`.
-Each stripe stores COLUPF/COLUBK, then left and right PF0/PF1/PF2 raw TIA bytes.
-Stripe i owns `floor(i*L/N)` through `floor((i+1)*L/N)-1` of L visible lines.
-Stripes are screen-space bands. Measure storage needs. Preserve raster, timing, handoffs, resources, and write phases.
+* `all_five`: 5 objects, solid P0/P1, 23 public bytes; lines 228/192/181/170,
+  playfield 60/48/44/40, module RAM 83/71/67/67.
+* `player_color`: P0/P1/BL + 8-row colors, 13 public; same lines/playfields,
+  module RAM 23/23/24/24.
+* `all_five_player_color_192`: 5 objects + row colors, 21+62=83 RAM, 48-byte
+  mask + 14-byte row cache; full-height schedule.
+* `all_five_player_color_181`: 5 objects + row colors, 21+67=88 RAM, 46-byte
+  mask + 21-byte row cache; all-five score schedule.
+* `all_five_unofficial`: exact `all_five` ABI/lines/RAM/TIA schedule; explicit
+  illegals build, one stable/common-NMOS zp NOP in dead VBLANK padding.
+* `player_color_181_unofficial`: exact 24-byte 181 twin; currently no illegal
+  instruction and zero measured size delta.
+* `standard_4k_ntsc`: legacy fixed NTSC 192 monolith, 5 objects + score/frame
+  ownership/hook, 23+57=80 RAM, 88-byte font.
+* `standard_4k_ntsc_playercolors`: legacy unbanked 4K NTSC P0/P1/BL + row
+  colors + score/frame ownership/hook, no missiles, 17+60=77 RAM.
+
+Preserve exact frame/score checks, `vcs_playfield_phase.cpp`,
+`vcs_standard_objects.cpp`, `vcs_all_five_composition.cpp`, and pinned-palette
+Stella RGB comparisons. Principal tests are the `vcs_all_five_*`,
+`vcs_player_color_*`, combined-color, unofficial, and legacy standard renderer
+families. Examples live under `04_renderers/`, native 50 Hz under
+`05_video_standards/`, and the legacy banked diagnostic under `07_diagnostics/`.
 
 Steps
 -----
-Current next action: S3.
+Current next action: S4.
 
-S3. Inventory the six modern gameplay and two legacy profiles: ABI, schedules,
-    line modes, resources, examples, raster oracles, and tests.
-
-S4. Establish one gameplay renderer based on `all_five` with compile-time
-    line/missile/player-color selection and unchanged `all_five` behavior.
-
-S5. Migrate `player_color` profiles and prove existing behavior/resources before
-    deleting their old source.
-
-S6. Migrate `all_five_player_color_192`; prove equivalence before deletion.
-
-S7. Migrate `all_five_player_color_181`; preserve score-composable handoff and
-    prove equivalence before deletion.
-
-S8. Deduplicate shared ABI/positioning/playfield/setup while retaining genuinely
-    different compile-time schedules.
-
-S9. Retire both unofficial gameplay profiles after relocating useful coverage.
-
-S10. Port useful `standard_4k_ntsc*` coverage, then delete both legacy profiles and
-     their compatibility-only macros, inventory, tests, and docs.
-
-S11. Normalize examples/tests/docs/manifests around the unified renderer; run broad regression before stripes.
-
-S12. Build `lines:=192, stripes:=3` with distinct PF/BK colors and asymmetric
-     left/right PF data; measure legal write slots and storage constraints.
-
-S13. Implement stripes with an unchanged zero path and compile-time boundaries;
-     no runtime division or per-line feature test.
-
-S14. Certify 192-line stripes with API, TIA-phase, simulator/Stella raster,
-     object-motion, and zero-path byte/resource compatibility tests.
-
-S15. Extend/certify every supported line mode, including non-divisible 228 geometry
-     and 181/170 score handoffs.
-
-S16. Exercise stripes across supported missile/player-color combinations.
-
-S17. Add a public example and document ABI, geometry, storage, costs, line modes, and composition.
-
-S18. Add/certify the same stripe ABI in `multisprite`.
-
-S19. Add/certify it in `enhanced_multisprite_asymmetric` for 192/228 modes.
-
-S20. Close item 57 when obsolete renderers are gone, docs/manifests/examples are
-     coherent, and the normal suite is clean.
+S4. Make one `all_five`-based renderer select lines/missiles/player colors; preserve `all_five` exactly.
+S5. Migrate `player_color`; prove behavior/resources; delete old source.
+S6. Migrate `all_five_player_color_192`; prove equivalence; delete old source.
+S7. Migrate `all_five_player_color_181`; preserve score handoff; prove/delete.
+S8. Deduplicate ABI/positioning/playfield/setup but retain real schedule variants.
+S9. Retire unofficial gameplay profiles after relocating useful coverage.
+S10. Port useful `standard_4k_ntsc*` coverage; delete both legacy profiles and compatibility-only support.
+S11. Normalize examples/tests/docs/manifests; broad regression before stripes.
+S12. Prototype `lines:=192,stripes:=3`; measure legal write slots/storage.
+S13. Implement compile-time stripes with unchanged zero path.
+S14. Certify 192 stripes: ABI, TIA phase, simulator/Stella, motion, zero-path bytes/resources.
+S15. Certify every line mode, including non-divisible 228 and 181/170 handoffs.
+S16. Exercise supported missile/player-color combinations.
+S17. Add public example/docs for geometry/storage/costs/composition.
+S18. Add/certify stripes in `multisprite`.
+S19. Add/certify stripes in `enhanced_multisprite_asymmetric` 192/228.
+S20. Close item 57 when obsolete renderers are gone and normal suite is clean.

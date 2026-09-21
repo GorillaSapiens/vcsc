@@ -86,5 +86,5 @@ VSYNC, VBLANK, RIOT timer deadlines and visible-component order.
   consume the complete native 50 Hz visible field directly.
 
 The separately maintained `all_five_unofficial` renderer remains the
-experimental unofficial-opcode twin and currently supports 192-, 181-, and
-170-line profiles.
+experimental unofficial-opcode twin and supports the same 228-, 192-, 181-,
+and 170-line profiles.

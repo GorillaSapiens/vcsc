@@ -10,9 +10,9 @@
 # Standard NTSC all-five renderer contract
 
 > **Legacy monolithic profile.** This profile remains installed as a stable
-> regression and compatibility target. New applications should use the explicit
-> lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`; there
-> is no active roadmap requirement to retire this working profile.
+> regression and compatibility target while renderer-stripes roadmap S10 ports
+> its useful coverage and retires it. New applications should use the explicit
+> lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`.
 
 This directory defines the standalone source-integration contract for the
 standard compatibility renderer. It is deliberately narrower than “the standard

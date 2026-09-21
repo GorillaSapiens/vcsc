@@ -30,14 +30,14 @@ Each instance supplies page-contained immutable `game_playfield[44]`,
 independent graphics pointers, X/Y/height state, and NUSIZ values. M0, M1, and
 Ball retain independent X/Y/height state.
 
-The 181-line schedule uses a 44-byte packed BL/M1/M0 mask plus a 21-byte row
-cache. Fourteen cache bytes are the alternating seven-byte raster banks. The
+The 181-line schedule uses a 46-byte packed BL/M1/M0 mask block plus a 21-byte row
+cache. The final two mask bytes are fixed-timing terminal lookahead padding. Fourteen cache bytes are the alternating seven-byte raster banks. The
 remaining seven hold P0/P1 fine-motion bytes, coarse counts, one-cycle RESP
 phase flags, and the caller's hardware stack pointer while `S` temporarily
 carries the four-byte row base through the compact visible loop. The raster
 performs no stack accesses while `S` is borrowed and restores it before
-returning. The exact component contract is **86 RIOT-RAM bytes**: 21 public
-bytes plus 65 private bytes.
+returning. The exact component contract is **88 RIOT-RAM bytes**: 21 public
+bytes plus 67 private bytes.
 
 P0/P1 are deliberately repositioned at visible entry rather than relying on
 VBLANK positioning, because a score above gameplay owns and changes the player
@@ -56,9 +56,9 @@ the previous Ball enable for one extra line even after `ENABL` is cleared.
 
 Public examples are under `examples/04_renderers/all_five_player_color/`. Each score
 order has a static raster diagnostic and an interactive cartridge. The static
-score-above and score-below examples link at **3754/4090 ROM bytes** and
-**114/128 RAM bytes**. The interactive examples link at **4058/4090 ROM bytes**
-and **123/128 RAM bytes**; Game Select cycles P0/P1/M0/M1/Ball and the left
+score-above and score-below fixtures link at **3360/4090 ROM bytes** and
+**108/128 RAM bytes**. The interactive examples link at **3880/4090 ROM bytes**
+and **124/128 RAM bytes**; Game Select cycles P0/P1/M0/M1/Ball and the left
 joystick moves the selected object in both axes.
 
 Regression coverage pins both score orders to exact 262-line frames, checks the

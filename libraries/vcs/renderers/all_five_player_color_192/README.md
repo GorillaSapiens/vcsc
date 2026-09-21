@@ -44,7 +44,7 @@ The public interactive example is
 `examples/04_renderers/all_five_player_color/no_score/`. It cycles selection
 through all five objects with Game Select and moves the selected object with the
 left joystick while the two players retain visibly different eight-row color
-tables. The example currently links at **97/128 RAM bytes** and **3481/4090 ROM
+tables. The example currently links at **97/128 RAM bytes** and **3406/4090 ROM
 bytes**.
 
 Regression coverage checks exact 262-line frames, all-five object pixels,
