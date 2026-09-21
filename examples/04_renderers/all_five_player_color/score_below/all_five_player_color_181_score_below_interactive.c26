@@ -7,7 +7,7 @@ include "color_ntsc.c26"
 include "playfield.c26"
 include "fonts/default_decimal.c26"
 
-instantiate "renderers/all_five_player_color_181/all_five_player_color_181.c26" as game
+instantiate "renderers/all_five/all_five.c26" as game (lines:=181, missiles:=1, player_colors:=1)
 instantiate "components/six_glyph_component.c26" as score (mutable_color:=1)
 
 inline void draw_visible_components(void) {

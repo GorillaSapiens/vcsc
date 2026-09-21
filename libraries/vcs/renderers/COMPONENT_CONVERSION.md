@@ -119,8 +119,8 @@ not inferred from a count of source statements. The common contract is:
 | official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
-| `all_five_player_color_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
-| `all_five_player_color_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+| `all_five (lines:=181, missiles:=1, player_colors:=1)` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| `all_five (lines:=192, missiles:=1, player_colors:=1)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `multisprite (lines:=181)` | 181 | 3 / 0 | 0 / 0 | yes | 6 | yes |
 | `multisprite (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 5 | no |
 
@@ -317,7 +317,7 @@ is 23 public bytes plus 48 private schedule/scratch bytes, or 71 bytes total.
 
 ### 181-line all-five gameplay with player color tables
 
-`renderers/all_five_player_color_181/all_five_player_color_181.c26` is the
+`renderers/all_five/all_five.c26` with `lines:=181, missiles:=1, player_colors:=1` is the
 score-composable official-opcode combined profile. It retains P0/P1/M0/M1/BL
 with immutable eight-entry P0/P1 color tables and consumes 181 visible lines,
 so one independent 11-line score may appear above or below gameplay. Its exact

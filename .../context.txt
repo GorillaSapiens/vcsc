@@ -217,14 +217,14 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Renderer-stripes S2-S6 are complete; the user-reported 389-test suite was
-green after S5. `all_five.c26` owns the unchanged all-five default
-(`missiles:=1, player_colors:=0`) and player-color specialization
-(`missiles:=0, player_colors:=1`) at 170/181/192/228 lines, plus the fixed
-192-line combined all-five row-color specialization
-(`missiles:=1, player_colors:=1`). The duplicate official `player_color` and
-`all_five_player_color_192` sources are gone. S6 migration preserved seven
-representative ROMs byte-for-byte; focused selector/combined-profile,
+Renderer-stripes S2-S7 are complete; the user-reported 389-test suite was
+green after S5. `all_five.c26` owns the all-five and player-color specializations
+at 170/181/192/228 lines plus the combined `missiles:=1, player_colors:=1`
+schedules at 181 and 192 lines. Duplicate `player_color` and both
+`all_five_player_color_*` renderer sources are gone. S6 preserved seven
+192-line ROMs byte-for-byte; S7 preserved both static score
+orders and both public 181-line interactive ROMs byte-for-byte while retaining
+the score-composable HMOVE/successor handoff. Focused selector, 181-profile,
 portability, manifest, branding, and hygiene regressions pass.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
@@ -233,6 +233,6 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S7: migrate `all_five_player_color_181` into the
-`all_five.c26` selector, preserve the score handoff, prove equivalence, and
-delete the duplicate source.
+Execute `.../stripes.txt` S8: deduplicate shared ABI, positioning, playfield,
+and setup machinery inside `all_five.c26` while retaining the genuinely distinct
+raster/handoff schedules.

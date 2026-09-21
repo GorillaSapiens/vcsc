@@ -19,3 +19,14 @@ P1/Ball stress, all-five-match, player-color-match, and the public interactive
 cartridge were compiled through both paths; all seven ROMs were byte-identical.
 Focused gameplay-selector, combined-profile, video-portability, install-manifest,
 branding, and source-tree-hygiene checks pass. S7 is next.
+
+2026-09-21 11:57:16 PDT, finish stripes S7 combined 181 migration
+Moved the official score-composable 181-line all-five + per-row-player-color
+implementation into all_five.c26 as lines:=181, missiles:=1, player_colors:=1.
+Migrated maintained callers, fixtures, docs, manifest entries, and source-contract
+tests; deleted renderers/all_five_player_color_181. Before deletion, both static
+score orders and both public interactive score-order cartridges were captured;
+all four post-migration ROMs are byte-identical, preserving the single entry
+HMOVE and successor-line score handoff. Focused install-manifest, branding,
+source-tree-hygiene, gameplay-selector, 181-profile, and video-portability checks
+pass. S8 is next.

@@ -32,8 +32,9 @@ Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
 * `all_five` combined 192 specialization (`missiles:=1, player_colors:=1`):
   5 objects + row colors, 21+62=83 RAM, 48-byte mask + 14-byte row cache;
   full-height schedule.
-* `all_five_player_color_181`: 5 objects + row colors, 21+67=88 RAM, 46-byte
-  mask + 21-byte row cache; all-five score schedule.
+* `all_five` combined 181 specialization (`missiles:=1, player_colors:=1`):
+  5 objects + row colors, 21+67=88 RAM, 46-byte mask + 21-byte row cache;
+  all-five score-composable schedule.
 * `all_five_unofficial`: exact `all_five` ABI/lines/RAM/TIA schedule; explicit
   illegals build, one stable/common-NMOS zp NOP in dead VBLANK padding.
 * `player_color_181_unofficial`: exact 24-byte 181 twin; currently no illegal
@@ -52,9 +53,8 @@ families. Examples live under `04_renderers/`, native 50 Hz under
 
 Steps
 -----
-Current next action: S7.
+Current next action: S8.
 
-S7. Migrate `all_five_player_color_181`; preserve score handoff; prove/delete.
 S8. Deduplicate ABI/positioning/playfield/setup but retain real schedule variants.
 S9. Retire unofficial gameplay profiles after relocating useful coverage.
 S10. Port useful `standard_4k_ntsc*` coverage; delete both legacy profiles and compatibility-only support.

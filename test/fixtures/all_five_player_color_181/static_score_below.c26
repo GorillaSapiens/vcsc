@@ -21,7 +21,7 @@ page const uint8_t game_playfield[44] := {
 };
 page const uint8_t game_player0_colors[8] := { VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE_2,VCS_NTSC_ROYAL_BLUE,VCS_NTSC_MEDIUM_PURPLE,VCS_NTSC_VIOLET,VCS_NTSC_ORCHID,VCS_NTSC_LIGHT_CORAL,VCS_NTSC_SANDY_BROWN };
 page const uint8_t game_player1_colors[8] := { VCS_NTSC_PALE_GREEN,VCS_NTSC_AQUAMARINE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE_2,VCS_NTSC_ROYAL_BLUE,VCS_NTSC_MEDIUM_PURPLE,VCS_NTSC_VIOLET,VCS_NTSC_ORCHID };
-instantiate "renderers/all_five_player_color_181/all_five_player_color_181.c26" as game
+instantiate "renderers/all_five/all_five.c26" as game (lines:=181, missiles:=1, player_colors:=1)
 instantiate "components/six_glyph_component.c26" as score
 page const uint8_t p0[8] := { game_SPRITE_GLYPH(0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66) };
 page const uint8_t p1[8] := { game_SPRITE_GLYPH(0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c) };

@@ -29,8 +29,7 @@ They own no VSYNC, VBLANK, or RIOT frame timer and publish their visible-line
 contract independently of the frame scheduler:
 
 - `renderers/all_five/all_five.c26` (170, 181, 192, or 228 lines; all-five default or `missiles:=0, player_colors:=1` player-color specialization)
-- `renderers/all_five_player_color_181/all_five_player_color_181.c26`
-- `renderers/all_five/all_five.c26` (`lines:=192, missiles:=1, player_colors:=1`)
+- `renderers/all_five/all_five.c26` (`missiles:=1, player_colors:=1` at 181 or 192 lines)
 - `renderers/all_five_unofficial/all_five_unofficial.c26` (170, 181, 192, or 228 lines)
 - `renderers/multisprite/multisprite.c26` (181, 192, or 228 lines)
 - `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`

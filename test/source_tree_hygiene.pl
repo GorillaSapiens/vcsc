@@ -441,6 +441,8 @@ index($top_make,'sieve: tools')<0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/all_five/all_five.c26\tlibraries/vcs/renderers/all_five/all_five.c26")>=0 &&
 index($install_manifest,'all_five_player_color_192/')<0 &&
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_192)) &&
+index($install_manifest,'all_five_player_color_181/')<0 &&
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_181)) &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tlibraries/vcs/renderers/multisprite/multisprite.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/6507.c26\tlibraries/vcs/6507.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/components/six_glyph_wide_component.c26\tlibraries/vcs/components/six_glyph_wide_component.c26")>=0 &&
@@ -590,17 +592,26 @@ index($player_color_source,'asm cmp.z TEMPLATE_ball_y;')>=0
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers player_color)) &&
 index($install_manifest,'libraries/vcs/renderers/player_color/')<0
    or die "retired player_color renderer source or install entry remains\n";
-my $combined_source=$selector_source;
-$combined_source =~ /#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1\n#if TEMPLATE_lines == 192(.*?)\n#else\nextern const uint8_t TEMPLATE_combined_player_color_lines_must_be_192/s
-   or die "all_five selector lost its fixed 192-line combined player-color specialization\n";
-$combined_source=$1;
-index($combined_source,'TEMPLATE_PUBLIC_RAM_BYTES := 21')>=0 &&
-index($combined_source,'TEMPLATE_PRIVATE_RAM_BYTES := 62')>=0 &&
-index($combined_source,'uint8_t TEMPLATE_row_cache[14];')>=0 &&
-index($combined_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
-index($combined_source,'extern const uint8_t TEMPLATE_player1_colors[8];')>=0 &&
+my($combined192_source,$combined181_source);
+$selector_source =~ /#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1\n#if TEMPLATE_lines == 192(.*?)\n#elif TEMPLATE_lines == 181(.*?)\n#else\nextern const uint8_t TEMPLATE_combined_player_color_lines_must_be_181_or_192/s
+   or die "all_five selector lost its 181/192 combined player-color specializations\n";
+($combined192_source,$combined181_source)=($1,$2);
+index($combined192_source,'TEMPLATE_PUBLIC_RAM_BYTES := 21')>=0 &&
+index($combined192_source,'TEMPLATE_PRIVATE_RAM_BYTES := 62')>=0 &&
+index($combined192_source,'uint8_t TEMPLATE_row_cache[14];')>=0 &&
+index($combined181_source,'TEMPLATE_VISIBLE_SCANLINES := 181')>=0 &&
+index($combined181_source,'TEMPLATE_DRAW_HMOVE_COUNT := 1')>=0 &&
+index($combined181_source,'TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1')>=0 &&
+index($combined181_source,'TEMPLATE_PUBLIC_RAM_BYTES := 21')>=0 &&
+index($combined181_source,'TEMPLATE_PRIVATE_RAM_BYTES := 67')>=0 &&
+index($combined181_source,'uint8_t TEMPLATE_object_masks[46];')>=0 &&
+index($combined181_source,'uint8_t TEMPLATE_row_cache[21];')>=0 &&
+index($combined192_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
+index($combined181_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_192)) &&
-index($install_manifest,'libraries/vcs/renderers/all_five_player_color_192/')<0
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_181)) &&
+index($install_manifest,'libraries/vcs/renderers/all_five_player_color_192/')<0 &&
+index($install_manifest,'libraries/vcs/renderers/all_five_player_color_181/')<0
    or die "combined player-color selector specialization or retirement contract regressed\n";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
 index($vcs_machine,'mem rom')<0

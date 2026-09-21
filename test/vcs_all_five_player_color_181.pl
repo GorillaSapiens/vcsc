@@ -24,7 +24,7 @@ my$repo=shift@ARGV // usage(); my$tmp=shift@ARGV // usage(); usage() if@ARGV;
 $repo=abs_path($repo) or die "resolve repo\n"; $tmp=abs_path($tmp) or die "resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
+my$component=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 04_renderers all_five_player_color));
 my@jobs=(
  ['above',File::Spec->catfile($repo,qw(test fixtures all_five_player_color_181 static_score_above.c26)),3360,730],
@@ -45,7 +45,7 @@ for my$j(@jobs){
       or die "$n private static fixture ROM footprint changed\n";
    $m =~ /^  ram\s+used=108 bytes .* free=20 bytes/m
       or die "$n private static fixture RAM footprint changed\n";
-   $source{$n} =~ /instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181\.c26" as game/
+   $source{$n} =~ /instantiate "renderers\/all_five\/all_five\.c26" as game \(lines:=181, missiles:=1, player_colors:=1\)/
       or die "$n private static fixture does not instantiate the combined 181 renderer\n";
    $source{$n} =~ /page const uint8_t game_player0_colors\[8\]/ &&
    $source{$n} =~ /page const uint8_t game_player1_colors\[8\]/
@@ -151,7 +151,10 @@ for my$n(qw(above below)) {
    $ce eq '' or die "$n combined interactive control stderr: $ce";
 }
 
-my$src=read_file($component); my$m=read_file($map{above});
+my$selector_src=read_file($component); my$m=read_file($map{above});
+$selector_src =~ /#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1\n#if TEMPLATE_lines == 192.*?\n#elif TEMPLATE_lines == 181(.*?)\n#else\nextern const uint8_t TEMPLATE_combined_player_color_lines_must_be_181_or_192/s
+   or die "combined 181 selector branch missing\n";
+my$src=$1;
 $src =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/ or die "visible-line contract changed\n";
 $src =~ /TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE\s*:=\s*1/ or die "successor handoff contract changed\n";
 $src =~ /TEMPLATE_PLAYFIELD_BYTES\s*:=\s*44/ && $src =~ /TEMPLATE_PLAYFIELD_ROWS\s*:=\s*11/
@@ -254,7 +257,7 @@ $e eq '' or die "horizontal sweep timing stderr: $e";
 # constant row colors. This makes the independent all-five object oracle check
 # the new component without depending on the public example's decorative glyphs.
 my$cert=read_file(File::Spec->catfile($repo,qw(test fixtures all_five_181 static_score_above.c26)));
-$cert =~ s/instantiate "renderers\/all_five\/all_five\.c26" as game \(lines:=181\)/page const uint8_t game_player0_colors[8] := { 0x0e,0x0e,0x0e,0x0e,0x0e,0x0e,0x0e,0x0e };\npage const uint8_t game_player1_colors[8] := { 0xc8,0xc8,0xc8,0xc8,0xc8,0xc8,0xc8,0xc8 };\ninstantiate "renderers\/all_five_player_color_181\/all_five_player_color_181.c26" as game/
+$cert =~ s/instantiate "renderers\/all_five\/all_five\.c26" as game \(lines:=181\)/page const uint8_t game_player0_colors[8] := { 0x0e,0x0e,0x0e,0x0e,0x0e,0x0e,0x0e,0x0e };\npage const uint8_t game_player1_colors[8] := { 0xc8,0xc8,0xc8,0xc8,0xc8,0xc8,0xc8,0xc8 };\ninstantiate "renderers\/all_five\/all_five\.c26" as game \(lines:=181, missiles:=1, player_colors:=1\)/
    or die "could not retarget certification fixture\n";
 $cert =~ s/^\s*game_player0_color\s*:=\s*0x0e;\s*\n//m or die "could not remove certification P0 solid color\n";
 $cert =~ s/^\s*game_player1_color\s*:=\s*0xc8;\s*\n//m or die "could not remove certification P1 solid color\n";

@@ -62,7 +62,7 @@ sub make_pair {
    my$g=$c;
    $g =~ s/page const uint8_t game_player0_colors\[8\] := \{.*?\};\n//s or die "$order remove P0 colors\n";
    $g =~ s/page const uint8_t game_player1_colors\[8\] := \{.*?\};\n//s or die "$order remove P1 colors\n";
-   $g =~ s#instantiate "renderers/all_five_player_color_181/all_five_player_color_181\.c26" as game#instantiate "renderers/all_five/all_five.c26" as game (lines:=181)# or die "$order replace renderer\n";
+   $g =~ s#instantiate "renderers/all_five/all_five\.c26" as game \(lines:=181, missiles:=1, player_colors:=1\)#instantiate "renderers/all_five/all_five.c26" as game (lines:=181)# or die "$order replace renderer\n";
    $g =~ s/(CTRLPF\s*:=\s*0x21;)/$1\n   game_player0_color := 0x0e;\n   game_player1_color := 0xc8;\n   game_playfield_position := 8;/ or die "$order add all-five controls\n";
    my$gs=File::Spec->catfile($tmp,"golden_$order.c26"); write_file($gs,$g);
    return(build_rom("candidate_$order",$cs),build_rom("golden_$order",$gs));

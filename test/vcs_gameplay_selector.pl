@@ -58,6 +58,8 @@ my $retired=File::Spec->catfile($vcs,qw(renderers player_color player_color.c26)
 !-e $retired or die "retired player_color source still exists\n";
 my $retired_combined=File::Spec->catdir($vcs,qw(renderers all_five_player_color_192));
 !-e $retired_combined or die "retired all_five_player_color_192 directory still exists\n";
+my $retired_combined181=File::Spec->catdir($vcs,qw(renderers all_five_player_color_181));
+!-e $retired_combined181 or die "retired all_five_player_color_181 directory still exists\n";
 
 my @all_five_cases=(
    ['af170',[qw(test fixtures all_five_170 smoke.c26)],170],
@@ -100,11 +102,18 @@ for my $case (@player_color_cases) {
    compile_source($driver,$vcs,$source,$bin);
 }
 
-my $combined_source=File::Spec->catfile($repo,qw(test fixtures all_five_player_color_192 smoke.c26));
-my $combined_text=read_file($combined_source);
-my $combined_selected=qq{instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=1, player_colors:=1)};
-index($combined_text,$combined_selected)>=0
-   or die "combined fixture did not migrate to the gameplay selector specialization\n";
-compile_source($driver,$vcs,$combined_source,File::Spec->catfile($tmp,'selector_combined192.bin'));
+my @combined_cases=(
+   ['combined192',[qw(test fixtures all_five_player_color_192 smoke.c26)],192],
+   ['combined181',[qw(test fixtures all_five_player_color_181 static_score_above.c26)],181],
+);
+for my $case (@combined_cases) {
+   my($name,$parts,$lines)=@$case;
+   my $combined_source=File::Spec->catfile($repo,@$parts);
+   my $combined_text=read_file($combined_source);
+   my $combined_selected=qq{instantiate "renderers/all_five/all_five.c26" as game (lines:=$lines, missiles:=1, player_colors:=1)};
+   index($combined_text,$combined_selected)>=0
+      or die "$name fixture did not migrate to the gameplay selector specialization\n";
+   compile_source($driver,$vcs,$combined_source,File::Spec->catfile($tmp,"selector_${name}.bin"));
+}
 
 print "vcs_gameplay_selector ok\n";

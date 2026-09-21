@@ -12,7 +12,6 @@ sub read_file { my($p)=@_; open(my$f,'<:raw',$p) or die"read $p: $!\n";local$/;m
 @ARGV==1 or die"usage: $0 REPO\n";my$repo=abs_path($ARGV[0])//die"repo\n";my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my@portable=(
  'renderers/all_five/all_five.c26',
- 'renderers/all_five_player_color_181/all_five_player_color_181.c26',
  'renderers/all_five/all_five.c26',
  'renderers/all_five_unofficial/all_five_unofficial.c26',
  'renderers/multisprite/multisprite.c26',
