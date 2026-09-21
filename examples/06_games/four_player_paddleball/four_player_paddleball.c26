@@ -11,14 +11,14 @@ alias PADDLEBALL_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
 alias PADDLEBALL_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
 alias PADDLEBALL_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 
-instantiate "four_paddles.c26" as paddles
+instantiate "components/four_paddles.c26" as paddles
 
 // Bind all four score-renderer sample slots directly to the shared paddle reader.
 inline void score_paddle_sample0(void) { paddles_score_sample0(); }
 inline void score_paddle_sample1(void) { paddles_score_sample1(); }
 inline void score_paddle_latch23_fixed(void) { paddles_score_latch23_fixed(); }
 inline void score_paddle_advance_pair(void) { paddles_score_advance_pair(); }
-instantiate "three_plus_three_score_component.c26" as score (paddle_samples:=4)
+instantiate "components/three_plus_three_score_component.c26" as score (paddle_samples:=4)
 
 // Four-player team Paddleball. Controller port 0 is the blue team: paddle 0
 // drives P0 (outer) and paddle 1 drives M0 (inner). Controller port 1 is the

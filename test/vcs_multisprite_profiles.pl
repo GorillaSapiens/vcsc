@@ -98,7 +98,7 @@ $text !~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text !~ /asm\s+adc\s+#9;/
 $text =~ /three CPU cycles earlier than every later post-WSYNC reposition.*?asm\s+nop;\s*asm\s+bit\.z\s+TEMPLATE_state\s*\+\s*66;/s
    or die "181 first-rank three-cycle entry-phase alignment is missing\n";
 
-my $score_component=read_file(File::Spec->catfile($vcs,'six_glyph_component.c26'));
+my $score_component=read_file(File::Spec->catfile($vcs,'components/six_glyph_component.c26'));
 $score_component =~ /#if TEMPLATE_compact_font\s*&&\s*TEMPLATE_glyph_rows\s*==\s*8\s*\nuint8_t\s+TEMPLATE_offsets\[2\](.*?)#else/s
    or die "six-glyph component has no compact storage branch\n";
 my $score_compact="uint8_t TEMPLATE_offsets[2]".$1;

@@ -61,7 +61,7 @@ $profile_text =~ /bank\s+bank0\s*\{.*?\$select_access:0x1ffa\s+\$bankcall_descri
 $profile_text =~ /bank\s+bank1\s*\{.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9/s &&
 $profile_text =~ /bank\s+bank2\s*\{.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s
    or die "FA profile lost descriptor-ABI selector bytes\n";
-$source_text =~ /instantiate "six_glyph_component\.c26" as cart_type/ &&
+$source_text =~ /instantiate "components\/six_glyph_component\.c26" as cart_type/ &&
 $source_text =~ /blank \/ blank \/ F \/ A \/ blank \/ blank/ &&
 $source_text =~ /cart_type_draw\(\)/
    or die "FA visible diagnostic lost its centered FA mapper line\n";

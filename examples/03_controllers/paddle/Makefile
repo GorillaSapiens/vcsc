@@ -6,7 +6,7 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: paddle.bin
 
-paddle.bin: paddle.c26 $(VCS_DIR)/four_paddles.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/4K/mapper.c26
+paddle.bin: paddle.c26 $(VCS_DIR)/components/four_paddles.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/4K/mapper.c26
 	$(VCSC) -I $(VCS_DIR) -Map paddle.map paddle.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 

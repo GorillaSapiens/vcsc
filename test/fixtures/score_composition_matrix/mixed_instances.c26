@@ -2,12 +2,12 @@
 include "vcs.c26"
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
-include "two_plus_two_score_support.c26"
+include "components/two_plus_two_score_support.c26"
 
-instantiate "six_glyph_component.c26" as centered
-instantiate "six_glyph_left_component.c26" as left
-instantiate "six_glyph_right_component.c26" as right
-instantiate "two_plus_two_score_component.c26" as split
+instantiate "components/six_glyph_component.c26" as centered
+instantiate "components/six_glyph_left_component.c26" as left
+instantiate "components/six_glyph_right_component.c26" as right
+instantiate "components/two_plus_two_score_component.c26" as split
 
 void main(void) {
    PF0 := 0;

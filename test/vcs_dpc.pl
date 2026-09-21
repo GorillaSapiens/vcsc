@@ -104,8 +104,8 @@ $mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir
 my $visible_src=read_file($source);
 my $status_font=read_file(File::Spec->catfile($example_dir,'status_font.c26'));
 my $cart_font=read_file(File::Spec->catfile($example_dir,'cart_type_font.c26'));
-$visible_src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result/ &&
-$visible_src =~ /instantiate "six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
+$visible_src =~ /instantiate "components\/six_glyph_big_wide_component\.c26" as status_result/ &&
+$visible_src =~ /instantiate "components\/six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
 $visible_src =~ /include "status_font\.c26"/ &&
 $visible_src =~ /include "cart_type_font\.c26"/ &&
 $visible_src =~ /vcs_ntsc_wait_component_scanlines\(81\).*?status_result_draw\(\).*?vcs_ntsc_component_handoff\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(81\)/s &&

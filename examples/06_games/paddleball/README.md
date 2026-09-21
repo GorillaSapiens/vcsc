@@ -9,7 +9,7 @@
 
 # Paddleball two-paddle example
 
-This 4K example composes `three_plus_three_score_component.c26` with a compact
+This 4K example composes `components/three_plus_three_score_component.c26` with a compact
 181-line Paddleball playfield. The left paddle/score are blue, the right paddle/score
 are red, and the black field uses white walls, center dashes, and Ball.
 
@@ -32,7 +32,7 @@ calculation can wrap around the left or right edge. Paddle rebounds use the TIA'
 M0-Ball and M1-Ball collision latches, so a rebound requires actual rendered-pixel
 overlap instead of a software rectangle approximation.
 
-`two_paddles.c26` measures both analog inputs in two-scanline units and permits
+`components/two_paddles.c26` measures both analog inputs in two-scanline units and permits
 a measurement to span frames instead of clipping slow/high-resistance paddle
 positions. The game gives the low end a small dead zone for controller tolerance,
 then maps both channels onto the same odd Y=9..159 rendered-top range. M0 and M1

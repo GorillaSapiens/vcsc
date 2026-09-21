@@ -46,10 +46,10 @@ The stable result display has two centered white lines. On green success the
 first line is lowercase **pass** in the 8x16 Big font; on dark-red failure it is
 uppercase **FAIL**. Those glyphs come from the checked-in generated `status_font.c26` subset of
 `libraries/vcs/fonts/big_ascii.c26` and are rendered by
-`six_glyph_big_wide_component.c26` as `blank/p/a/s/s/blank` or
+`components/six_glyph_big_wide_component.c26` as `blank/p/a/s/s/blank` or
 `blank/F/A/I/L/blank`.
 
-Directly below it, `six_glyph_component.c26` uses the checked-in generated
+Directly below it, `components/six_glyph_component.c26` uses the checked-in generated
 `cart_type_font.c26` subset of `libraries/vcs/fonts/default_ascii.c26` to identify
 the cartridge. Ordinary
 images show centered `F8`, `F6`, or `F4`; Superchip images show `F8SC`, `F6SC`,

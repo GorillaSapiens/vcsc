@@ -38,8 +38,8 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $component=File::Spec->catfile($vcs,'two_plus_two_score_component.c26');
-my $support=File::Spec->catfile($vcs,'two_plus_two_score_support.c26');
+my $component=File::Spec->catfile($vcs,'components/two_plus_two_score_component.c26');
+my $support=File::Spec->catfile($vcs,'components/two_plus_two_score_support.c26');
 my $fixture=File::Spec->catfile($repo,qw(test fixtures two_plus_two_score two_instances_motion.c26));
 my $bin=File::Spec->catfile($tmp,'two_plus_two_score.bin');
 my $mapfile=File::Spec->catfile($tmp,'two_plus_two_score.map');
@@ -141,8 +141,8 @@ for my $omit (qw(init vblank draw overscan)) {
    my $missing=File::Spec->catfile($tmp,"two_plus_two_missing_$omit.c26");
    open(my $fh,'>:raw',$missing) or die "write $missing: $!\n";
    print {$fh} qq{include "vcs.c26"\n};
-   print {$fh} qq{include "two_plus_two_score_support.c26"\n};
-   print {$fh} qq{instantiate "two_plus_two_score_component.c26" as one\n};
+   print {$fh} qq{include "components/two_plus_two_score_support.c26"\n};
+   print {$fh} qq{instantiate "components/two_plus_two_score_component.c26" as one\n};
    print {$fh} "void main(void) {\n";
    for my $phase (qw(init vblank draw overscan)) {
       next if $phase eq $omit;

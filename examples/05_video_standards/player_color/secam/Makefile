@@ -9,7 +9,7 @@ SOURCE := secam_player_color_228_interactive.c26
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(VCS_DIR)/frame_secam.c26 $(VCS_DIR)/frame_50hz_component.c26 $(VCS_DIR)/renderers/player_color/player_color.c26
+$(TARGET): $(SOURCE) $(VCS_DIR)/frame_secam.c26 $(VCS_DIR)/components/frame_50hz_component.c26 $(VCS_DIR)/renderers/player_color/player_color.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

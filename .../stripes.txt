@@ -3,12 +3,14 @@ VCSC RENDERER / STRIPES ROADMAP
 
 Goal
 ----
-Before item 57, consolidate duplicated gameplay renderers and components.
-`all_five`, `player_color`, and both `all_five_player_color_*` profiles become
-compile-time specializations selected by `lines`, missiles, player colors, and
-later `stripes`. Retire both unofficial and both `standard_4k_ntsc*` legacy profiles after preserving useful coverage. `multisprite` and
-`enhanced_multisprite_asymmetric` remain distinct. Move reusable components,
-including `poison_debug_score`, under `libraries/vcs/components/`.
+For item 57, consolidate the duplicated gameplay renderers before adding stripes.
+Reusable lifecycle/input/score/display components live under
+`libraries/vcs/components/`, including `poison_debug_score`. `all_five`,
+`player_color`, and both `all_five_player_color_*` profiles become compile-time
+specializations selected by `lines`, missiles, player colors, and later `stripes`.
+Retire both unofficial and both `standard_4k_ntsc*` legacy profiles after
+preserving useful coverage. `multisprite` and
+`enhanced_multisprite_asymmetric` remain distinct.
 
 Stripe ABI
 ----------
@@ -25,10 +27,7 @@ Stripes are screen-space bands. Measure storage needs. Preserve raster, timing, 
 
 Steps
 -----
-S1. Record this architecture, stripe ABI, and flat migration order.
-
-S2. Create `libraries/vcs/components/`; move reusable components/support and
-    `poison_debug_score`; update callers, manifests, tests, examples, and docs.
+Current next action: S3.
 
 S3. Inventory the six modern gameplay and two legacy profiles: ABI, schedules,
     line modes, resources, examples, raster oracles, and tests.

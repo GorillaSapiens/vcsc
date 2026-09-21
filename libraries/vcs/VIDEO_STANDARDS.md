@@ -35,14 +35,14 @@ contract independently of the frame scheduler:
 - `renderers/multisprite/multisprite.c26` (181, 192, or 228 lines)
 - `renderers/player_color/player_color.c26` (170, 181, 192, or 228 lines)
 - `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
-- `renderers/poison_debug_score/poison_debug_score.c26`
-- `six_glyph_component.c26`
-- `six_glyph_left_component.c26`
-- `six_glyph_right_component.c26`
-- `six_glyph_wide_component.c26`
-- `six_glyph_big_wide_component.c26`
-- `two_plus_two_score_component.c26`
-- `three_plus_three_score_component.c26`
+- `components/poison_debug_score/poison_debug_score.c26`
+- `components/six_glyph_component.c26`
+- `components/six_glyph_left_component.c26`
+- `components/six_glyph_right_component.c26`
+- `components/six_glyph_wide_component.c26`
+- `components/six_glyph_big_wide_component.c26`
+- `components/two_plus_two_score_component.c26`
+- `components/three_plus_three_score_component.c26`
 
 Geometry portability does not imply palette portability. Components that consume
 caller-provided color bytes must be supplied PAL or SECAM colors by the caller;

@@ -23,8 +23,8 @@ $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$source=File::Spec->catfile($repo,qw(examples 06_games four_player_paddleball four_player_paddleball.c26));
-my$component=File::Spec->catfile($vcs,'four_paddles.c26');
-my$two=File::Spec->catfile($vcs,'two_paddles.c26');
+my$component=File::Spec->catfile($vcs,'components/four_paddles.c26');
+my$two=File::Spec->catfile($vcs,'components/two_paddles.c26');
 my$bin=File::Spec->catfile($tmp,'four_player_paddleball.bin');
 my$mapfile=File::Spec->catfile($tmp,'four_player_paddleball.map');
 
@@ -40,12 +40,12 @@ $c =~ /TEMPLATE_score_advance_pair/ && $c =~ /TEMPLATE_score_account_a/
 $t =~ /parameter port := 0/ && $t =~ /TEMPLATE_position0/ && $t =~ /TEMPLATE_position1/ && $t =~ /TEMPLATE_button0/ && $t =~ /TEMPLATE_button1/
    or die "two-paddle subset API regressed\n";
 
-$p =~ /include "4K\/mapper\.c26"/ && $p =~ /instantiate "four_paddles\.c26" as paddles/ or die "four-player example lost 4K\/four-paddle composition\n";
+$p =~ /include "4K\/mapper\.c26"/ && $p =~ /instantiate "components\/four_paddles\.c26" as paddles/ or die "four-player example lost 4K\/four-paddle composition\n";
 $p =~ /inline void score_paddle_sample0\(void\) \{ paddles_score_sample0\(\); \}/ &&
 $p =~ /inline void score_paddle_sample1\(void\) \{ paddles_score_sample1\(\); \}/ &&
 $p =~ /inline void score_paddle_latch23_fixed\(void\) \{ paddles_score_latch23_fixed\(\); \}/ &&
 $p =~ /inline void score_paddle_advance_pair\(void\) \{ paddles_score_advance_pair\(\); \}/ &&
-$p =~ /instantiate "three_plus_three_score_component\.c26" as score \(paddle_samples:=4\)/ &&
+$p =~ /instantiate "components\/three_plus_three_score_component\.c26" as score \(paddle_samples:=4\)/ &&
 $p =~ /paddles_score_commit_latched23\(\);.*?asm lda #9;\s*paddles_score_account_a\(\);/s
    or die "four-player Paddleball no longer samples all four paddles through the score renderer\n";
 $p =~ /paddle 0\s+.*P0.*paddle 1\s+.*M0/s && $p =~ /paddle 2\s+.*P1.*paddle 3\s+.*M1/s

@@ -201,7 +201,7 @@ $src =~ /bank4 void diagnostic_driving_vblank\(void\).*?diagnostic_left_drive_be
    or die "diagnostic driving mode lost its once-per-frame VBLANK sample\n";
 $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
-$src =~ /instantiate "four_paddles\.c26" as diagnostic_paddles.*?diagnostic_text_paddle_sample0.*?diagnostic_paddles_score_commit_latched0\(\).*?diagnostic_text_paddle_sample1.*?asm bit\.z CXM0P;.*?asm nop;.*?asm nop;.*?asm nop;.*?instantiate "six_glyph_component\.c26" as diagnostic_text .*?paddle_samples:=2/s &&
+$src =~ /instantiate "components\/four_paddles\.c26" as diagnostic_paddles.*?diagnostic_text_paddle_sample0.*?diagnostic_paddles_score_commit_latched0\(\).*?diagnostic_text_paddle_sample1.*?asm bit\.z CXM0P;.*?asm nop;.*?asm nop;.*?asm nop;.*?instantiate "components\/six_glyph_component\.c26" as diagnostic_text .*?paddle_samples:=2/s &&
 $src =~ /asm lda #6;\s*diagnostic_paddles_score_account_a\(\);/s &&
 $src =~ /bank1 void diagnostic_draw_text_row\(void\).*?diagnostic_paddles_score_latch0123_fixed\(\);\s*diagnostic_paddles_score_commit_latched1\(\);\s*WSYNC := \$A;.*?diagnostic_text_draw\(\);/s &&
 $src =~ /diagnostic_paddles_score_commit_latched2\(\);.*?diagnostic_paddles_score_commit_latched3\(\);/s &&

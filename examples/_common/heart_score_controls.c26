@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // Shared right-joystick controls for heart-score composition examples.
-// The including source must instantiate heart_score_component.c26 as `score`.
+// The including source must instantiate components/heart_score_component.c26 as `score`.
 
 uint8_t right_joystick_ready := 0;
 

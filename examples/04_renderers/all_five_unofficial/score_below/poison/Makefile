@@ -12,7 +12,7 @@ all: $(TARGET)
 $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/renderers/poison_debug_score/poison_debug_score.c26 \
+           $(VCS_DIR)/components/poison_debug_score/poison_debug_score.c26 \
            $(VCS_DIR)/renderers/all_five_unofficial/all_five_unofficial.c26 \
            $(ROOT)/examples/_common/poison_score_controls.c26 \
            $(ROOT)/examples/_common/all_five_181_interactive_common.c26

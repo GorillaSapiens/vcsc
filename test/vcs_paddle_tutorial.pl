@@ -27,7 +27,7 @@ my$make=File::Spec->catfile($dir,'Makefile');
 my$readme=File::Spec->catfile($dir,'README.md');
 
 my$s=read_file($src);
-$s =~ /instantiate "four_paddles\.c26" as paddles/
+$s =~ /instantiate "components\/four_paddles\.c26" as paddles/
    or die "paddle tutorial must use the four-paddle timing component\n";
 $s =~ /X=20,60,100,140/ &&
 $s =~ /asm lda #26;.*?asm ldx #2;.*?asm lda #67;.*?asm ldx #3;.*?asm lda #107;.*?asm ldx #1;.*?asm lda #146;/s

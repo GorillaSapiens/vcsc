@@ -2,7 +2,7 @@
 
 include "2K/mapper.c26"
 include "frame_ntsc.c26"
-instantiate "driving_controller.c26" as drive (port:=1)
+instantiate "components/driving_controller.c26" as drive (port:=1)
 
 void main(void) {
    VBLANK := 2;

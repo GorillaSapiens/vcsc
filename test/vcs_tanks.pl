@@ -39,7 +39,7 @@ $s =~ /TANKS_WHITE __builtin_ntsc_rgb\(0xff, 0xff, 0xff\)/ &&
 $s =~ /TANKS_BLUE\s+__builtin_ntsc_rgb\(0x20, 0x40, 0xff\)/ &&
 $s =~ /TANKS_RED\s+__builtin_ntsc_rgb\(0xff, 0x20, 0x20\)/
    or die "Tanks lost Paddleball palette\n";
-$s =~ /instantiate "three_plus_three_score_component\.c26" as score/ &&
+$s =~ /instantiate "components\/three_plus_three_score_component\.c26" as score/ &&
 $s =~ /score_left_score\+\+/ && $s =~ /score_right_score\+\+/ &&
 $s =~ /score_left_color := TANKS_BLUE/ && $s =~ /score_right_color := TANKS_RED/
    or die "Tanks lost the blue\/red 3+3 score\n";

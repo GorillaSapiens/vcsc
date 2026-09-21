@@ -70,7 +70,7 @@ The maintained renderers use the same mechanism:
 
 ```c
 instantiate "renderers/all_five/all_five.c26" as game (lines:=181)
-instantiate "six_glyph_component.c26" as score (mutable_color:=1)
+instantiate "components/six_glyph_component.c26" as score (mutable_color:=1)
 ```
 
 The first instance selects the 181-visible-line renderer profile. The second
@@ -81,8 +81,8 @@ The 170-line examples instantiate the same score component twice:
 
 ```c
 instantiate "renderers/player_color/player_color.c26" as game (lines:=170)
-instantiate "six_glyph_component.c26" as top_score (mutable_color:=1)
-instantiate "six_glyph_component.c26" as bottom_score (mutable_color:=1)
+instantiate "components/six_glyph_component.c26" as top_score (mutable_color:=1)
+instantiate "components/six_glyph_component.c26" as bottom_score (mutable_color:=1)
 ```
 
 `top_score_*` and `bottom_score_*` are separate objects and functions even
@@ -365,7 +365,7 @@ For objects, reads, writes, address-taking, and `ref` use count. A component's
 own internal references to its public state do not satisfy the contract; the
 application has to use the API itself.
 
-This matters for components such as `six_glyph_component.c26`:
+This matters for components such as `components/six_glyph_component.c26`:
 
 ```c
 recommend bcd24_t TEMPLATE_score := 0;
@@ -615,7 +615,7 @@ For real source rather than toy syntax, start with:
   parameterized renderer with the same public API across profiles;
 - `libraries/vcs/renderers/multisprite/multisprite.c26` for a parameterized
   timing-sensitive renderer;
-- `libraries/vcs/six_glyph_component.c26` for defaulted feature parameters,
+- `libraries/vcs/components/six_glyph_component.c26` for defaulted feature parameters,
   `require` lifecycle hooks, and `recommend` public state;
 - `examples/04_renderers/all_five/score_above_and_below/` for one
   renderer plus two independent instances of the same score component;

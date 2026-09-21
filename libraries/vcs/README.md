@@ -40,23 +40,23 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `OMNI/mapper.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; linked `.map` output gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI
 - `color_ntsc.c26`, `color_pal.c26`, `color_secam.c26` ... readable standard-specific aliases backed by the compile-time RGB palette matchers
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
-- `frame_pal.c26`, `frame_secam.c26` ... distinct PAL50/SECAM50 public front ends over the shared measured 312-line `frame_50hz_component.c26` scheduler core
+- `frame_pal.c26`, `frame_secam.c26` ... distinct PAL50/SECAM50 public front ends over the shared measured 312-line `components/frame_50hz_component.c26` scheduler core
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `sound_pal.c26`, `sound_secam.c26` ... 50 Hz TIA control/note aliases plus PAL/SECAM frame-duration constants through `sound_50hz.c26`
 - `VIDEO_STANDARDS.md` ... PAL/SECAM/NTSC component-portability classification and measured 228-line composition guidance
-- `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; `glyph_rows:=8` is the default, while shorter tightly packed fonts select the six-full-pointer path automatically
-- `six_glyph_big_wide_component.c26` ... matching wide geometry for the Big decimal/hex fonts; `glyph_rows:=16` by default and nondefault tightly packed heights consume `glyph_rows+3` visible scanlines
-- `six_glyph_left_component.c26` ... mutable-color variant justified at X=0..47; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
-- `six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
-- `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
-- `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
-- `heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps derived from Thomas Jentzsch's 11-Invaders renderer; seven-line default profile, optional compile-time top/bottom playfield line markers, 12-pixel heart pitch, exact full/half left-prefix geometry
-- `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers
-- `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
-- `driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
-- `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
-- `two_plus_two_score_component.c26` ... repeatable P0/P1 score with independent packed-BCD left/right values, colors, and X positions; `glyph_rows:=8` by default selects how many rows of its native support glyphs are drawn
+- `components/six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; `glyph_rows:=8` is the default, while shorter tightly packed fonts select the six-full-pointer path automatically
+- `components/six_glyph_big_wide_component.c26` ... matching wide geometry for the Big decimal/hex fonts; `glyph_rows:=16` by default and nondefault tightly packed heights consume `glyph_rows+3` visible scanlines
+- `components/six_glyph_left_component.c26` ... mutable-color variant justified at X=0..47; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
+- `components/six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
+- `components/six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
+- `components/three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
+- `components/heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps derived from Thomas Jentzsch's 11-Invaders renderer; seven-line default profile, optional compile-time top/bottom playfield line markers, 12-pixel heart pitch, exact full/half left-prefix geometry
+- `components/two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers
+- `components/keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
+- `components/driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
+- `components/two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
+- `components/two_plus_two_score_component.c26` ... repeatable P0/P1 score with independent packed-BCD left/right values, colors, and X positions; `glyph_rows:=8` by default selects how many rows of its native support glyphs are drawn
 - `renderers/AUTHORING.md` ... maintained HOWTO for renderer/score component contracts, phase/TIA ownership, stack and memory budgets, cycle scheduling, Stella oracles, regressions, examples, and installation
 - `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline, machine-readable visible-component handoff/TIA ownership table, and the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
 - `renderers/multisprite/` ... modern parameterized P0-plus-five-multiplexed-P1 lifecycle component; `lines:=192` is full-height and `lines:=181` composes with an independent eleven-line score, with full X=0..159, bounded independent Y motion, faithful frame-persistent overlap flicker arbitration, a page-aligned graphics block, and branch-page contracts that keep the retained raster cycle-stable
@@ -66,7 +66,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `renderers/all_five_unofficial/` ... parameterized stable/common-NMOS experimental twin of `all_five`, supporting `lines:=192`, `181`, and `170` with the same API, RAM contracts, and corrected raster schedules
 - `renderers/player_color/` ... parameterized official-opcode P0/P1/BL per-row-color component; `lines:=192` is full-height, `lines:=181` composes with one eleven-line score, and `lines:=170` composes between scores above and below
 - `renderers/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; currently raster-identical and size-identical after direct-countdown conversion
-- `renderers/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
+- `components/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
 - `renderers/standard_4k_ntsc/` ... legacy monolithic all-five-object solid-color component whose generated assembly object carries its own placement, page, and hidden-stack contracts; certified with generic 4K/F8/F6/F4/F8SC C26 profiles through a VBLANK-only banked overscan hook
 - `renderers/standard_4k_ntsc_playercolors/` ... legacy monolithic P0+P1+BL player-color profile retained for compatibility and regression
 - `fonts/` ... eight shared 8x8 score-font families, the Big 8x16 decimal/hex/ASCII family, plus the six-slice `logo_font.c26` VCSC mark
@@ -170,7 +170,7 @@ that RAM byte and all flag-setting code.
 ## PAL and SECAM 50 Hz frame schedulers
 
 `frame_pal.c26` and `frame_secam.c26` are distinct public front ends over a shared
-internal `frame_50hz_component.c26`. Both expose the measured 312-line scheduler
+internal `components/frame_50hz_component.c26`. Both expose the measured 312-line scheduler
 contract used by this project: 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan
 scanlines, with 76 CPU cycles per scanline. Their public names remain separate
 (`vcs_pal_*` / `VCS_PAL_*` and `vcs_secam_*` / `VCS_SECAM_*`) so later palette,
@@ -213,9 +213,9 @@ finer cadence instead of assuming NTSC frame counts.
 
 ## Two paddles on one controller port
 
-`two_paddles.c26` is a parameterized input component for the two analog paddles
+`components/two_paddles.c26` is a parameterized input component for the two analog paddles
 and two fire buttons connected through one VCS controller port. Port 0 is the
-default; use `instantiate "two_paddles.c26" as paddles (port:=1)` for the right
+default; use `instantiate "components/two_paddles.c26" as paddles (port:=1)` for the right
 port. The public state is `position0`, `position1`, `button0`, `button1`, and
 `valid`. Button values are normalized to 1 while pressed. Position values are
 raw charge-time measurements; applications should clamp or calibrate them for
@@ -251,7 +251,7 @@ remain inside the scheduler ownership contract.
 
 ## Four paddles across both controller ports
 
-`four_paddles.c26` extends the same RC-measurement model to all four Atari
+`components/four_paddles.c26` extends the same RC-measurement model to all four Atari
 CX30-style paddles at once. Its public surface deliberately contains the entire
 two-paddle state/lifecycle vocabulary (`position0/1`, `button0/1`, `valid`,
 `init()`, `sample0/1()`, `advance_pair()`, `account_gap()`, `vblank()`,
@@ -266,7 +266,7 @@ one fixed phase, then commits one channel per line from that shared timestamp.
 This avoids giving the right-port pair a systematic phase/range offset merely
 because its commit runs later. The shared elapsed counter advances once per
 four-line group, so all four positions retain the same units as
-`two_paddles.c26`. Seven VBLANK sample groups consume 28 lines and leave enough
+`components/two_paddles.c26`. Seven VBLANK sample groups consume 28 lines and leave enough
 of the scheduler's 37-line deadline for component bookkeeping; `account_gap()`
 preserves elapsed time across the unsampled remainder, score, and display setup.
 The emulator oracle exercises distinct, simultaneous, and staggered four-channel
@@ -296,7 +296,7 @@ paddles. Paddle rebounds use the P0-Ball/M0-Ball/P1-Ball/M1-Ball TIA collision
 latches, any teammate may serve, and scoring remains blue-versus-red.
 
 The public Paddleball example in `examples/06_games/paddleball/` demonstrates a complete
-composition. Its 11-line `three_plus_three_score_component.c26` owns P0/P1;
+composition. Its 11-line `components/three_plus_three_score_component.c26` owns P0/P1;
 M0/M1 are the blue/red paddles and Ball is white. The 181 gameplay lines include
 four-scanline white top and bottom walls and a reflected dashed center line on a
 black background. Paddle rebounds use the TIA M0-Ball/M1-Ball collision latches
@@ -306,7 +306,7 @@ serving, scoring, console Reset, and stable NTSC frame length.
 
 ## Twelve-key keypad controller
 
-`keypad_controller.c26` is parameterized with `port:=0` or `port:=1` and scans
+`components/keypad_controller.c26` is parameterized with `port:=0` or `port:=1` and scans
 one Atari-style 4x3 switch matrix without modifying the other controller port's
 SWCHA/SWACNT nibble. Pins 1 through 4 are driven as active-low row outputs; the
 three columns return through INPT0/INPT1/INPT4 on the left or
@@ -338,7 +338,7 @@ when no key is held, white on the project's blue background.
 
 ## Indy 500 driving controller
 
-`driving_controller.c26` supports one Atari Indy 500 driving controller on
+`components/driving_controller.c26` supports one Atari Indy 500 driving controller on
 either controller port with `port:=0` (left, the default) or `port:=1` (right).
 Pins 1 and 2 are read from SWCHA as a two-bit Gray code: left D4/D5 and
 right D0/D1. Pin 6 is the active-low fire button through INPT4 or INPT5. The selected SWACNT nibble is
@@ -373,14 +373,14 @@ patterns, so select **Driving** manually for each port used by the cartridge.
 
 ## Heart score component
 
-`heart_score_component.c26` draws a fixed-footprint health meter from zero to
+`components/heart_score_component.c26` draws a fixed-footprint health meter from zero to
 eleven hearts in half-heart steps. Half-hearts are available through 10.5; at
 11, `half` is ignored. The eleven full-heart positions are X=16,28,40,52,64,76,
 88,100,112,124,136 in 160-pixel TIA coordinates. Smaller values are exact left-justified prefixes; existing
 hearts never slide as the value changes. `score` values above 11 clamp to 11.
 
 ```vcsc
-instantiate "heart_score_component.c26" as health
+instantiate "components/heart_score_component.c26" as health
 
 health_score := 7; // full hearts
 health_half := 1;  // add the left half of the next heart (through 10.5)
@@ -391,7 +391,7 @@ The default instantiation is deliberately unchanged. An optional compile-time
 profile adds segmented playfield lines above and below the heart row:
 
 ```vcsc
-instantiate "heart_score_component.c26" as health (line_markers:=1)
+instantiate "components/heart_score_component.c26" as health (line_markers:=1)
 
 health_lines := 8;       // independent left prefix, 0..11
 health_line_color := 0xc6;
@@ -449,14 +449,14 @@ player renderer cannot silently displace the first hearts.
 
 ## Left/right three-plus-three score component
 
-`three_plus_three_score_component.c26` draws one fixed three-glyph score in each
+`components/three_plus_three_score_component.c26` draws one fixed three-glyph score in each
 half of the screen. The left glyph origins are X=20,36,52 and the right glyph
 origins are X=100,116,132, so each 40-pixel field is centered in its 80-pixel
 half. Each side has an independent packed-BCD value and TIA color:
 
 ```vcsc
 include "fonts/default_decimal.c26"
-instantiate "three_plus_three_score_component.c26" as score
+instantiate "components/three_plus_three_score_component.c26" as score
 
 void main(void)
 {
@@ -497,7 +497,7 @@ existing P1-positioning delay, so analog threshold state cannot move RESP1; the
 application commits the channel-2/3 latch later through its paddle instance.
 The two Paddleball examples demonstrate both modes.
 
-The centered `six_glyph_component.c26` likewise accepts `paddle_samples:=2` and
+The centered `components/six_glyph_component.c26` likewise accepts `paddle_samples:=2` and
 calls two compile-time hooks in its setup-line slack. The hooks own their own
 register contract; direct 17-cycle paddle probes reserve X=0, while the field
 diagnostic instead commits channels 0/1 from a simultaneous four-channel latch.
@@ -519,8 +519,8 @@ Include the immutable support module once, then instantiate the component as
 many times as RAM permits:
 
 ```vcsc
-include "two_plus_two_score_support.c26"
-instantiate "two_plus_two_score_component.c26" as score
+include "components/two_plus_two_score_support.c26"
+instantiate "components/two_plus_two_score_component.c26" as score
 
 score_left_score := 12;
 score_right_score := 34;
@@ -541,7 +541,7 @@ Use `vcs_ntsc_component_handoff()` before an adjacent visible component.
 
 ## Poison debug score renderer
 
-`renderers/poison_debug_score/poison_debug_score.c26` is a deterministic
+`components/poison_debug_score/poison_debug_score.c26` is a deterministic
 adversarial component, not a production score renderer. It consumes exactly
 11 visible scanlines and owns one caller-set exit-background byte. While its
 red diagnostic band is visible it deliberately leaves hostile P0/P1 graphics,
@@ -553,7 +553,7 @@ collision-latch clearing.
 Use it wherever an ordinary short score component would be composed:
 
 ```vcsc
-instantiate "renderers/poison_debug_score/poison_debug_score.c26" as poison
+instantiate "components/poison_debug_score/poison_debug_score.c26" as poison
 ```
 
 Set `poison_exit_background` to the background expected by the following

@@ -82,8 +82,8 @@ my $example_make=File::Spec->catfile($example_dir,'Makefile');
 my $src=read_file($source);
 my $status_font=read_file(File::Spec->catfile($example_dir,'status_font.c26'));
 my $cart_font=read_file(File::Spec->catfile($example_dir,'cart_type_font.c26'));
-$src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result \(initial_color:=0\)/ &&
-$src =~ /instantiate "six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
+$src =~ /instantiate "components\/six_glyph_big_wide_component\.c26" as status_result \(initial_color:=0\)/ &&
+$src =~ /instantiate "components\/six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
 $src =~ /bank0 void draw_result\(void\)/ &&
 $src =~ /bank0 void main\(void\)/ &&
 $src !~ /asm\s+lda\s+\$3[0-9a-f]/i &&

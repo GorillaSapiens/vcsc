@@ -35,8 +35,8 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $component=File::Spec->catfile($vcs,'six_glyph_wide_component.c26');
-my $centered=File::Spec->catfile($vcs,'six_glyph_component.c26');
+my $component=File::Spec->catfile($vcs,'components/six_glyph_wide_component.c26');
+my $centered=File::Spec->catfile($vcs,'components/six_glyph_component.c26');
 my $fixture=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score golden.c26));
 my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score reference_stella_pinned.png));
 my $public=File::Spec->catfile($repo,qw(examples 02_components wide_score wide_score.c26));
@@ -89,7 +89,7 @@ $map_text =~ /BSS\.__vcsc_object\$score_score\s+run=\$[0-9A-Fa-f]+ size=\$0003/ 
 $map_text =~ /score_color\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide mutable color allocation changed\n";
 
 my $compat_text=read_file($fixture);
-$compat_text =~ s/instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+score/instantiate "six_glyph_wide_component.c26" as score (compact_font:=0)/
+$compat_text =~ s/instantiate\s+"components\/six_glyph_wide_component\.c26"\s+as\s+score/instantiate "components\/six_glyph_wide_component.c26" as score (compact_font:=0)/
    or die "wide fixture instantiate was not found for compatibility probe\n";
 write_file($compat_src,$compat_text);
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$compat_map,$compat_src,'-o',$compat_bin);

@@ -112,8 +112,8 @@ for my $c (@cases) {
    $mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+\Q$m\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
       or die "$m play target must force Stella -bs $m\n";
    my $src=read_file($source);
-   $src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result/ &&
-   $src =~ /instantiate "six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
+   $src =~ /instantiate "components\/six_glyph_big_wide_component\.c26" as status_result/ &&
+   $src =~ /instantiate "components\/six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
    $src =~ ($m eq '3E' ? qr/bank2 void draw_result\(void\)/ : qr/bank3 void draw_result\(void\)/)
       or die "$m visible diagnostic lost large PASS\/FAIL plus mapper label\n";
    if ($m eq '3F') {

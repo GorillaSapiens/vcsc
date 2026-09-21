@@ -11,13 +11,13 @@ alias PADDLEBALL_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
 alias PADDLEBALL_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
 alias PADDLEBALL_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 
-instantiate "two_paddles.c26" as paddles (port:=0)
+instantiate "components/two_paddles.c26" as paddles (port:=0)
 
 // Bind the score renderer's compile-time paddle slots directly to this reader.
 inline void score_paddle_sample0(void) { paddles_score_sample0(); }
 inline void score_paddle_sample1(void) { paddles_score_sample1(); }
 inline void score_paddle_advance_pair(void) { paddles_score_advance_pair(); }
-instantiate "three_plus_three_score_component.c26" as score (paddle_samples:=2)
+instantiate "components/three_plus_three_score_component.c26" as score (paddle_samples:=2)
 
 // Local 181-line Paddleball playfield renderer. P0/P1 are reserved for the score;
 // gameplay uses M0/M1 as paddles and Ball as the ball.

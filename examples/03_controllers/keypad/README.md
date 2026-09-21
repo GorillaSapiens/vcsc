@@ -20,7 +20,7 @@ used when no key is held. The source Big glyphs all had two blank rows above and
 so the example stores only the ten potentially visible rows per glyph; the
 surrounding blank scanlines keep the characters in the same vertical position.
 If more than one key is held, the display shows the first key in
-row-major order while `keypad_controller.c26` still reports every held key in its 12-bit
+row-major order while `components/keypad_controller.c26` still reports every held key in its 12-bit
 `keys` mask.
 
 The hardware is a 4x3 switch matrix. Pins 1 through 4 are active-low row
@@ -35,7 +35,7 @@ microseconds), and then samples both sides. One row is scanned per frame, so a
 complete stable snapshot and the `pressed`/`released` edge masks are committed
 every four frames.
 
-`libraries/vcs/keypad_controller.c26` is parameterized with `port:=0` or
+`libraries/vcs/components/keypad_controller.c26` is parameterized with `port:=0` or
 `port:=1`. It only changes the selected port's SWCHA/SWACNT nibble; the other
 port is preserved. The public example keeps all keypad work in overscan so
 input-dependent branches cannot disturb the VBLANK-to-visible deadline.

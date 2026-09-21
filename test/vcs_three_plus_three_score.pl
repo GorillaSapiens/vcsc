@@ -111,7 +111,7 @@ my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARG
 $repo=abs_path($repo) // die "resolve repo\n"; $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $component=File::Spec->catfile($vcs,'three_plus_three_score_component.c26');
+my $component=File::Spec->catfile($vcs,'components/three_plus_three_score_component.c26');
 my $fixture=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score boundary_carries.c26));
 my $reference=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score reference_stella_pinned.png));
 my $public=File::Spec->catfile($repo,qw(examples 02_components three_plus_three_score dual_score.c26));

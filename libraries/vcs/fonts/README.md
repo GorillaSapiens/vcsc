@@ -144,7 +144,7 @@ page. All four modules define the common `score_font` symbol and therefore must
 be included one at a time.
 
 The Big fonts require a 16-row display component.
-`six_glyph_big_wide_component.c26` provides the six-glyph wide score profile;
+`components/six_glyph_big_wide_component.c26` provides the six-glyph wide score profile;
 the ordinary six-glyph components remain eight-row renderers.
 
 ## VCSC logo slices

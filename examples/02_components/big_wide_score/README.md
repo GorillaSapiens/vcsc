@@ -17,7 +17,7 @@ glyph origins are X=`36`, `52`, `68`, `84`, `100`, and `116`, leaving one
 The example includes `fonts/big_decimal.c26` and instantiates:
 
 ```vcsc
-instantiate "six_glyph_big_wide_component.c26" as score
+instantiate "components/six_glyph_big_wide_component.c26" as score
 ```
 
 Each Big glyph consumes sixteen visible scanlines rather than eight. Including

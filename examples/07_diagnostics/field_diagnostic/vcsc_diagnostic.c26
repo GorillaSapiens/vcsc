@@ -23,7 +23,7 @@ include "fonts/logo_font.c26"
 
 // The paddle reader comes first so the text renderer can bind its optional
 // score-sampling slots to the diagnostic's simultaneous four-channel latch.
-instantiate "four_paddles.c26" as diagnostic_paddles
+instantiate "components/four_paddles.c26" as diagnostic_paddles
 // Channel 0's completion slot is already after every visible write on its setup
 // line. Channel 1 used to run a variable-cost commit *before* the first visible
 // GRP0 write, moving that write at exact thresholds. Commit channel 1 on the
@@ -45,11 +45,11 @@ inline void diagnostic_text_paddle_sample1(void) {
 // The ordinary score lifecycle needs a score_font symbol while preparing its
 // initial pointers.  The diagnostic immediately redirects all six full
 // pointers to message_font before every visible row.
-instantiate "six_glyph_component.c26" as diagnostic_text (compact_font:=0, glyph_rows:=5, external_pointers:=1, mutable_color:=1, paddle_samples:=2)
-instantiate "keypad_controller.c26" as diagnostic_left_keypad (port:=0, key_only:=1)
-instantiate "keypad_controller.c26" as diagnostic_right_keypad (port:=1, key_only:=1)
-instantiate "driving_controller.c26" as diagnostic_left_drive (port:=0)
-instantiate "driving_controller.c26" as diagnostic_right_drive (port:=1)
+instantiate "components/six_glyph_component.c26" as diagnostic_text (compact_font:=0, glyph_rows:=5, external_pointers:=1, mutable_color:=1, paddle_samples:=2)
+instantiate "components/keypad_controller.c26" as diagnostic_left_keypad (port:=0, key_only:=1)
+instantiate "components/keypad_controller.c26" as diagnostic_right_keypad (port:=1, key_only:=1)
+instantiate "components/driving_controller.c26" as diagnostic_left_drive (port:=0)
+instantiate "components/driving_controller.c26" as diagnostic_right_drive (port:=1)
 
 enum diagnostic_tv_modes {
    DIAGNOSTIC_TV_NTSC := 0,
@@ -287,7 +287,7 @@ bank3 void diagnostic_prepare_logo(void) {
 }
 
 // Full-pointer centered 8x8 draw using the same measured geometry as
-// six_glyph_component.c26.  It intentionally reuses diagnostic_text scratch;
+// components/six_glyph_component.c26.  It intentionally reuses diagnostic_text scratch;
 // the logo is fixed, so no score state or second renderer instance is needed.
 bank3 void diagnostic_draw_logo(void) {
    WSYNC := $A;

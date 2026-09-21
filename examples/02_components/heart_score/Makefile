@@ -8,7 +8,7 @@ TARGET := heart_score.bin
 
 all: $(TARGET)
 
-$(TARGET): heart_score.c26 $(VCS_DIR)/heart_score_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/4K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26
+$(TARGET): heart_score.c26 $(VCS_DIR)/components/heart_score_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/4K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26
 	$(VCSC) -I $(VCS_DIR) -I . -Map heart_score.map heart_score.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 

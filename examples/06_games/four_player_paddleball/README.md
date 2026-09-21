@@ -19,7 +19,7 @@ CX30-style paddles across both controller ports.
 * Ball remains the TIA Ball object. The playfield draws the top/bottom walls and
   dashed center divider.
 
-P0 and P1 are time-multiplexed. `three_plus_three_score_component.c26` owns them
+P0 and P1 are time-multiplexed. `components/three_plus_three_score_component.c26` owns them
 for the score at the top of the frame; the three black lines below the score are
 then used to reposition P0/P1 as gameplay paddles. Their visible graphics use
 only two center bits so the player paddles are approximately the same width as
@@ -35,11 +35,11 @@ Paddle rebounds are based entirely on TIA collision latches: P0-Ball and
 M0-Ball for blue, P1-Ball and M1-Ball for red. The score's player collisions are
 discarded by clearing `CXCLR` after the score and before gameplay begins.
 
-`four_paddles.c26` measures INPT0..INPT3 with one analog sample per scanline.
+`components/four_paddles.c26` measures INPT0..INPT3 with one analog sample per scanline.
 The gameplay renderer samples channels 0/1 on one two-line pair and channels
 2/3 on the next, so every input is observed every four scanlines while the raw
 elapsed clock still advances in the same two-scanline units used by
-`two_paddles.c26`. This keeps each beam-critical line below the worst-case RC
+`components/two_paddles.c26`. This keeps each beam-critical line below the worst-case RC
 threshold-completion budget and permits slow/high-resistance measurements to
 span frames rather than clipping them.
 

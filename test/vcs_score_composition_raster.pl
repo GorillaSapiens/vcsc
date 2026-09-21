@@ -35,24 +35,24 @@ sub transform_score {
    my($text,$kind)=@_;
    return $text if $kind eq 'center';
    if ($kind eq 'left' || $kind eq 'right') {
-      my $component=$kind eq 'left' ? 'six_glyph_left_component.c26' : 'six_glyph_right_component.c26';
-      $text =~ s/instantiate "six_glyph_component\.c26" as score/instantiate "$component" as score/
+      my $component=$kind eq 'left' ? 'components/six_glyph_left_component.c26' : 'components/six_glyph_right_component.c26';
+      $text =~ s/instantiate "components\/six_glyph_component\.c26" as score/instantiate "$component" as score/
          or die "could not install $kind score component\n";
       $text =~ s/^(\s*score_score := 123456;\n)/$1   score_color := 0x0e;\n/m
          or die "could not initialize $kind score color\n";
       return $text;
    }
    if ($kind eq 'two-plus-two') {
-      $text =~ s/(include "fonts\/default_decimal\.c26"\n)/$1include "two_plus_two_score_support.c26"\n/
+      $text =~ s/(include "fonts\/default_decimal\.c26"\n)/$1include "components\/two_plus_two_score_support.c26"\n/
          or die "could not add two-plus-two support\n";
-      $text =~ s/instantiate "six_glyph_component\.c26" as score/instantiate "two_plus_two_score_component.c26" as score/
+      $text =~ s/instantiate "components\/six_glyph_component\.c26" as score/instantiate "components\/two_plus_two_score_component.c26" as score/
          or die "could not install two-plus-two component\n";
       $text =~ s/^\s*score_score := 123456;\n/   score_left_score := 12;\n   score_right_score := 34;\n   score_left_color := 0x0e;\n   score_right_color := 0x2e;\n   score_left_x := 16;\n   score_right_x := 104;\n/m
          or die "could not initialize two-plus-two component\n";
       return $text;
    }
    if ($kind eq 'poison') {
-      $text =~ s/instantiate "six_glyph_component\.c26" as score/instantiate "renderers\/poison_debug_score\/poison_debug_score.c26" as score/
+      $text =~ s/instantiate "components\/six_glyph_component\.c26" as score/instantiate "components\/poison_debug_score\/poison_debug_score.c26" as score/
          or die "could not install poison component\n";
       $text =~ s/^\s*score_score := 123456;\n/   score_exit_background := 0x84;\n/m
          or die "could not initialize poison component\n";
@@ -93,11 +93,11 @@ my @families=(
    {fixture=>'all_five_181_unofficial',     example=>undef,                           class=>'all_five', illegals=>1},
 );
 my @scores=(
-   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 migrated=>'centered',      component=>'six_glyph_component.c26'},
-   {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  migrated=>'left',          component=>'six_glyph_left_component.c26'},
-   {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', migrated=>'right',         component=>'six_glyph_right_component.c26'},
-   {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    migrated=>'two_plus_two', component=>'two_plus_two_score_component.c26'},
-   {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          migrated=>'poison',        component=>'renderers/poison_debug_score/poison_debug_score.c26'},
+   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 migrated=>'centered',      component=>'components/six_glyph_component.c26'},
+   {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  migrated=>'left',          component=>'components/six_glyph_left_component.c26'},
+   {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', migrated=>'right',         component=>'components/six_glyph_right_component.c26'},
+   {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    migrated=>'two_plus_two', component=>'components/two_plus_two_score_component.c26'},
+   {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          migrated=>'poison',        component=>'components/poison_debug_score/poison_debug_score.c26'},
 );
 
 my @active_families=defined($family_filter)

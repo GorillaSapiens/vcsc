@@ -40,9 +40,9 @@ my $reverse_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component t
 my $spaced_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component two_instances_spaced.c26));
 my $poison_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component poison_then_centered.c26));
 my $poison_color_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component poison_then_centered_color.c26));
-my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
-my $left_component=File::Spec->catfile($vcs,'six_glyph_left_component.c26');
-my $right_component=File::Spec->catfile($vcs,'six_glyph_right_component.c26');
+my $component=File::Spec->catfile($vcs,'components/six_glyph_component.c26');
+my $left_component=File::Spec->catfile($vcs,'components/six_glyph_left_component.c26');
+my $right_component=File::Spec->catfile($vcs,'components/six_glyph_right_component.c26');
 my $bin=File::Spec->catfile($tmp,'six_glyph_component.bin');
 my $reverse_bin=File::Spec->catfile($tmp,'six_glyph_component_reversed.bin');
 my $spaced_bin=File::Spec->catfile($tmp,'six_glyph_component_spaced.bin');
@@ -194,14 +194,14 @@ for my $case (@raster_cases) {
    $err eq '' or die "$name score-raster stderr: $err";
 }
 
-# Full-pointer compatibility is part of the merged centered component API.\nmy $full_src=File::Spec->catfile($tmp,'six_glyph_full_pointer.c26');\nopen(my $full_fh,'>:raw',$full_src) or die "write $full_src: $!\\n";\nprint {$full_fh} qq{include "vcs.c26"\\n};\nprint {$full_fh} qq{include "fonts/default_decimal.c26"\\n};\nprint {$full_fh} qq{instantiate "six_glyph_component.c26" as full (compact_font:=0)\\n};\nprint {$full_fh} qq{void main(void) { full_init(); full_vblank(); full_draw(); full_overscan(); }\\n};\nclose($full_fh) or die "close $full_src: $!\\n";\nmy $full_bin=File::Spec->catfile($tmp,'six_glyph_full_pointer.bin');\nmy $full_map=File::Spec->catfile($tmp,'six_glyph_full_pointer.map');\n($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$full_map,$full_src,'-o',$full_bin);\n$rc==0 && !$sig or die "full-pointer component build failed\\n$out$err";\nmy $full_map_text=read_file($full_map);\nsymbol_addr($full_map_text,'full_pointers');\nsymbol_addr($full_map_text,'full_row');\n$full_map_text !~ /\\bfull_offsets\\b/ or die "full-pointer mode unexpectedly allocates compact offsets\\n";\n\n# Every lifecycle function is a component contract, not merely a convention.
+# Full-pointer compatibility is part of the merged centered component API.\nmy $full_src=File::Spec->catfile($tmp,'six_glyph_full_pointer.c26');\nopen(my $full_fh,'>:raw',$full_src) or die "write $full_src: $!\\n";\nprint {$full_fh} qq{include "vcs.c26"\\n};\nprint {$full_fh} qq{include "fonts/default_decimal.c26"\\n};\nprint {$full_fh} qq{instantiate "components/six_glyph_component.c26" as full (compact_font:=0)\\n};\nprint {$full_fh} qq{void main(void) { full_init(); full_vblank(); full_draw(); full_overscan(); }\\n};\nclose($full_fh) or die "close $full_src: $!\\n";\nmy $full_bin=File::Spec->catfile($tmp,'six_glyph_full_pointer.bin');\nmy $full_map=File::Spec->catfile($tmp,'six_glyph_full_pointer.map');\n($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$full_map,$full_src,'-o',$full_bin);\n$rc==0 && !$sig or die "full-pointer component build failed\\n$out$err";\nmy $full_map_text=read_file($full_map);\nsymbol_addr($full_map_text,'full_pointers');\nsymbol_addr($full_map_text,'full_row');\n$full_map_text !~ /\\bfull_offsets\\b/ or die "full-pointer mode unexpectedly allocates compact offsets\\n";\n\n# Every lifecycle function is a component contract, not merely a convention.
 # Omit each one in turn and require the component-specific link diagnostic.
 for my $omit (qw(init vblank draw overscan)) {
    my $missing=File::Spec->catfile($tmp,"six_glyph_missing_$omit.c26");
    open(my $fh,'>:raw',$missing) or die "write $missing: $!\n";
    print {$fh} qq{include "vcs.c26"\n};
    print {$fh} qq{include "fonts/default_decimal.c26"\n};
-   print {$fh} qq{instantiate "six_glyph_component.c26" as one\n};
+   print {$fh} qq{instantiate "components/six_glyph_component.c26" as one\n};
    print {$fh} "void main(void) {\n";
    for my $phase (qw(init vblank draw overscan)) {
       next if $phase eq $omit;

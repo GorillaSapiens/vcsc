@@ -7,7 +7,7 @@ include "color_ntsc.c26"
 include "playfield.c26"
 
 instantiate "renderers/player_color_181_unofficial/player_color_181_unofficial.c26" as game
-instantiate "renderers/poison_debug_score/poison_debug_score.c26" as score
+instantiate "components/poison_debug_score/poison_debug_score.c26" as score
 
 include "../../../../_common/poison_score_controls.c26"
 

@@ -69,7 +69,7 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $src=File::Spec->catfile($repo,qw(test fixtures vcs_examples 03_six_digit_score golden.c26));
 my $oldsrc=File::Spec->catfile($repo,qw(test fixtures six_glyph_component pre_template_one_score.c26));
 my $oldinclude=File::Spec->catdir($repo,qw(test fixtures six_glyph_component));
-my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
+my $component=File::Spec->catfile($vcs,'components/six_glyph_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
 my $font=File::Spec->catfile($vcs,qw(fonts default_decimal.c26));
 my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 03_six_digit_score reference_stella_7.0.png));
@@ -123,7 +123,7 @@ my $component_text=read_file($component);
 my $frame_text=read_file($frame);
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
            'score fixture no longer uses the shared NTSC scheduler');
-require_re($source,qr/instantiate\s+"six_glyph_component\.c26"\s+as\s+score/,
+require_re($source,qr/instantiate\s+"components\/six_glyph_component\.c26"\s+as\s+score/,
            'score fixture no longer instantiates the reusable component');
 $source !~ /six_glyph_display\.c26/ or die "score fixture still includes the legacy display module\n";
 require_re($source,qr/score_score\s*:=\s*123456/,

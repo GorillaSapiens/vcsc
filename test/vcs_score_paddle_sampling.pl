@@ -30,10 +30,10 @@ $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 
-my$score=read_file(File::Spec->catfile($vcs,'three_plus_three_score_component.c26'));
-my$six=read_file(File::Spec->catfile($vcs,'six_glyph_component.c26'));
-my$two=read_file(File::Spec->catfile($vcs,'two_paddles.c26'));
-my$four=read_file(File::Spec->catfile($vcs,'four_paddles.c26'));
+my$score=read_file(File::Spec->catfile($vcs,'components/three_plus_three_score_component.c26'));
+my$six=read_file(File::Spec->catfile($vcs,'components/six_glyph_component.c26'));
+my$two=read_file(File::Spec->catfile($vcs,'components/two_paddles.c26'));
+my$four=read_file(File::Spec->catfile($vcs,'components/four_paddles.c26'));
 
 $score =~ /parameter paddle_samples := 0/ &&
 $score =~ /TEMPLATE_paddle_sample0\(\)/ && $score =~ /TEMPLATE_paddle_sample1\(\)/ &&
@@ -58,8 +58,8 @@ $four =~ /Fixed 24-cycle score probe/ && $four =~ /TEMPLATE_score_account_a/
 # Disabled sampling must remain a zero-cost compile-time option. Explicit zero
 # and the default must produce byte-identical ROMs for both score renderers.
 for my $case (
-   ['three_plus_three_score_component.c26','score','score_left_score := 123; score_right_score := 456; score_left_color := 0x2e; score_right_color := 0x4e;'],
-   ['six_glyph_component.c26','score','score_score := 123456;'],
+   ['components/three_plus_three_score_component.c26','score','score_left_score := 123; score_right_score := 456; score_left_color := 0x2e; score_right_color := 0x4e;'],
+   ['components/six_glyph_component.c26','score','score_score := 123456;'],
 ) {
    my($component,$name,$setup)=@$case;
    my $base=join("\n",
@@ -87,11 +87,11 @@ my$two_bin=File::Spec->catfile($tmp,'score-two-paddles.bin');
 write_file($two_src,<<'C26');
 include "4K/mapper.c26"
 include "fonts/default_decimal.c26"
-instantiate "two_paddles.c26" as paddles
+instantiate "components/two_paddles.c26" as paddles
 inline void score_paddle_sample0(void) { paddles_score_sample0(); }
 inline void score_paddle_sample1(void) { paddles_score_sample1(); }
 inline void score_paddle_advance_pair(void) { paddles_score_advance_pair(); }
-instantiate "three_plus_three_score_component.c26" as score (paddle_samples:=2)
+instantiate "components/three_plus_three_score_component.c26" as score (paddle_samples:=2)
 void main(void) {
    paddles_init(); score_init(); paddles_vblank(); paddles_account_gap(1);
    score_vblank(); score_draw(); paddles_overscan(); paddles_dump(); score_overscan();
@@ -107,12 +107,12 @@ my$four_bin=File::Spec->catfile($tmp,'score-four-paddles.bin');
 write_file($four_src,<<'C26');
 include "4K/mapper.c26"
 include "fonts/default_decimal.c26"
-instantiate "four_paddles.c26" as paddles
+instantiate "components/four_paddles.c26" as paddles
 inline void score_paddle_sample0(void) { paddles_score_sample0(); }
 inline void score_paddle_sample1(void) { paddles_score_sample1(); }
 inline void score_paddle_latch23_fixed(void) { paddles_score_latch23_fixed(); }
 inline void score_paddle_advance_pair(void) { paddles_score_advance_pair(); }
-instantiate "three_plus_three_score_component.c26" as score (paddle_samples:=4)
+instantiate "components/three_plus_three_score_component.c26" as score (paddle_samples:=4)
 void main(void) {
    paddles_init(); score_init(); paddles_vblank(); paddles_account_gap(1);
    score_vblank(); score_draw(); paddles_score_commit_latched23();
@@ -128,10 +128,10 @@ my$six_bin=File::Spec->catfile($tmp,'six-two-paddles.bin');
 write_file($six_src,<<'C26');
 include "4K/mapper.c26"
 include "fonts/default_decimal.c26"
-instantiate "two_paddles.c26" as paddles
+instantiate "components/two_paddles.c26" as paddles
 inline void text_paddle_sample0(void) { asm ldx #0; paddles_score_sample0(); }
 inline void text_paddle_sample1(void) { asm ldx #0; paddles_score_sample1(); }
-instantiate "six_glyph_component.c26" as text (paddle_samples:=2)
+instantiate "components/six_glyph_component.c26" as text (paddle_samples:=2)
 void main(void) {
    paddles_init(); text_init(); paddles_vblank(); paddles_account_gap(1);
    text_vblank(); text_draw(); paddles_overscan(); paddles_dump(); text_overscan();

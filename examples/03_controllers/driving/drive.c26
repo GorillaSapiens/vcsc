@@ -14,8 +14,8 @@ alias DRIVE_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
 alias DRIVE_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
 alias DRIVE_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 
-instantiate "driving_controller.c26" as left_drive (port:=0)
-instantiate "driving_controller.c26" as right_drive (port:=1)
+instantiate "components/driving_controller.c26" as left_drive (port:=0)
+instantiate "components/driving_controller.c26" as right_drive (port:=1)
 
 // The 8-pixel-wide x 16-line glyphs occupy x=36..43 / 116..123 and visible
 // y=88..103. These sixteen positions put a 4x4 missile around each glyph on an

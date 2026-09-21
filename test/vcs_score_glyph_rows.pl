@@ -38,13 +38,13 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 
 my @components=(
-   ['six_glyph_component.c26',             'score', 8,  5, 'score_score := 123456;'],
-   ['six_glyph_left_component.c26',        'score', 8,  5, 'score_score := 123456; score_color := 0x0e;'],
-   ['six_glyph_right_component.c26',       'score', 8,  5, 'score_score := 123456; score_color := 0x0e;'],
-   ['six_glyph_wide_component.c26',        'score', 8,  5, 'score_score := 123456; score_color := 0x0e;'],
-   ['six_glyph_big_wide_component.c26',    'score', 16, 5, 'score_score := 123456; score_color := 0x0e;'],
-   ['three_plus_three_score_component.c26','score', 8,  5, 'score_left_score := 123; score_right_score := 456; score_left_color := 0x0e; score_right_color := 0x1e;'],
-   ['two_plus_two_score_component.c26',    'score', 8,  5, 'score_left_score := 12; score_right_score := 34; score_left_color := 0x0e; score_right_color := 0x1e; score_left_x := 32; score_right_x := 96;'],
+   ['components/six_glyph_component.c26',             'score', 8,  5, 'score_score := 123456;'],
+   ['components/six_glyph_left_component.c26',        'score', 8,  5, 'score_score := 123456; score_color := 0x0e;'],
+   ['components/six_glyph_right_component.c26',       'score', 8,  5, 'score_score := 123456; score_color := 0x0e;'],
+   ['components/six_glyph_wide_component.c26',        'score', 8,  5, 'score_score := 123456; score_color := 0x0e;'],
+   ['components/six_glyph_big_wide_component.c26',    'score', 16, 5, 'score_score := 123456; score_color := 0x0e;'],
+   ['components/three_plus_three_score_component.c26','score', 8,  5, 'score_left_score := 123; score_right_score := 456; score_left_color := 0x0e; score_right_color := 0x1e;'],
+   ['components/two_plus_two_score_component.c26',    'score', 8,  5, 'score_left_score := 12; score_right_score := 34; score_left_color := 0x0e; score_right_color := 0x1e; score_left_x := 32; score_right_x := 96;'],
 );
 
 for my $spec (@components) {
@@ -62,12 +62,13 @@ for my $spec (@components) {
    $text =~ /TEMPLATE_glyph_rows_must_be_1_through_\Q$default\E/
       or die "$file does not reject unsupported glyph_rows values\n";
 
-   my $src=File::Spec->catfile($tmp,$file); $src =~ s/\.c26\z/_rows$probe.c26/;
+   my $stem=$file; $stem =~ s{/}{_}g;
+   my $src=File::Spec->catfile($tmp,$stem); $src =~ s/\.c26\z/_rows$probe.c26/;
    my $bin=$src; $bin =~ s/\.c26\z/.bin/;
    my $map=$src; $map =~ s/\.c26\z/.map/;
    my $body="include \"vcs.c26\"\n";
-   if ($file eq 'two_plus_two_score_component.c26') {
-      $body .= "include \"two_plus_two_score_support.c26\"\n";
+   if ($file eq 'components/two_plus_two_score_component.c26') {
+      $body .= "include \"components/two_plus_two_score_support.c26\"\n";
    } else {
       my $bytes=10*$probe;
       my @v=(0..$bytes-1);
@@ -81,7 +82,7 @@ for my $spec (@components) {
    without_usage($out) eq '' && $err eq '' or die "$file glyph_rows=$probe build wrote output\n$out$err";
    -s $bin==4096 or die "$file glyph_rows=$probe probe is not 4096 bytes\n";
    my $map_text=read_file($map);
-   if ($file ne 'two_plus_two_score_component.c26') {
+   if ($file ne 'components/two_plus_two_score_component.c26') {
       $map_text =~ /\b${inst}_glyph_offsets\b.*?size=\$000A/
          or die "$file glyph_rows=$probe did not use packed glyph stride offsets\n";
    }

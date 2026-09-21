@@ -71,7 +71,7 @@ for my $case (
    my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
    @sources==1 or die "$leaf has ".scalar(@sources)." editable sources, expected one\n";
    my $source_text=read_file($sources[0]);
-   $source_text =~ /instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+score\b/
+   $source_text =~ /instantiate\s+"components\/six_glyph_wide_component\.c26"\s+as\s+score\b/
       or die "$sources[0] does not instantiate the wide score\n";
    $source_text =~ /instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s*\(lines:=181\)/
       or die "$sources[0] does not instantiate player_color(lines:=181)\n";

@@ -17,9 +17,9 @@ uint8_t probe_flags;
 uint24_t fingerprint;
 
 #ifndef FINGERPRINT_SELFTEST
-instantiate "six_glyph_big_wide_component.c26" as display
-instantiate "six_glyph_right_component.c26" as upper_logo (compact_font:=0)
-instantiate "six_glyph_left_component.c26" as lower_logo (compact_font:=0)
+instantiate "components/six_glyph_big_wide_component.c26" as display
+instantiate "components/six_glyph_right_component.c26" as upper_logo (compact_font:=0)
+instantiate "components/six_glyph_left_component.c26" as lower_logo (compact_font:=0)
 #endif
 
 // ARR is an unstable unofficial NMOS 6502/6507 opcode. The example enables

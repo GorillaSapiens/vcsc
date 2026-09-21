@@ -2,7 +2,7 @@ include "4K/mapper.c26"
 include "frame_ntsc.c26"
 
 
-instantiate "heart_score_component.c26" as health
+instantiate "components/heart_score_component.c26" as health
 
 
 void main(void) {

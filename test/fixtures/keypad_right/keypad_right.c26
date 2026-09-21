@@ -2,7 +2,7 @@
 
 include "2K/mapper.c26"
 include "frame_ntsc.c26"
-instantiate "keypad_controller.c26" as keypad (port:=1)
+instantiate "components/keypad_controller.c26" as keypad (port:=1)
 
 uint8_t scan_row := 0;
 

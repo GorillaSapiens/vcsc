@@ -6,7 +6,7 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: wide_score.bin
 
-wide_score.bin: wide_score.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/six_glyph_wide_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/2K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26
+wide_score.bin: wide_score.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/components/six_glyph_wide_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/2K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26
 	$(VCSC) -I $(VCS_DIR) -I . -Map wide_score.map wide_score.c26 -o $@
 	@test `wc -c < $@` -eq 2048
 

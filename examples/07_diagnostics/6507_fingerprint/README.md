@@ -13,12 +13,12 @@
 `ARR`-immediate probes, feeds each probe's accumulator result and masked `NVZC`
 flags through CRC-24/OPENPGP, and displays the resulting 24-bit value as six
 hexadecimal digits in the middle of the screen. The hexadecimal display uses
-`six_glyph_big_wide_component.c26` with the 8x16 `fonts/big_hex.c26` font.
+`components/six_glyph_big_wide_component.c26` with the 8x16 `fonts/big_hex.c26` font.
 
 Two more eleven-line six-glyph components display the fixed `012345` VCSC logo:
 
-- `six_glyph_right_component.c26` places it at the upper-right edge;
-- `six_glyph_left_component.c26` places it at the lower-left edge.
+- `components/six_glyph_right_component.c26` places it at the upper-right edge;
+- `components/six_glyph_left_component.c26` places it at the lower-left edge.
 
 The logo components first build the ordinary packed-BCD `012345` pointers, then
 redirect those six pointers to the consecutive slices in `fonts/logo_font.c26`.

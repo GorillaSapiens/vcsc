@@ -23,7 +23,7 @@ $repo=abs_path($repo)//die"resolve repo\n";$tmp=abs_path($tmp)//die"resolve tmp\
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$source=File::Spec->catfile($repo,qw(examples 06_games paddleball paddleball.c26));
-my$component=File::Spec->catfile($vcs,'two_paddles.c26');
+my$component=File::Spec->catfile($vcs,'components/two_paddles.c26');
 my$bin=File::Spec->catfile($tmp,'paddleball.bin');my$mapfile=File::Spec->catfile($tmp,'paddleball.map');
 
 my$c=read_file($component);my$p=read_file($source);
@@ -36,7 +36,7 @@ $p =~ /three_plus_three_score_component\.c26/ && $p =~ /two_paddles\.c26/ or die
 $p =~ /inline void score_paddle_sample0\(void\) \{ paddles_score_sample0\(\); \}/ &&
 $p =~ /inline void score_paddle_sample1\(void\) \{ paddles_score_sample1\(\); \}/ &&
 $p =~ /inline void score_paddle_advance_pair\(void\) \{ paddles_score_advance_pair\(\); \}/ &&
-$p =~ /instantiate "three_plus_three_score_component\.c26" as score \(paddle_samples:=2\)/ &&
+$p =~ /instantiate "components\/three_plus_three_score_component\.c26" as score \(paddle_samples:=2\)/ &&
 $p =~ /asm lda #9;\s*paddles_score_account_a\(\);/s
    or die "Paddleball no longer samples paddles through the score renderer\n";
 $p =~ /score_left_color := PADDLEBALL_BLUE/ && $p =~ /score_right_color := PADDLEBALL_RED/ or die "Paddleball lost blue\/red score colors\n";
@@ -81,7 +81,7 @@ my$map=read_file($mapfile);
 # Port 1 must instantiate from the same public component API even though the
 # game uses port 0.
 my$port1=File::Spec->catfile($tmp,'port1.c26');open(my$f,'>:raw',$port1)or die$!;
-print{$f} "include \"4K/mapper.c26\"\ninstantiate \"two_paddles.c26\" as p (port:=1)\nvoid main(void) { p_init(); p_vblank(); p_sample0(); p_sample1(); p_advance_pair(); p_account_gap(1); p_overscan(); p_dump(); }\n";close$f;
+print{$f} "include \"4K/mapper.c26\"\ninstantiate \"components/two_paddles.c26\" as p (port:=1)\nvoid main(void) { p_init(); p_vblank(); p_sample0(); p_sample1(); p_advance_pair(); p_account_gap(1); p_overscan(); p_dump(); }\n";close$f;
 my$port1bin=File::Spec->catfile($tmp,'port1.bin');
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$port1,'-o',$port1bin);$rc==0&&!$sig or die"port-1 paddle API build failed\n$out$err";
 

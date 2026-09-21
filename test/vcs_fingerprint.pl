@@ -75,9 +75,9 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $ex=File::Spec->catdir($repo,'test','fixtures','vcs_examples','04_fingerprint');
 my $src=File::Spec->catfile($ex,'golden.c26');
 my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 04_fingerprint reference_stella_7.0.png));
-my $component=File::Spec->catfile($vcs,'six_glyph_big_wide_component.c26');
-my $left_component=File::Spec->catfile($vcs,'six_glyph_left_component.c26');
-my $right_component=File::Spec->catfile($vcs,'six_glyph_right_component.c26');
+my $component=File::Spec->catfile($vcs,'components/six_glyph_big_wide_component.c26');
+my $left_component=File::Spec->catfile($vcs,'components/six_glyph_left_component.c26');
+my $right_component=File::Spec->catfile($vcs,'components/six_glyph_right_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
 my $font=File::Spec->catfile($vcs,'fonts','big_hex.c26');
 my $logo_font=File::Spec->catfile($vcs,'fonts','logo_font.c26');
@@ -150,11 +150,11 @@ require_re($source,qr/include\s+"fonts\/logo_font\.c26"/,
            'fingerprint fixture does not include the logo font');
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
            'fingerprint fixture no longer uses the shared NTSC scheduler');
-require_re($source,qr/instantiate\s+"six_glyph_big_wide_component\.c26"\s+as\s+display/,
+require_re($source,qr/instantiate\s+"components\/six_glyph_big_wide_component\.c26"\s+as\s+display/,
            'fingerprint fixture no longer instantiates the big-wide fingerprint component');
-require_re($source,qr/instantiate\s+"six_glyph_right_component\.c26"\s+as\s+upper_logo/,
+require_re($source,qr/instantiate\s+"components\/six_glyph_right_component\.c26"\s+as\s+upper_logo/,
            'fingerprint fixture no longer instantiates the right-justified upper logo');
-require_re($source,qr/instantiate\s+"six_glyph_left_component\.c26"\s+as\s+lower_logo/,
+require_re($source,qr/instantiate\s+"components\/six_glyph_left_component\.c26"\s+as\s+lower_logo/,
            'fingerprint fixture no longer instantiates the left-justified lower logo');
 $source !~ /six_glyph_display\.c26/
    or die "fingerprint fixture still includes the legacy display module\n";

@@ -22,7 +22,7 @@ the button controls the marker pattern.
 
 The example uses all four independent TIA objects that fit this display cleanly:
 P0, M0, M1, and P1. P0/P1 draw two adjacent player pixels; M0/M1 use the TIA's
-native 2-pixel missile width. `libraries/vcs/four_paddles.c26` measures the four
+native 2-pixel missile width. `libraries/vcs/components/four_paddles.c26` measures the four
 potentiometers through `INPT0`..`INPT3` and reads the four active-low paddle
 buttons from `SWCHA`.
 

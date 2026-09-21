@@ -3,14 +3,14 @@ HEART SCORE COMPONENT
 
 Maintained implementation
 -------------------------
-`libraries/vcs/heart_score_component.c26` is the fixed-footprint 0..11-heart
+`libraries/vcs/components/heart_score_component.c26` is the fixed-footprint 0..11-heart
 component. `score` is the full-heart count (clamped at 11), `half` adds the left
 half of the next heart through 10.5, and `color` selects the heart color. At
 score 11, `half` is ignored visually. The 11 full slots remain fixed at TIA
 X=16,28,...,136; smaller values are exact left prefixes.
 
 The default template profile remains the historical 7-line / 8-byte component.
-`instantiate "heart_score_component.c26" as score (line_markers:=1)` selects an
+`instantiate "components/heart_score_component.c26" as score (line_markers:=1)` selects an
 optional 10-line / 12-byte profile. That profile adds public `lines` (0..11)
 and `line_color`. Two dedicated playfield scanlines draw an independent
 left-prefix of 8-pixel marker segments on the same 12-pixel pitch as the hearts,

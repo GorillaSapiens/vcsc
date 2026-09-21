@@ -6,7 +6,7 @@ TARGET := pal50_blank.bin
 SOURCE := pal50_blank.c26
 
 all: $(TARGET)
-$(TARGET): $(SOURCE) $(VCS_DIR)/frame_pal.c26 $(VCS_DIR)/frame_50hz_component.c26
+$(TARGET): $(SOURCE) $(VCS_DIR)/frame_pal.c26 $(VCS_DIR)/components/frame_50hz_component.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

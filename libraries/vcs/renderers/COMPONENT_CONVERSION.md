@@ -50,7 +50,7 @@ component's map proves it is absent or smaller.
 
 The 88-byte decimal font table and the score drawing/pointer code must also
 vanish from a gameplay-only link.  A cartridge that instantiates no
-`six_glyph_component.c26` must contain none of these symbols:
+`components/six_glyph_component.c26` must contain none of these symbols:
 
 ```text
 vcs_standard_score
@@ -135,7 +135,7 @@ depth unchanged.
 **Production six-glyph displays.** These establish and clobber `NUSIZ0/1`,
 `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the P0/P1 graphics
 latches; they strobe `HMCLR`, `HMOVE`, and `WSYNC`. They require no incoming
-P0/P1 TIA state. `six_glyph_component.c26` is the single centered implementation.
+P0/P1 TIA state. `components/six_glyph_component.c26` is the single centered implementation.
 Its compact default owns **14 RIOT-RAM bytes**: three score bytes, two
 page-contained-font offsets, four complete 16-bit glyph pointers, and one delayed
 glyph byte. `mutable_color:=1` adds one caller-visible color byte for **15 bytes**
@@ -608,7 +608,7 @@ and all four lifecycle contracts. Screenshot PNGs are not correctness oracles.
 
 ## Poison debug score composition probe
 
-`poison_debug_score/poison_debug_score.c26` is the maintained adversarial
+`components/poison_debug_score/poison_debug_score.c26` is the maintained adversarial
 11-line score-profile substitute used by the 22i4b correctness gate. It owns
 one caller-selected exit-background byte and deliberately exits with hostile
 P0/P1 graphics, color, reflection, vertical-delay, copy/size, fine-motion,

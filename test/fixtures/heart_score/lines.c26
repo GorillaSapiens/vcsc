@@ -1,7 +1,7 @@
 include "4K/mapper.c26"
 include "frame_ntsc.c26"
 
-instantiate "heart_score_component.c26" as health (line_markers:=1)
+instantiate "components/heart_score_component.c26" as health (line_markers:=1)
 
 void main(void) {
    VBLANK := 2;

@@ -24,7 +24,7 @@ my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$example_dir=File::Spec->catdir($repo,qw(examples 03_controllers driving));
 my$example=File::Spec->catfile($example_dir,'drive.c26');
-my$component=File::Spec->catfile($vcs,'driving_controller.c26');
+my$component=File::Spec->catfile($vcs,'components/driving_controller.c26');
 my$left_fixture=File::Spec->catfile($repo,qw(test fixtures driving_left driving_left.c26));
 my$right_fixture=File::Spec->catfile($repo,qw(test fixtures driving_right driving_right.c26));
 
@@ -40,8 +40,8 @@ $c =~ /opposite/ && $c =~ /select Driving/
    or die "driving Gray-code, accumulation, skip, or Stella documentation missing\n";
 $c =~ /0, 2, 1, 3,\s*1, 0, 3, 2,\s*2, 3, 0, 1,\s*3, 1, 2, 0/s
    or die "driving transition table changed\n";
-$e =~ /instantiate "driving_controller\.c26" as left_drive \(port:=0\)/ &&
-$e =~ /instantiate "driving_controller\.c26" as right_drive \(port:=1\)/ &&
+$e =~ /instantiate "components\/driving_controller\.c26" as left_drive \(port:=0\)/ &&
+$e =~ /instantiate "components\/driving_controller\.c26" as right_drive \(port:=1\)/ &&
 $e =~ /fonts\/big_hex\.c26/ && $e =~ /left_value/ && $e =~ /right_value/ &&
 $e =~ /& 0x0f/ && $e =~ /DRIVE_WHITE/ && $e =~ /DRIVE_RED/
    or die "public driving example lost two-port hex counter/color behavior\n";

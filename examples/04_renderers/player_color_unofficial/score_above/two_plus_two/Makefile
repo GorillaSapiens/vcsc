@@ -12,11 +12,11 @@ all: $(TARGET)
 $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/two_plus_two_score_component.c26 \
+           $(VCS_DIR)/components/two_plus_two_score_component.c26 \
            $(VCS_DIR)/renderers/player_color_181_unofficial/player_color_181_unofficial.c26 \
            $(ROOT)/examples/_common/two_plus_two_controls.c26 \
            $(ROOT)/examples/_common/player_color_181_interactive_common.c26 \
-           $(VCS_DIR)/two_plus_two_score_support.c26
+           $(VCS_DIR)/components/two_plus_two_score_support.c26
 	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

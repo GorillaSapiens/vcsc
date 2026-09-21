@@ -37,12 +37,12 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 
 my @components=(
-   ['six_glyph_component.c26',                                      11,1,1,'centered six-glyph'],
-   ['six_glyph_wide_component.c26',                                 11,1,1,'wide six-glyph'],
-   ['six_glyph_left_component.c26',                                 11,1,1,'left six-glyph'],
-   ['six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
-   ['two_plus_two_score_component.c26',                              11,1,1,'two-plus-two score'],
-   ['renderers/poison_debug_score/poison_debug_score.c26',           11,1,1,'poison score'],
+   ['components/six_glyph_component.c26',                                      11,1,1,'centered six-glyph'],
+   ['components/six_glyph_wide_component.c26',                                 11,1,1,'wide six-glyph'],
+   ['components/six_glyph_left_component.c26',                                 11,1,1,'left six-glyph'],
+   ['components/six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
+   ['components/two_plus_two_score_component.c26',                              11,1,1,'two-plus-two score'],
+   ['components/poison_debug_score/poison_debug_score.c26',           11,1,1,'poison score'],
    ['renderers/player_color/player_color.c26',              181,1,1,'player-color 181'],
    ['renderers/player_color_181_unofficial/player_color_181_unofficial.c26',181,1,1,'player-color 181 unofficial'],
    ['renderers/all_five/all_five.c26',                              181,1,1,'all-five 181'],
@@ -79,7 +79,7 @@ for my $spec (@components) {
       $text=$branch;
       $text =~ /\bTEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines\b/
          or die "$label has no parameterized visible-scanline contract\n";
-   } elsif ($rel =~ /^(?:six_glyph(?:_wide|_left|_right)?_component|two_plus_two_score_component)\.c26$/) {
+   } elsif ($rel =~ m{^components/(?:six_glyph(?:_wide|_left|_right)?_component|two_plus_two_score_component)\.c26$}) {
       $text =~ /parameter\s+glyph_rows\s*:=\s*8/ &&
       $text =~ /#elif TEMPLATE_glyph_rows == 8\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/ &&
       $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
@@ -92,7 +92,7 @@ for my $spec (@components) {
    if ($parameterized_renderer) {
       $text =~ /\bTEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_lines\b/
          or die "$label has no parameterized complete-scanline contract\n";
-   } elsif ($rel =~ /^(?:six_glyph(?:_wide|_left|_right)?_component|two_plus_two_score_component)\.c26$/) {
+   } elsif ($rel =~ m{^components/(?:six_glyph(?:_wide|_left|_right)?_component|two_plus_two_score_component)\.c26$}) {
       $text =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
          or die "$label has no glyph_rows complete-scanline contract\n";
    } else {
@@ -105,7 +105,7 @@ for my $spec (@components) {
    require_value($text,'DRAW_SUCCESSOR_ON_RETURN_LINE',$successor,$label);
 
    my @bodies;
-   if ($rel eq 'six_glyph_component.c26') {
+   if ($rel eq 'components/six_glyph_component.c26') {
       @bodies = $text =~ /require\s+inline\s+void\s+TEMPLATE_draw\s*\(void\)\s*\{(.*?)\n\}/sg;
       @bodies == 2 or die "$label does not expose compact and full-pointer draw branches\n";
    } else {

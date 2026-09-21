@@ -16,7 +16,7 @@ frames.
 The example instantiates the reusable lifecycle component:
 
 ```vcsc
-instantiate "six_glyph_component.c26" as score
+instantiate "components/six_glyph_component.c26" as score
 ```
 
 That creates independent `score_score`, pointer, row, and delayed-glyph state

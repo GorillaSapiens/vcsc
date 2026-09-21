@@ -149,7 +149,7 @@ for my $parts (
 ) {
    my $path=File::Spec->catfile($repo,'examples',@$parts);
    my $text=read_file($path);
-   $text =~ /instantiate "six_glyph_component\.c26" as score \(mutable_color:=1\)/
+   $text =~ /instantiate "components\/six_glyph_component\.c26" as score \(mutable_color:=1\)/
       or die "$path lost mutable-color score support\n";
    ++$six_public;
 }

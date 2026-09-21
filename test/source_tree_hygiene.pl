@@ -441,8 +441,8 @@ index($top_make,'sieve: tools')<0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tlibraries/vcs/renderers/multisprite/multisprite.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/6507.c26\tlibraries/vcs/6507.c26")>=0 &&
-index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_wide_component.c26\tlibraries/vcs/six_glyph_wide_component.c26")>=0 &&
-index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_big_wide_component.c26\tlibraries/vcs/six_glyph_big_wide_component.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/components/six_glyph_wide_component.c26\tlibraries/vcs/components/six_glyph_wide_component.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/components/six_glyph_big_wide_component.c26\tlibraries/vcs/components/six_glyph_big_wide_component.c26")>=0 &&
 -f File::Spec->catfile($repo,'examples','04_renderers','multisprite','no_score','multisprite_192_interactive.c26') &&
 -f File::Spec->catfile($repo,'examples','04_renderers','all_five_player_color','no_score','all_five_player_color_192_interactive.c26') &&
 !-e File::Spec->catdir($repo,qw(examples 04_renderers faithful_legacy_player_color)) &&
@@ -451,6 +451,27 @@ index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_big_wide
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers faithful_legacy_multisprite)) &&
 index($install_manifest,'faithful_legacy_')<0
    or die "top-level installed simulator/Stella and manifest coverage is incomplete\n";
+
+my @component_sources = qw(
+   driving_controller.c26 four_paddles.c26 frame_50hz_component.c26
+   heart_score_component.c26 keypad_controller.c26
+   six_glyph_big_wide_component.c26 six_glyph_component.c26
+   six_glyph_left_component.c26 six_glyph_right_component.c26
+   six_glyph_wide_component.c26 three_plus_three_score_component.c26
+   two_paddles.c26 two_plus_two_score_component.c26 two_plus_two_score_support.c26
+);
+my $components_dir=File::Spec->catdir($repo,qw(libraries vcs components));
+-d $components_dir or die "libraries/vcs/components is missing\n";
+for my $name (@component_sources) {
+   -f File::Spec->catfile($components_dir,$name)
+      or die "migrated component is missing from libraries/vcs/components: $name\n";
+   !-e File::Spec->catfile($repo,qw(libraries vcs),$name)
+      or die "migrated component returned to libraries/vcs root: $name\n";
+}
+-f File::Spec->catfile($components_dir,qw(poison_debug_score poison_debug_score.c26)) &&
+-f File::Spec->catfile($components_dir,qw(poison_debug_score README.md)) &&
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers poison_debug_score))
+   or die "poison_debug_score component migration is incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
 index($sim_readme,'mapper=F8')>=0 &&
@@ -648,7 +669,7 @@ for my $entry (@score_shards) {
 my $wide_source=slurp(File::Spec->catfile($repo,'examples','02_components','wide_score','wide_score.c26'));
 my $wide_make=slurp(File::Spec->catfile($repo,'examples','02_components','wide_score','Makefile'));
 index($wide_source,'include "2K/mapper.c26"')>=0 &&
-index($wide_source,'instantiate "six_glyph_wide_component.c26" as score')>=0 &&
+index($wide_source,'instantiate "components/six_glyph_wide_component.c26" as score')>=0 &&
 index($wide_make,'-T $(VCS_DIR)/vcs.cfg')<0 &&
 index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide.pl') &&
@@ -663,13 +684,13 @@ index($wide_make,'-eq 2048')>=0 &&
 my $big_wide_source=slurp(File::Spec->catfile($repo,'examples','02_components','big_wide_score','big_wide_score.c26'));
 my $big_wide_make=slurp(File::Spec->catfile($repo,'examples','02_components','big_wide_score','Makefile'));
 index($big_wide_source,'include "fonts/big_decimal.c26"')>=0 &&
-index($big_wide_source,'instantiate "six_glyph_big_wide_component.c26" as score')>=0 &&
+index($big_wide_source,'instantiate "components/six_glyph_big_wide_component.c26" as score')>=0 &&
 index($big_wide_source,'vcs_ntsc_wait_component_scanlines(87)')>=0 &&
 index($big_wide_source,'vcs_ntsc_wait_visible_tail_scanlines(86)')>=0 &&
 index($big_wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','fonts','big_decimal.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','fonts','big_hex.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','six_glyph_big_wide_component.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','components/six_glyph_big_wide_component.c26') &&
 -f File::Spec->catfile($test,'vcs_big_font_family.pl') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_big_wide.pl') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_big_wide_raster.cpp')

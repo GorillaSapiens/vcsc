@@ -50,3 +50,33 @@ path; positive counts use instance-qualified playfield color/data arrays and
 fixed screen-space stripe boundaries.  The roadmap is deliberately flat so each
 migration/refactor/certification step is a bounded checkpoint.  S2, moving
 reusable components without behavior changes, is now the next action.
+
+2026-09-20 18:50:21 PDT, move reusable VCS components
+Completed renderer-stripes S2. Created `libraries/vcs/components/` and moved the
+reusable driving, keypad, paddle, PAL50 frame-core, heart-score, six-glyph,
+three-plus-three, and two-plus-two component/support sources there. Moved
+`poison_debug_score` out of `renderers/` into the component tree. Updated all
+external callers, examples, Makefile dependencies, public documentation, tests,
+and `packaging/install.manifest` to the new paths while preserving moved C26
+source bytes where existing source-digest regressions depend on them.
+
+`vcsc_branding.pl` now treats `.../stripes.txt` as a canonical required hot
+developer record. `source_tree_hygiene.pl` now requires the migrated component
+layout and rejects reappearance at the old root/renderer locations. Path-sensitive
+score-glyph and visible-handoff regressions were updated for the new relative
+paths. Focused migration testing passed during the work; an interrupted broad e2e
+run reached 240/389 with no failures before handoff. S3 profile inventory is next.
+
+2026-09-20 19:23:56 PDT, repair poison component test path
+A post-S2 full-suite run reached 388/389 and exposed one stale test-only path:
+`test/vcs_poison_debug_score.pl` still opened the retired
+`libraries/vcs/renderers/poison_debug_score/...` location after the component
+moved to `libraries/vcs/components/poison_debug_score/`.
+
+Updated the regression to the component path and corrected the stale instantiate
+example/comment in the component source plus the renderer conversion document.
+The reported `vcs_poison_debug_score.pl` regression now passes. Branding,
+source-tree hygiene, and visible-component handoff focused checks also pass. A
+broader score-composition raster rerun exceeded the container execution timeout,
+so the complete 389-test suite was not rerun after this one-line regression fix.
+S3 remains the next stripes action.

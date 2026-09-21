@@ -108,7 +108,7 @@ for my$j(@interactive_jobs){
       or die "$n interactive example ROM footprint changed\n";
    $im =~ /^  ram\s+used=124 bytes .* free=4 bytes/m
       or die "$n interactive example RAM footprint changed\n";
-   $interactive_source{$n} =~ /instantiate "six_glyph_component\.c26" as score \(mutable_color:=1\)/
+   $interactive_source{$n} =~ /instantiate "components\/six_glyph_component\.c26" as score \(mutable_color:=1\)/
       or die "$n interactive example lost mutable score color\n";
    $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/_common\/all_five_player_color_181_interactive_common\.c26"/
       or die "$n interactive example lost shared controls\n";

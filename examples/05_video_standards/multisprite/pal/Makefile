@@ -10,7 +10,7 @@ SOURCE := pal_multisprite_228_interactive.c26
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(VCS_DIR)/frame_pal.c26 $(VCS_DIR)/frame_50hz_component.c26 $(VCS_DIR)/renderers/multisprite/multisprite.c26 $(COMMON)
+$(TARGET): $(SOURCE) $(VCS_DIR)/frame_pal.c26 $(VCS_DIR)/components/frame_50hz_component.c26 $(VCS_DIR)/renderers/multisprite/multisprite.c26 $(COMMON)
 	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

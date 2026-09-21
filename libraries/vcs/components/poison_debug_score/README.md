@@ -18,7 +18,7 @@ state.
 Instantiate it after `vcs.c26`:
 
 ```c
-instantiate "renderers/poison_debug_score/poison_debug_score.c26" as poison
+instantiate "components/poison_debug_score/poison_debug_score.c26" as poison
 ```
 
 The component uses one public RAM byte:

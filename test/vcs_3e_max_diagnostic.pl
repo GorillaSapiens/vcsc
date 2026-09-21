@@ -59,7 +59,7 @@ $src =~ /bank253\s+extern\s+void\s+load_wait\(void\)/ &&
 $src =~ /bank254\s+extern\s+void\s+load_pass\(void\)/ &&
 $src =~ /bank254\s+extern\s+void\s+load_fail\(void\)/
    or die "3E max source lost banked label/WAIT/PASS/FAIL pointer loaders\n";
-$src =~ /instantiate\s+"six_glyph_big_wide_component\.c26"\s+as\s+status_result\s*\(external_pointers\s*:=\s*1\)/
+$src =~ /instantiate\s+"components\/six_glyph_big_wide_component\.c26"\s+as\s+status_result\s*\(external_pointers\s*:=\s*1\)/
    or die "3E max status display no longer uses the standard big-wide external-pointer renderer\n";
 $src =~ /COLUBK\s*:=\s*0x84/
    or die "3E max wait display lost blank-screen blue background\n";

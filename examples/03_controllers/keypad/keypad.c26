@@ -11,8 +11,8 @@ include "color_ntsc.c26"
 alias KEYPAD_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
 alias KEYPAD_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
 
-instantiate "keypad_controller.c26" as left_keypad (port:=0)
-instantiate "keypad_controller.c26" as right_keypad (port:=1)
+instantiate "components/keypad_controller.c26" as left_keypad (port:=0)
+instantiate "components/keypad_controller.c26" as right_keypad (port:=1)
 
 // Big-font subset: empty rectangle, 1..9, *, 0, #.
 // The keypad key codes are deliberately the glyph indices.

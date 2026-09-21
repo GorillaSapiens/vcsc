@@ -332,9 +332,9 @@ $source_text !~ /diagnostic_superchip_ram/
 $source_text =~ /void\s+validate_superchip_startup\s*\(void\)/ &&
 $source_text =~ /void\s+poison_superchip_before_result\s*\(void\)/
    or die "diagnostic Superchip startup validation/reset poisoning helpers are missing\n";
-$source_text =~ /instantiate\s+"six_glyph_big_wide_component\.c26"\s+as\s+status_result/
+$source_text =~ /instantiate\s+"components\/six_glyph_big_wide_component\.c26"\s+as\s+status_result/
    or die "diagnostic does not use the Big wide result component\n";
-$source_text =~ /instantiate\s+"six_glyph_component\.c26"\s+as\s+cart_type/
+$source_text =~ /instantiate\s+"components\/six_glyph_component\.c26"\s+as\s+cart_type/
    or die "diagnostic does not use the centered six-glyph cart-type component\n";
 $source_text =~ /include\s+"status_font\.c26"/ &&
 $source_text =~ /include\s+"cart_type_font\.c26"/ &&

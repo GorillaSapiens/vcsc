@@ -9,7 +9,7 @@ alias BACKGROUND_COLOR 0x84
 alias HEART_COLOR      0x46
 alias SCORE_PERIOD     30
 
-instantiate "heart_score_component.c26" as health
+instantiate "components/heart_score_component.c26" as health
 uint8_t frame_counter := 0;
 
 void main(void) {

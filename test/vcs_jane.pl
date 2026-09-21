@@ -66,8 +66,8 @@ my $ert=read_file($example_readme);
 $ert =~ /Stella 7\.0 or newer/ && $ert =~ /stella -bs JANE jane_diagnostic\.bin/
    or die "JANE README must document Stella 7.0+ and forced mapper launch\n";
 my $src=read_file($source);
-$src =~ /instantiate \"six_glyph_big_wide_component\.c26\" as status_result/ &&
-$src =~ /instantiate \"six_glyph_component\.c26\" as cart_type \(compact_font:=0\)/ &&
+$src =~ /instantiate \"components\/six_glyph_big_wide_component\.c26\" as status_result/ &&
+$src =~ /instantiate \"components\/six_glyph_component\.c26\" as cart_type \(compact_font:=0\)/ &&
 $src =~ /status_result_color\s*:=\s*0x0e/ &&
 $src =~ /^void\s+main\s*\(void\)\s*\{/m &&
 $src !~ /^bank\d+\s+void\s+main\s*\(/m &&

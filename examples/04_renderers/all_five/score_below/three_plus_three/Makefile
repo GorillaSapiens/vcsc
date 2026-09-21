@@ -12,7 +12,7 @@ all: $(TARGET)
 $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/three_plus_three_score_component.c26 \
+           $(VCS_DIR)/components/three_plus_three_score_component.c26 \
            $(VCS_DIR)/renderers/all_five/all_five.c26 \
            $(ROOT)/examples/_common/three_plus_three_controls.c26 \
            $(ROOT)/examples/_common/all_five_181_interactive_common.c26 \

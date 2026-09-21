@@ -30,7 +30,7 @@ pixel aspect. The digit and its orbit dot are white while the controller button
 is released and red for exactly as long as the button is held; missiles inherit
 their matching player's color automatically.
 
-`libraries/vcs/driving_controller.c26` decodes the two-bit Gray code on pins 1
+`libraries/vcs/components/driving_controller.c26` decodes the two-bit Gray code on pins 1
 and 2: left SWCHA D4/D5 and right SWCHA D0/D1. Written as pin1:pin2,
 the clockwise sequence is `11 -> 10 -> 00 -> 01 -> 11`; counterclockwise is the
 reverse. Each call to `sample()` reports a signed `step` and adds that movement

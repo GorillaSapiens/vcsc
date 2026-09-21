@@ -24,7 +24,7 @@ my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$example_dir=File::Spec->catdir($repo,qw(examples 03_controllers keypad));
 my$example=File::Spec->catfile($example_dir,'keypad.c26');
-my$component=File::Spec->catfile($vcs,'keypad_controller.c26');
+my$component=File::Spec->catfile($vcs,'components/keypad_controller.c26');
 my$left_fixture=File::Spec->catfile($repo,qw(test fixtures keypad_left keypad_left.c26));
 my$right_fixture=File::Spec->catfile($repo,qw(test fixtures keypad_right keypad_right.c26));
 
@@ -40,8 +40,8 @@ $c =~ /asm bit\.z INPT0/ && $c =~ /asm bit\.z INPT1/ && $c =~ /asm bit\.z INPT4/
 $c =~ /asm bit\.z INPT2/ && $c =~ /asm bit\.z INPT3/ && $c =~ /asm bit\.z INPT5/ &&
 $c =~ /pressed key on the selected LOW row clears bit 7/
    or die "keypad active-low matrix scan regressed\n";
-$e =~ /instantiate "keypad_controller\.c26" as left_keypad \(port:=0\)/ &&
-$e =~ /instantiate "keypad_controller\.c26" as right_keypad \(port:=1\)/
+$e =~ /instantiate "components\/keypad_controller\.c26" as left_keypad \(port:=0\)/ &&
+$e =~ /instantiate "components\/keypad_controller\.c26" as right_keypad \(port:=1\)/
    or die "public keypad example lost left\/right instances\n";
 $e =~ /keypad_font\[130\]/ && $e !~ /fonts\/big_ascii\.c26/ &&
 $e =~ /alias VCS_FONT_GLYPH\(a,b,c,d,e,f,g,h,i,j\)/ &&

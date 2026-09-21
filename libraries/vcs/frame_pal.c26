@@ -24,9 +24,9 @@ enum vcs_pal_overrun_flag_t {
 };
 
 #ifdef VCS_PAL_DIAGNOSTICS
-instantiate "frame_50hz_component.c26" as vcs_pal (
+instantiate "components/frame_50hz_component.c26" as vcs_pal (
    vblank_tim64t:=52, overscan_tim64t:=41, diagnostics:=1)
 #else
-instantiate "frame_50hz_component.c26" as vcs_pal (
+instantiate "components/frame_50hz_component.c26" as vcs_pal (
    vblank_tim64t:=52, overscan_tim64t:=41, diagnostics:=0)
 #endif

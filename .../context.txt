@@ -90,12 +90,13 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` now begins with renderer/component consolidation: create
-   `libraries/vcs/components/`, collapse the duplicated gameplay-renderer family
-   into one compile-time-specialized renderer, retire the unofficial and legacy
-   monolithic profiles after preserving useful coverage, then implement vertical
-   playfield/color stripes once in the unified renderer before extending the same
-   ABI to the distinct multisprite renderers. Item 58 follows after stripes.
+   `.../stripes.txt` owns renderer/component consolidation and stripes. Reusable
+   lifecycle/input/score/display components now live under
+   `libraries/vcs/components/`. Next, inventory the duplicated modern gameplay
+   profiles and two legacy profiles before consolidating them into one
+   compile-time-specialized renderer; after that, implement vertical playfield/color
+   stripes once in the unified renderer before extending the same ABI to the
+   distinct multisprite renderers. Item 58 follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -219,15 +220,17 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Item 59 is complete: `vcsc` and `vcsc-cc1` accept `--stella-palette FILE` in
-Stella's combined 792-byte NTSC/PAL/SECAM format, and the three RGB builtins use
-their corresponding slices.  The built-in tables remain the exact default.
-The checked-in Stella palette is regression-tested as code-generation-equivalent
-to those defaults; custom-slice selection and bad-file diagnostics are covered.
-All 583 compile/unit tests pass after the change, plus the focused palette and
-tool-option e2e regressions.  A subsequent full e2e run reached 388/389 with only
-the standard-renderer timing inventory stale; that inventory was regenerated and
-its focused regression now passes.  Full e2e has not been rerun after that fix.
+Item 59 and the deterministic Stella example/timing-inventory cleanup remain
+complete. Renderer-stripes S2 is complete: reusable lifecycle/input/score/display
+components and `poison_debug_score` now live under `libraries/vcs/components/`;
+callers, examples, public docs, tests, and the install manifest use the new paths.
+The focused S2 migration set is 10/10: branding, source-tree hygiene, install
+manifest, moved score/handoff paths, driving/keypad, PAL50 frame scheduling, and
+heart-score coverage all pass. The user's first complete post-S2 run reached
+388/389; its sole failure was a stale `vcs_poison_debug_score.pl` source path to
+the retired renderer location. That path is repaired and the reported test,
+branding, hygiene, and visible-component handoff focused checks pass. The full
+389-test suite has not been rerun after this narrow correction.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
@@ -235,7 +238,6 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S2: create `libraries/vcs/components/`, move the
-reusable component sources (including `poison_debug_score`) there without
-behavior changes, and update all callers/manifests/docs before renderer
-consolidation begins.
+Execute `.../stripes.txt` S3: inventory the six modern gameplay and two legacy
+profiles, including ABI, schedules, line modes, resources, examples, raster
+oracles, and tests, before renderer consolidation begins.

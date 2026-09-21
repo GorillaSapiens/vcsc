@@ -9,7 +9,7 @@
 
 # Dual three-digit score
 
-This 2K example instantiates `three_plus_three_score_component.c26` once to draw
+This 2K example instantiates `components/three_plus_three_score_component.c26` once to draw
 independent three-digit packed-BCD scores centered in the left and right halves
 of the screen. The fields have independent colors and increment together every
 20 frames, wrapping explicitly from 999 to 000.

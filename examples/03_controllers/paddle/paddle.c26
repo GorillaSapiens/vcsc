@@ -12,7 +12,7 @@ include "vcs.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 
-instantiate "four_paddles.c26" as paddles
+instantiate "components/four_paddles.c26" as paddles
 
 alias PADDLE_BLACK 0x00
 alias PADDLE_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
@@ -279,7 +279,7 @@ inline void paddle_prepare_3(void) {
 }
 
 
-// Beam-safe visible probes. four_paddles.c26 exposes equivalent score helpers
+// Beam-safe visible probes. components/four_paddles.c26 exposes equivalent score helpers
 // that clear a completed channel with STX because score renderers reserve X=0.
 // This tutorial needs X for its 48-group raster counter, so it reserves Y=0
 // instead and uses the same 17-cycle completion path with STY.
