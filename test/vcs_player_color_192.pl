@@ -54,7 +54,7 @@ make_path($tmp);
 $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $module=File::Spec->catfile($vcs,qw(renderers player_color player_color.c26));
+my $module=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_192 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'player_color_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_192.map');
@@ -71,7 +71,9 @@ without_usage($out) eq '' && $err eq '' or die "player-color 192 terminal build 
 -s $terminal_bin == 4096 or die "player-color 192 terminal ROM is not 4096 bytes\n";
 my $terminal_map=read_file($terminal_mapfile);
 my $text=read_file($module);
-$text =~ /^parameter\s+lines;/m or die "unified player-color renderer lacks required lines parameter\n";
+$text =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
+   or die "could not isolate player-color selector specialization\n";
+$text=$1;
 $text =~ /#if TEMPLATE_lines == 192 \|\| TEMPLATE_lines == 228(.*?)#elif TEMPLATE_lines == 181/s
    or die "could not isolate player-color 192 branch\n";
 $text=$1;

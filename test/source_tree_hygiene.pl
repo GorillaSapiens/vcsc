@@ -557,18 +557,23 @@ for my $component (
    index($source,'asm .callstackextra 2;')>=0
       or die "$component lost its reduced object-owned inline-assembly stack allowance\n";
 }
-for my $component (
-   'player_color/player_color.c26',
-   'player_color_181_unofficial/player_color_181_unofficial.c26',
-) {
+{
+   my $component='player_color_181_unofficial/player_color_181_unofficial.c26';
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 0;')>=0 &&
    index($source,'TEMPLATE_object_masks')<0 &&
    index($source,'asm dec.z TEMPLATE_ball_y;')>=0
       or die "$component lost its mask-free direct-countdown zero-extra-stack contract\n";
 }
-my $player_color_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','player_color','player_color.c26'));
-index($player_color_source,'parameter lines;')>=0 &&
+my $selector_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','all_five','all_five.c26'));
+index($selector_source,'parameter lines;')>=0 &&
+index($selector_source,'parameter missiles := 1;')>=0 &&
+index($selector_source,'parameter player_colors := 0;')>=0
+   or die "all_five selector lost its compile-time profile parameters\n";
+my $player_color_source=$selector_source;
+$player_color_source =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
+   or die "all_five selector lost its player-color specialization\n";
+$player_color_source=$1;
 index($player_color_source,'#if TEMPLATE_lines == 192')>=0 &&
 index($player_color_source,'#elif TEMPLATE_lines == 181')>=0 &&
 index($player_color_source,'#elif TEMPLATE_lines == 170')>=0 &&
@@ -579,7 +584,10 @@ index($player_color_source,'asm jsr @prepare_one;')<0 &&
 index($player_color_source,'asm jsr @set_range;')<0 &&
 index($player_color_source,'asm dec.z TEMPLATE_ball_y;')>=0 &&
 index($player_color_source,'asm cmp.z TEMPLATE_ball_y;')>=0
-   or die "parameterized player_color lost its official direct-countdown zero-extra-stack contract\n";
+   or die "player-color selector specialization lost its direct-countdown zero-extra-stack contract\n";
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers player_color)) &&
+index($install_manifest,'libraries/vcs/renderers/player_color/')<0
+   or die "retired player_color renderer source or install entry remains\n";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
 index($vcs_machine,'mem rom')<0
    or die "vcs.c26 must describe the machine only; cartridge ROM belongs to a profile\n";

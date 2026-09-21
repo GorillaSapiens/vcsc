@@ -176,8 +176,8 @@ for my $family (@active_families) {
                $text =~ /instantiate\s+"renderers\/player_color_181_unofficial\/player_color_181_unofficial\.c26"\s+as\s+game\b/
                   or die "$sources[0] does not use player_color_181_unofficial\n";
             } else {
-               $text =~ /instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*\)/
-                  or die "$sources[0] does not use player_color lines:=181\n";
+               $text =~ /instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*,\s*missiles\s*:=\s*0\s*,\s*player_colors\s*:=\s*1\s*\)/
+                  or die "$sources[0] does not use the player-color selector at lines:=181\n";
             }
          }
          my $expected=$order eq 'above'

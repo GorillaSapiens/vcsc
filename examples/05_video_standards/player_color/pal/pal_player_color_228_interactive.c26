@@ -37,7 +37,7 @@ page const uint8_t game_player1_colors[8] := {
    __builtin_pal_rgb(0xc0,0x90,0xff), __builtin_pal_rgb(0xff,0xa0,0x70)
 };
 
-instantiate "renderers/player_color/player_color.c26" as game (lines:=228)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=228, missiles:=0, player_colors:=1)
 
 // These source rows are intentionally bottom-to-top. The maintained renderers
 // reverse macro arguments for highest-index-to-zero traversal, so this makes

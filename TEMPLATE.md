@@ -80,7 +80,7 @@ feature enabled.
 The 170-line examples instantiate the same score component twice:
 
 ```c
-instantiate "renderers/player_color/player_color.c26" as game (lines:=170)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=170, missiles:=0, player_colors:=1)
 instantiate "components/six_glyph_component.c26" as top_score (mutable_color:=1)
 instantiate "components/six_glyph_component.c26" as bottom_score (mutable_color:=1)
 ```
@@ -611,8 +611,9 @@ For real source rather than toy syntax, start with:
 
 - `libraries/vcs/renderers/all_five/all_five.c26` for a required `lines`
   parameter and three compile-time renderer profiles;
-- `libraries/vcs/renderers/player_color/player_color.c26` for another
-  parameterized renderer with the same public API across profiles;
+- `libraries/vcs/renderers/all_five/all_five.c26` with
+  `missiles:=0, player_colors:=1` for the player-color specialization using the
+  same public API across its line profiles;
 - `libraries/vcs/renderers/multisprite/multisprite.c26` for a parameterized
   timing-sensitive renderer;
 - `libraries/vcs/components/six_glyph_component.c26` for defaulted feature parameters,

@@ -43,14 +43,14 @@ my @components=(
    ['components/six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
    ['components/two_plus_two_score_component.c26',                              11,1,1,'two-plus-two score'],
    ['components/poison_debug_score/poison_debug_score.c26',           11,1,1,'poison score'],
-   ['renderers/player_color/player_color.c26',              181,1,1,'player-color 181'],
+   ['renderers/all_five/all_five.c26',                              181,1,1,'player-color 181'],
    ['renderers/player_color_181_unofficial/player_color_181_unofficial.c26',181,1,1,'player-color 181 unofficial'],
    ['renderers/all_five/all_five.c26',                              181,1,1,'all-five 181'],
    ['renderers/all_five/all_five.c26',                              170,1,1,'all-five 170'],
    ['renderers/all_five_unofficial/all_five_unofficial.c26',192,0,0,'all-five 192 unofficial'],
    ['renderers/all_five_unofficial/all_five_unofficial.c26',181,1,1,'all-five 181 unofficial'],
    ['renderers/all_five_unofficial/all_five_unofficial.c26',170,1,1,'all-five 170 unofficial'],
-   ['renderers/player_color/player_color.c26',              192,0,0,'player-color 192'],
+   ['renderers/all_five/all_five.c26',                              192,0,0,'player-color 192'],
    ['renderers/all_five/all_five.c26',                              192,0,0,'all-five 192'],
 );
 
@@ -58,9 +58,13 @@ for my $spec (@components) {
    my($rel,$lines,$hmove,$successor,$label)=@$spec;
    my $path=File::Spec->catfile($repo,'libraries','vcs',split('/', $rel));
    my $text=read_file($path);
+   if ($rel eq 'renderers/all_five/all_five.c26' && $label =~ /^player-color /) {
+      $text =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
+         or die "could not isolate player-color selector specialization\n";
+      $text=$1;
+   }
    my $parameterized_renderer = $rel eq 'renderers/all_five/all_five.c26' ||
-      $rel eq 'renderers/all_five_unofficial/all_five_unofficial.c26' ||
-      $rel eq 'renderers/player_color/player_color.c26';
+      $rel eq 'renderers/all_five_unofficial/all_five_unofficial.c26';
    if ($parameterized_renderer) {
       my $branch;
       if ($lines == 192) {

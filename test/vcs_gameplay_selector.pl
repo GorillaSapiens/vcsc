@@ -52,38 +52,48 @@ $selector_text =~ /TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 0/
 $selector_text =~ /TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1/
    or die "selector is missing player-color specialization\n";
 
-my @cases=(
-   ['af170',qw(test fixtures all_five_170 smoke.c26),'renderers/all_five/all_five.c26',170,1,0],
-   ['af181',qw(test fixtures all_five_181 smoke.c26),'renderers/all_five/all_five.c26',181,1,0],
-   ['af192',qw(test fixtures all_five_192 smoke.c26),'renderers/all_five/all_five.c26',192,1,0],
-   ['af228',qw(examples 05_video_standards all_five pal pal_all_five_228_interactive.c26),'renderers/all_five/all_five.c26',228,1,0],
-   ['pc170',qw(test fixtures player_color_170 smoke.c26),'renderers/player_color/player_color.c26',170,0,1],
-   ['pc181',qw(test fixtures player_color_181 smoke.c26),'renderers/player_color/player_color.c26',181,0,1],
-   ['pc192',qw(test fixtures player_color_192 smoke.c26),'renderers/player_color/player_color.c26',192,0,1],
-   ['pc228',qw(examples 05_video_standards player_color pal pal_player_color_228_interactive.c26),'renderers/player_color/player_color.c26',228,0,1],
+my $retired=File::Spec->catfile($vcs,qw(renderers player_color player_color.c26));
+!-e $retired or die "retired player_color source still exists\n";
+
+my @all_five_cases=(
+   ['af170',[qw(test fixtures all_five_170 smoke.c26)],170],
+   ['af181',[qw(test fixtures all_five_181 smoke.c26)],181],
+   ['af192',[qw(test fixtures all_five_192 smoke.c26)],192],
+   ['af228',[qw(examples 05_video_standards all_five pal pal_all_five_228_interactive.c26)],228],
 );
-
-for my $case (@cases) {
-   my($name,@rest)=@$case;
-   my($oldpath,$lines,$missiles,$player_colors)=splice(@rest,-4);
-   my $source=File::Spec->catfile($repo,@rest);
+for my $case (@all_five_cases) {
+   my($name,$parts,$lines)=@$case;
+   my $source=File::Spec->catfile($repo,@$parts);
    my $text=read_file($source);
-   my $old=qq{instantiate "$oldpath" as game (lines:=$lines)};
-   index($text,$old)>=0 or die "$name fixture is missing expected renderer instantiation\n";
+   my $compat=qq{instantiate "renderers/all_five/all_five.c26" as game (lines:=$lines)};
+   index($text,$compat)>=0 or die "$name fixture is missing compatibility renderer instantiation\n";
+   my $compat_bin=File::Spec->catfile($tmp,"selector_${name}_compat.bin");
+   compile_source($driver,$vcs,$source,$compat_bin);
+   my $explicit=$text;
+   my $selected=qq{instantiate "renderers/all_five/all_five.c26" as game (lines:=$lines, missiles:=1, player_colors:=0)};
+   $explicit =~ s/\Q$compat\E/$selected/ or die "could not make $name selector explicit\n";
+   my $explicit_src=File::Spec->catfile($tmp,"selector_${name}.c26");
+   my $explicit_bin=File::Spec->catfile($tmp,"selector_${name}.bin");
+   write_file($explicit_src,$explicit);
+   compile_source($driver,$vcs,$explicit_src,$explicit_bin);
+   read_file($compat_bin) eq read_file($explicit_bin)
+      or die "$name explicit selector differs from compatibility default\n";
+}
 
-   my $legacy_bin=File::Spec->catfile($tmp,"selector_${name}_legacy.bin");
-   compile_source($driver,$vcs,$source,$legacy_bin);
-
-   my $selected=$text;
-   my $new=qq{instantiate "renderers/all_five/all_five.c26" as game (lines:=$lines, missiles:=$missiles, player_colors:=$player_colors)};
-   $selected =~ s/\Q$old\E/$new/ or die "could not rewrite $name fixture\n";
-   my $selected_src=File::Spec->catfile($tmp,"selector_$name.c26");
-   my $selected_bin=File::Spec->catfile($tmp,"selector_$name.bin");
-   write_file($selected_src,$selected);
-   compile_source($driver,$vcs,$selected_src,$selected_bin);
-
-   read_file($legacy_bin) eq read_file($selected_bin)
-      or die "$name selector cartridge differs from maintained source\n";
+my @player_color_cases=(
+   ['pc170',[qw(test fixtures player_color_170 smoke.c26)],170],
+   ['pc181',[qw(test fixtures player_color_181 smoke.c26)],181],
+   ['pc192',[qw(test fixtures player_color_192 smoke.c26)],192],
+   ['pc228',[qw(examples 05_video_standards player_color pal pal_player_color_228_interactive.c26)],228],
+);
+for my $case (@player_color_cases) {
+   my($name,$parts,$lines)=@$case;
+   my $source=File::Spec->catfile($repo,@$parts);
+   my $text=read_file($source);
+   my $selected=qq{instantiate "renderers/all_five/all_five.c26" as game (lines:=$lines, missiles:=0, player_colors:=1)};
+   index($text,$selected)>=0 or die "$name fixture did not migrate to the player-color selector specialization\n";
+   my $bin=File::Spec->catfile($tmp,"selector_${name}.bin");
+   compile_source($driver,$vcs,$source,$bin);
 }
 
 print "vcs_gameplay_selector ok\n";

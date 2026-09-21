@@ -34,7 +34,7 @@ $repo=abs_path($repo) // die "resolve repository\n";
 $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $component=File::Spec->catfile($vcs,qw(renderers player_color player_color.c26));
+my $component=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_170 smoke.c26));
 my $dual_source=File::Spec->catfile($repo,qw(test fixtures player_color_170 dual_score.c26));
 my $public_source=File::Spec->catfile($repo,qw(examples 04_renderers player_color score_above_and_below player_color_170_score_above_and_below_interactive.c26));
@@ -58,17 +58,19 @@ without_usage($out) eq '' && $err eq '' or die "public player-color 170 dual-sco
 -s $public_bin == 4096 or die "public player-color 170 dual-score cartridge is not exactly 4096 bytes\n";
 
 my $module=read_file($component);
+$module =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
+   or die "could not isolate player-color selector specialization\n";
+$module=$1;
 my $fixture=read_file($source);
 my $dual=read_file($dual_source);
 my $public=read_file($public_source);
 my $map=read_file($mapfile);
-require_re($module,qr/^parameter\s+lines;/m,'unified player-color renderer lacks required lines parameter');
 require_re($module,qr/#elif TEMPLATE_lines == 170/,'unified player-color renderer lacks a 170-line profile');
-require_re($fixture,qr/instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s*\(lines:=170\)/,
+require_re($fixture,qr/instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(lines:=170,\s*missiles:=0,\s*player_colors:=1\)/,
    '170 fixture does not instantiate unified player-color renderer with lines:=170');
 require_re($dual,qr/top_score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*bottom_score_draw\(\);/s,
    '170 dual-score fixture no longer composes score + game + score');
-require_re($public,qr/instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s*\(lines:=170\)/,
+require_re($public,qr/instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(lines:=170,\s*missiles:=0,\s*player_colors:=1\)/,
    'public 170 example does not instantiate unified player-color renderer with lines:=170');
 require_re($public,qr/top_score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*bottom_score_draw\(\);/s,
    'public 170 example no longer composes score + game + score');

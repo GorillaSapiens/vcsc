@@ -165,8 +165,6 @@ libraries	file	0644	libraries/vcs/renderers/all_five_unofficial/README.md	librar
 libraries	file	0644	libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26	libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26
 libraries	file	0644	libraries/vcs/renderers/multisprite/README.md	libraries/vcs/renderers/multisprite/README.md
 libraries	file	0644	libraries/vcs/renderers/multisprite/multisprite.c26	libraries/vcs/renderers/multisprite/multisprite.c26
-libraries	file	0644	libraries/vcs/renderers/player_color/README.md	libraries/vcs/renderers/player_color/README.md
-libraries	file	0644	libraries/vcs/renderers/player_color/player_color.c26	libraries/vcs/renderers/player_color/player_color.c26
 libraries	file	0644	libraries/vcs/renderers/player_color_181_unofficial/README.md	libraries/vcs/renderers/player_color_181_unofficial/README.md
 libraries	file	0644	libraries/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26	libraries/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26
 libraries	file	0644	libraries/vcs/components/poison_debug_score/README.md	libraries/vcs/components/poison_debug_score/README.md

@@ -1,0 +1,9 @@
+2026-09-21 08:43:24 PDT, finish stripes S5 player-color migration
+Migrated every maintained official player-color caller and fixture to the
+all_five.c26 selector with missiles:=0, player_colors:=1. Removed the duplicate
+libraries/vcs/renderers/player_color source and its manifest entries, retargeted
+source-contract/path-sensitive tests and documentation, and kept the unofficial
+181-line profile separate for S9. Focused validation passed source-tree hygiene,
+branding, install manifest, gameplay selector, player-color 170/181/192,
+video-standard portability/NTSC matrix, visible and poison handoffs, joystick,
+multicolor examples, and animated-gallery RAM accounting. S6 is next.

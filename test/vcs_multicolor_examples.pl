@@ -98,17 +98,22 @@ for my $case (@cases) {
    $behavior_text !~ /SELECTED_MISSILE|SELECTED_M0|SELECTED_M1/
       or die "$dir exposes missiles absent from the public player-color profile\n";
    if ($profile eq '192') {
-      $text =~ m{renderers/player_color/player_color[.]c26} && $text =~ /lines:=192/
-         or die "$dir does not use player_color lines:=192\n";
+      $text =~ m{renderers/all_five/all_five[.]c26} &&
+      $text =~ /lines:=192,\s*missiles:=0,\s*player_colors:=1/
+         or die "$dir does not use player-color selector lines:=192\n";
       $text !~ /six_glyph_component|selected_score_digit|score_draw/
          or die "$dir unexpectedly contains score controls\n";
    } else {
       my $renderer=$case->{unofficial}
          ? 'renderers/player_color_181_unofficial/player_color_181_unofficial.c26'
-         : 'renderers/player_color/player_color.c26';
+         : 'renderers/all_five/all_five.c26';
       my $score_component=$case->{component} || 'six_glyph_component';
       $text =~ /\Q$renderer\E/ && $text =~ /\Q$score_component\E/
          or die "$dir lacks the selected 181-line renderer plus score composition\n";
+      if (!$case->{unofficial}) {
+         $text =~ /lines:=181,\s*missiles:=0,\s*player_colors:=1/
+            or die "$dir does not select the official player-color specialization\n";
+      }
       if ($case->{unofficial}) {
          join(' ',@{$case->{extra}}) eq '-Wa,--illegals'
             or die "$dir does not opt into unofficial opcodes explicitly\n";

@@ -27,8 +27,8 @@ Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
 
 * `all_five`: 5 objects, solid P0/P1, 23 public bytes; lines 228/192/181/170,
   playfield 60/48/44/40, module RAM 83/71/67/67.
-* `player_color`: P0/P1/BL + 8-row colors, 13 public; same lines/playfields,
-  module RAM 23/23/24/24.
+* `player_color` specialization in `all_five`: P0/P1/BL + 8-row colors,
+  13 public; same lines/playfields, module RAM 23/23/24/24.
 * `all_five_player_color_192`: 5 objects + row colors, 21+62=83 RAM, 48-byte
   mask + 14-byte row cache; full-height schedule.
 * `all_five_player_color_181`: 5 objects + row colors, 21+67=88 RAM, 46-byte
@@ -51,9 +51,8 @@ families. Examples live under `04_renderers/`, native 50 Hz under
 
 Steps
 -----
-Current next action: S5.
+Current next action: S6.
 
-S5. Migrate `player_color`; prove behavior/resources; delete old source.
 S6. Migrate `all_five_player_color_192`; prove equivalence; delete old source.
 S7. Migrate `all_five_player_color_181`; preserve score handoff; prove/delete.
 S8. Deduplicate ABI/positioning/playfield/setup but retain real schedule variants.

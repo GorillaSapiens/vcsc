@@ -43,7 +43,7 @@ page const uint8_t game_player1_colors[8] := {
    JOYSTICK_BLUE, JOYSTICK_BLUE, JOYSTICK_BLUE, JOYSTICK_BLUE
 };
 
-instantiate "renderers/player_color/player_color.c26" as game (lines:=192)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=0, player_colors:=1)
 
 // The first eight bytes are the ordinary centered 4x4 square: two blank
 // rows, four solid rows, then two blank rows. The next eight bytes are the

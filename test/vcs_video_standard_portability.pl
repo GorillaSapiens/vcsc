@@ -16,7 +16,6 @@ my@portable=(
  'renderers/all_five_player_color_192/all_five_player_color_192.c26',
  'renderers/all_five_unofficial/all_five_unofficial.c26',
  'renderers/multisprite/multisprite.c26',
- 'renderers/player_color/player_color.c26',
  'renderers/player_color_181_unofficial/player_color_181_unofficial.c26',
  'components/poison_debug_score/poison_debug_score.c26',
  qw(components/six_glyph_component.c26 components/six_glyph_left_component.c26 components/six_glyph_right_component.c26

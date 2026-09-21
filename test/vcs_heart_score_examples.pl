@@ -54,7 +54,7 @@ for my $kind (qw(above below)) {
    my $src=File::Spec->catfile($dir,"heart_score_${kind}_interactive.c26");
    my $text=read_file($src);
    $text =~ /^include "4K\/mapper\.c26"$/m or die "$kind demo is not a plain 4K cartridge\n";
-   $text =~ /instantiate "renderers\/player_color\/player_color\.c26" as game \(lines:=181\)/
+   $text =~ /instantiate "renderers\/all_five\/all_five\.c26" as game \(lines:=181, missiles:=0, player_colors:=1\)/
       or die "$kind demo does not use maintained player_color_181\n";
    $text =~ /instantiate "components\/heart_score_component\.c26" as score \(line_markers:=1\)/
       or die "$kind demo does not enable heart line markers at instantiation\n";

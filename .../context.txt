@@ -90,8 +90,9 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S5 is next: migrate `player_color` to the S4 selector in `all_five.c26`,
-   prove behavior/resources, and remove the duplicate source. Item 58 follows
+   `.../stripes.txt` owns renderer consolidation and stripes. S6 is next: migrate `all_five_player_color_192` into the unified
+   `all_five.c26` selector, prove equivalence, and remove the duplicate source.
+   Item 58 follows
    after stripes.
    Active workstream: `.../roadmap.txt`.
 
@@ -216,11 +217,13 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Renderer-stripes S2-S4 are complete; the user-reported 389-test suite was
-green before S4. `all_five.c26` now selects the unchanged all-five default
-(`missiles:=1, player_colors:=0`) or byte-equivalent player-color specialization
-(`missiles:=0, player_colors:=1`) at 170/181/192/228 lines. The separate
-`player_color` source remains only for the bounded S5 migration/equivalence.
+Renderer-stripes S2-S5 are complete; the user-reported 389-test suite was
+green before S4. `all_five.c26` owns both the unchanged all-five default
+(`missiles:=1, player_colors:=0`) and player-color specialization
+(`missiles:=0, player_colors:=1`) at 170/181/192/228 lines. All maintained
+player-color callers use the selector and the duplicate `player_color` renderer
+source is gone. Focused S5 migration, manifest, portability, composition, and
+player-color 170/181/192 regressions pass.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
@@ -228,6 +231,5 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S5: migrate `player_color` callers to the
-`all_five.c26` selector, prove behavior/resources, and delete the duplicate
-`player_color` implementation.
+Execute `.../stripes.txt` S6: migrate `all_five_player_color_192` into
+the `all_five.c26` selector, prove equivalence, and delete the duplicate source.

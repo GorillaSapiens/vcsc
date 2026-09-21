@@ -93,7 +93,7 @@ build_rom('all-five-unofficial-ntsc',['-Wa,--illegals'],[$unoff]);
 
 # PAL/SECAM peers keep the same renderer identity at their native 228-line height.
 my%renderer=(
-   player_color=>'renderers/player_color/player_color.c26',
+   player_color=>'renderers/all_five/all_five.c26',
    all_five=>'renderers/all_five/all_five.c26',
    all_five_unofficial=>'renderers/all_five_unofficial/all_five_unofficial.c26',
    multisprite=>'renderers/multisprite/multisprite.c26',
@@ -104,8 +104,13 @@ for my$family(sort keys%renderer) {
       my($src)=glob(File::Spec->catfile($root,$family,$standard,"${standard}_*.c26"));
       defined$src or die "missing $standard $family standards source\n";
       my$text=slurp_path($src);
-      $text =~ /instantiate\s+"\Q$renderer{$family}\E"\s+as\s+game\s*\(\s*lines\s*:=\s*228\s*\)/
-         or die "$standard $family cell does not use the same renderer identity at 228 lines\n";
+      if ($family eq 'player_color') {
+         $text =~ /instantiate\s+"\Q$renderer{$family}\E"\s+as\s+game\s*\(\s*lines\s*:=\s*228\s*,\s*missiles\s*:=\s*0\s*,\s*player_colors\s*:=\s*1\s*\)/
+            or die "$standard $family cell does not select the 228-line player-color specialization\n";
+      } else {
+         $text =~ /instantiate\s+"\Q$renderer{$family}\E"\s+as\s+game\s*\(\s*lines\s*:=\s*228\s*\)/
+            or die "$standard $family cell does not use the same renderer identity at 228 lines\n";
+      }
    }
 }
 

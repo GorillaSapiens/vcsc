@@ -9,8 +9,8 @@
 //     instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=1, player_colors:=0)
 //     instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=0, player_colors:=1)
 //
-// S4 deliberately retains the separate player_color source and callers while
-// this selector is certified. S5 migrates those callers and removes that copy.
+// Both maintained official gameplay specializations live in this selector.
+// Player-color callers select missiles:=0, player_colors:=1 explicitly.
 
 parameter lines;
 parameter missiles := 1;
@@ -2370,8 +2370,7 @@ extern const uint8_t TEMPLATE_playfield[TEMPLATE_lines_must_be_170_181_192_or_22
 
 #elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1
 
-// Player-color specialization retained byte-for-byte from player_color.c26
-// after its parameter declaration. S5 makes this selector its sole home.
+// Official P0/P1/Ball per-row-color specialization.
 #if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
 // Full-height scoreless profile. Each instance requires a page-contained
 // immutable TEMPLATE_playfield[48] for 192 lines or TEMPLATE_playfield[60] for
@@ -4138,7 +4137,7 @@ require inline void TEMPLATE_overscan(void) {
 
 #else
 // Deliberately fail at file scope with a descriptive unresolved size token.
-extern const uint8_t TEMPLATE_playfield[TEMPLATE_lines_must_be_170_181_or_192];
+extern const uint8_t TEMPLATE_playfield[TEMPLATE_lines_must_be_170_181_192_or_228];
 #endif
 
 #else

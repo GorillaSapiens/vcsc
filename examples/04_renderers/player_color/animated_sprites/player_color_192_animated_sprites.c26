@@ -47,7 +47,7 @@ uint8_t game_player0_colors[8];
 uint8_t game_player1_colors[8];
 
 alias VCS_PLAYER_COLOR_MUTABLE_COLORS 1
-instantiate "renderers/player_color/player_color.c26" as game (lines:=192)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=0, player_colors:=1)
 
 // Exact one-bit silhouettes extracted from source PICO-8 sprites 1 through 120.
 // Source color 0 is transparent; every other source color becomes a set Atari bit.

@@ -8,7 +8,7 @@ all: joystick.bin
 
 joystick.bin: joystick.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/frame_ntsc.c26 \
               $(VCS_DIR)/color_ntsc.c26 \
-              $(VCS_DIR)/renderers/player_color/player_color.c26
+              $(VCS_DIR)/renderers/all_five/all_five.c26
 	$(VCSC) -I $(VCS_DIR) -Map joystick.map joystick.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 

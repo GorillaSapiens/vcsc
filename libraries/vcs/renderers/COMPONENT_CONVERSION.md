@@ -528,7 +528,7 @@ locks the score raster as `123456` both before and after gameplay.
 
 ## Official player-color 181-line profile
 
-`renderers/player_color/player_color.c26` with `lines:=181` is the score-composable
+`renderers/all_five/all_five.c26` with `lines:=181, missiles:=0, player_colors:=1` is the score-composable
 P0/P1/Ball per-row-color profile. It consumes exactly 181 visible lines
 and expects `main()` to compose the independent eleven-line score above or
 below it. It retains the predecessor's exact five-strobe horizontal-position
@@ -558,7 +558,7 @@ bytes; a gameplay-only map contains no score state or font.
 
 ## Official 170-line player-color gameplay profile
 
-The same `renderers/player_color/player_color.c26` source accepts `lines:=170`.
+The same selector accepts `lines:=170, missiles:=0, player_colors:=1`.
 This profile retains the 181-line score-handoff raster, uses a ten-row/40-byte
 page-contained playfield, and preserves the same 13 public + 11 private = 24-byte
 module RAM contract. Ten complete 16-line rows plus the inherited five-line
@@ -585,7 +585,7 @@ transfer across an internal row boundary.
 
 ## Official player-color 192-line scoreless profile
 
-`renderers/player_color/player_color.c26` with `lines:=192` is the full-height
+`renderers/all_five/all_five.c26` with `lines:=192, missiles:=0, player_colors:=1` is the full-height
 P0/P1/Ball per-row-color component. It consumes exactly 192 visible lines and
 cannot be combined with the independent eleven-line score inside the standard
 visible field. The application supplies a twelve-row/48-byte playfield plus the

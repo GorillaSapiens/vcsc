@@ -28,7 +28,7 @@ my$make=File::Spec->catfile($dir,'Makefile');
 my$readme=File::Spec->catfile($dir,'README.md');
 
 my$s=read_file($src);
-$s =~ /instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s+\(lines:=192\)/
+$s =~ /instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s+\(lines:=192,\s*missiles:=0,\s*player_colors:=1\)/
    or die "joystick tutorial must use the full-height player-color renderer\n";
 $s =~ /COLUBK\s*:=\s*JOYSTICK_BLACK;/ &&
 $s =~ /alias\s+JOYSTICK_RED\s+__builtin_ntsc_rgb/ &&
@@ -81,7 +81,7 @@ $s =~ /game_player1_y--/ && $s =~ /game_player1_y\+\+/
 
 my$m=read_file($make);
 $m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m &&
-$m =~ /renderers\/player_color\/player_color\.c26/ &&
+$m =~ /renderers\/all_five\/all_five\.c26/ &&
 $m =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
    or die "joystick Makefile dependencies, source-tree root, or play target regressed\n";
 my$r=read_file($readme);

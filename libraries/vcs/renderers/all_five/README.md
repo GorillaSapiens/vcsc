@@ -21,9 +21,9 @@ instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
 instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=1, player_colors:=0)
 ```
 
-S4 also exposes the existing P0/P1/BL per-row-color specialization through
-`missiles:=0, player_colors:=1`; the separate `player_color` source remains in
-place until S5 migrates its callers and removes that duplicate implementation.
+The P0/P1/BL per-row-color specialization is selected with
+`missiles:=0, player_colors:=1`. It is maintained in this same source; there is
+no separate official `player_color` renderer implementation.
 The maintained line selections are:
 
 ```vcsc
@@ -45,6 +45,13 @@ composition contract.
 | 192 | 48 bytes / 12 packed rows | native NTSC full visible field | 71 bytes |
 | 181 | 44 bytes / 11 rows | one independent 11-line score above or below | 67 bytes |
 | 170 | 40 bytes / 10 rows | independent 11-line scores above **and** below | 67 bytes |
+
+The player-color specialization keeps the same visible heights and playfield
+geometries but exposes P0/P1/Ball with eight-entry per-row player-color tables.
+Its component RAM contracts are 23 bytes for 228/192 and 24 bytes for 181/170.
+Full-height profiles support mutable color tables when
+`VCS_PLAYER_COLOR_MUTABLE_COLORS` is defined; score-composable profiles retain
+immutable color tables.
 
 The playfield uses four bytes per packed row. The 192-line profile is twelve
 uniform 16-line rows. The 228-line profile keeps the same proven two-scanline

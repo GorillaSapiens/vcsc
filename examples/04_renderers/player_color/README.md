@@ -9,7 +9,7 @@
 
 # `player_color` examples
 
-This group demonstrates the official-opcode `renderers/player_color/player_color.c26` lifecycle component. The `score_above` and `score_below` trees draw 181 gameplay scanlines and P0, P1, and Ball; an adjacent score-profile component completes the 192-line visible field. The renderer family also contains the scoreless, animated-sprite, and dual-score demonstrations alongside these 181-line compositions.
+This group demonstrates the official-opcode player-color specialization of `renderers/all_five/all_five.c26` (`missiles:=0, player_colors:=1`). The `score_above` and `score_below` trees draw 181 gameplay scanlines and P0, P1, and Ball; an adjacent score-profile component completes the 192-line visible field. The renderer family also contains the scoreless, animated-sprite, and dual-score demonstrations alongside these 181-line compositions.
 
 The first ten public cartridges form the original score-composition matrix for
 this gameplay family: four production score layouts plus the poison diagnostic,
