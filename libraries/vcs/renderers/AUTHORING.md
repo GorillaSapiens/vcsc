@@ -480,7 +480,7 @@ Use existing profiles as focused examples rather than copying one wholesale:
 - `player_color/`: score-composable and full-height per-row-color timing;
 - `all_five_player_color_181/`: combined-object/color scheduling, stack-pointer
   borrowing, physical player-position regression, and delayed-Ball tail flush;
-- `all_five_player_color_192/`: deliberately larger unrolled cycle schedule where
+- `all_five/` with `missiles:=1, player_colors:=1`: deliberately larger 192-line unrolled cycle schedule where
   ROM is traded for exact visible timing;
 - `multisprite/`: branch-page annotations, hidden stack accounting, multiplexing,
   and 181/192 parameterized composition;

@@ -22,8 +22,10 @@ instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=1, 
 ```
 
 The P0/P1/BL per-row-color specialization is selected with
-`missiles:=0, player_colors:=1`. It is maintained in this same source; there is
-no separate official `player_color` renderer implementation.
+`missiles:=0, player_colors:=1`. The 192-line P0/P1/M0/M1/BL specialization
+with independent eight-entry P0/P1 color tables is selected with
+`missiles:=1, player_colors:=1`. Both are maintained in this same source; there
+are no separate official `player_color` or `all_five_player_color_192` sources.
 The maintained line selections are:
 
 ```vcsc
@@ -52,6 +54,13 @@ Its component RAM contracts are 23 bytes for 228/192 and 24 bytes for 181/170.
 Full-height profiles support mutable color tables when
 `VCS_PLAYER_COLOR_MUTABLE_COLORS` is defined; score-composable profiles retain
 immutable color tables.
+
+The combined `missiles:=1, player_colors:=1` specialization is intentionally
+fixed at `lines:=192` until later roadmap work generalizes it. It preserves the
+old combined renderer's 83-byte module contract: 21 public bytes plus 62 private
+bytes (48 bytes of compact BL/M1/M0 schedule and a 14-byte double row cache).
+It uses immutable eight-entry P0/P1 color tables and the same complete 192-line
+3/0 visible handoff as the other full-height profiles.
 
 The playfield uses four bytes per packed row. The 192-line profile is twelve
 uniform 16-line rows. The 228-line profile keeps the same proven two-scanline

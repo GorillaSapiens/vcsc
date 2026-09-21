@@ -13,7 +13,7 @@ sub read_file { my($p)=@_; open(my$f,'<:raw',$p) or die"read $p: $!\n";local$/;m
 my@portable=(
  'renderers/all_five/all_five.c26',
  'renderers/all_five_player_color_181/all_five_player_color_181.c26',
- 'renderers/all_five_player_color_192/all_five_player_color_192.c26',
+ 'renderers/all_five/all_five.c26',
  'renderers/all_five_unofficial/all_five_unofficial.c26',
  'renderers/multisprite/multisprite.c26',
  'renderers/player_color_181_unofficial/player_color_181_unofficial.c26',

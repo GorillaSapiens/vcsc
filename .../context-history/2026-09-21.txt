@@ -7,3 +7,15 @@ source-contract/path-sensitive tests and documentation, and kept the unofficial
 branding, install manifest, gameplay selector, player-color 170/181/192,
 video-standard portability/NTSC matrix, visible and poison handoffs, joystick,
 multicolor examples, and animated-gallery RAM accounting. S6 is next.
+
+2026-09-21 10:00:53 PDT, finish stripes S6 combined 192 migration
+Moved the official 192-line all-five + per-row-player-color implementation into
+all_five.c26 as missiles:=1, player_colors:=1 and migrated every maintained
+caller/fixture to that selector specialization. Deleted the old
+renderers/all_five_player_color_192 directory and its install entries, folded
+its public contract into the consolidated all_five documentation, and retargeted
+source/path-sensitive tests. Before deletion, smoke, motion, vertical sweep,
+P1/Ball stress, all-five-match, player-color-match, and the public interactive
+cartridge were compiled through both paths; all seven ROMs were byte-identical.
+Focused gameplay-selector, combined-profile, video-portability, install-manifest,
+branding, and source-tree-hygiene checks pass. S7 is next.

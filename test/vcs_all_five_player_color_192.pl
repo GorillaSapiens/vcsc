@@ -23,7 +23,7 @@ my$repo=shift@ARGV // usage(); my$tmp=shift@ARGV // usage(); usage() if@ARGV;
 $repo=abs_path($repo) or die "resolve repo\n"; $tmp=abs_path($tmp) or die "resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_192 all_five_player_color_192.c26));
+my$component=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my$fixture_dir=File::Spec->catdir($repo,qw(test fixtures all_five_player_color_192));
 my@jobs=(
  ['smoke','smoke.c26'],
@@ -35,7 +35,7 @@ for my$j(@jobs){my($n,$f)=@$j; $bin{$n}=File::Spec->catfile($tmp,"all_five_playe
 
 my$public_example=File::Spec->catfile($repo,qw(examples 04_renderers all_five_player_color no_score all_five_player_color_192_interactive.c26));
 my$public_src=read_file($public_example);
-$public_src =~ /instantiate "renderers\/all_five_player_color_192\/all_five_player_color_192\.c26" as game/
+$public_src =~ /instantiate "renderers\/all_five\/all_five\.c26" as game \(lines:=192, missiles:=1, player_colors:=1\)/
    or die "public example does not instantiate combined renderer
 ";
 $public_src =~ /page const uint8_t game_player0_colors\[8\]/ &&

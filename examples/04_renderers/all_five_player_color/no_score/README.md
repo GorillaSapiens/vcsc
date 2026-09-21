@@ -9,7 +9,7 @@
 
 # Interactive all-five + player-color 192-line diagnostic
 
-This cartridge exercises the combined `all_five_player_color_192` renderer with
+This cartridge exercises the combined `all_five` 192-line selector specialization with
 P0, P1, M0, M1, and Ball all visible over an asymmetric reflected playfield.
 P0 and P1 use independent eight-row color tables, so their striped colors make
 the capability added by this renderer immediately visible.

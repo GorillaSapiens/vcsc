@@ -438,7 +438,9 @@ index($install_manifest,"libraries\tfile\t0644\tlibraries/runtime/vcsc-runtime.i
 index($top_make,'sieve: tools')<0 &&
 -f File::Spec->catfile($test,'sieve.pl') &&
 -f File::Spec->catfile($test,'install_manifest.pl') &&
-index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/all_five/all_five.c26\tlibraries/vcs/renderers/all_five/all_five.c26")>=0 &&
+index($install_manifest,'all_five_player_color_192/')<0 &&
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_192)) &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tlibraries/vcs/renderers/multisprite/multisprite.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/6507.c26\tlibraries/vcs/6507.c26")>=0 &&
 index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/components/six_glyph_wide_component.c26\tlibraries/vcs/components/six_glyph_wide_component.c26")>=0 &&
@@ -571,7 +573,7 @@ index($selector_source,'parameter missiles := 1;')>=0 &&
 index($selector_source,'parameter player_colors := 0;')>=0
    or die "all_five selector lost its compile-time profile parameters\n";
 my $player_color_source=$selector_source;
-$player_color_source =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
+$player_color_source =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)(?=\n#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1)/s
    or die "all_five selector lost its player-color specialization\n";
 $player_color_source=$1;
 index($player_color_source,'#if TEMPLATE_lines == 192')>=0 &&
@@ -588,6 +590,18 @@ index($player_color_source,'asm cmp.z TEMPLATE_ball_y;')>=0
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers player_color)) &&
 index($install_manifest,'libraries/vcs/renderers/player_color/')<0
    or die "retired player_color renderer source or install entry remains\n";
+my $combined_source=$selector_source;
+$combined_source =~ /#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1\n#if TEMPLATE_lines == 192(.*?)\n#else\nextern const uint8_t TEMPLATE_combined_player_color_lines_must_be_192/s
+   or die "all_five selector lost its fixed 192-line combined player-color specialization\n";
+$combined_source=$1;
+index($combined_source,'TEMPLATE_PUBLIC_RAM_BYTES := 21')>=0 &&
+index($combined_source,'TEMPLATE_PRIVATE_RAM_BYTES := 62')>=0 &&
+index($combined_source,'uint8_t TEMPLATE_row_cache[14];')>=0 &&
+index($combined_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
+index($combined_source,'extern const uint8_t TEMPLATE_player1_colors[8];')>=0 &&
+!-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_192)) &&
+index($install_manifest,'libraries/vcs/renderers/all_five_player_color_192/')<0
+   or die "combined player-color selector specialization or retirement contract regressed\n";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
 index($vcs_machine,'mem rom')<0
    or die "vcs.c26 must describe the machine only; cartridge ROM belongs to a profile\n";

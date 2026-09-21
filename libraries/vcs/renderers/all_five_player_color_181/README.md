@@ -10,7 +10,7 @@
 # Official 181-line all-five renderer with player color tables
 
 `all_five_player_color_181.c26` is the score-composable official-opcode sibling
-of `all_five_player_color_192`. It retains P0, P1, M0, M1, and Ball while P0
+of the `all_five` 192-line `missiles:=1, player_colors:=1` specialization. It retains P0, P1, M0, M1, and Ball while P0
 and P1 use independent immutable eight-entry color tables:
 
 ```vcsc

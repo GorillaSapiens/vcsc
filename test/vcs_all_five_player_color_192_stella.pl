@@ -62,7 +62,7 @@ for my$y(15,16,31){
    my$g=$c;
    $g =~ s/page const uint8_t game_player0_colors\[8\] := \{.*?\};\n//s or die"remove P0 colors\n";
    $g =~ s/page const uint8_t game_player1_colors\[8\] := \{.*?\};\n//s or die"remove P1 colors\n";
-   $g =~ s#instantiate "renderers/all_five_player_color_192/all_five_player_color_192\.c26" as game#instantiate "renderers/all_five/all_five.c26" as game (lines:=192)# or die"replace renderer\n";
+   $g =~ s#instantiate "renderers/all_five/all_five\.c26" as game \(lines:=192, missiles:=1, player_colors:=1\)#instantiate "renderers/all_five/all_five.c26" as game (lines:=192)# or die"replace renderer\n";
    $g =~ s/(CTRLPF:=0x20;)/$1\n game_player0_color:=0x3e; game_player1_color:=0xce; game_playfield_position:=0;/ or die"add solid-color controls\n";
    my$gs=File::Spec->catfile($tmp,"golden_stress_$y.c26"); write_file($gs,$g);
    same_raster("p1_ball_y$y",build_rom("candidate_stress_$y",$cs),build_rom("golden_stress_$y",$gs));

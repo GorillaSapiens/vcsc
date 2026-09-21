@@ -37,7 +37,6 @@ parameterized full-height renderer families: `all_five`, `player_color`,
 `all_five_unofficial`, and `multisprite`. These examples use the full active
 field directly; none wraps a 192-line renderer in visible padding.
 
-Fixed-height composition profiles are not mislabeled as 228-line renderers. In
-particular, `all_five_player_color_192` remains a separate hard-scheduled
-192-line component until that renderer is genuinely parameterized. Retained
+Fixed-height composition profiles are not mislabeled as 228-line renderers. The combined `all_five` `missiles:=1, player_colors:=1` specialization remains a
+hard-scheduled 192-line component until that schedule is genuinely generalized. Retained
 legacy/compatibility renderers remain NTSC-only by contract.

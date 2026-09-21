@@ -30,7 +30,7 @@ contract independently of the frame scheduler:
 
 - `renderers/all_five/all_five.c26` (170, 181, 192, or 228 lines; all-five default or `missiles:=0, player_colors:=1` player-color specialization)
 - `renderers/all_five_player_color_181/all_five_player_color_181.c26`
-- `renderers/all_five_player_color_192/all_five_player_color_192.c26`
+- `renderers/all_five/all_five.c26` (`lines:=192, missiles:=1, player_colors:=1`)
 - `renderers/all_five_unofficial/all_five_unofficial.c26` (170, 181, 192, or 228 lines)
 - `renderers/multisprite/multisprite.c26` (181, 192, or 228 lines)
 - `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
@@ -78,8 +78,8 @@ scanline.
 Some timing-portable components are intentionally fixed-height composition
 profiles rather than full-height renderer families: the 181-line score variants
 and the 11-line score components remain useful inside explicit compositions.
-`all_five_player_color_192` is still a separately cycle-scheduled fixed 192-line
-profile; it must be genuinely generalized before it can have a native 228-line
+The `all_five` combined missile + player-color specialization is still a separately
+cycle-scheduled fixed 192-line profile; it must be genuinely generalized before it can have a native 228-line
 example. Do not fake that conversion with visible padding.
 
 Use emulator-backed timing tests for every new full-height profile. A component

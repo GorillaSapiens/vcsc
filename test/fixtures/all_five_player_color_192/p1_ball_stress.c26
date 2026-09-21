@@ -4,7 +4,7 @@ include "frame_ntsc.c26"
 page const uint8_t game_playfield[48] := {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 page const uint8_t game_player0_colors[8] := {0x3e,0x3e,0x3e,0x3e,0x3e,0x3e,0x3e,0x3e};
 page const uint8_t game_player1_colors[8] := {0xce,0xce,0xce,0xce,0xce,0xce,0xce,0xce};
-instantiate "renderers/all_five_player_color_192/all_five_player_color_192.c26" as game
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=1, player_colors:=1)
 page const uint8_t p0_graphics[8] := {0,0,0,0,0,0,0,0};
 page const uint8_t p1_graphics[8] := {0x00,0x7e,0x42,0x5a,0x5a,0x42,0x7e,0x00};
 void main(void) {

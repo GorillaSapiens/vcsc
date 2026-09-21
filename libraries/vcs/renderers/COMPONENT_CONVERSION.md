@@ -336,7 +336,7 @@ Adjacent visible components use `vcs_ntsc_component_handoff()`.
 
 ### 192-line all-five gameplay with player color tables
 
-`renderers/all_five_player_color_192/all_five_player_color_192.c26` is a
+`renderers/all_five/all_five.c26` with `lines:=192, missiles:=1, player_colors:=1` is a
 separate full-height official-opcode profile combining P0/P1/M0/M1/BL with
 immutable eight-entry P0/P1 color tables. It keeps the existing `all_five` and
 `player_color` profiles unchanged. The exact component RAM contract is 21 public
