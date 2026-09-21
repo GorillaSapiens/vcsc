@@ -90,9 +90,9 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S4 is next:
-   specialize one `all_five`-based renderer for lines/missiles/player colors
-   while preserving current `all_five` behavior. Item 58 follows after stripes.
+   `.../stripes.txt` owns renderer consolidation and stripes. S5 is next: migrate `player_color` to the S4 selector in `all_five.c26`,
+   prove behavior/resources, and remove the duplicate source. Item 58 follows
+   after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -216,9 +216,11 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Renderer-stripes S2/S3 are complete and the user reports the full 389-test
-suite passes. `.../stripes.txt` holds the consolidation-critical profile
-inventory; reusable components live under `libraries/vcs/components/`.
+Renderer-stripes S2-S4 are complete; the user-reported 389-test suite was
+green before S4. `all_five.c26` now selects the unchanged all-five default
+(`missiles:=1, player_colors:=0`) or byte-equivalent player-color specialization
+(`missiles:=0, player_colors:=1`) at 170/181/192/228 lines. The separate
+`player_color` source remains only for the bounded S5 migration/equivalence.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
@@ -226,6 +228,6 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S4: establish one gameplay renderer based on
-`all_five` with compile-time line/missile/player-color selection while preserving
-unchanged `all_five` behavior.
+Execute `.../stripes.txt` S5: migrate `player_color` callers to the
+`all_five.c26` selector, prove behavior/resources, and delete the duplicate
+`player_color` implementation.

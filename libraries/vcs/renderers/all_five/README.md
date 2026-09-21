@@ -7,11 +7,24 @@
 
 <!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
 
-# Parameterized official-opcode all-five renderer
+# Parameterized official-opcode gameplay renderer
 
-`all_five.c26` is the official-opcode P0/P1/M0/M1/BL gameplay component.
-The required `lines` instantiation parameter selects one of the maintained,
-cycle-proven visible profiles:
+`all_five.c26` is the compile-time selector for the consolidated official-opcode
+gameplay renderer. `lines` selects the visible schedule. `missiles` defaults to
+`1`, and `player_colors` defaults to `0`, so existing instantiations retain the
+P0/P1/M0/M1/BL all-five specialization unchanged.
+
+The compatibility form and its explicit equivalent are:
+
+```vcsc
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192, missiles:=1, player_colors:=0)
+```
+
+S4 also exposes the existing P0/P1/BL per-row-color specialization through
+`missiles:=0, player_colors:=1`; the separate `player_color` source remains in
+place until S5 migrates its callers and removes that duplicate implementation.
+The maintained line selections are:
 
 ```vcsc
 instantiate "renderers/all_five/all_five.c26" as game (lines:=228)
@@ -24,7 +37,7 @@ instantiate "renderers/all_five/all_five.c26" as game (lines:=170)
 The caller chooses the visible height appropriate to the video-standard or
 composition contract.
 
-## Profiles
+## All-five compatibility profiles
 
 | `lines` | Playfield | Typical composition | Component RAM |
 | ---: | ---: | --- | ---: |
@@ -60,7 +73,7 @@ two per-row slots that the player-color renderer uses for color changes instead
 update M1 and M0. P1 graphics and both missile enables are pipelined across
 scanline boundaries and committed in horizontal blanking.
 
-## Interface
+## All-five compatibility interface
 
 Public state provides X coordinates for all five objects; Y/height state for
 all five objects; P0/P1 graphics pointers and heights; independent P0/P1 NUSIZ

@@ -104,3 +104,18 @@ the next action; hot records now total 65,229 bytes and correctly point to S4.
 Source-tree hygiene and branding pass. After a minimal tools build using the stored
 Debian dependencies, vcs_poison_debug_score and vcs_visible_component_handoff also
 pass. The user's reported full 389-test pass remains the broad baseline.
+
+2026-09-20 22:46:41 PDT, add gameplay feature selector
+Completed renderer-stripes S4. `renderers/all_five/all_five.c26` is now the
+compile-time gameplay selector with compatibility defaults `missiles:=1` and
+`player_colors:=0`; existing all-five instantiations therefore keep their prior
+ABI and generated cartridge bytes. Added the `missiles:=0, player_colors:=1`
+specialization by folding in the maintained player-color implementation while
+leaving the old `player_color` source/callers intact for the bounded S5 migration.
+
+Added `vcs_gameplay_selector.pl`, which checks the selector parameters and proves
+cartridge-byte equivalence for both all-five and player-color specializations at
+170, 181, 192, and 228 lines. Manual pre/post S4 baseline comparisons also matched
+all eight cartridges exactly. Focused all-five/player-color mode regressions pass.
+S5 is next: migrate callers/tests/docs to the selector and remove the duplicate
+`player_color` implementation.

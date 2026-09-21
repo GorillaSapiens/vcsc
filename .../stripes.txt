@@ -51,9 +51,8 @@ families. Examples live under `04_renderers/`, native 50 Hz under
 
 Steps
 -----
-Current next action: S4.
+Current next action: S5.
 
-S4. Make one `all_five`-based renderer select lines/missiles/player colors; preserve `all_five` exactly.
 S5. Migrate `player_color`; prove behavior/resources; delete old source.
 S6. Migrate `all_five_player_color_192`; prove equivalence; delete old source.
 S7. Migrate `all_five_player_color_181`; preserve score handoff; prove/delete.
