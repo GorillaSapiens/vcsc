@@ -68,8 +68,8 @@ my $text=read_file($module);
 $text =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
    or die "could not isolate player-color selector specialization\n";
 $text=$1;
-$text =~ /#elif TEMPLATE_lines == 181(.*?)#elif TEMPLATE_lines == 170/s
-   or die "could not isolate player-color 181 branch\n";
+$text =~ /#elif TEMPLATE_lines == 181 \|\| TEMPLATE_lines == 170(.*?)#else\n\/\/ Deliberately fail at file scope/s
+   or die "could not isolate shared player-color 181/170 branch\n";
 $text=$1;
 my $map=read_file($mapfile);
 require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/, 'visible-line contract is not parameterized');

@@ -574,13 +574,22 @@ index($selector_source,'parameter lines;')>=0 &&
 index($selector_source,'parameter missiles := 1;')>=0 &&
 index($selector_source,'parameter player_colors := 0;')>=0
    or die "all_five selector lost its compile-time profile parameters\n";
+for my $shared (
+   'alias TEMPLATE_OBJECT_PLAYER0 0',
+   'page const uint8_t TEMPLATE_reposition_table[16]',
+   'uint8_t TEMPLATE_object_x[5]',
+) {
+   my $count=()=$selector_source =~ /\Q$shared\E/g;
+   $count==1 or die "all_five selector common ABI/positioning declaration '$shared' occurs $count times\n";
+}
+index($selector_source,'#elif TEMPLATE_lines == 181 || TEMPLATE_lines == 170')>=0
+   or die "all_five selector did not consolidate the score-composable 181/170 schedules\n";
 my $player_color_source=$selector_source;
 $player_color_source =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)(?=\n#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1)/s
    or die "all_five selector lost its player-color specialization\n";
 $player_color_source=$1;
 index($player_color_source,'#if TEMPLATE_lines == 192')>=0 &&
-index($player_color_source,'#elif TEMPLATE_lines == 181')>=0 &&
-index($player_color_source,'#elif TEMPLATE_lines == 170')>=0 &&
+index($player_color_source,'#elif TEMPLATE_lines == 181 || TEMPLATE_lines == 170')>=0 &&
 index($player_color_source,'asm .callstackextra 0;')>=0 &&
 index($player_color_source,'TEMPLATE_object_masks')<0 &&
 index($player_color_source,'asm jsr @TEMPLATE_prepare_object_masks;')<0 &&
@@ -606,8 +615,8 @@ index($combined181_source,'TEMPLATE_PUBLIC_RAM_BYTES := 21')>=0 &&
 index($combined181_source,'TEMPLATE_PRIVATE_RAM_BYTES := 67')>=0 &&
 index($combined181_source,'uint8_t TEMPLATE_object_masks[46];')>=0 &&
 index($combined181_source,'uint8_t TEMPLATE_row_cache[21];')>=0 &&
-index($combined192_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
-index($combined181_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
+index($selector_source,'#if TEMPLATE_player_colors == 1')>=0 &&
+index($selector_source,'extern const uint8_t TEMPLATE_player0_colors[8];')>=0 &&
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_192)) &&
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers all_five_player_color_181)) &&
 index($install_manifest,'libraries/vcs/renderers/all_five_player_color_192/')<0 &&

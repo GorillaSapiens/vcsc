@@ -67,7 +67,11 @@ for my $spec (@components) {
       $rel eq 'renderers/all_five_unofficial/all_five_unofficial.c26';
    if ($parameterized_renderer) {
       my $branch;
-      if ($lines == 192) {
+      if ($rel eq 'renderers/all_five/all_five.c26' && ($lines == 181 || $lines == 170)) {
+         $text =~ /#elif TEMPLATE_lines == 181 \|\| TEMPLATE_lines == 170(.*?)#else\n\/\/ Deliberately fail at file scope/s
+            or die "could not isolate shared parameterized 181/170 branch\n";
+         $branch=$1;
+      } elsif ($lines == 192) {
          $text =~ /#if TEMPLATE_lines == 192(.*?)#elif TEMPLATE_lines == 181/s
             or die "could not isolate parameterized 192 branch\n";
          $branch=$1;

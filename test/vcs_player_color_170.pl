@@ -65,7 +65,7 @@ my $fixture=read_file($source);
 my $dual=read_file($dual_source);
 my $public=read_file($public_source);
 my $map=read_file($mapfile);
-require_re($module,qr/#elif TEMPLATE_lines == 170/,'unified player-color renderer lacks a 170-line profile');
+require_re($module,qr/#elif TEMPLATE_lines == 181 \|\| TEMPLATE_lines == 170/,'unified player-color renderer lacks the shared 181/170 score-composable profile');
 require_re($fixture,qr/instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(lines:=170,\s*missiles:=0,\s*player_colors:=1\)/,
    '170 fixture does not instantiate unified player-color renderer with lines:=170');
 require_re($dual,qr/top_score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*bottom_score_draw\(\);/s,
@@ -82,13 +82,13 @@ my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
 my $sum=0; $sum += bss_size($map,$_) for keys %sizes;
 $sum==24 or die "170 player-color component BSS totals $sum bytes; expected 24\n";
 my $branch;
-$module =~ /#elif TEMPLATE_lines == 170(.*?)#else/s or die "could not isolate 170 player-color branch\n";
+$module =~ /#elif TEMPLATE_lines == 181 \|\| TEMPLATE_lines == 170(.*?)#else\n\/\/ Deliberately fail at file scope/s or die "could not isolate shared 181/170 player-color branch\n";
 $branch=$1;
 require_re($branch,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/,'170 visible-line contract is not parameterized');
 require_re($branch,qr/TEMPLATE_PLAYFIELD_BYTES\s*:=\s*40/,'170 playfield-byte contract changed');
 require_re($branch,qr/TEMPLATE_PLAYFIELD_ROWS\s*:=\s*10/,'170 playfield-row contract changed');
 require_re($branch,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*24/,'170 module-RAM contract changed');
-require_re($branch,qr/asm cpx #36;\s*(?:asm beq(?:\.same|\.cross) \@terminalrenderer;|asm bne(?:\.same|\.cross) \@terminalrenderer_not_equal;\s*asm jmp \@terminalrenderer;)/s,'170 terminal row is not the tenth playfield row');
+require_re($branch,qr/#if TEMPLATE_lines == 181\s*asm cpx #40;\s*#else\s*asm cpx #36;\s*#endif\s*(?:asm beq(?:\.same|\.cross) \@terminalrenderer;|asm bne(?:\.same|\.cross) \@terminalrenderer_not_equal;\s*asm jmp \@terminalrenderer;)/s,'170/181 terminal-row selector contract changed');
 my $code=$branch; $code =~ s{//[^\n]*}{}g; $code =~ s{/\*.*?\*/}{}gs;
 $code !~ /\b(?:lax|dcp|sax|isc|isb|rla|rra|slo|sre|anc|alr|arr|axs|xaa|ahx|shx|shy|tas|las)\b/i
    or die "official 170 player-color branch contains an unofficial mnemonic\n";

@@ -90,10 +90,9 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S7 is next: migrate
-   the score-composable 181-line combined player-color profile into the unified
-   `all_five.c26` selector, preserve its score handoff, prove equivalence, and
-   remove the duplicate source. Item 58 follows after stripes.
+   `.../stripes.txt` owns renderer consolidation and stripes. S9 is next: retire
+   the unofficial gameplay profiles after relocating any useful coverage. Item 58
+   follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -217,15 +216,17 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Renderer-stripes S2-S7 are complete; the user-reported 389-test suite was
-green after S5. `all_five.c26` owns the all-five and player-color specializations
-at 170/181/192/228 lines plus the combined `missiles:=1, player_colors:=1`
-schedules at 181 and 192 lines. Duplicate `player_color` and both
-`all_five_player_color_*` renderer sources are gone. S6 preserved seven
-192-line ROMs byte-for-byte; S7 preserved both static score
-orders and both public 181-line interactive ROMs byte-for-byte while retaining
-the score-composable HMOVE/successor handoff. Focused selector, 181-profile,
-portability, manifest, branding, and hygiene regressions pass.
+Renderer-stripes S2-S8 are complete. After S8, the user reported 385/390:
+five source-contract tests still parsed the pre-S8 duplicated branch layout. The
+five tests were corrected to inspect the shared selector scope and nested 170/181
+branches; all five focused reruns pass. `all_five.c26` owns the all-five and
+player-color specializations at 170/181/192/228 lines plus the combined
+`missiles:=1, player_colors:=1` schedules at 181 and 192 lines. Duplicate
+`player_color` and both `all_five_player_color_*` renderer sources are gone. S8
+hoisted common ABI, playfield, positioning, and public-state machinery and merged
+the duplicated 170/181 all-five and player-color schedule families without
+changing the distinct combined 192/181 rasters; representative profile ROMs
+remained byte-identical.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
@@ -233,6 +234,5 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S8: deduplicate shared ABI, positioning, playfield,
-and setup machinery inside `all_five.c26` while retaining the genuinely distinct
-raster/handoff schedules.
+Execute `.../stripes.txt` S9: retire the unofficial gameplay profiles after
+relocating any useful coverage.

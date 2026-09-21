@@ -163,12 +163,12 @@ $src =~ /TEMPLATE_WORKSPACE_BYTES\s*:=\s*21/ or die "workspace contract changed\
 $src =~ /TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*21/ or die "public RAM contract changed\n";
 $src =~ /TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*67/ or die "private RAM contract changed\n";
 $src =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*88/ or die "module RAM contract changed\n";
-$src =~ /extern const uint8_t TEMPLATE_player0_colors\[8\]/ &&
-$src =~ /extern const uint8_t TEMPLATE_player1_colors\[8\]/
-   or die "player color tables missing\n";
+$selector_src =~ /extern const uint8_t TEMPLATE_player0_colors\[8\]/ &&
+$selector_src =~ /extern const uint8_t TEMPLATE_player1_colors\[8\]/
+   or die "shared ABI player color tables missing\n";
 $src =~ /uint8_t TEMPLATE_object_masks\[46\]/ && $src =~ /uint8_t TEMPLATE_row_cache\[21\]/
    or die "private mask/cache storage changed\n";
-$src =~ /page const uint8_t TEMPLATE_reposition_table\[16\]/ &&
+$selector_src =~ /page const uint8_t TEMPLATE_reposition_table\[16\]/ &&
 $src =~ /\@TEMPLATE_prepare_player_position/ &&
 $src =~ /asm cpy #\$fe;.*?asm inx;.*?asm sbc #\$70;/s &&
 $src =~ /asm cpy #\$f1;.*?asm sbc #\$60;/s

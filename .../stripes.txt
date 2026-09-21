@@ -53,9 +53,8 @@ families. Examples live under `04_renderers/`, native 50 Hz under
 
 Steps
 -----
-Current next action: S8.
+Current next action: S9.
 
-S8. Deduplicate ABI/positioning/playfield/setup but retain real schedule variants.
 S9. Retire unofficial gameplay profiles after relocating useful coverage.
 S10. Port useful `standard_4k_ntsc*` coverage; delete both legacy profiles and compatibility-only support.
 S11. Normalize examples/tests/docs/manifests; broad regression before stripes.

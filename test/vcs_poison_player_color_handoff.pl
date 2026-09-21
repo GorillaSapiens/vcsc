@@ -128,13 +128,12 @@ my $below=read_file(File::Spec->catfile($fixtures,'player_color_181_below.c26'))
 $below =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*poison_draw\(\);/s
    or die "score-below fixture is missing the explicit component handoff\n";
 my $game=read_file(File::Spec->catfile($vcs,qw(renderers all_five all_five.c26)));
+$game =~ /TEMPLATE_player_position_table\s*\[\s*160\s*\]/
+   or die "gameplay handoff is missing its full-range packed position table\n";
 $game =~ /#elif TEMPLATE_missiles == 0 && TEMPLATE_player_colors == 1(.*?)\n#else\n\/\/ Unsupported feature combinations/s
    or die "could not isolate player-color selector specialization\n";
 $game=$1;
 for my $required (qw(RESP0 RESP1 HMP0 HMP1 HMOVE NUSIZ0 NUSIZ1)) {
    $game =~ /\b\Q$required\E\b/ or die "gameplay handoff is missing $required\n";
 }
-$game =~ /TEMPLATE_player_position_table\s*\[\s*160\s*\]/
-   or die "gameplay handoff is missing its full-range packed position table\n";
-
 print "poison player-color handoff ok: hostile score composition preserves P0/P1/BL positions and pixel endpoints\n";

@@ -30,3 +30,23 @@ all four post-migration ROMs are byte-identical, preserving the single entry
 HMOVE and successor-line score handoff. Focused install-manifest, branding,
 source-tree-hygiene, gameplay-selector, 181-profile, and video-portability checks
 pass. S8 is next.
+
+
+2026-09-21 13:25:24 PDT, finish stripes S8 renderer deduplication
+Hoisted the shared all_five selector ABI, playfield declarations, positioning
+tables, and public state ahead of the schedule branches. Merged the duplicated
+170/181 all-five schedules into one compile-time-parameterized score-composable
+implementation and did the same for the 170/181 player-color schedules, while
+leaving the genuinely different combined 192 and 181 raster/handoff schedules
+separate. all_five.c26 dropped from 7272 to 5794 lines. Representative all-five,
+player-color, and combined-profile ROMs compiled during S8 remained byte-for-byte
+identical. Source-contract/hygiene assertions were updated for the consolidated
+layout. Per user direction, no final test rerun was used as a packaging gate. S9
+is next.
+2026-09-21 14:50:51 PDT, repair S8 source-contract tests
+After S8 consolidation, five e2e tests still used regexes that stopped at the
+first nested #else or searched shared selector data inside a specialization.
+Retargeted all-five/player-color 170/181 branch extraction to the full shared
+branch, checked the packed 160-byte player-position table at selector scope, and
+made the 170 terminal-row assertion validate the nested 181/170 selector. The
+five user-reported failures all pass; renderer source was unchanged.

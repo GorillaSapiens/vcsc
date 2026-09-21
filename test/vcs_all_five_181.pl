@@ -59,8 +59,8 @@ without_usage($out) eq '' && $err eq ''
 -s $bin == 4096 or die "all-five 181 cartridge is not exactly 4096 bytes\n";
 
 my $whole_module=read_file($component);
-$whole_module =~ /#elif TEMPLATE_lines == 181(.*?)#elif TEMPLATE_lines == 170/s
-   or die "could not isolate 181-line branch of unified all-five renderer\n";
+$whole_module =~ /#elif TEMPLATE_lines == 181 \|\| TEMPLATE_lines == 170(.*?)#else\n\/\/ Deliberately fail at file scope/s
+   or die "could not isolate score-composable 181/170 branch of unified all-five renderer\n";
 my $module=$1;
 my $fixture=read_file($source);
 my $map=read_file($mapfile);
@@ -95,10 +95,10 @@ require_re($module,qr/asm bit\.z \$00;/,
    'official three-cycle delay is not the mapper-safe explicit zero-page TIA read');
 $module !~ /asm sta[.]z TEMPLATE_missile[01]_y;/
    or die "all-five 181 unexpectedly mutates public missile Y state during rendering\n";
-require_re($module,qr/TEMPLATE_player0_color.*TEMPLATE_player1_color/s,
-   'solid player-color controls are missing');
-$module !~ /TEMPLATE_player[01]_colors/
-   or die "all-five 181 unexpectedly retained per-row player-color tables\n";
+require_re($whole_module,qr/#if TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 0\nuint8_t TEMPLATE_player0_color;\nuint8_t TEMPLATE_player1_color;/,
+   'shared ABI lost solid player-color controls');
+$map !~ /\bgame_player[01]_colors\b/
+   or die "all-five 181 unexpectedly linked per-row player-color tables\n";
 
 my $code=$module;
 $code =~ s{//[^\n]*}{}g;
