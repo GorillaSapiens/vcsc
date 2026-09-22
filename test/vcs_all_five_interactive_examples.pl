@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 45
-# expectstdout: vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, edge-triggered score controls, endpoints, reset, and opcode-policy checks
+# expectstdout: vcs_all_five_interactive_examples ok: six all-five interactive renderer examples pass build, frame, five-object controls, edge-triggered score controls, endpoints, and reset checks
 # expectexit: 0
 
 use strict;
@@ -31,9 +31,6 @@ my @cases=(
  { dir=>'04_renderers/all_five/score_above/three_plus_three', stem=>'all_five_181_three_plus_three_score_above_interactive', profile=>'all5_3x3_above', score=>1, dual3=>1, extra=>[] },
  { dir=>'04_renderers/all_five/score_below/three_plus_three', stem=>'all_five_181_three_plus_three_score_below_interactive', profile=>'all5_3x3_below', score=>1, dual3=>1, extra=>[] },
  { dir=>'04_renderers/all_five/score_above_and_below', stem=>'all_five_170_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>[] },
- { dir=>'04_renderers/all_five_unofficial/score_above_and_below', stem=>'all_five_170_unofficial_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
- { dir=>'04_renderers/all_five_unofficial/score_above/centered', stem=>'all_five_181_unofficial_score_above_interactive', profile=>'all5_above', score=>1, common=>'../../../../_common', extra=>['-Wa,--illegals'], unofficial=>1 },
- { dir=>'04_renderers/all_five_unofficial/score_below/centered', stem=>'all_five_181_unofficial_score_below_interactive', profile=>'all5_below', score=>1, common=>'../../../../_common', extra=>['-Wa,--illegals'], unofficial=>1 },
 );
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -50,14 +47,8 @@ for my $case (@cases) {
    my $dir=$case->{dir}; my $stem=$case->{stem};
    my $src=File::Spec->catfile($repo,'examples',$dir,"$stem.c26");
    my $text=read_file($src);
-   my $renderer=$case->{unofficial}
-      ? 'renderers/all_five_unofficial/all_five_unofficial.c26'
-      : 'renderers/all_five/all_five.c26';
+   my $renderer='renderers/all_five/all_five.c26';
    $text =~ /\Q$renderer\E/ or die "$dir does not use the selected all-five renderer\n";
-   if ($case->{unofficial}) {
-      join(' ',@{$case->{extra}}) eq '-Wa,--illegals'
-         or die "$dir does not opt into unofficial opcodes explicitly\n";
-   }
    if ($case->{profile} eq 'all5_192') {
       $text =~ /SELECTED_PLAYER0/ && $text =~ /SELECTED_PLAYER1/ &&
       $text =~ /SELECTED_MISSILE0/ && $text =~ /SELECTED_MISSILE1/ && $text =~ /SELECTED_BALL/
@@ -124,4 +115,4 @@ for my $case (@cases) {
    $err eq '' or die "$dir runtime stderr: $err";
 }
 
-print "vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, edge-triggered score controls, endpoints, reset, and opcode-policy checks\n";
+print "vcs_all_five_interactive_examples ok: six all-five interactive renderer examples pass build, frame, five-object controls, edge-triggered score controls, endpoints, and reset checks\n";

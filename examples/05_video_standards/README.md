@@ -15,9 +15,9 @@ for direct source, timing, and color comparison. PAL sources use
 `__builtin_secam_rgb(r,g,b)`.
 
 The maintained demonstrations are `blank`, `player_color`, `all_five`,
-`all_five_unofficial`, `multisprite`, and `enhanced_multisprite_asymmetric`.
-Every demonstration has adjacent `ntsc/`, `pal/`, and `secam/` cells, forming
-the complete 18-cell standards matrix.
+`multisprite`, and `enhanced_multisprite_asymmetric`. Every demonstration has
+adjacent `ntsc/`, `pal/`, and `secam/` cells, forming the complete 15-cell
+standards matrix.
 
 Both standards share the measured 312-line 50 Hz frame machinery, but their
 color contracts remain deliberately separate. PAL RGB matching selects from the
@@ -34,7 +34,7 @@ select PAL or SECAM.
 
 Both PAL and SECAM cells maintain native 228-line examples for the
 parameterized full-height renderer families: `all_five`, `player_color`,
-`all_five_unofficial`, and `multisprite`. These examples use the full active
+and `multisprite`. These examples use the full active
 field directly; none wraps a 192-line renderer in visible padding.
 
 Fixed-height composition profiles are not mislabeled as 228-line renderers. The combined `all_five` `missiles:=1, player_colors:=1` specialization remains a

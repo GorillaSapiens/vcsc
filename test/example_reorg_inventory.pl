@@ -76,8 +76,8 @@ for my $line (split /\n/,slurp($inventory)) {
    !$old_markers{$old_key}++
       or die "duplicate old-leaf marker '$old/$marker' in inventory\n";
 }
-$existing_count==108 or die "existing example inventory count changed: $existing_count != 108\n";
-$new_count==8 or die "planned-new example inventory count changed: $new_count != 8\n";
+$existing_count==85 or die "existing example inventory count changed: $existing_count != 85\n";
+$new_count==7 or die "planned-new example inventory count changed: $new_count != 7\n";
 
 my %actual_leaves;
 find({

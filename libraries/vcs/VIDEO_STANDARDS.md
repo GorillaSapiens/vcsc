@@ -30,9 +30,7 @@ contract independently of the frame scheduler:
 
 - `renderers/all_five/all_five.c26` (170, 181, 192, or 228 lines; all-five default or `missiles:=0, player_colors:=1` player-color specialization)
 - `renderers/all_five/all_five.c26` (`missiles:=1, player_colors:=1` at 181 or 192 lines)
-- `renderers/all_five_unofficial/all_five_unofficial.c26` (170, 181, 192, or 228 lines)
 - `renderers/multisprite/multisprite.c26` (181, 192, or 228 lines)
-- `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
 - `components/poison_debug_score/poison_debug_score.c26`
 - `components/six_glyph_component.c26`
 - `components/six_glyph_left_component.c26`
@@ -65,11 +63,10 @@ a 192-line raster inside synthetic visible borders. The maintained 228-line
 profiles are currently:
 
 - `all_five`
-- `all_five_unofficial`
 - `player_color`
 - `multisprite`
 
-All four return after exactly 228 visible lines and then use the PAL/SECAM
+All three return after exactly 228 visible lines and then use the PAL/SECAM
 `component_to_overscan_handoff()` phase bridge before the calibrated 36-line
 overscan interval. The bridge consumes cycles only; it does not add a visible
 scanline.

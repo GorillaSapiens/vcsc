@@ -13,9 +13,7 @@ sub read_file { my($p)=@_; open(my$f,'<:raw',$p) or die"read $p: $!\n";local$/;m
 my@portable=(
  'renderers/all_five/all_five.c26',
  'renderers/all_five/all_five.c26',
- 'renderers/all_five_unofficial/all_five_unofficial.c26',
  'renderers/multisprite/multisprite.c26',
- 'renderers/player_color_181_unofficial/player_color_181_unofficial.c26',
  'components/poison_debug_score/poison_debug_score.c26',
  qw(components/six_glyph_component.c26 components/six_glyph_left_component.c26 components/six_glyph_right_component.c26
     components/six_glyph_wide_component.c26 components/six_glyph_big_wide_component.c26

@@ -23,9 +23,6 @@ Use these rules:
   (192/181/170/228) is an implementation/composition detail and normally does
   not appear in the path.  `no_score`, `score_above`, `score_below`, and
   `score_above_and_below` describe the visible composition instead.
-* Renderer identities remain peers. `all_five_unofficial` is a different
-  renderer from `all_five`, and `player_color_unofficial` remains separate from
-  `player_color`.
 * `05_video_standards` exists specifically to compare NTSC/PAL/SECAM behavior.
   It is organized by demonstration first and standard second so the three
   standards are adjacent.
@@ -91,20 +88,6 @@ examples/
 │   │   │   └── poison/
 │   │   └── score_above_and_below/
 │   │
-│   ├── player_color_unofficial/
-│   │   ├── score_above/
-│   │   │   ├── centered/
-│   │   │   ├── left/
-│   │   │   ├── right/
-│   │   │   ├── two_plus_two/
-│   │   │   └── poison/
-│   │   └── score_below/
-│   │       ├── centered/
-│   │       ├── left/
-│   │       ├── right/
-│   │       ├── two_plus_two/
-│   │       └── poison/
-│   │
 │   ├── all_five/
 │   │   ├── no_score/
 │   │   ├── score_above/
@@ -120,21 +103,6 @@ examples/
 │   │   │   ├── right/
 │   │   │   ├── two_plus_two/
 │   │   │   ├── three_plus_three/
-│   │   │   └── poison/
-│   │   └── score_above_and_below/
-│   │
-│   ├── all_five_unofficial/
-│   │   ├── score_above/
-│   │   │   ├── centered/
-│   │   │   ├── left/
-│   │   │   ├── right/
-│   │   │   ├── two_plus_two/
-│   │   │   └── poison/
-│   │   ├── score_below/
-│   │   │   ├── centered/
-│   │   │   ├── left/
-│   │   │   ├── right/
-│   │   │   ├── two_plus_two/
 │   │   │   └── poison/
 │   │   └── score_above_and_below/
 │   │
@@ -161,10 +129,6 @@ examples/
 │   │   ├── pal/
 │   │   └── secam/
 │   ├── all_five/
-│   │   ├── ntsc/                         [NEW]
-│   │   ├── pal/
-│   │   └── secam/
-│   ├── all_five_unofficial/
 │   │   ├── ntsc/                         [NEW]
 │   │   ├── pal/
 │   │   └── secam/
@@ -241,16 +205,9 @@ moves.
   matrix; eliminate the intermediate numbered layout and `01_interactive`
   layers.
 * `13_player_color_170` -> `04_renderers/player_color/score_above_and_below`.
-* `07_player_color_181_unofficial` -> the peer
-  `04_renderers/player_color_unofficial` score matrix.
 * `05_all_five_192` -> `04_renderers/all_five/no_score`.
 * `06_all_five_181` -> the official `all_five` score-above/score-below matrix.
 * `11_all_five_170` -> `04_renderers/all_five/score_above_and_below`.
-* `08_all_five_181_unofficial` -> the peer `04_renderers/all_five_unofficial`
-  score matrix.
-* `12_all_five_170_unofficial` ->
-  `04_renderers/all_five_unofficial/score_above_and_below`.  This existing
-  example must not be lost; it was omitted from an early sketch of the tree.
 * `15_all_five_player_color_192` ->
   `04_renderers/all_five_player_color/no_score`.
 * `16_all_five_player_color_181/{01_score_above,02_score_below}` -> the
@@ -270,16 +227,14 @@ moves.
 Remaining new examples deliberately required
 ---------------------------------------------
 The joystick and paddle tutorials now exist.  The only still-planned additions
-are six `05_video_standards/*/ntsc` cells matching the existing PAL/SECAM
-demonstration families: blank, player_color, all_five, all_five_unofficial,
-multisprite, and enhanced_multisprite_asymmetric.  These are dedicated
+were the `05_video_standards/*/ntsc` cells matching the maintained PAL/SECAM
+demonstration families: blank, player_color, all_five, multisprite, and
+enhanced_multisprite_asymmetric.  These are dedicated
 standards-comparison cells even where another NTSC renderer demo already exists
 elsewhere.  Share source/support where useful so the comparison does not drift,
 but keep the standards matrix explicit.
 
-No other new example is implied by this document.  In particular there is no
-planned scoreless `player_color_unofficial` example and no new
-`all_five_player_color` score layout beyond its existing centered above/below
+No other new example is implied by this document.  In particular there is no new `all_five_player_color` score layout beyond its existing centered above/below
 examples.
 
 Shared support policy

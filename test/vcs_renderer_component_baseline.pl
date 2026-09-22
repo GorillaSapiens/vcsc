@@ -86,10 +86,8 @@ require_re($doc,qr/\| score-composable \| 181 \|/,
    'component conversion document lost the official 181-line profile');
 require_re($doc,qr/\| full-height scoreless \| 192 \|/,
    'component conversion document lost the official 192-line scoreless profile');
-require_re($doc,qr/\| score-composable unofficial twin \| 181 \|/,
-   'component conversion document lost the matched unofficial profile');
-require_re($doc,qr/a zero or\s+negative saving is a valid result/,
-   'component conversion document presumes unofficial-opcode savings');
+require_re($doc,qr/historical unofficial-opcode experiment.*retired.*S9/si,
+   'component conversion document lost the retired unofficial-profile history');
 require_re($doc,qr/twelve 16-line rows, or 192 lines/,
    'component conversion document lost the predecessor 192-line constraint');
 require_re($doc,qr/pointer_workspace.*mixed/is,
@@ -102,16 +100,16 @@ require_re($doc,qr/callbacks may use WSYNC.*Only the scheduler.*phase-transition
    'component conversion document does not distinguish scheduler ownership from internal WSYNC use');
 
 my $unofficial=read_file(File::Spec->catfile($root,'standard_4k_ntsc','UNOFFICIAL_OPCODES.md'));
-require_re($unofficial,qr/separately named unofficial-opcode.*181-line all-five gameplay\s+component/si,
-   'unofficial-opcode document lost the distinct 181-line experiment');
-require_re($unofficial,qr/same lifecycle API.*same RAM.*same 181 scanlines/s,
-   'unofficial-opcode comparison is not constrained to an apples-to-apples profile');
-require_re($unofficial,qr/share the same corrected circular physical\s+schedule/si,
-   'unofficial-opcode comparison lost the matched schedule');
+require_re($unofficial,qr/historical.*181-line all-five gameplay\s+component.*retired.*S9/si,
+   'unofficial-opcode document lost the retired 181-line experiment');
+require_re($unofficial,qr/same lifecycle API.*same RAM.*same\s+181 scanlines/s,
+   'historical unofficial-opcode comparison lost its apples-to-apples constraint');
+require_re($unofficial,qr/shared the same corrected circular physical\s+schedule/si,
+   'historical unofficial-opcode comparison lost the matched schedule');
 require_re($doc,qr/official linked ROM bytes:\s+1794.*unofficial linked ROM bytes:\s+1794.*signed byte difference:\s+0/s,
-   'component conversion document lost the measured matched-profile result');
-require_re($doc,qr/one reviewed stable\/common NMOS form.*zero-page unofficial NOP.*no retained AXS/si,
-   'component conversion document lost the current unofficial opcode set');
+   'component conversion document lost the historical measured matched-profile result');
+require_re($doc,qr/retired profile used one reviewed.*zero-page unofficial NOP.*no AXS/si,
+   'component conversion document lost the historical unofficial opcode set');
 require_re($unofficial,qr/official linked ROM bytes:\s+1794.*unofficial linked ROM bytes:\s+1794.*signed byte difference:\s+0/s,
    'unofficial-opcode history lost the measured result');
 

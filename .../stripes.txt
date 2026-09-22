@@ -35,10 +35,6 @@ Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
 * `all_five` combined 181 specialization (`missiles:=1, player_colors:=1`):
   5 objects + row colors, 21+67=88 RAM, 46-byte mask + 21-byte row cache;
   all-five score-composable schedule.
-* `all_five_unofficial`: exact `all_five` ABI/lines/RAM/TIA schedule; explicit
-  illegals build, one stable/common-NMOS zp NOP in dead VBLANK padding.
-* `player_color_181_unofficial`: exact 24-byte 181 twin; currently no illegal
-  instruction and zero measured size delta.
 * `standard_4k_ntsc`: legacy fixed NTSC 192 monolith, 5 objects + score/frame
   ownership/hook, 23+57=80 RAM, 88-byte font.
 * `standard_4k_ntsc_playercolors`: legacy unbanked 4K NTSC P0/P1/BL + row
@@ -46,16 +42,14 @@ Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
 
 Preserve exact frame/score checks, `vcs_playfield_phase.cpp`,
 `vcs_standard_objects.cpp`, `vcs_all_five_composition.cpp`, and pinned-palette
-Stella RGB comparisons. Principal tests are the `vcs_all_five_*`,
-`vcs_player_color_*`, combined-color, unofficial, and legacy standard renderer
-families. Examples live under `04_renderers/`, native 50 Hz under
+Stella RGB comparisons. Principal tests are the `vcs_all_five_*`, `vcs_player_color_*`,
+combined-color, and legacy standard renderer families. Examples live under `04_renderers/`, native 50 Hz under
 `05_video_standards/`, and the legacy banked diagnostic under `07_diagnostics/`.
 
 Steps
 -----
-Current next action: S9.
+Current next action: S10.
 
-S9. Retire unofficial gameplay profiles after relocating useful coverage.
 S10. Port useful `standard_4k_ntsc*` coverage; delete both legacy profiles and compatibility-only support.
 S11. Normalize examples/tests/docs/manifests; broad regression before stripes.
 S12. Prototype `lines:=192,stripes:=3`; measure legal write slots/storage.

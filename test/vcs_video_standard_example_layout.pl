@@ -21,7 +21,7 @@ sub read_file {
 @ARGV == 1 or die "usage: $0 REPO\n";
 my $repo=abs_path($ARGV[0]) // die "repo\n";
 my $root=File::Spec->catdir($repo,qw(examples 05_video_standards));
-my @demos=qw(blank player_color all_five all_five_unofficial multisprite enhanced_multisprite_asymmetric);
+my @demos=qw(blank player_color all_five multisprite enhanced_multisprite_asymmetric);
 
 opendir(my$dh,$root) or die "open $root: $!\n";
 my @demo_dirs=sort grep {

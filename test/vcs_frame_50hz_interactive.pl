@@ -24,12 +24,10 @@ my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 for my$case(
    ['pal','all-five',[],qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
    ['pal','player-color',[],qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
-   ['pal','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
    ['pal','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
    ['pal','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','all-five',[],qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
    ['secam','player-color',[],qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
-   ['secam','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
    ['secam','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
    ['secam','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]
 ) {

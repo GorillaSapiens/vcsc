@@ -90,9 +90,8 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S9 is next: retire
-   the unofficial gameplay profiles after relocating any useful coverage. Item 58
-   follows after stripes.
+   `.../stripes.txt` owns renderer consolidation and stripes. S10 is next: port useful `standard_4k_ntsc*` coverage, then delete both
+   legacy profiles and compatibility-only support. Item 58 follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -216,17 +215,15 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Renderer-stripes S2-S8 are complete. After S8, the user reported 385/390:
-five source-contract tests still parsed the pre-S8 duplicated branch layout. The
-five tests were corrected to inspect the shared selector scope and nested 170/181
-branches; all five focused reruns pass. `all_five.c26` owns the all-five and
+Renderer-stripes S2-S9 are complete. `all_five.c26` owns the all-five and
 player-color specializations at 170/181/192/228 lines plus the combined
 `missiles:=1, player_colors:=1` schedules at 181 and 192 lines. Duplicate
-`player_color` and both `all_five_player_color_*` renderer sources are gone. S8
-hoisted common ABI, playfield, positioning, and public-state machinery and merged
-the duplicated 170/181 all-five and player-color schedule families without
-changing the distinct combined 192/181 rasters; representative profile ROMs
-remained byte-identical.
+`player_color`, both `all_five_player_color_*`, and both unofficial gameplay
+renderer families are gone. S8 consolidated common ABI/positioning/state and the
+170/181 schedule families; S9 removed unofficial renderer/example/fixture/test
+duplicates after confirming their gameplay coverage was already owned by the
+official profiles. Unofficial-opcode opt-in remains covered by assembler/toolchain
+regressions rather than a duplicate gameplay renderer.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
@@ -234,5 +231,5 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S9: retire the unofficial gameplay profiles after
-relocating any useful coverage.
+Execute `.../stripes.txt` S10: port useful `standard_4k_ntsc*` coverage;
+delete both legacy profiles and compatibility-only support.

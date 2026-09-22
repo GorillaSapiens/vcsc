@@ -841,12 +841,6 @@ visible-trace identity for all five static and motion compositions, direct
 per-pixel object-raster checks for both static score orders, and equal linked
 ROM use.
 
-`vcs_all_five_unofficial_profiles.pl` exercises the unified unofficial source at
-`lines:=192`, `181`, and `170`. Every profile must have the same linked ROM use
-and object-mask RAM contract as its official twin, exactly one reviewed `$04`
-NOP in generated assembly, identical visible TIA traces, and stable 262-line
-frames.
-
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
 harness. The motion update runs only through a
@@ -1444,8 +1438,7 @@ the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
 `vcs_frame_50hz_scheduler.pl` locks the shared PAL/SECAM scheduler deadlines,
 phase boundaries, 314-raw/312-Stella frame accounting, and diagnostics.
 `vcs_frame_50hz_interactive.pl` builds the complete PAL/SECAM native-228
-renderer matrix (`all_five`, `player_color`, `all_five_unofficial`, and
-`multisprite`) with inactive RIOT controls and proves that renderer output begins
+renderer matrix (`all_five`, `player_color`, and `multisprite`) with inactive RIOT controls and proves that renderer output begins
 on the first visible scanline, remains active through the 228th, and enters
 overscan at the calibrated boundary; this avoids the false-reset behavior produced by
 zero-initialized console-switch inputs. `vcs_all_five_228.pl` locks the

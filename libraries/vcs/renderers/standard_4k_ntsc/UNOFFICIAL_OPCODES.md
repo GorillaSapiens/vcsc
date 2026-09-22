@@ -51,21 +51,23 @@ a negative control introduced through raw `op4B`.
 The regression now scans the maintained source directly and separately verifies
 the final linked executable bytes.
 
-All-five component byte comparison
-----------------------------------
+Historical all-five component byte comparison
+---------------------------------------------
 
 The separately named unofficial-opcode **181-line all-five gameplay
-component** is an explicit experiment, not a hidden build alias. The official
-and unofficial components expose the same lifecycle API, consume the same RAM,
-draw the same 181 scanlines, and now share the same corrected circular physical
-schedule. Only reviewed stable/common NMOS forms are eligible.
+component** was an explicit experiment, not a hidden build alias. It was retired
+in S9 after the comparison evidence was preserved. The official and unofficial
+components exposed the same lifecycle API, consumed the same RAM, drew the same
+181 scanlines, and shared the same corrected circular physical schedule. Only
+reviewed stable/common NMOS forms were eligible.
 
-The rebuilt unofficial twin retains one zero-page unofficial NOP (`$04`) as an
+The retired unofficial twin used one zero-page unofficial NOP (`$04`) as an
 exact-size, exact-cycle replacement for dead-flag padding during VBLANK
-positioning. It retains no AXS substitutions and no silicon-sensitive or
-unstable opcodes.
+positioning. It retained no AXS substitutions and no silicon-sensitive or
+unstable opcodes. Ongoing unofficial-opcode opt-in coverage now belongs to the
+assembler/toolchain regressions rather than a duplicate gameplay renderer.
 
-The maintained smoke cartridge measures:
+The historical smoke cartridge measured:
 
 ```text
 official linked ROM bytes:   1794
@@ -76,17 +78,3 @@ signed byte difference:          0
 Static and motion tests require pairwise visible TIA-event identity for both
 score orders, matching public RAM addresses, full-range application-visible
 object behavior, score composition, and stable 262-line frames.
-
-Completed player-color component byte comparison
-------------------------------------------------
-
-The matched `player_color_181_unofficial` profile remains separately named and
-must be requested explicitly with `-Wa,--illegals`, but the direct-countdown
-conversion removed the old row-mask helper where its reviewed `AXS`/zero-page
-NOP substitutions lived. The current generated renderer therefore contains no
-unofficial mnemonic at all.
-
-The maintained smoke cartridges measure **1501 linked ROM bytes** for both the
-official and unofficial components: **0 bytes saved**. Pairwise smoke, static,
-and motion raster/timing tests cover both score orders; the 320-frame motion
-oracle also pins the corrected Ball transfer across an internal row boundary.

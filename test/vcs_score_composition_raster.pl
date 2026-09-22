@@ -87,10 +87,8 @@ my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 
 my @families=(
-   {fixture=>'player_color_181',            example=>undef,                           class=>'player',   illegals=>0},
-   {fixture=>'all_five_181',                example=>undef,                           class=>'all_five', illegals=>0},
-   {fixture=>'player_color_181_unofficial', example=>undef,                           class=>'player',   illegals=>1},
-   {fixture=>'all_five_181_unofficial',     example=>undef,                           class=>'all_five', illegals=>1},
+   {fixture=>'player_color_181', example=>undef, class=>'player'},
+   {fixture=>'all_five_181',     example=>undef, class=>'all_five'},
 );
 my @scores=(
    {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 migrated=>'centered',      component=>'components/six_glyph_component.c26'},
@@ -110,20 +108,12 @@ sub public_leaf {
    # The official player-color 181-line matrix is flattened into
    # renderer/layout/composition. Keep that mapping explicit rather than
    # silently probing both trees and masking a lost move.
-   if (($family->{fixture} eq 'player_color_181' ||
-        $family->{fixture} eq 'player_color_181_unofficial') &&
-       defined($score->{migrated})) {
-      my $renderer=$family->{fixture} eq 'player_color_181'
-         ? 'player_color' : 'player_color_unofficial';
-      return File::Spec->catdir($repo,'examples','04_renderers',$renderer,
+   if ($family->{fixture} eq 'player_color_181' && defined($score->{migrated})) {
+      return File::Spec->catdir($repo,'examples','04_renderers','player_color',
          "score_$order",$score->{migrated});
    }
    if ($family->{fixture} eq 'all_five_181' && defined($score->{migrated})) {
       return File::Spec->catdir($repo,'examples','04_renderers','all_five',
-         "score_$order",$score->{migrated});
-   }
-   if ($family->{fixture} eq 'all_five_181_unofficial' && defined($score->{migrated})) {
-      return File::Spec->catdir($repo,'examples','04_renderers','all_five_unofficial',
          "score_$order",$score->{migrated});
    }
    return File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
@@ -153,7 +143,7 @@ for my $name (sort keys %needed) {
    $executables{$name}=$exe;
 }
 
-# Lock the complete public 4 x 5 x 2 inventory and its legal draw order.
+# Lock the complete public 2 x 5 x 2 inventory and its legal draw order.
 my $public=0;
 for my $family (@active_families) {
    for my $score (@scores) {
@@ -166,19 +156,12 @@ for my $family (@active_families) {
          $text =~ /instantiate\s+"\Q$score->{component}\E"\s+as\s+score\b/
             or die "$sources[0] does not use $score->{component}\n";
          if ($family->{class} eq 'all_five') {
-            my $renderer=$family->{illegals}
-               ? 'renderers/all_five_unofficial/all_five_unofficial.c26'
-               : 'renderers/all_five/all_five.c26';
+            my $renderer='renderers/all_five/all_five.c26';
             $text =~ /instantiate\s+"\Q$renderer\E"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*\)/
                or die "$sources[0] does not use $renderer lines:=181\n";
          } else {
-            if ($family->{illegals}) {
-               $text =~ /instantiate\s+"renderers\/player_color_181_unofficial\/player_color_181_unofficial\.c26"\s+as\s+game\b/
-                  or die "$sources[0] does not use player_color_181_unofficial\n";
-            } else {
-               $text =~ /instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*,\s*missiles\s*:=\s*0\s*,\s*player_colors\s*:=\s*1\s*\)/
-                  or die "$sources[0] does not use the player-color selector at lines:=181\n";
-            }
+            $text =~ /instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*,\s*missiles\s*:=\s*0\s*,\s*player_colors\s*:=\s*1\s*\)/
+               or die "$sources[0] does not use the player-color selector at lines:=181\n";
          }
          my $expected=$order eq 'above'
             ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
@@ -203,8 +186,7 @@ for my $family (@active_families) {
          my $tag=join('_','public',$family->{fixture},$score->{kind},$order);
          $tag =~ s/-/_/g;
          my $bin=File::Spec->catfile($tmp,"$tag.bin");
-         my @extra=$family->{illegals} ? ('-Wa,--illegals') : ();
-         my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$leaf,@extra,$sources[0],'-o',$bin);
+         my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$leaf,$sources[0],'-o',$bin);
          $rc==0 && !$sig or die "$tag build failed\n$out$err";
          without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
          -s $bin==4096 or die "$tag is not a 4K cartridge\n";
@@ -248,8 +230,7 @@ for my $family (@active_families) {
             my $bin=File::Spec->catfile($tmp,"$tag.bin");
             my $mapfile=File::Spec->catfile($tmp,"$tag.map");
             write_file($src,$source);
-            my @extra=$family->{illegals} ? ('-Wa,--illegals') : ();
-            my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,@extra,'-Map',$mapfile,$src,'-o',$bin);
+            my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$src,'-o',$bin);
             $rc==0 && !$sig or die "$tag build failed\n$out$err";
             without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
             -s $bin==4096 or die "$tag is not a 4K cartridge\n";

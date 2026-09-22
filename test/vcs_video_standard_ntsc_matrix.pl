@@ -79,23 +79,10 @@ for my$spec(@reused) {
    $a eq $b or die "$family NTSC standards cell is not byte-identical to canonical NTSC example\n";
 }
 
-# The unofficial all-five cell shares the exact official scene source, changing
-# only renderer identity; its Makefile must keep illegal-opcode assembly explicit.
-my$unoff=File::Spec->catfile($root,qw(all_five_unofficial ntsc ntsc_all_five_unofficial_192_interactive.c26));
-my$official=File::Spec->catfile($repo,qw(examples 04_renderers all_five no_score all_five_192_interactive.c26));
-my$ut=slurp_path($unoff); my$ot=slurp_path($official);
-$ut =~ s{\A(// This file is covered[^\n]*\n)// NTSC standards peer:[^\n]*\n}{$1};
-$ut =~ s{renderers/all_five_unofficial/all_five_unofficial\.c26}{renderers/all_five/all_five.c26};
-$ut eq $ot or die "NTSC all_five_unofficial scene drifted from official all_five peer\n";
-my$umake=slurp_path(File::Spec->catfile($root,qw(all_five_unofficial ntsc Makefile)));
-index($umake,'-Wa,--illegals')>=0 or die "NTSC all_five_unofficial Makefile lost explicit illegal-opcode opt-in\n";
-build_rom('all-five-unofficial-ntsc',['-Wa,--illegals'],[$unoff]);
-
 # PAL/SECAM peers keep the same renderer identity at their native 228-line height.
 my%renderer=(
    player_color=>'renderers/all_five/all_five.c26',
    all_five=>'renderers/all_five/all_five.c26',
-   all_five_unofficial=>'renderers/all_five_unofficial/all_five_unofficial.c26',
    multisprite=>'renderers/multisprite/multisprite.c26',
    enhanced_multisprite_asymmetric=>'renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26',
 );

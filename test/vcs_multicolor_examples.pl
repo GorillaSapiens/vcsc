@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 60
-# expectstdout: vcs_multicolor_examples ok: seven interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks
+# expectstdout: vcs_multicolor_examples ok: five interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, and reset checks
 # expectexit: 0
 
 use strict;
@@ -56,16 +56,7 @@ my @cases=(
    stem=>'player_color_181_wide_score_below_interactive', profile=>'below', prefix=>'game',
    score=>'score_score', color=>'score_color', extra=>[], component=>'six_glyph_wide_component',
  },
- {
-   dir=>'04_renderers/player_color_unofficial/score_above/centered',
-   stem=>'player_color_181_unofficial_score_above_interactive', profile=>'above', prefix=>'game',
-   score=>'score_score', color=>'score_color', extra=>['-Wa,--illegals'], unofficial=>1,
- },
- {
-   dir=>'04_renderers/player_color_unofficial/score_below/centered',
-   stem=>'player_color_181_unofficial_score_below_interactive', profile=>'below', prefix=>'game',
-   score=>'score_score', color=>'score_color', extra=>['-Wa,--illegals'], unofficial=>1,
- },
+
 );
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -104,20 +95,12 @@ for my $case (@cases) {
       $text !~ /six_glyph_component|selected_score_digit|score_draw/
          or die "$dir unexpectedly contains score controls\n";
    } else {
-      my $renderer=$case->{unofficial}
-         ? 'renderers/player_color_181_unofficial/player_color_181_unofficial.c26'
-         : 'renderers/all_five/all_five.c26';
+      my $renderer='renderers/all_five/all_five.c26';
       my $score_component=$case->{component} || 'six_glyph_component';
       $text =~ /\Q$renderer\E/ && $text =~ /\Q$score_component\E/
          or die "$dir lacks the selected 181-line renderer plus score composition\n";
-      if (!$case->{unofficial}) {
-         $text =~ /lines:=181,\s*missiles:=0,\s*player_colors:=1/
-            or die "$dir does not select the official player-color specialization\n";
-      }
-      if ($case->{unofficial}) {
-         join(' ',@{$case->{extra}}) eq '-Wa,--illegals'
-            or die "$dir does not opt into unofficial opcodes explicitly\n";
-      }
+      $text =~ /lines:=181,\s*missiles:=0,\s*player_colors:=1/
+         or die "$dir does not select the player-color specialization\n";
       my $score=index($text,'score_draw();'); my $game=index($text,'game_draw();');
       $score>=0 && $game>=0 or die "$dir lacks component draws\n";
       ($profile eq 'above' ? $score<$game : $game<$score) or die "$dir draw order is wrong\n";
@@ -154,4 +137,4 @@ for my $case (@cases) {
       or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: seven interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks\n";
+print "vcs_multicolor_examples ok: five interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, and reset checks\n";

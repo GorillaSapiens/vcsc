@@ -37,13 +37,11 @@ for my$spec(
    ['pal','__builtin_pal_rgb',qw(05_video_standards blank pal pal50_blank.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
-   ['pal','__builtin_pal_rgb',qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards blank secam secam50_blank.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$builtin,@parts)=@$spec;
@@ -79,12 +77,10 @@ for my$case(
 for my$case(
    ['pal','PAL','all-five',[],qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
    ['pal','PAL','player-color',[],qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
-   ['pal','PAL','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
    ['pal','PAL','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
    ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','SECAM','all-five',[],qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
    ['secam','SECAM','player-color',[],qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
-   ['secam','SECAM','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
    ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
    ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$format,$family,$flags,@parts)=@$case;

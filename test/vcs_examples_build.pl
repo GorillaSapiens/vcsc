@@ -218,9 +218,6 @@ for my $entry (@examples) {
    } elsif ($file =~ /\Amultisprite_.*\.c26\z/ ||
             $source_text =~ /instantiate\s+"renderers\/multisprite\/multisprite\.c26"/) {
       push @extra,'-Wa,--illegals';
-   } elsif ($file =~ /_unofficial_.*\.c26\z/ ||
-            $source_text =~ /instantiate\s+"renderers\/all_five_unofficial\/all_five_unofficial\.c26"/) {
-      push @extra,'-Wa,--illegals';
    }
    -f $source or die "missing editable example $source\n";
    my $source_dir=File::Spec->catdir($examples_root,$dir);

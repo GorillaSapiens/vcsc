@@ -98,10 +98,8 @@
       "retained_architecture" : [
          "player_color_192:p0-p1-ball",
          "player_color_181:p0-p1-ball",
-         "player_color_181_unofficial:p0-p1-ball",
          "all_five_192:p0-p1-m0-m1-ball",
-         "all_five_181:p0-p1-m0-m1-ball",
-         "all_five_181_unofficial:p0-p1-m0-m1-ball"
+         "all_five_181:p0-p1-m0-m1-ball"
       ],
       "rom_savings" : {
          "absolute_alignment_link_placement" : 133,

@@ -549,7 +549,6 @@ index($standard_renderer_source,'.callstackextra 4')>=0
 ";
 for my $component (
    'all_five/all_five.c26',
-   'all_five_unofficial/all_five_unofficial.c26',
 ) {
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 4;')>=0
@@ -560,14 +559,6 @@ for my $component (
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 2;')>=0
       or die "$component lost its reduced object-owned inline-assembly stack allowance\n";
-}
-{
-   my $component='player_color_181_unofficial/player_color_181_unofficial.c26';
-   my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
-   index($source,'asm .callstackextra 0;')>=0 &&
-   index($source,'TEMPLATE_object_masks')<0 &&
-   index($source,'asm dec.z TEMPLATE_ball_y;')>=0
-      or die "$component lost its mask-free direct-countdown zero-extra-stack contract\n";
 }
 my $selector_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','all_five','all_five.c26'));
 index($selector_source,'parameter lines;')>=0 &&
@@ -601,6 +592,25 @@ index($player_color_source,'asm cmp.z TEMPLATE_ball_y;')>=0
 !-e File::Spec->catdir($repo,qw(libraries vcs renderers player_color)) &&
 index($install_manifest,'libraries/vcs/renderers/player_color/')<0
    or die "retired player_color renderer source or install entry remains\n";
+for my $retired (
+   [qw(libraries vcs renderers all_five_unofficial)],
+   [qw(libraries vcs renderers player_color_181_unofficial)],
+   [qw(examples 04_renderers all_five_unofficial)],
+   [qw(examples 04_renderers player_color_unofficial)],
+   [qw(examples 05_video_standards all_five_unofficial)],
+   [qw(test fixtures all_five_170_unofficial)],
+   [qw(test fixtures all_five_181_unofficial)],
+   [qw(test fixtures all_five_192_unofficial)],
+   [qw(test fixtures player_color_181_unofficial)],
+) {
+   !-e File::Spec->catdir($repo,@$retired)
+      or die "retired unofficial gameplay profile remains: @$retired
+";
+}
+index($install_manifest,'all_five_unofficial')<0 &&
+index($install_manifest,'player_color_181_unofficial')<0
+   or die "retired unofficial gameplay renderer remains in install manifest
+";
 my($combined192_source,$combined181_source);
 $selector_source =~ /#elif TEMPLATE_missiles == 1 && TEMPLATE_player_colors == 1\n#if TEMPLATE_lines == 192(.*?)\n#elif TEMPLATE_lines == 181(.*?)\n#else\nextern const uint8_t TEMPLATE_combined_player_color_lines_must_be_181_or_192/s
    or die "all_five selector lost its 181/192 combined player-color specializations\n";
@@ -694,8 +704,6 @@ for my $i (1..8) {
 my @score_shards=(
    ['player_color_181',1],
    ['all_five_181',0],
-   ['player_color_181_unofficial',0],
-   ['all_five_181_unofficial',0],
 );
 for my $entry (@score_shards) {
    my($family,$mixed)=@$entry;

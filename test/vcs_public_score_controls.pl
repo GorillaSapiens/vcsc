@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 120
-# expectstdout: vcs_public_score_controls ok: 28 six-digit and 8 two-plus-two public examples have classified score controls with tested color, selection, and independent-field behavior
+# expectstdout: vcs_public_score_controls ok: 16 six-digit and 4 two-plus-two public examples have classified score controls with tested color, selection, and independent-field behavior
 # expectexit: 0
 
 use strict;
@@ -43,7 +43,7 @@ my $split_src=File::Spec->catfile($repo,qw(test vcs_two_plus_two_controls.cpp));
 $rc==0 && !$sig or die "two-plus-two harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "two-plus-two harness build wrote output\n$out$err";
 
-my @families=qw(player_color_181 all_five_181 player_color_181_unofficial all_five_181_unofficial);
+my @families=qw(player_color_181 all_five_181);
 my @six_layouts=qw(01_score_above 02_score_below 03_left_justified_score_above 04_left_justified_score_below 05_right_justified_score_above 06_right_justified_score_below);
 my @split_layouts=qw(07_two_plus_two_score_above 08_two_plus_two_score_below);
 my %official_player_color_leaf=(
@@ -68,25 +68,18 @@ my %official_all_five_leaf=(
 );
 sub public_leaf {
    my($family,$layout)=@_;
-   if (($family eq 'player_color_181' || $family eq 'player_color_181_unofficial') &&
-       exists $official_player_color_leaf{$layout}) {
-      my @parts=@{$official_player_color_leaf{$layout}};
-      $parts[1]='player_color_unofficial' if $family eq 'player_color_181_unofficial';
-      return File::Spec->catdir($repo,'examples',@parts);
+   if ($family eq 'player_color_181' && exists $official_player_color_leaf{$layout}) {
+      return File::Spec->catdir($repo,'examples',@{$official_player_color_leaf{$layout}});
    }
-   if (($family eq 'all_five_181' || $family eq 'all_five_181_unofficial') &&
-       exists $official_all_five_leaf{$layout}) {
-      my @parts=@{$official_all_five_leaf{$layout}};
-      $parts[1]='all_five_unofficial' if $family eq 'all_five_181_unofficial';
-      return File::Spec->catdir($repo,'examples',@parts);
+   if ($family eq 'all_five_181' && exists $official_all_five_leaf{$layout}) {
+      return File::Spec->catdir($repo,'examples',@{$official_all_five_leaf{$layout}});
    }
    return File::Spec->catdir($repo,'examples',$family,$layout,'01_interactive');
 }
 sub shared_control_include_depth {
    my($family,$layout)=@_;
-   return 4 if $family eq 'player_color_181' || $family eq 'player_color_181_unofficial';
-   return 4 if ($family eq 'all_five_181' || $family eq 'all_five_181_unofficial') &&
-      exists $official_all_five_leaf{$layout};
+   return 4 if $family eq 'player_color_181';
+   return 4 if $family eq 'all_five_181' && exists $official_all_five_leaf{$layout};
    return 3;
 }
 my $six_public=0; my $split_public=0;
@@ -114,7 +107,7 @@ for my $family (@families) {
       ++$split_public;
    }
 }
-$six_public==24 or die "found $six_public shared six-digit control examples, expected 24\n";
+$six_public==12 or die "found $six_public shared six-digit control examples, expected 12\n";
 !-e File::Spec->catfile($repo,qw(examples 04_renderers multisprite fixed_six_digit_controls_compact.c26))
    or die "obsolete multisprite compact score-control duplicate returned\n";
 
@@ -153,8 +146,8 @@ for my $parts (
       or die "$path lost mutable-color score support\n";
    ++$six_public;
 }
-$six_public==28 or die "found $six_public classified six-digit control examples, expected 28\n";
-$split_public==8 or die "found $split_public two-plus-two control examples, expected 8\n";
+$six_public==16 or die "found $six_public classified six-digit control examples, expected 16\n";
+$split_public==4 or die "found $split_public two-plus-two control examples, expected 4\n";
 
 sub build_public {
    my($family,$layout,$tag)=@_;
@@ -162,8 +155,7 @@ sub build_public {
    my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $mapfile=File::Spec->catfile($tmp,"$tag.map");
-   my @extra=$family =~ /unofficial/ ? ('-Wa,--illegals') : ();
-   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$leaf,'-Map',$mapfile,@extra,$sources[0],'-o',$bin);
+   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$leaf,'-Map',$mapfile,$sources[0],'-o',$bin);
    $rc==0 && !$sig or die "$tag build failed\n$out$err";
    without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
    return ($bin,read_file($mapfile));
@@ -192,4 +184,4 @@ $out =~ /^vcs_two_plus_two_controls ok: both fields selected, highlighted, moved
    or die "unexpected two-plus-two runtime output: $out";
 $err eq '' or die "two-plus-two runtime stderr: $err";
 
-print "vcs_public_score_controls ok: 28 six-digit and 8 two-plus-two public examples have classified score controls with tested color, selection, and independent-field behavior\n";
+print "vcs_public_score_controls ok: 16 six-digit and 4 two-plus-two public examples have classified score controls with tested color, selection, and independent-field behavior\n";

@@ -115,8 +115,8 @@ not inferred from a count of source statements. The common contract is:
 | left/right two-plus-two score | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | `poison_debug_score` | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=170)` | 170 | 3 / 0 | 0 / 0 | yes | 1 | yes |
-| official `player_color (lines:=181)` / unofficial `player_color_181_unofficial` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
-| official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| `player_color (lines:=181)` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five (lines:=181, missiles:=1, player_colors:=1)` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
@@ -247,7 +247,6 @@ Each maintained gameplay family has these explicit products:
 | two-score composable | 170 | none; `main()` may compose independent 11-line scores above and below | official 6502/6507 only |
 | score-composable | 181 | none; `main()` must compose one independent 11-line score component | official 6502/6507 only |
 | full-height scoreless | 192 | none; no score fits beside it inside the standard visible field | official 6502/6507 only |
-| score-composable unofficial twin | 181 | none; same application contract as the official 181-line component | reviewed stable/common NMOS unofficial forms allowed |
 
 The ordinary score-bearing application contract is exact:
 
@@ -269,16 +268,16 @@ must still identify which profile was linked; parameterization does not weaken
 the profile-specific raster contracts.  The 170-line profile permits two
 independent eleven-line scores because `11 + 170 + 11 = 192` visible lines.
 
-The unofficial-opcode experiment is likewise a separate source/profile, not a
-hidden alias. Its public API, public and private RAM layout, visible TIA-write
-schedule, object positions, collision behavior, entry/exit cycles, and 181-line
-contract must match the official score-composable component. Only then may the
-linked executable-byte totals be compared. The report must state the official
-and unofficial linked ROM byte counts and their signed difference; a zero or
-negative saving is a valid result. Only reviewed stable/common NMOS 6502/6507
-forms are eligible. Silicon-sensitive or unstable forms remain forbidden.
+The historical unofficial-opcode experiment was a separate source/profile, not
+a hidden alias. S9 retired that duplicate gameplay profile after preserving the
+comparison evidence here and moving ongoing unofficial-opcode opt-in coverage to
+the assembler/toolchain regressions. Its public API, public and private RAM
+layout, visible TIA-write schedule, object positions, collision behavior,
+entry/exit cycles, and 181-line contract matched the official score-composable
+component before the comparison was accepted. Only reviewed stable/common NMOS
+6502/6507 forms were eligible; silicon-sensitive or unstable forms were forbidden.
 
-The current matched 181-line smoke fixtures measure:
+The retired matched 181-line smoke fixtures measured:
 
 ```text
 official linked ROM bytes:   1794
@@ -386,27 +385,6 @@ Maintained regression evidence locks exact 262-line frames, every playfield
 pixel, all five object rasters, RAM/page/stack contracts, and staged-installed
 builds for the supported line counts.
 
-## Parameterized unofficial all-five counterpart
-
-`renderers/all_five_unofficial/all_five_unofficial.c26` is the separately named
-stable/common-NMOS experimental twin of the parameterized official all-five
-renderer. It requires the same `lines` instantiation parameter and supports
-`lines:=192`, `lines:=181`, and `lines:=170` with the same API, RAM layout,
-playfield contract, visible scanline count, and TIA schedule as the corresponding
-official profile. It must be assembled with `-Wa,--illegals`.
-
-Each selected profile contains exactly one reviewed stable/common NMOS form: a
-zero-page unofficial NOP (`$04`) used as exact-size, exact-cycle dead-flag
-padding during VBLANK positioning. There are no retained AXS substitutions and
-no silicon-sensitive or unstable opcodes.
-
-The maintained 181-line score matrix continues to compare static and moving
-unofficial cartridges against the official `lines:=181` profile. Additional
-profile regressions instantiate 192, 181, and 170 directly, require equal linked
-ROM use and profile RAM contracts, and compare visible TIA traces and stable
-262-line frames. The public `examples/04_renderers/all_five_unofficial/score_above_and_below/` cartridge
-composes 11 score + 170 gameplay + 11 score to prove the dual-score profile.
-
 ## RAM-optimization architecture closeout
 
 Final RAM measurement does **not** justify separate P0/P1-only 192- or 181-line
@@ -418,7 +396,7 @@ score composition leaves 63 RAM bytes free. Even the maintained wide-score
 composition fits with ten bytes free.
 
 The retained architecture is therefore the existing general P0/P1/Ball pair plus
-the all-five families and their explicitly named unofficial twins. A future
+the official all-five selector family. A future
 two-sprite-only renderer should be added only for a concrete program whose measured
 requirements justify another public timing/API profile, not as a generic RAM
 optimization.
@@ -435,9 +413,10 @@ Real Stella screenshots then exposed a second all-five defect: on the following
 row-entry line PF1/PF2 were still established too late for a clean edge. The
 all-five profiles now stage the next row's left PF1 byte in dead workspace and
 write the left PF1/PF2 pair at cycles 21/28 while retaining the right pair at
-38/45. The official and unofficial 181-line twins remain byte- and raster-matched.
-The rebuilt unofficial twin retains one reviewed `$04` NOP as exact-cycle
-padding outside the visible raster.
+38/45. Before S9 retirement, the official and unofficial 181-line twins remained
+byte- and raster-matched. The retired profile used one reviewed stable/common
+NMOS form, a zero-page unofficial NOP (`$04`), as exact-cycle padding outside
+the visible raster and retained no AXS substitution.
 
 The row-boundary repair now also stages the Ball enable value before every
 extra transition `GRP1`, preventing the delayed Ball latch from duplicating one
@@ -447,9 +426,9 @@ oracles pin this for the 192- and 181-line all-five families.
 The 181-line all-five and player-color profiles also preserve the final row
 through a WSYNC boundary before clearing visible TIA state. The player-color
 path needs a compact 30-cycle phase pad on the blank cleanup line to retain its
-exact 181-line return boundary; both official and unofficial smoke links now
-measure 1422 bytes and still differ by zero bytes after direct-countdown and
-delayed-Ball correction.
+exact 181-line return boundary. Before S9 retirement, the matched official and
+unofficial smoke links both measured 1422 bytes and differed by zero bytes after
+direct-countdown and delayed-Ball correction.
 
 The maintained source-level oracle checks every gameplay row, sixteen lines per
 row, and all 160 playfield pixels per line. The 192-line player-color profile
@@ -567,21 +546,6 @@ component exactly 170 lines. With explicit component handoffs, an eleven-line
 score above and another eleven-line score below therefore fill the standard
 192-line visible field. The maintained dual-score fixture pins 262-line frame
 timing and all ten 16-line playfield rows.
-
-## Matched unofficial player-color 181-line experiment
-
-`renderers/player_color_181_unofficial/player_color_181_unofficial.c26` is the
-separately named stable/common-NMOS twin of the official score-composable
-player-color component. It keeps the same lifecycle API, exact 13/11/24-byte public/private/total RAM contract, per-row P0/P1 colors, Ball behavior, 181-line visible schedule, both
-score orders, and static/motion fixtures. It must be assembled with
-`-Wa,--illegals`.
-
-The direct-countdown conversion removed the row-mask helper that contained the
-reviewed unofficial substitutions. The current generated unofficial profile
-contains no unofficial mnemonic and measures 1422 linked ROM bytes, exactly the
-same as the official twin. Five pairwise raster/timing comparisons plus the
-320-frame composition oracle enforce equivalence, including the corrected Ball
-transfer across an internal row boundary.
 
 ## Official player-color 192-line scoreless profile
 

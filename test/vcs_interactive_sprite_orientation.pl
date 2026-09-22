@@ -232,8 +232,8 @@ find(sub {
    my $text=read_file($path);
    push @animation_sources,$path if $text =~ /\bp0_animation\s*\[32\]/;
 },File::Spec->catdir($repo,'examples'));
-@animation_sources==15
-   or die "expected 15 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
+@animation_sources==11
+   or die "expected 11 maintained interactive animation source bodies, found ".scalar(@animation_sources)."\n";
 for my $path (@animation_sources) {
    my $text=read_file($path);
    same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),$p0_frames,"$path P0");

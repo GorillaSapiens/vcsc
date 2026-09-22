@@ -350,10 +350,8 @@ my $report={
       retained_architecture=>[
          'player_color_192:p0-p1-ball',
          'player_color_181:p0-p1-ball',
-         'player_color_181_unofficial:p0-p1-ball',
          'all_five_192:p0-p1-m0-m1-ball',
          'all_five_181:p0-p1-m0-m1-ball',
-         'all_five_181_unofficial:p0-p1-m0-m1-ball',
       ],
       optional_two_sprite_profiles=>{item11_192=>'closed-unnecessary',item12_181=>'closed-unnecessary'},
       baseline=>{rom_bytes=>3993,ram_bytes=>128,free_ram_bytes=>0,activation_bytes=>20,stack_bytes=>8},

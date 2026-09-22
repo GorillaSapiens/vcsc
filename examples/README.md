@@ -37,10 +37,7 @@ bucket it came from:
 
 - `player_color/` — official-opcode P0/P1/Ball renderer, including scoreless,
   animated, 181-line score-composition, and 170-line dual-score examples.
-- `player_color_unofficial/` — matched stable/common-NMOS unofficial-opcode peer.
 - `all_five/` — official-opcode P0/P1/M0/M1/Ball renderer family.
-- `all_five_unofficial/` — matched unofficial-opcode all-five peer; its Makefiles
-  visibly opt in with `-Wa,--illegals`.
 - `all_five_player_color/` — all-five renderer with independent P0/P1 row colors.
 - `multisprite/` — maintained parameterized multisprite renderer.
 - `enhanced_multisprite/` — maintained asymmetric-playfield enhanced multisprite

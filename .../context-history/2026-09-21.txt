@@ -50,3 +50,37 @@ Retargeted all-five/player-color 170/181 branch extraction to the full shared
 branch, checked the packed 160-byte player-position table at selector scope, and
 made the 170 terminal-row assertion validate the nested 181/170 selector. The
 five user-reported failures all pass; renderer source was unchanged.
+
+2026-09-21 15:54:45 PDT, retire unofficial gameplay profiles
+S9 removed all_five_unofficial and player_color_181_unofficial renderer sources,
+their duplicate public example/video-standard matrices, fixtures, dedicated test
+shards, install entries, and stale maintained documentation. The unofficial
+fixtures differed from maintained official fixtures only by renderer selection;
+the player-color twin emitted no unofficial mnemonic at all. Gameplay, score,
+motion, raster, and 50 Hz coverage remains on the official selector profiles;
+unofficial-opcode opt-in remains covered by assembler/toolchain regressions.
+Source-tree hygiene now forbids the retired paths. S10 is next.
+
+2026-09-21 16:04:12 PDT, validate stripes S9 retirement
+Focused post-retirement coverage passed install-manifest, branding, source-tree
+hygiene, example inventory/layout, official all-five/player-color example and
+score-composition matrices, 50 Hz interactive coverage, NTSC standards matrix,
+visible handoff/video portability, and animated-gallery RAM accounting. No full
+suite was used as the S9 packaging gate. S10 remains next.
+
+2026-09-21 17:02:13 PDT, repair S9 Stella play count
+S9 intentionally retired duplicate unofficial-renderer example matrices, reducing
+maintained example Stella play launches to 91. Updated the play-contract minimum
+from the obsolete pre-retirement floor of 100 to the new maintained baseline of
+91; accidental example loss still fails while future additions remain allowed.
+The reported example_stella_play_contract regression, branding, and source-tree
+hygiene pass. S10 remains next.
+
+2026-09-21 18:19:15 PDT, repair remaining S9 retirement contracts
+Updated the interactive sprite-orientation inventory from the pre-retirement 15
+animation sources to the 11 maintained post-S9 sources. Converted stale
+COMPONENT_CONVERSION and standard-renderer unofficial-opcode prose from current
+architecture claims to historical S9-retired evidence, and retargeted the
+renderer-component baseline accordingly while preserving the measured 1794-byte
+matched-profile result. The two user-reported regressions plus branding and
+source-tree hygiene pass. S10 remains next.

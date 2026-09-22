@@ -59,5 +59,8 @@ for my$path (sort @makefiles) {
 }
 $plays==$launches
    or die "example play/Stella launch count mismatch: $plays play targets, $launches launches\n";
-$launches>=100 or die "unexpectedly found only $launches example Stella play launches\n";
+# S9 retired duplicate unofficial-renderer example matrices.  Keep the
+# maintained post-retirement inventory as the minimum so accidental example
+# loss still trips this contract while additions remain allowed.
+$launches>=91 or die "unexpectedly found only $launches example Stella play launches\n";
 print "example Stella play contract passed ($launches launches)\n";

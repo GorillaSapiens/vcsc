@@ -163,10 +163,6 @@ Public componentized examples now live under renderer-specific paths:
   P0/P1/Ball positioning diagnostic.
 - `examples/04_renderers/player_color/score_{above,below}/` contain the official-opcode score-above and
   score-below positioning and score-editing diagnostics.
-- `examples/04_renderers/player_color_unofficial/` contains direct unofficial-opcode
-  twins of those two 181-line diagnostics; their Makefiles pass
-  `-Wa,--illegals` explicitly.
-
 Linked size is checked by the build and install tests but is not a stable public
 contract.
 
@@ -178,9 +174,9 @@ Both ENAM registers are cleared before the visible field and never enabled.
 
 `test/vcs_standard_playercolors.pl` verifies the predecessor profile against
 private golden cartridges under `test/fixtures/vcs_examples/`. Public
-componentized examples are grouped under `examples/04_renderers/player_color/no_score/`,
-`examples/04_renderers/player_color/score_{above,below}/`, and
-`examples/04_renderers/player_color_unofficial/`; each maintained interactive diagnostic has
+componentized examples are grouped under `examples/04_renderers/player_color/no_score/`
+and `examples/04_renderers/player_color/score_{above,below}/`; each maintained
+interactive diagnostic has
 initial-raster certification plus emulated switch, joystick, endpoint, score,
 and reset coverage.
 
@@ -198,8 +194,8 @@ It verifies:
   including RESP cycles and HMxx values.
 
 The human-facing componentized multicolor diagnostics are grouped under
-`examples/04_renderers/player_color/no_score/`, `examples/04_renderers/player_color/score_{above,below}/`, and
-`examples/04_renderers/player_color_unofficial/`. Their
+`examples/04_renderers/player_color/no_score/` and
+`examples/04_renderers/player_color/score_{above,below}/`. Their
 initial scenes have direct display certification and their controls run under
 emulation. Exact regressions
 for the predecessor profile remain under
