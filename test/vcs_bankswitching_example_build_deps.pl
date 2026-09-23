@@ -47,15 +47,19 @@ for my $dir (sort keys %mapper_for) {
 for my $dir (qw(3e_max 3f_max)) {
    my $path=File::Spec->catfile($repo,qw(examples 07_diagnostics bankswitching),$dir,'Makefile');
    my $mk=slurp($path);
+   (my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+   $mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
    $mk =~ /^STELLA_SPEED\s*\?=\s*1000\s*$/m
       or die "$dir make play no longer defaults to 10x Stella speed\n";
-   $mk =~ /^\t\$\(STELLA\) -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
+   $mk_flat =~ /^\t\$\(STELLA\) -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
       or die "$dir make play no longer passes the configured Stella speed\n";
 }
 
 my $xdir='3ex_max';
 my $xpath=File::Spec->catfile($repo,qw(examples 07_diagnostics bankswitching),$xdir,'Makefile');
 my $x=slurp($xpath);
+(my $x_flat=$x) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$x_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $x =~ /^VCSC_COMPILE_DEPS\s*:=.*?wildcard \$\(VCS_DIR\)\/3EX\/\*\.c26 \$\(VCS_DIR\)\/3EX\/\*\.s26\)/ms
    or die "3ex_max compile dependencies do not track 3EX mapper inputs\n";
 $x =~ /^VCSC_LINK_DEPS\s*:=.*?linker\/vcsc-ld.*?libraries\/runtime\/libvcsc\.l26/m
@@ -70,7 +74,7 @@ $x =~ /^play:\s*\$\(TARGET\)\s*$/m
    or die "3ex_max play target no longer rebuilds TARGET before launch\n";
 $x =~ /^STELLA_SPEED\s*\?=\s*1000\s*$/m
    or die "3ex_max make play no longer defaults to 10x Stella speed\n";
-$x =~ /^\t\$\(STELLA\) -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
+$x_flat =~ /^\t\$\(STELLA\) -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -speed \$\(STELLA_SPEED\).*?\$\(CURDIR\)\/\$\(TARGET\)/m
    or die "3ex_max make play no longer passes the configured Stella speed\n";
 
 print "bankswitching example build dependencies passed\n";

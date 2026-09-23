@@ -56,3 +56,21 @@ bytes are draw-dead after VBLANK (3,7,23,27,31,35,39,47), making an eight-byte
 stripe data/color cache a zero-extra-RAM overlay candidate; offset 47 is only safe
 if positive-stripe mode retires the old playfield-position restoration contract.
 The cache reload strategy across stripe boundaries remains an S13 design task.
+
+2026-09-22 19:58:45 PDT, update example Stella developer launches
+Applied the supplied developer-settings patch and propagated its five new Stella
+flags to all 91 exact example make play targets using the paddle Makefile's
+multiline layout. Preserved every existing launch option, including mapper,
+video-format, controller, speed, basedir/userdir, and absolute-ROM arguments.
+The central example-play regression now understands multiline commands and
+requires jitter-off plus dev.settings/dev.stats/dev.detectedinfo/dev.ramrandom/
+dev.bankrandom. Existing mapper/tutorial tests normalize continuations while
+retaining their previous semantic launch checks.
+
+Moved maintained .s26 negations out of examples/.gitignore into the seven leaf
+.gitignore files that own them; removed the stale faithful_legacy_multisprite
+exception because that retired directory no longer exists. Updated the diagnostic
+and hygiene regressions to check the leaf ignore contracts. Focused validation:
+example_stella_play_contract, source_tree_hygiene, diagnostic cartridge,
+paddle/joystick tutorials, 0840/0FA0/3F+3E/DPC/E0 mapper checks, build-dependency
+contracts, plus F0/FC/FE/JANE/video-standard-layout/WD all pass.

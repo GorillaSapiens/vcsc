@@ -102,7 +102,9 @@ $src =~ /call_count\s*!=\s*256/ or die "F0 diagnostic lost complete 16x16 call-c
 $src =~ /wide_probe\(\)\s*!=\s*0xbeef/ or die "F0 diagnostic lost A:X return preservation check\n";
 $src =~ /bank15 void main\(void\)/ or die "F0 diagnostic main must live in hardware startup bank 15\n";
 my $mk=read_file($makefile);
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m or die "F0 play target must force Stella -bs F0\n";
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m or die "F0 play target must force Stella -bs F0\n";
 
 my $bin=File::Spec->catfile($tmp,'f0.bin'); my $map_path=File::Spec->catfile($tmp,'f0.map');
 my($build_out,$build_err)=require_ok('build F0 simulator diagnostic',$driver,'-I',$vcs,'-I',$dir,'-DSIMULATOR_TEST=1','-Map',$map_path,$source,'-o',$bin);

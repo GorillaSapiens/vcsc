@@ -1,11 +1,4 @@
 # This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-*.bin
-*.cfg
-*.hex
-*.lst
-*.map
-*.o26
-*.s26
-*.sym
-stella.sqlite3*
+!3ex_max_torture_*.s26
+!3ex_max_swapram_storage_*.s26

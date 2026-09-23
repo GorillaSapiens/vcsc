@@ -40,6 +40,13 @@ clean:
 
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	$(STELLA) -dev.tv.jitter 0 -basedir "$(CURDIR)" -speed $(STELLA_SPEED) -userdir "$(CURDIR)" -bs 3F "$(CURDIR)/$(TARGET)"
+	$(STELLA) \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -speed $(STELLA_SPEED) -userdir "$(CURDIR)" -bs 3F "$(CURDIR)/$(TARGET)"
 
 .PHONY: all clean play fonts torture

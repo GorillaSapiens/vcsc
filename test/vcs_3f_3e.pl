@@ -108,8 +108,10 @@ for my $c (@cases) {
    }
 
    my $mk=read_file($make);
+   (my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
    $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-   $mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+\Q$m\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+   $mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+\Q$m\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
       or die "$m play target must force Stella -bs $m\n";
    my $src=read_file($source);
    $src =~ /instantiate "components\/six_glyph_big_wide_component\.c26" as status_result/ &&

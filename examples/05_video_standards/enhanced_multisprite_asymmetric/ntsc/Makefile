@@ -11,7 +11,14 @@ $(TARGET): $(SOURCE) $(STARTUP)
 	@test `wc -c < $@` -eq 4096
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -format NTSC -bs 4K "$(CURDIR)/$(TARGET)"
+	stella \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -userdir "$(CURDIR)" -format NTSC -bs 4K "$(CURDIR)/$(TARGET)"
 clean:
 	rm -f $(TARGET) *.map *.lst *.sym *.cfg *.hex *.s26 *.o26
 .PHONY: all play clean

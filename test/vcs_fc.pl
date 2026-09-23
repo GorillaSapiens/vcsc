@@ -111,7 +111,9 @@ for my $s (0..7) {
 $src =~ /wide_probe\(\)\s*!=\s*0xbeef/ or die "FC diagnostic lost A:X return preservation check\n";
 $src =~ /call_count\s*!=\s*64/ or die "FC diagnostic lost complete 8x8 call-count oracle\n";
 my $mk=read_file($makefile);
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FC\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m or die "FC play target must force Stella -bs FC\n";
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FC\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m or die "FC play target must force Stella -bs FC\n";
 
 my $bin=File::Spec->catfile($tmp,'fc.bin');
 my $map_path=File::Spec->catfile($tmp,'fc.map');

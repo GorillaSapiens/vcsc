@@ -80,9 +80,11 @@ $s =~ /game_player1_y--/ && $s =~ /game_player1_y\+\+/
    or die "joystick tutorial lost independent two-player movement\n";
 
 my$m=read_file($make);
+(my$m_flat=$m) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$m_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m &&
 $m =~ /renderers\/all_five\/all_five\.c26/ &&
-$m =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
+$m_flat =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
    or die "joystick Makefile dependencies, source-tree root, or play target regressed\n";
 my$r=read_file($readme);
 $r =~ /left joystick moves the red square/i &&

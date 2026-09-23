@@ -22,6 +22,13 @@ clean:
 
 play:
 	echo WARNING: ignoring user specific settings
-	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
+	stella \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -userdir "$(CURDIR)" "$(CURDIR)"/*.bin
 
 .PHONY: all clean play

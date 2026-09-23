@@ -25,11 +25,21 @@ for my$path (sort @makefiles) {
       $in_play=0 if $in_play && $line =~ /^[^\t\s#].*:/;
       next unless $in_play;
       next unless $line =~ /(?:^|\s)(?:stella|\$\(STELLA\))\s/;
+      my $logical=$line;
+      my $j=$i;
+      while($logical =~ /\\[ \t]*\r?\n\z/ && $j+1<@lines) {
+         $logical.=$lines[++$j];
+      }
+      (my $flat=$logical) =~ s/\\[ \t]*\r?\n[ \t]*//g;
       ++$launches;
       ++$play_launches;
-      index($line,'-dev.tv.jitter 0')>=0
+      index($flat,'-dev.tv.jitter 0')>=0
          or die "$path:".($i+1)." Stella play launch lacks -dev.tv.jitter 0\n";
-      index($line,'-basedir "$(CURDIR)"')>=0
+      for my $flag ('-dev.settings 1','-dev.stats 1','-dev.detectedinfo 1','-dev.ramrandom 1','-dev.bankrandom 1') {
+         index($flat,$flag)>=0
+            or die "$path:".($i+1)." Stella play launch lacks $flag\n";
+      }
+      index($flat,'-basedir "$(CURDIR)"')>=0
          or die "$path:".($i+1)." Stella play launch lacks example-local -basedir\n";
       my$prev=$i ? $lines[$i-1] : '';
       $prev =~ /^\s*echo WARNING: ignoring user specific settings(?:;\s*\\)?\s*$/
@@ -38,17 +48,17 @@ for my$path (sort @makefiles) {
       # Preserve the established absolute-path/userdir contract for the normal
       # literal-stella examples.  $(STELLA) compatibility diagnostics have their
       # own historical launch shape and are covered above by the new common flags.
-      if($line =~ /^\s*stella\s/) {
-         index($line,'-userdir "$(CURDIR)"')>=0
+      if($flat =~ /^\s*stella\s/) {
+         index($flat,'-userdir "$(CURDIR)"')>=0
             or die "$path:".($i+1)." Stella play launch lacks example-local -userdir\n";
-         my$count=()=$line =~ /\$\(CURDIR\)/g;
+         my$count=()=$flat =~ /\$\(CURDIR\)/g;
          $count>=3
             or die "$path:".($i+1)." Stella play launch does not pass an absolute example ROM path\n";
-         $line !~ /(?:^|\s)\*\.bin(?:\s|$)/
+         $flat !~ /(?:^|\s)\*\.bin(?:\s|$)/
             or die "$path:".($i+1)." Stella play launch still passes a cwd-relative ROM glob\n";
-         $line !~ /\s\$\(TARGET\)(?:\s|;|$)/
+         $flat !~ /\s\$\(TARGET\)(?:\s|;|$)/
             or die "$path:".($i+1)." Stella play launch still passes cwd-relative TARGET\n";
-         $line !~ /\s"\$\$bin"(?:\s|;)/
+         $flat !~ /\s"\$\$bin"(?:\s|;)/
             or die "$path:".($i+1)." Stella play loop still passes a cwd-relative ROM path\n";
       }
    }

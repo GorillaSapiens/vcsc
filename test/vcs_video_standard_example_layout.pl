@@ -63,10 +63,12 @@ for my$case(@cases) {
 
    my$makefile=File::Spec->catfile($dir,'Makefile');
    my$make=read_file($makefile);
+   (my$make_flat=$make) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$make_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
    my$format=uc($standard);
    $make =~ /^play:\s*\$\(TARGET\)\s*$/m
       or die "$makefile play target must depend on TARGET\n";
-   $make =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-format\s+\Q$format\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+   $make_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-format\s+\Q$format\E\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
       or die "$makefile play target must force Stella -format $format\n";
 }
 

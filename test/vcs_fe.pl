@@ -84,8 +84,10 @@ my $source=File::Spec->catfile($example_dir,'fe_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "FE play target must force Stella -bs FE\n";
 my $pt=read_file($profile);
 $pt =~ /\$signature:FE\b/ && $pt !~ /\$select_access:/ &&

@@ -92,12 +92,14 @@ $cart_font =~ /bank0 const uint8_t cart_type_glyphs\[24\]/
    or die "WD visible diagnostic lost its big\/wide PASS\/FAIL plus small WD presentation or reintroduced manual selector reads\n";
 
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /BIG_FONT := .*big_ascii\.c26/ &&
 $mk =~ /SMALL_FONT := .*default_ascii\.c26/ &&
 $mk =~ /status_font\.c26 status_glyphs ' pasFAIL'/ &&
 $mk =~ /cart_type_font\.c26 cart_type_glyphs ' WD'/ &&
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+WD\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+WD\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "WD Makefile lost generated big PASS\/FAIL fonts, small WD font, or forced Stella mapper\n";
 
 my $pt=read_file($profile);

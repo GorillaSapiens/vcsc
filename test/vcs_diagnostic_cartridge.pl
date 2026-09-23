@@ -84,11 +84,11 @@ my $fingerprint_font=File::Spec->catfile($example,'diagnostic_fingerprint_font.c
 my $subset_helper=File::Spec->catfile($vcs,qw(fonts make_font_subset.pl));
 my $pair_helper=File::Spec->catfile($vcs,qw(fonts make_pair_font.pl));
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
-my $examples_ignore=File::Spec->catfile($repo,'examples','.gitignore');
+my $examples_ignore=File::Spec->catfile($example,'.gitignore');
 
 my $ignore_text=read_file($examples_ignore);
-$ignore_text =~ /^!07_diagnostics\/field_diagnostic\/diagnostic_boot\.s26$/m
-   or die "examples/.gitignore would omit maintained diagnostic_boot.s26 from handoff tarballs\n";
+$ignore_text =~ /^!diagnostic_boot\.s26$/m
+   or die "field_diagnostic/.gitignore would omit maintained diagnostic_boot.s26 from handoff tarballs\n";
 
 my $src=read_file($source);
 my $idx=read_file($indices);

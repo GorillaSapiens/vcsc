@@ -18,5 +18,12 @@ clean:
 	rm -f vcsc_diagnostic.bin vcsc_diagnostic.map vcsc_diagnostic.lst vcsc_diagnostic.sym vcsc_diagnostic.cfg
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs F4SC "$(CURDIR)/$(TARGET)"
+	stella \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs F4SC "$(CURDIR)/$(TARGET)"
 .PHONY: all fonts clean play

@@ -24,5 +24,12 @@ clean:
 	rm -f fotomania_diagnostic.bin fotomania_diagnostic.map fotomania_diagnostic.hex fotomania_diagnostic.sym fotomania_diagnostic.lst fotomania_diagnostic.cfg
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs 0FA0 "$(CURDIR)/$(TARGET)"
+	stella \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs 0FA0 "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

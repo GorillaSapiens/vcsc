@@ -25,5 +25,12 @@ clean:
 	rm -f f0_diagnostic.bin f0_diagnostic.map f0_diagnostic.hex f0_diagnostic.sym f0_diagnostic.lst f0_diagnostic.cfg
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs F0 "$(CURDIR)/$(TARGET)"
+	stella \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs F0 "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

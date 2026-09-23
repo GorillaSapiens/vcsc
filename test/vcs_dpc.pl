@@ -98,8 +98,10 @@ $pt =~ /mem\s+bank2\s*\{.*?\$size:0x0800.*?\$ro.*?\$data_bank:bank2/s &&
 $pt =~ /mem\s+bank3\s*\{.*?\$size:0x00ff.*?\$ro.*?\$data_bank:bank3/s
    or die "DPC C26 profile lost its F8 + 2K/255-byte data-only topology\n";
 my $mk=read_file(File::Spec->catfile($example_dir,'Makefile'));
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+DPC\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+DPC\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "DPC play target must force Stella -bs DPC\n";
 my $visible_src=read_file($source);
 my $status_font=read_file(File::Spec->catfile($example_dir,'status_font.c26'));

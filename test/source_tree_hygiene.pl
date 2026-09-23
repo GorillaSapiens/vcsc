@@ -216,11 +216,11 @@ index($bankswitching,'3F lower banks use selector-value descriptors `$00-$FE`; f
 -f File::Spec->catfile($test,'vcs_3f_max_diagnostic.pl') &&
 -f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3f_max 3f_max_diagnostic.c26)) &&
 -f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3f_max make_torture.pl)) &&
-index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!07_diagnostics/bankswitching/3f_max/3f_max_torture_*.s26')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(examples 07_diagnostics bankswitching 3f_max .gitignore))),'!3f_max_torture_*.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_3e_max_diagnostic.pl') &&
 -f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3e_max 3e_max_diagnostic.c26)) &&
 -f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3e_max make_torture.pl)) &&
-index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!07_diagnostics/bankswitching/3e_max/3e_max_torture_*.s26')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(examples 07_diagnostics bankswitching 3e_max .gitignore))),'!3e_max_torture_*.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_3ex_max_diagnostic.pl') &&
 -f File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching 3ex_max 3ex_max_diagnostic.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3EX mapper.c26)) &&
@@ -534,8 +534,10 @@ index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
 
 my $banked_all_five_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','all_five','Makefile'));
+(my $banked_all_five_make_flat=$banked_all_five_make) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$banked_all_five_make_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $banked_all_five_make =~ /^all:\s+f8\.bin\s*$/m &&
-$banked_all_five_make =~ /^play:\s+f8\.bin\s*\n\s*echo WARNING: ignoring user specific settings\s*\n\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
+$banked_all_five_make_flat =~ /^play:\s+f8\.bin\s*\n\s*echo WARNING: ignoring user specific settings\s*\n\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
 $banked_all_five_make !~ /f6\.bin|f4\.bin|f8sc\.bin|standard_4k_ntsc/ &&
 index($banked_all_five_make,'banked_all_five.c26')>=0
    or die "banked all-five renderer must remain one consolidated F8 public diagnostic\n";

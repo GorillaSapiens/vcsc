@@ -106,8 +106,10 @@ my $cart_font=read_file(File::Spec->catfile($example_dir,'cart_type_font.c26'));
 $status_font =~ /bank5 const uint8_t status_glyphs\[128\]/ && $cart_font =~ /bank5 const uint8_t cart_type_glyphs\[24\]/
    or die "E0 visible glyphs must live in canonical state-2 bank 5\n";
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /FONT_SUBSET_FLAGS := --license examples\/LICENSE\.txt --bank bank5 --no-page/ &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+E0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+E0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "E0 Makefile lost bank5 font generation or forced Stella mapper\n";
 
 my $bin=File::Spec->catfile($tmp,'e0.bin'); my $map_path=File::Spec->catfile($tmp,'e0.map');

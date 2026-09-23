@@ -62,8 +62,10 @@ my $source=File::Spec->catfile($example_dir,'fotomania_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+0FA0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m &&
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+0FA0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m &&
 index($mk,'-DVCSC_INLINE_BANKCALL=1')<0
    or die "0FA0 play target must force Stella -bs 0FA0 without an inline-bankcall pilot define\n";
 my $pt=read_file($profile);

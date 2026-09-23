@@ -24,5 +24,12 @@ clean:
 	rm -f jane_diagnostic.bin jane_diagnostic.map jane_diagnostic.hex jane_diagnostic.sym jane_diagnostic.lst jane_diagnostic.cfg
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	stella -dev.tv.jitter 0 -basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs JANE "$(CURDIR)/$(TARGET)"
+	stella \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" -userdir "$(CURDIR)" -bs JANE "$(CURDIR)/$(TARGET)"
 .PHONY: all clean play fonts

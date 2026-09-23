@@ -210,10 +210,9 @@ private HOME/XDG roots, and the checked-in 792-byte `test/fixtures/stella/stella
 that one file pins the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`,
 neutralizes palette adjustments/effects, and makes reviewed raster references
 exact-RGB contracts independent of Stella's host-version built-in palette. Example
-`make play` recipes warn that user-specific settings are ignored, set Stella's
-`-basedir` and `-userdir` to the example directory, disable developer TV jitter,
-and pass an absolute ROM path so ROM-specific debugger files cannot inherit stale
-test paths.
+`make play` warns that user settings are ignored, uses example-local basedir/userdir,
+disables developer TV jitter, enables developer settings/stats/detected-info and
+RAM/bank randomization, and passes an absolute ROM path.
 Focused `stella-*` Make targets are reruns of normal-suite coverage, not separate
 acceptance gates.
 

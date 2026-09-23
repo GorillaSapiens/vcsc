@@ -28,7 +28,14 @@ fonts:
 
 play: $(TARGET)
 	echo WARNING: ignoring user specific settings
-	$(STELLA) -dev.tv.jitter 0 -basedir "$(CURDIR)" $(TARGET)
+	$(STELLA) \
+		-dev.tv.jitter 0 \
+		-dev.settings 1 \
+		-dev.stats 1 \
+		-dev.detectedinfo 1 \
+		-dev.ramrandom 1 \
+		-dev.bankrandom 1 \
+		-basedir "$(CURDIR)" $(TARGET)
 
 clean:
 	rm -f cv_diagnostic.bin cv_diagnostic.map cv_diagnostic.hex \

@@ -62,8 +62,10 @@ my $example_dir=File::Spec->catdir($repo,'examples','07_diagnostics/bankswitchin
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+0840\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+0840\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "0840 play target must force Stella -bs 0840\n";
 my $pt=read_file($profile);
 $pt =~ /cartridge\s*\{\s*\$bankcall/s &&

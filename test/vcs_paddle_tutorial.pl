@@ -54,9 +54,11 @@ $s =~ /paddles_overscan\(\)/ && $s =~ /paddles_dump\(\)/
    or die "paddle tutorial lost the RC measurement lifecycle\n";
 
 my$m=read_file($make);
+(my$m_flat=$m) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$m_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $m =~ /^ROOT \?= \.\.\/\.\.\/\.\.$/m && $m =~ /four_paddles\.c26/ &&
 $m !~ /two_paddles\.c26/ &&
-$m =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
+$m_flat =~ /^play:\s*\n\techo WARNING: ignoring user specific settings\n\tstella -dev\.tv\.jitter 0 -basedir "\$\(CURDIR\)" -userdir "\$\(CURDIR\)" "\$\(CURDIR\)"\/\*\.bin/m
    or die "paddle tutorial Makefile dependencies or play target regressed\n";
 my$r=read_file($readme);
 $r =~ /X=20, 60, 100, and\s+140/s && $r =~ /2 pixels wide and 8 pixels tall/i &&
