@@ -31,3 +31,28 @@ tool limits. vcs_3e_max_diagnostic passes individually; vcs_3ex_max_diagnostic d
 not complete within a separate 210-second outer tool window, with no reported test
 failure. S11 normalization is complete; finishing broad regression remains before
 S12 stripes prototyping.
+
+2026-09-22 19:17:59 PDT, measure 192-line stripe write budget
+Continued S11/S12 from the corrected archive extraction. The unified e2e runner
+again reached 240/376 green before the outer execution limit; a shard beginning
+with the large mapper diagnostics then exceeded a 200-second outer window after
+six green cases. No regression was reported before termination. The focused
+all-five 170/181/192/228, exhaustive pairwise, banked CPU, banked Stella, and
+source-tree-hygiene set passes 8/8.
+
+Measured the existing 192 all-five PF write phases directly from a built ROM:
+steady patterns are PF1/PF2 25/32 or 26/33 with reflected PF2/PF1 48/55; row
+boundaries use 22/29 then 45/48. A scratch CPU trace of the maintained enhanced
+asymmetric renderer provides known-good six-write families PF0/PF1/PF2 at
+7/14/21 + 40/47/54 and 13/20/27 + 46/53/60.
+
+This exposes the S12 implementation budget. Full stripe data needs six PF writes
+per scanline. A six-byte zero-page cache needs 36 cycles for six load/store pairs,
+versus 28 cycles for the current four absolute playfield pairs: S13 must recover
+8 cycles per scanline rather than simply inserting PF0 writes. For stripes=3 the
+public payload is 6 color bytes + 18 playfield bytes = 24 ROM bytes, half the old
+48-byte 192-line packed playfield before code/cache overhead. Eight object-mask
+bytes are draw-dead after VBLANK (3,7,23,27,31,35,39,47), making an eight-byte
+stripe data/color cache a zero-extra-RAM overlay candidate; offset 47 is only safe
+if positive-stripe mode retires the old playfield-position restoration contract.
+The cache reload strategy across stripe boundaries remains an S13 design task.

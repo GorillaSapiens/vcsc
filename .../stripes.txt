@@ -3,12 +3,9 @@ VCSC RENDERER / STRIPES ROADMAP
 
 Goal
 ----
-Consolidate gameplay renderers before item 57 stripes. Components live under
-`libraries/vcs/components/`. `all_five`, `player_color`, and both former
-`all_five_player_color_*` profiles are unified behind compile-time `lines`,
-missiles, and player colors; both unofficial and both `standard_4k_ntsc*`
-predecessors are retired after preserving useful coverage. Add `stripes` next.
-`multisprite` and `enhanced_multisprite_asymmetric` remain distinct.
+Add compile-time playfield/color stripes to the consolidated `all_five`
+renderer, then to `multisprite` and `enhanced_multisprite_asymmetric`, while
+preserving the retired-renderer behavioral coverage and zero-stripe path.
 
 Stripe ABI
 ----------
@@ -19,36 +16,32 @@ then left/right PF0/PF1/PF2; stripe i owns
 `floor(i*L/N)..floor((i+1)*L/N)-1`. Preserve raster/timing/handoffs/resources/write
 phases; no runtime division or per-line feature test.
 
-Renderer inventory
-------------------
-Modern schedules: draw entry 3, return 0, terminal WSYNC, VBLANK <=1800.
-Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
-181/170: one entry HMOVE + successor; overscan <=58 all-five, <=40 player-color.
+The 192-line S12 probe measured the current all-five steady playfield writes at
+PF1/PF2 25/32 or 26/33 and reflected PF2/PF1 48/55; row boundaries use
+22/29 then 45/48. A maintained full-asymmetric renderer proves six-write phase
+families PF0/PF1/PF2 7/14/21 + 40/47/54 and 13/20/27 + 46/53/60. Positive
+stripes therefore need a real six-write reschedule, not two inserted PF0 stores.
+A six-byte zero-page PF cache costs 36 cycles/scanline versus the old four
+absolute load/store pairs at 28, so the 192 all-five visible body must reclaim
+8 cycles per scanline. For N=3 the public stripe payload is 24 ROM bytes versus
+the old 48-byte playfield; an eight-byte data/color cache is the useful prototype
+shape, with draw-dead object-mask scratch as a zero-extra-RAM overlay candidate.
 
-* `all_five`: 5 objects, solid P0/P1, 23 public bytes; lines 228/192/181/170,
-  playfield 60/48/44/40, module RAM 83/71/67/67.
-* `player_color` specialization in `all_five`: P0/P1/BL + 8-row colors,
-  13 public; same lines/playfields, module RAM 23/23/24/24.
-* `all_five` combined 192 specialization (`missiles:=1, player_colors:=1`):
-  5 objects + row colors, 21+62=83 RAM, 48-byte mask + 14-byte row cache;
-  full-height schedule.
-* `all_five` combined 181 specialization (`missiles:=1, player_colors:=1`):
-  5 objects + row colors, 21+67=88 RAM, 46-byte mask + 21-byte row cache;
-  all-five score-composable schedule.
-Preserve exact frame/score checks, `vcs_playfield_phase.cpp`,
-`vcs_standard_objects.cpp`, `vcs_all_five_composition.cpp`, the exhaustive
-`vcs_all_five_pairwise` horizontal-position oracle, and pinned-palette Stella RGB
-comparisons. Principal tests are the `vcs_all_five_*`, `vcs_player_color_*`, and
-combined-color families. Examples live under `04_renderers/`, native 50 Hz under
-`05_video_standards/`, and the all-five banked diagnostic under `07_diagnostics/`.
+Renderer constraints
+--------------------
+Full-height 228/192 schedules enter draw at cycle 3, return at 0 with terminal
+WSYNC, no entry HMOVE/successor, and VBLANK <=1800. Score-composable 181/170
+uses one entry HMOVE plus successor. Preserve the maintained `vcs_all_five_*`,
+`vcs_player_color_*`, combined-color, pairwise-position, composition, TIA-phase,
+object, and pinned-palette Stella coverage while adding stripes.
 
 Steps
 -----
-Current next action: finish S11 broad regression; normalization is complete.
+Current next action: finish the S11 broad gate, then implement S13 using the
+measured S12 six-write schedule/storage constraints.
 
-S11. Finish broad regression before stripes; example/test/doc/manifest normalization is complete.
-S12. Prototype `lines:=192,stripes:=3`; measure legal write slots/storage.
-S13. Implement compile-time stripes with unchanged zero path.
+S11. Finish broad regression; normalization is complete, but long mapper diagnostics still exceed the outer execution window.
+S13. Implement compile-time stripes with unchanged zero path; reclaim the measured 8 cycles/scanline in the 192 all-five schedule rather than appending PF0 writes.
 S14. Certify 192 stripes: ABI, TIA phase, simulator/Stella, motion, zero-path bytes/resources.
 S15. Certify every line mode, including non-divisible 228 and 181/170 handoffs.
 S16. Exercise supported missile/player-color combinations.
