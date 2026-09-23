@@ -207,7 +207,7 @@ for my $entry (@examples) {
       push @extra,'-DVCS_NTSC_EXTENDED_VBLANK' if $source_text =~ /include\s+"frame_ntsc\.c26"/;
    }
    if ($file eq 'bankswitching_diagnostic.c26' ||
-       $file eq 'banked_standard_renderer.c26') {
+       $file eq 'banked_all_five.c26') {
       push @extra,'-DMAPPER_BANKS=2';
    } elsif ($profile eq '2k' || $profile eq 'f8') {
       # The source-selected C26 mapper owns cartridge topology.
@@ -233,10 +233,6 @@ for my $entry (@examples) {
    # operand after the example while leaving compiler/linker options in place.
    my @renderer=grep { /\.s26\z/ } @cmd;
    @cmd=grep { !/\.s26\z/ } @cmd;
-   if ($file eq 'banked_standard_renderer.c26') {
-      push @renderer,File::Spec->catfile(
-         $vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
-   }
    if ($file eq 'vcsc_diagnostic.c26') {
       push @renderer,File::Spec->catfile($source_dir,'diagnostic_boot.s26');
    } elsif (defined($local_startup)) {
@@ -250,7 +246,7 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $tigervision_banks=tigervision_bank_count_from_source($source_text);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
-                        $file eq 'banked_standard_renderer.c26') ? 8192
+                        $file eq 'banked_all_five.c26') ? 8192
       : defined($tigervision_banks) ? ($tigervision_banks < 0 ? 4096 * -$tigervision_banks : 2048 * $tigervision_banks)
       : ($profile eq '2k' || $profile eq 'cv') ? 2048
       : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd') ? 8192

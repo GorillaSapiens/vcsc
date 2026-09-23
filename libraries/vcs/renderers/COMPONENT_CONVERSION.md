@@ -7,41 +7,39 @@
 
 <!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
 
-# Maintained gameplay-renderer component conversion baseline
+# Gameplay-renderer component conversion record
 
-This file freezes the starting point, selected replacement profiles, and
-retirement gates for converting the maintained monolithic gameplay renderers
-into reusable lifecycle components. For the step-by-step rules used to author a
-new maintained profile, see `AUTHORING.md`. The working monolithic profiles remain
-installed until every required replacement has emulator and map evidence strong
-enough to retire them.
+This file records the measured migration baseline and the maintained lifecycle
+contracts that replaced the old monolithic gameplay renderers. For the step-by-step
+rules used to author a new maintained profile, see `AUTHORING.md`. Renderer-stripes
+roadmap S10 retired the last two monolithic profiles after their useful behavior,
+mapper-composition, timing, and raster coverage had moved to maintained components.
 
-## Profiles in scope
+## Retired predecessor baseline
 
 | Profile | Gameplay objects | Public display RAM | Private RAM | Total module RAM | Embedded score ROM |
 | --- | --- | ---: | ---: | ---: | ---: |
 | `standard_4k_ntsc` | P0, P1, M0, M1, BL | 23 bytes | 57 bytes | 80 bytes | 88 bytes |
 | `standard_4k_ntsc_playercolors` | P0, P1, BL plus per-row P0/P1 colors | 17 bytes | 60 bytes | 77 bytes | 88 bytes |
 
-The two profiles in this table are retained **legacy monolithic profiles** only
-until renderer-stripes roadmap S10 ports their useful compatibility, linker,
-timing, and independent regression coverage. New programs should compose the
-explicit lifecycle components below; S10 then retires both monoliths.
+These names and measurements are historical migration data only; neither profile
+is installed or maintained after S10. New programs compose the explicit lifecycle
+components below.
 
-Both current objects reserve a `$0300` `RENDERER_CODE` window and a `$0058`
-page-contained `RENDERER_RODATA` score table.  Those are baseline costs, not
-budgets granted to the replacements.
+Both retired objects reserved a `$0300` `RENDERER_CODE` window and a `$0058`
+page-contained `RENDERER_RODATA` score table. Those figures remain useful only as
+baseline costs, not budgets granted to the replacements.
 
 ## Score ownership that must disappear
 
-Each monolith currently owns four unambiguously score-only RIOT bytes:
+Each retired monolith owned four unambiguously score-only RIOT bytes:
 
 - a three-byte packed score;
 - one score-color byte.
 
-Removing those declarations gives a first, mechanically provable public-state
+Removing those declarations gave a first, mechanically provable public-state
 floor of 19 bytes for the all-five profile and 13 bytes for the player-color
-profile.  This is only a floor.  The twelve-byte `*_pointer_workspace` is mixed:
+profile. This was only a floor. The twelve-byte `*_pointer_workspace` was mixed:
 its first six bytes hold score pointers, while the remaining bytes are reused by
 horizontal positioning, object counters, Y restoration, and score drawing.
 No portion of that workspace may be advertised as saved until the extracted
@@ -62,7 +60,7 @@ vcs_standard_color_score_table
 
 ## Frame ownership that must move to the application
 
-The current entry points are whole-frame drivers.  They wait for overscan,
+The retired entry points were whole-frame drivers.  They wait for overscan,
 generate VSYNC, start RIOT timers, position objects during VBLANK, draw the
 playfield/object field, draw the embedded score, assert VBLANK, call an overscan
 hook, and return.
@@ -285,7 +283,7 @@ unofficial linked ROM bytes: 1794
 signed byte difference:          0
 ```
 
-The inherited monolith's gameplay field is twelve 16-line rows, or 192 lines.
+The retired predecessor's gameplay field was twelve 16-line rows, or 192 lines.
 Producing the new 181-line profile therefore requires an explicit retimed or
 reduced gameplay schedule. The extraction regression must lock that internal
 choice; neither this contract nor an application may disguise the missing
@@ -403,7 +401,7 @@ optimization.
 
 ## Stop-ship row-boundary raster repair
 
-The inherited two-line renderer cleared PF1 and PF2 at cycles 18 and 21 of every
+The retired two-line predecessor cleared PF1 and PF2 at cycles 18 and 21 of every
 row-transition scanline. That made each nominal 16-line playfield row render as
 15 intended lines plus one blank or malformed line. The six current gameplay
 components now replace those writes with non-TIA work so the old row survives
@@ -435,30 +433,29 @@ row, and all 160 playfield pixels per line. The 192-line player-color profile
 now uses the same two-line raster path for all twelve rows; its former first-row
 entry notch and two special twelfth-row paths are gone. The trace oracle also
 reconstructs its P0, P1, and Ball output and verifies that all coarse/fine
-positioning occurs during VBLANK. Complete P0/P1/M0/M1/Ball reconstruction for
-the other profiles remains open. No monolith may be retired until those cases
-and the measured component handoff contract pass.
+positioning occurs during VBLANK. Complete P0/P1/M0/M1/Ball positioning and endpoint reconstruction is now covered
+by `vcs_all_five_composition.cpp`, including 360 asynchronous motion frames that
+reach X=0 and X=159 and verify exact RESP/HMP transactions. The predecessor's
+strongest horizontal-position coverage was retained as `vcs_all_five_pairwise`: it
+exhausts all ten object pairs across all 160 x 160 coordinate combinations
+(256,000 cases) against the maintained 192-line all-five VBLANK schedule. The
+measured component handoff contracts are independently locked by the maintained
+170/181/192 suites.
 
-## Evidence required before retiring a monolith
+## S10 retirement closeout
 
-For each profile, the replacement must provide all of the following:
+The retirement gate required lifecycle implementations without embedded score/font
+or scheduler ownership; map evidence for RAM/page/stack contracts; emulator and
+cycle-model evidence for positioning, playfield phases, colors, cleanup and frame
+length; score-above/score-below composition fixtures; installed-tree builds; and a
+banked composition proving that cross-bank application work occurs only while
+VBLANK is asserted and returns to the beam-critical startup bank.
 
-1. A gameplay-only lifecycle implementation, whether inline template assembly
-   or a separate assembly object, with no embedded score state, font, pointer
-   setup, drawing code, or update path.
-2. Exact map evidence for public/private RAM, ROM sections, call-stack depth,
-   page placement, and the absence of every forbidden score symbol above.
-3. Emulator evidence for object positions, playfield phases, colors, collision
-   clearing, TIA cleanup, entry/exit cycles, frame length, and legal opcodes.
-4. Static and motion applications that compose gameplay and score in both
-   visible orders, using machine-readable line counts and explicit blank lines.
-5. Source-tree and staged installed-toolchain builds of the same private golden
-   fixtures.
-
-The existing monolithic tests remain predecessor oracles.  They must not be
-weakened or rewritten to accept the replacement; new component fixtures compare
-against them where the selected composition profile is intended to preserve
-behavior.
+Those obligations now live in the maintained `all_five`, `player_color`, score,
+composition, mapper, and Stella regressions. The obsolete monolithic source,
+assembly objects, private golden cartridges, and tests that merely certified their
+implementation details were deleted in S10 rather than retained as predecessor
+oracles.
 
 ## Parameterized modern multisprite profile
 

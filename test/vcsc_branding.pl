@@ -151,8 +151,6 @@ for my $parts (
    [qw(test e2e_static_parameter_cycle_fail.c26)],
    [qw(test switch_range_compact_codegen_test.c26)],
    [qw(assembler tests obj2.s26)],
-   [qw(libraries vcs renderers standard_4k_ntsc unofficial_opcodes.pl)],
-   [qw(libraries vcs renderers standard_4k_ntsc standard_4k_ntsc_unofficial_opcodes.tsv)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    !-e $path or die "developer-only or obsolete root file remains: $path\n";

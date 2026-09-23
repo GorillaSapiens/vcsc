@@ -38,5 +38,4 @@ and `multisprite`. These examples use the full active
 field directly; none wraps a 192-line renderer in visible padding.
 
 Fixed-height composition profiles are not mislabeled as 228-line renderers. The combined `all_five` `missiles:=1, player_colors:=1` specialization remains a
-hard-scheduled 192-line component until that schedule is genuinely generalized. Retained
-legacy/compatibility renderers remain NTSC-only by contract.
+hard-scheduled 192-line component until that schedule is genuinely generalized.

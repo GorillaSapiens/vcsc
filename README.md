@@ -285,7 +285,7 @@ Run selected tests directly from `test/`, for example:
 cd test
 ./test.pl inline_function_codegen_test.c26
 ./test.pl --compile-only default_parameter_direct_cycle_error_test.c26
-./test.pl --e2e-only vcs_standard_playercolors.pl
+./test.pl --e2e-only vcs_all_five_pairwise.pl
 ```
 
 See [`test/README.md`](test/README.md) for test metadata, fixtures, filtering,

@@ -1,0 +1,33 @@
+2026-09-22 17:22:00 PDT, retire standard renderer monoliths
+Completed renderer-stripes S10. Removed both standard_4k_ntsc monolithic renderer
+profiles, their private compatibility fixtures, and tests that only certified the
+retired implementations. Preserved useful behavior on maintained code: the
+192-line all-five path has an exhaustive 256,000-case pairwise horizontal-position
+oracle, and the banked diagnostic now instantiates renderers/all_five/all_five.c26
+while retaining mapper restoration, VBLANK-only cross-bank work, startup-bank,
+frame/raster, Superchip split-RAM, and pinned-palette Stella coverage. Updated the
+install manifest, public renderer docs, test docs, hygiene gate, and hot roadmap.
+Focused all-five 181/192, pairwise, banked CPU, source-tree hygiene, and component
+baseline checks passed.
+
+2026-09-22 17:39:51 PDT, normalize post-S10 renderer surface
+Advanced S11 by normalizing the surviving public/test surface after S10. Renamed
+examples/07_diagnostics/bankswitching/standard_renderer to all_five and its source
+to banked_all_five.c26; renamed the CPU/Stella regressions to vcs_all_five_banked
+and the focused Make target to stella-all-five-bank-test. Updated example-reorg
+inventory, bankswitching/test docs, source-tree hygiene, example builder special
+case, and stale player-color/video-standard prose. Generalized AUTHORING section 9
+from a retained-legacy rule to reproducible normalization of imported reference
+source and updated its regression accordingly.
+
+Validation: all 581 compile-only cases passed before the first broad make-test
+invocation entered e2e. That invocation reached 240/376 e2e cases, all passing,
+before the outer five-minute tool limit terminated it. Subsequent focused batches
+passed source-tree hygiene; component baseline; renamed banked all-five CPU and
+pinned-palette Stella checks; all eight vcs_examples_build shards; the complete
+player-color/score/renderer-authoring batch after fixing its stale heading check;
+and video-standard coverage through vcs_wd. Long batch commands still hit outer
+tool limits. vcs_3e_max_diagnostic passes individually; vcs_3ex_max_diagnostic did
+not complete within a separate 210-second outer tool window, with no reported test
+failure. S11 normalization is complete; finishing broad regression remains before
+S12 stripes prototyping.

@@ -4,11 +4,11 @@ VCSC RENDERER / STRIPES ROADMAP
 Goal
 ----
 Consolidate gameplay renderers before item 57 stripes. Components live under
-`libraries/vcs/components/`. Unify `all_five`, `player_color`, and both
-`all_five_player_color_*` profiles behind compile-time `lines`, missiles, player
-colors, then `stripes`; retire both unofficial and both `standard_4k_ntsc*`
-after preserving coverage. `multisprite` and `enhanced_multisprite_asymmetric`
-remain distinct.
+`libraries/vcs/components/`. `all_five`, `player_color`, and both former
+`all_five_player_color_*` profiles are unified behind compile-time `lines`,
+missiles, and player colors; both unofficial and both `standard_4k_ntsc*`
+predecessors are retired after preserving useful coverage. Add `stripes` next.
+`multisprite` and `enhanced_multisprite_asymmetric` remain distinct.
 
 Stripe ABI
 ----------
@@ -35,23 +35,18 @@ Full-height 228/192: no entry HMOVE/successor, overscan <=66. Score-composable
 * `all_five` combined 181 specialization (`missiles:=1, player_colors:=1`):
   5 objects + row colors, 21+67=88 RAM, 46-byte mask + 21-byte row cache;
   all-five score-composable schedule.
-* `standard_4k_ntsc`: legacy fixed NTSC 192 monolith, 5 objects + score/frame
-  ownership/hook, 23+57=80 RAM, 88-byte font.
-* `standard_4k_ntsc_playercolors`: legacy unbanked 4K NTSC P0/P1/BL + row
-  colors + score/frame ownership/hook, no missiles, 17+60=77 RAM.
-
 Preserve exact frame/score checks, `vcs_playfield_phase.cpp`,
-`vcs_standard_objects.cpp`, `vcs_all_five_composition.cpp`, and pinned-palette
-Stella RGB comparisons. Principal tests are the `vcs_all_five_*`, `vcs_player_color_*`,
-combined-color, and legacy standard renderer families. Examples live under `04_renderers/`, native 50 Hz under
-`05_video_standards/`, and the legacy banked diagnostic under `07_diagnostics/`.
+`vcs_standard_objects.cpp`, `vcs_all_five_composition.cpp`, the exhaustive
+`vcs_all_five_pairwise` horizontal-position oracle, and pinned-palette Stella RGB
+comparisons. Principal tests are the `vcs_all_five_*`, `vcs_player_color_*`, and
+combined-color families. Examples live under `04_renderers/`, native 50 Hz under
+`05_video_standards/`, and the all-five banked diagnostic under `07_diagnostics/`.
 
 Steps
 -----
-Current next action: S10.
+Current next action: finish S11 broad regression; normalization is complete.
 
-S10. Port useful `standard_4k_ntsc*` coverage; delete both legacy profiles and compatibility-only support.
-S11. Normalize examples/tests/docs/manifests; broad regression before stripes.
+S11. Finish broad regression before stripes; example/test/doc/manifest normalization is complete.
 S12. Prototype `lines:=192,stripes:=3`; measure legal write slots/storage.
 S13. Implement compile-time stripes with unchanged zero path.
 S14. Certify 192 stripes: ABI, TIA phase, simulator/Stella, motion, zero-path bytes/resources.

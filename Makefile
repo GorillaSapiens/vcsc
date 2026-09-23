@@ -16,7 +16,7 @@ PERL ?= perl
 FONT_ASCII_SOURCES := $(sort $(wildcard libraries/vcs/fonts/*_ascii.c26))
 
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
-STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
+STELLA_ALL_FIVE_BANK_TEST_TMP ?= $(CURDIR)/.stella-all-five-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
 STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-three-plus-three-score-test
 STELLA_HEART_SCORE_TEST_TMP ?= $(CURDIR)/.stella-heart-score-test
@@ -111,7 +111,7 @@ exbs:
 	done
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP) $(STELLA_HEART_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP) $(STELLA_DIAGNOSTIC_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_ALL_FIVE_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP) $(STELLA_HEART_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP) $(STELLA_DIAGNOSTIC_TEST_TMP)
 	rm -f test-times.tsv
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
@@ -414,11 +414,11 @@ stella-bank-test: tools
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/fa2" --stella
 	rm -rf $(STELLA_BANK_TEST_TMP)
 
-stella-renderer-bank-test: tools
-	rm -rf $(STELLA_RENDERER_BANK_TEST_TMP)
-	VCSC_STELLA="$(STELLA)" perl test/vcs_standard_renderer_banked_stella.pl \
-	  "$(CURDIR)" "$(STELLA_RENDERER_BANK_TEST_TMP)"
-	rm -rf $(STELLA_RENDERER_BANK_TEST_TMP)
+stella-all-five-bank-test: tools
+	rm -rf $(STELLA_ALL_FIVE_BANK_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_all_five_banked_stella.pl \
+	  "$(CURDIR)" "$(STELLA_ALL_FIVE_BANK_TEST_TMP)"
+	rm -rf $(STELLA_ALL_FIVE_BANK_TEST_TMP)
 
 stella-wide-score-test: tools
 	rm -rf $(STELLA_WIDE_SCORE_TEST_TMP)
@@ -463,4 +463,4 @@ stella-multisprite-test: tools
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
 
-.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-libraries install-data uninstall uninstall-examples uninstall-libraries uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-heart-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-multisprite-test stella-diagnostic-test docs
+.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-libraries install-data uninstall uninstall-examples uninstall-libraries uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-all-five-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-heart-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-multisprite-test stella-diagnostic-test docs

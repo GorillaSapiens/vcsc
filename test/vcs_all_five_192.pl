@@ -53,7 +53,6 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
 my $component=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures all_five_192 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'all_five_192.bin');

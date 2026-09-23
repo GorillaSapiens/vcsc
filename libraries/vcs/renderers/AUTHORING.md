@@ -255,11 +255,12 @@ the required schedule. `.flex` is the default for branches whose page relation
 does not matter. Review every beam-critical branch after code motion or alignment
 changes.
 
-## 9. Normalize retained legacy source reproducibly
+## 9. Normalize imported reference source reproducibly
 
-Do not hand-edit imported legacy renderer sources merely to make them acceptable
-to VCSC. Keep the retained upstream/reference material unchanged and put the
-translation in a deterministic `normalize.pl` beside the maintained profile.
+When a maintained renderer is derived from imported reference source, do not
+hand-edit the imported material merely to make it acceptable to VCSC. Keep the
+upstream/reference material unchanged and put the translation in a deterministic
+`normalize.pl` beside the maintained profile.
 
 A normalization pipeline should:
 
@@ -484,8 +485,6 @@ Use existing profiles as focused examples rather than copying one wholesale:
   ROM is traded for exact visible timing;
 - `multisprite/`: branch-page annotations, hidden stack accounting, multiplexing,
   and 181/192 parameterized composition;
-- `standard_4k_ntsc/`: maintained standalone assembly, linker object placement,
-  hidden stack, and monolithic compatibility contract;
 - the six-glyph and two-plus-two score components in `libraries/vcs/`: compact
   font/page placement, delayed-player pipelines, mutable versus fixed caller
   state, and score-specific TIA ownership.

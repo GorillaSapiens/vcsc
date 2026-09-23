@@ -56,7 +56,7 @@ require_text($doc,'`page` means the complete object must fit within one 256-byte
 require_text($doc,'`align(256)` means the object starts on a 256-byte boundary',
    'HOWTO lost explicit alignment semantics');
 require_text($doc,'Use `.same` when the branch','HOWTO lost branch-page timing annotations');
-require_text($doc,'## 9. Normalize retained legacy source reproducibly',
+require_text($doc,'## 9. Normalize imported reference source reproducibly',
    'HOWTO lost source-normalization procedure');
 require_text($doc,'provide a `--check` mode','HOWTO lost normalization reproducibility gate');
 require_text($doc,'## 10. Design the cycle schedule before optimizing it',

@@ -26,11 +26,10 @@ require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my $xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n"; my $perl=findexe('perl') or die "perl required\n";
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my $sequence=File::Spec->catfile($repo,qw(test stella_png_sequence.pl));
 my $driver=File::Spec->catfile($repo,qw(driver vcsc)); my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $source=File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching standard_renderer banked_standard_renderer.c26));
-my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
+my $source=File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching all_five banked_all_five.c26));
 my @runs=(['4k','4K',['-DUNBANKED_REFERENCE'],undef],['f8','F8',['-DMAPPER_BANKS=2'],1],['f8sc','F8SC',['-DMAPPER_BANKS=2','-DSUPERCHIP_TEST'],1]);
 my %dig; my $display=130+($$%50);
-for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,$source,$renderer,'-o',$rom);
+for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,$source,'-o',$rom);
    $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display"; $display++;
    my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/$name.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
    select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
@@ -45,4 +44,4 @@ for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile(
 }
 $dig{f8} eq $dig{'4k'} or die "F8 Stella raster differs: $dig{f8} vs $dig{'4k'}\n";
 $dig{f8sc} eq $dig{'4k'} or die "F8SC Stella raster differs: $dig{f8sc} vs $dig{'4k'}\n";
-print "Stella standard renderer banked raster passed: $dig{'4k'}\n";
+print "Stella all-five banked raster passed: $dig{'4k'}\n";

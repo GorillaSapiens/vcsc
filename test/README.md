@@ -254,7 +254,6 @@ explicit test-only layout matching the retained generic simulator fixtures.
 Production `vcsc-ld` has no implicit layout, and production `vcsc` defaults to
 the bundled VCS 4K script instead.
 
-
 ### `.pl` tests
 
 A runnable Perl test keeps its harness metadata in the leading comment block
@@ -528,7 +527,6 @@ underscores, and width overflow after normalization.
 constant-expression divisors, reversed multiplication, width overflow/truncation,
 and the absence of general multiply/divide helpers or decimal-mode entry.
 
-
 `vcs_scalar_operator_cartesian.pl` is the systematic scalar operator matrix. It
 runs every scalar value/mutation operator that is uniformly meaningful for a
 stock scalar variable across `int8_t`/`uint8_t` through `int32_t`/`uint32_t`
@@ -590,37 +588,6 @@ rejection tests retain unsupported general constants such as multiplication by
 metadata: startup or named-region placement, final power-of-two alignment,
 object-private routes, hidden hardware-stack bytes, map reporting, and assembly
 or link rejection of malformed/conflicting records.
-
-`vcs_standard_renderer_contract.pl` enforces the source contract for
-the first minimal unbanked 4K NTSC standard-renderer module. It checks the
-80-byte mandatory state span, required ROM playfield, documented
-frame/clobber/page contract, weak end-of-frame overscan hook and exported call
-edge, object-owned region/alignment/private-route metadata, the four-byte
-`.callstackextra` reserve, map symbols, conflict diagnostics, and clean mutable-
-playfield RAM exhaustion. It also proves byte identity between the new generic
-4K component-owned build, the deprecated compatibility cfg, and a reconstructed
-pre-item-27 cfg with metadata stripped from the renderer object.
-
-`vcs_standard_renderer_source.pl` enforces the maintained standard renderer
-source and assembly contracts directly. It checks all five deliberate macro
-ports and the
-selected DASM transformations, requires the legal `AND`/`LSR`,
-`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting renderer
-without unofficial-opcode mode, verifies its segment map and score table, and
-assembles a smoke source that invokes every retained macro.
-
-`vcs_standard_renderer_legal_bytes.pl` builds the complete static profile
-without `--illegals`, decodes all seven linked executable segments against the
-151 official NMOS 6502 opcodes, and skips only the profile's two explicitly
-located lookup-table ranges. A second build injects raw `op4B #$F0`; assembly
-and linking still succeed, but the linked-byte gate must reject the unofficial
-instruction byte.
-
-`vcs_standard_renderer_legal_schedule.pl` executes the complete static-renderer
-cartridge and locks the legal packed-mask schedule across 46 steady-state
-scanlines, including the alternate ball phase at each playfield-row transition.
-It also checks the five exact final-row bytes precomputed during VBLANK, covering
-all former `DCP` families even when the static scene exits before the P0/M0 half.
 
 `vcs_six_glyph_wide.pl` builds the separate widely spaced score profile, locks
 its X=36,52,68,84,100,116 origin contract, exact cycle 0/8/31/36/42/48 GRP
@@ -703,7 +670,6 @@ keeps four full pointers plus two byte offsets (two bytes saved). Both expose
 `compact_font:=0` for the fingerprint's deliberate full-pointer redirection to
 `logo_font`; ordinary score instances use the compact default.
 
-
 `vcs_font_contracts.pl` audits all eight printable-ASCII font families. It
 requires 95 distinct glyph bitmaps per family, exact digit and A-F agreement
 with the corresponding decimal and hexadecimal source modules, preservation of
@@ -726,7 +692,6 @@ with `compact_font:=0` restores the historical six full pointers plus row byte f
 callers that redirect every glyph to arbitrary ROM addresses; the raster oracle checks
 both layouts.
 
-
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Big-hex and logo font tables in
 ROM, and locks three six-glyph entries: right-justified at raw scanline 40,
@@ -735,9 +700,9 @@ packed BCD `012345` with their pointers redirected to the six VCSC-logo slices.
 The harness locks the separate RESP/HMOVE phases and late GRP-write windows while
 the complete cartridge retains its 262-line frame period.
 
-`vcs_multicolor_examples.pl` builds the seven maintained public player-color
-interactive cartridges across the scoreless, score-above, score-below, wide, and
-unofficial profiles. Its 6502 harness presents idle/pressed console inputs and
+`vcs_multicolor_examples.pl` builds the five maintained public player-color
+interactive cartridges across the scoreless, centered score-above/score-below,
+and wide score-above/score-below profiles. Its 6502 harness presents idle/pressed console inputs and
 checks one-unit P0/P1/Ball motion, held-SELECT suppression, complete X/Y endpoint
 clamps, immediate one-shot right-joystick presses, held-input suppression,
 neutral re-arming, direction-roll suppression, selected-digit score-color cycling,
@@ -810,7 +775,10 @@ score-below composition. The
 the independent endpoint oracle: all five VBLANK RESP/HMxx/HMOVE transactions
 must match the requested X coordinates, every object must reach X=0 and X=159,
 and the clipped player, four-clock missile, and four-clock Ball spans must be
-correct at both edges. They also require the C26 component to carry its
+correct at both edges. `vcs_all_five_pairwise.pl` separately preserves the
+retired predecessor's exhaustive horizontal-position coverage by checking all
+ten object pairs at every 160 x 160 coordinate combination (256,000 cases)
+against the maintained 192-line all-five schedule. They also require the C26 component to carry its
 four-byte hidden helper-JSR allowance as `.callstackextra` object metadata
 rather than inheriting it from a renderer cfg.
 
@@ -832,42 +800,6 @@ Ball. The same harness now models GRP0/GRP1 delayed transfers, delayed Ball
 latching, immediate missile enables, NUSIZ/CTRLPF widths, and physical
 color-clock write timing. It compares all five object layers at every visible
 pixel on the setup line and all 181 gameplay lines in both score orders.
-
-`vcs_all_five_181_unofficial.pl` keeps the detailed 181-line score/motion
-comparison for the parameterized unofficial twin. It requires identical RAM
-addresses, one reviewed zero-page unofficial NOP in the instantiated profile,
-no AXS sites, the same physical modulo-76 playfield profile, pairwise
-visible-trace identity for all five static and motion compositions, direct
-per-pixel object-raster checks for both static score orders, and equal linked
-ROM use.
-
-`vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
-under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
-harness. The motion update runs only through a
-strong `vcs_standard_overscan_hook`; the test proves that it overrides the weak
-fallback, that the assembly edge extends stack/activation planning, and that the
-fixed frame period is unchanged. It locks every object's persistent Y
-coordinate, the differently phased and paced P0/P1/M0/M1/BL X sequences, both
-X=0 and X=159 endpoints for every object, and seven complete object rasters at
-exact frame-relative scanlines. This catches corrupt
-packed masks, state lost through horizontal-position scratch reuse, and any
-whole-frame vertical displacement that instruction-level cycle tests miss.
-
-`vcs_standard_playercolors.pl` builds the separate no-missile P0+P1+BL
-profile and private static/motion fixtures. It checks maintained source assembly,
-official-opcode assembly, page and stack contracts, the exact standard frame
-period, absence of missile enables, eight distinct logical-row colors for each
-player, exact P0/P1/BL raster rows, and 320 frames of full-range P0/P1/BL
-RESP/HMxx motion.
-
-`vcs_standard_pairwise.pl` jumps directly into the linked standard renderer's
-actual horizontal-position routine and exhausts all `5 choose 2` object pairs
-at every `160 * 160` coordinate combination: 256,000 cases. The remaining
-three objects stay at distinct sentinel coordinates. Every case requires one
-correct RESP strobe and HMxx write per object, the correct divide-by-15
-remainder, unchanged public X state, and no cross-object positioning damage.
-This provides exhaustive pairwise coverage without spending 256,000 complete
-television frames.
 
 `assembler_illegal_alias_catalog.pl` checks that the retained `ASR` and `SBX`
 aliases remain active while the broader historical catalog remains commented
@@ -966,7 +898,6 @@ that changes when the maintained font's top-row pixels change. For focused runs,
 `VCSC_STELLA_CASES` may name a comma-separated subset such as
 `pal_keypad,secam_driving`; the normal test remains all 12 cases. Stella and Xvfb
 are required test dependencies.
-
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`
@@ -1155,14 +1086,12 @@ three-deep call graph. It requires terminal and map-file RAM accounting to
 report unique object bytes, the separately identified hardware-stack reserve,
 combined used bytes, and physical free bytes exactly.
 
-
 `vcs_example_vsync_contract.pl` inventories every public example that directly
 owns VSYNC instead of using a frame helper, pins the reviewed low-level
 exceptions (including the fixed-bank E0 diagnostic), and executes the basic
 assembly example through the common timing harness.
 The frame timing and NTSC/50 Hz scheduler harnesses measure both VSYNC edges and
 reject any pulse other than exactly 228 CPU cycles.
-
 
 `vcs_frame_ntsc_scheduler.pl` uses a deliberately calibrated pseudo-TIA frame
 period. The CPU-only harness observes **264 raw WSYNC intervals** for cartridges
@@ -1171,7 +1100,6 @@ is intentional: removing the two blanked end-of-overscan closeout WSYNCs makes
 Stella report 260 / 60.5 Hz even though older simplified harnesses called their
 262 raw intervals "262 lines." The default scheduler and renderer tests therefore
 pin raw 264 while user-facing frame claims remain the Stella-authoritative 262.
-
 
 `vcs_frame_50hz_scheduler.pl` independently locks the shared PAL/SECAM scheduler
 at 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan scanlines. The calibrated
@@ -1333,7 +1261,6 @@ production six-glyph component to clear hostile reflection in its preserved
 eight-cycle setup slot, and requires the complete TIA ownership/exit-state table
 in the installed conversion report.
 
-
 `vcs_poison_player_color_handoff.pl` composes the poison debug score above
 and below the 181-line player-color component and leaves the 192-line scoreless
 component under hostile state from the previous overscan. It requires stable
@@ -1341,8 +1268,8 @@ component under hostile state from the previous overscan. It requires stable
 three cases. The player-color 181/192 harnesses now add a full physical-scanline
 object model: delayed P0/Ball transfers, immediate P1, forbidden missiles,
 NUSIZ/CTRLPF widths, setup lines, every gameplay line, and terminal paths are
-compared pixel by pixel. Official and unofficial 181-line score compositions
-run the same model directly.
+compared pixel by pixel. Maintained 181-line score compositions run the same
+model directly.
 
 ## Stella linker sidecars
 
@@ -1394,12 +1321,13 @@ E2E/Stella tests remain the exhaustive lifecycle authority, while
 
 `vcs_4ksc.pl` certifies the direct 4K Superchip profile, full 128-byte split-address RAM lifecycle, hostile-fill reset behavior, PASS/FAIL diagnostic, disassembler recognition, and exact round trip.
 
-`vcs_standard_renderer_banked.pl` composes the maintained standard all-five
-renderer with 4K, F8, F6, F4, and F8SC C26 profiles.  It locks bank-local hard
-page objects, component-owned startup placement, one VBLANK-only bank1 hook,
-per-bank ROM and replicated bridge costs, 37-cycle cross-bank calls, RIOT and
-Superchip usage, 12 hardware-stack bytes, 20140-cycle frame length, exact raster
-identity, mapper restoration, and the consolidated one-cartridge public example.
+`vcs_all_five_banked.pl` composes the maintained all-five component
+with 4K, F8, F6, F4, and F8SC C26 profiles. It locks bank-local hard-page data,
+startup-bank placement, the descriptor bankcall bridge to one VBLANK-only bank1
+hook, RIOT/Superchip placement, hidden-stack allowance, 20064-cycle frame length,
+exact raster identity, mapper restoration, and the consolidated one-cartridge
+public F8 example. Descriptor-block byte-level certification remains owned by the
+linker mapper suites.
 
 ## Multisprite renderer certification
 
@@ -1425,7 +1353,6 @@ than inferring X from RESP/HMP write cycles and is part of normal e2e. Run
 `make stella-multisprite-test STELLA=/path/to/stella` for a focused rerun. It locks all five multiplexed rank
 phases at representative edge/interior X coordinates, natural X=159 wrap/clipping,
 the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
-
 
 ## Additional compiler coverage
 

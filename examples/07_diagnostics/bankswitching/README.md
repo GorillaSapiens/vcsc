@@ -111,10 +111,10 @@ resident. The cartridge executes all 64 ordered physical-bank calls, nested
 cross-state calls from resident banks, state restoration, and a 16-bit return;
 `make play` forces Stella's `E0` mapper.
 
-## Banked standard renderer
+## Banked all-five renderer
 
-`02_standard_renderer/` is the consolidated F8 integration of the maintained
-standard all-five renderer with generic C26 topology.  Its only bank switch is a
+`all_five/` is the consolidated F8 integration of the maintained
+all-five renderer with generic C26 topology.  Its only bank switch is a
 VBLANK-only overscan-hook round trip; F6, F4, F8SC, and unbanked-reference builds
 remain private regression variants of the same source.
 

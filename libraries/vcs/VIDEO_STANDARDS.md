@@ -45,15 +45,6 @@ caller-provided color bytes must be supplied PAL or SECAM colors by the caller;
 for SECAM, prefer the eight `VCS_SECAM_*` aliases.  Components without their own
 color state simply inherit the caller's TIA colors.
 
-The following monolithic compatibility renderers are **NTSC-specific** and are
-not presented as PAL/SECAM profiles:
-
-- `renderers/standard_4k_ntsc/`
-- `renderers/standard_4k_ntsc_playercolors/`
-
-Those implementations own or encode complete NTSC frame geometry rather than
-being scheduler-neutral visible components.  Porting them would be a distinct
-renderer rewrite, not a PAL conditional added to their existing bodies.
 
 ## 228-line PAL50 / SECAM50 composition
 

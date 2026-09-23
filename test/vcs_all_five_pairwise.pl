@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 120
-# expectstdout: vcs_standard_pairwise ok
+# expectstdout: vcs_all_five_pairwise ok
 
 use strict;
 use warnings;
@@ -42,36 +42,31 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
-my $source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 06_object_motion golden.c26));
-my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
-my $bin=File::Spec->catfile($tmp,'object_pairwise.bin');
-my $mapfile=File::Spec->catfile($tmp,'object_pairwise.map');
+my $source=File::Spec->catfile($repo,qw(test fixtures all_five_192 smoke.c26));
+my $bin=File::Spec->catfile($tmp,'all_five_pairwise.bin');
+my $mapfile=File::Spec->catfile($tmp,'all_five_pairwise.map');
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-Map',$mapfile,
-   $source,$renderer,'-o',$bin);
-$rc==0 && !$sig or die "pairwise diagnostic build failed\n$out$err";
-without_cartridge_usage($out) eq '' && $err eq '' or die "pairwise diagnostic build wrote output\n$out$err";
+   $driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
+$rc==0 && !$sig or die "all-five pairwise diagnostic build failed\n$out$err";
+without_cartridge_usage($out) eq '' && $err eq ''
+   or die "all-five pairwise diagnostic build wrote output\n$out$err";
 my $map=read_file($mapfile);
-my @zp=map { map_symbol($map,$_) } qw(
-   vcs_standard_object_x
-   vcs_standard_pointer_workspace
-);
+my $object_x=map_symbol($map,'game_object_x');
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
-my $src=File::Spec->catfile($repo,'test','vcs_standard_pairwise.cpp');
-my $exe=File::Spec->catfile($tmp,'vcs_standard_pairwise');
+my $src=File::Spec->catfile($repo,'test','vcs_all_five_pairwise.cpp');
+my $exe=File::Spec->catfile($tmp,'vcs_all_five_pairwise');
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 ($rc,$sig,$out,$err)=capture(
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
-$rc==0 && !$sig or die "pairwise harness build failed\n$out$err";
-without_cartridge_usage($out) eq '' && $err eq '' or die "pairwise harness build wrote output\n$out$err";
-my @args=map { sprintf('0x%02x',$_) } @zp;
-($rc,$sig,$out,$err)=capture($exe,$bin,@args);
-$rc==0 && !$sig or die "pairwise harness failed\n$out$err";
-$out eq "vcs_standard_pairwise ok: 10 pairs x 160 x 160 = 256000 cases\n"
-   or die "unexpected pairwise harness output: $out";
-$err eq '' or die "pairwise harness stderr: $err";
-print "vcs_standard_pairwise ok\n";
+$rc==0 && !$sig or die "all-five pairwise harness build failed\n$out$err";
+without_cartridge_usage($out) eq '' && $err eq ''
+   or die "all-five pairwise harness build wrote output\n$out$err";
+($rc,$sig,$out,$err)=capture($exe,$bin,sprintf('0x%02x',$object_x));
+$rc==0 && !$sig or die "all-five pairwise harness failed\n$out$err";
+$out eq "vcs_all_five_pairwise ok: 10 pairs x 160 x 160 = 256000 cases\n"
+   or die "unexpected all-five pairwise harness output: $out";
+$err eq '' or die "all-five pairwise harness stderr: $err";
+print "vcs_all_five_pairwise ok\n";

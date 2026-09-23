@@ -151,7 +151,7 @@ examples/
 │   ├── field_diagnostic/
 │   └── bankswitching/
 │       ├── f864/
-│       ├── standard_renderer/
+│       ├── all_five/
 │       ├── fa_ram_plus/
 │       ├── 4ksc/
 │       ├── omni/

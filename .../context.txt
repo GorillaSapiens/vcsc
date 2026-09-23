@@ -90,8 +90,12 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S10 is next: port useful `standard_4k_ntsc*` coverage, then delete both
-   legacy profiles and compatibility-only support. Item 58 follows after stripes.
+   `.../stripes.txt` owns renderer consolidation and stripes. S10 is complete:
+   useful `standard_4k_ntsc*` behavior is carried by maintained all-five,
+   exhaustive pairwise-position, banked-composition, and Stella regressions, and
+   both legacy profiles plus compatibility-only support are gone. S11 normalization is
+   complete; finish the broad regression before stripes.
+   Item 58 follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -215,15 +219,22 @@ acceptance gates.
 
 Last validation state
 ---------------------
-Renderer-stripes S2-S9 are complete. `all_five.c26` owns the all-five and
+Renderer-stripes S2-S10 are complete. `all_five.c26` owns the all-five and
 player-color specializations at 170/181/192/228 lines plus the combined
 `missiles:=1, player_colors:=1` schedules at 181 and 192 lines. Duplicate
-`player_color`, both `all_five_player_color_*`, and both unofficial gameplay
-renderer families are gone. S8 consolidated common ABI/positioning/state and the
-170/181 schedule families; S9 removed unofficial renderer/example/fixture/test
-duplicates after confirming their gameplay coverage was already owned by the
-official profiles. Unofficial-opcode opt-in remains covered by assembler/toolchain
-regressions rather than a duplicate gameplay renderer.
+`player_color`, both `all_five_player_color_*`, both unofficial gameplay renderer
+families, and both `standard_4k_ntsc*` monoliths are gone. S10 preserved useful
+legacy behavior in maintained coverage: the 192 all-five path now has an
+exhaustive 256,000-case pairwise X-position oracle, and the banked diagnostic
+uses the public all-five component while retaining mapper/VBLANK/startup-bank
+runtime and pinned-palette Stella certification. Compatibility-only predecessor
+fixtures/tests were deleted. Unofficial-opcode opt-in remains covered by
+assembler/toolchain regressions rather than a duplicate gameplay renderer.
+
+S11 normalization is complete: the surviving banked all-five diagnostic/tests
+and current docs now use maintained terminology. Broad validation is incomplete:
+581 compile-only cases and the focused renderer/example/Stella gates passed, but
+long e2e invocations hit the outer tool limit. Finish that gate before S12.
 
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
@@ -231,5 +242,5 @@ and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Execute `.../stripes.txt` S10: port useful `standard_4k_ntsc*` coverage;
-delete both legacy profiles and compatibility-only support.
+Finish `.../stripes.txt` S11 broad regression. The normalization work is complete;
+then proceed to S12 stripe scheduling/storage prototyping.

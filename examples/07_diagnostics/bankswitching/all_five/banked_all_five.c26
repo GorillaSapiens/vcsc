@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Standard all-five renderer composed with generic C26 cartridge topology.
+// Unified all-five component composed with generic C26 cartridge topology.
 // The public example is F8. Tests build this same source as 4K, F6, F4, and F8SC.
 
 #ifdef UNBANKED_REFERENCE
@@ -29,10 +29,13 @@ MAPPER_BANKS_must_be_2_4_or_8
 #endif
 #endif
 
+include "vcs.c26"
+include "frame_ntsc.c26"
+
 #ifdef UNBANKED_REFERENCE
-page const uint8_t vcs_standard_playfield[48] := {
+page const uint8_t game_playfield[48] := {
 #else
-bank0 page const uint8_t vcs_standard_playfield[48] := {
+page const uint8_t game_playfield[48] := {
 #endif
    0xff, 0xff, 0xff, 0xff,
    0x81, 0x18, 0x18, 0x81,
@@ -44,18 +47,18 @@ bank0 page const uint8_t vcs_standard_playfield[48] := {
    0x81, 0x18, 0x18, 0x81,
    0x81, 0x00, 0x00, 0x81,
    0x81, 0x18, 0x18, 0x81,
-   0xff, 0xff, 0xff, 0xff,
-   0x00, 0x00, 0x00, 0x00
+   0x81, 0x00, 0x00, 0x81,
+   0xff, 0xff, 0xff, 0xff
 };
 
-include "renderers/standard_4k_ntsc/standard_4k_ntsc.c26"
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
 
 #ifdef UNBANKED_REFERENCE
 page const uint8_t player0_graphics[8] := {
 #else
 bank0 page const uint8_t player0_graphics[8] := {
 #endif
-   VCS_STANDARD_SPRITE_GLYPH(
+   game_SPRITE_GLYPH(
       0b.XXXXXX.,
       0bXX....XX,
       0bXX...XXX,
@@ -72,7 +75,7 @@ page const uint8_t player1_graphics[8] := {
 #else
 bank0 page const uint8_t player1_graphics[8] := {
 #endif
-   VCS_STANDARD_SPRITE_GLYPH(
+   game_SPRITE_GLYPH(
       0b.XXXXXX.,
       0bXX....XX,
       0bXX....XX,
@@ -104,19 +107,10 @@ bank1 void banked_game_logic(void) {
       banked_hook_failure := 1;
    }
    if (banked_hook_count == 0) {
-      VCS_STANDARD_BALL_X := 104;
-      vcs_standard_score := 654321;
+      game_BALL_X := 104;
       banked_hook_epoch := 1;
    }
    banked_hook_count++;
-}
-
-#ifdef UNBANKED_REFERENCE
-void vcs_standard_overscan_hook(void) {
-#else
-bank1 void vcs_standard_overscan_hook(void) {
-#endif
-   banked_game_logic();
 }
 
 #ifdef UNBANKED_REFERENCE
@@ -124,34 +118,40 @@ void initialize_banked_scene(void) {
 #else
 bank0 void initialize_banked_scene(void) {
 #endif
-   COLUBK := 0x84;
-
-   VCS_STANDARD_PLAYER0_X := 24;
-   VCS_STANDARD_PLAYER1_X := 132;
-   VCS_STANDARD_MISSILE0_X := 54;
-   VCS_STANDARD_MISSILE1_X := 112;
-   VCS_STANDARD_BALL_X := 80;
-
-   vcs_standard_player0_y := 18;
-   vcs_standard_missile0_y := 34;
-   vcs_standard_ball_y := 48;
-   vcs_standard_missile1_y := 62;
-   vcs_standard_player1_y := 78;
-
-   vcs_standard_player0_graphics := player0_graphics;
-   vcs_standard_player1_graphics := player1_graphics;
-   vcs_standard_player0_height := 7;
-   vcs_standard_player1_height := 7;
-   vcs_standard_missile0_height := 5;
-   vcs_standard_missile1_height := 7;
-   vcs_standard_ball_height := 3;
-
-   vcs_standard_score := 123456;
-   vcs_standard_score_color := 0x0e;
-   vcs_standard_playfield_position := 8;
-
    VBLANK := 2;
-   TIM64T := 0;
+   COLUBK := 0x84;
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_player0_color := 0x0e;
+   game_player1_color := 0xc8;
+
+   game_PLAYER0_X := 24;
+   game_PLAYER1_X := 132;
+   game_MISSILE0_X := 54;
+   game_MISSILE1_X := 112;
+   game_BALL_X := 80;
+
+   game_player0_y := 18;
+   game_missile0_y := 34;
+   game_ball_y := 48;
+   game_missile1_y := 62;
+   game_player1_y := 78;
+
+   game_player0_graphics := player0_graphics;
+   game_player1_graphics := player1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+
+   game_init();
 }
 
 #ifdef UNBANKED_REFERENCE
@@ -169,9 +169,9 @@ bank0 void configure_banked_frame(void) {
    COLUP0 := 0x0e;
    COLUP1 := 0xc8;
    CTRLPF := 0x21;
-   NUSIZ0 := 0x20;
-   NUSIZ1 := 0x20;
-   // RESMP power-on state is unspecified; the renderer needs independent missiles.
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   // RESMP power-on state is unspecified; the component needs independent missiles.
    RESMP0 := 0;
    RESMP1 := 0;
 }
@@ -184,6 +184,14 @@ bank0 void main(void) {
    initialize_banked_scene();
    while (1) {
       configure_banked_frame();
-      vcs_standard_renderer_drawscreen();
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      banked_game_logic();
+      vcs_ntsc_end_overscan();
    }
 }

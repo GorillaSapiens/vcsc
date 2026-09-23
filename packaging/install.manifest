@@ -161,16 +161,6 @@ libraries	file	0644	libraries/vcs/renderers/multisprite/README.md	libraries/vcs/
 libraries	file	0644	libraries/vcs/renderers/multisprite/multisprite.c26	libraries/vcs/renderers/multisprite/multisprite.c26
 libraries	file	0644	libraries/vcs/components/poison_debug_score/README.md	libraries/vcs/components/poison_debug_score/README.md
 libraries	file	0644	libraries/vcs/components/poison_debug_score/poison_debug_score.c26	libraries/vcs/components/poison_debug_score/poison_debug_score.c26
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md	libraries/vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc/README.md	libraries/vcs/renderers/standard_4k_ntsc/README.md
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md	libraries/vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26	libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc	libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26	libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md	libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc
-libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26
 libraries	file	0644	libraries/vcs/components/heart_score_component.c26	libraries/vcs/components/heart_score_component.c26
 libraries	file	0644	libraries/vcs/riot.c26	libraries/vcs/riot.c26
 libraries	file	0644	libraries/vcs/components/six_glyph_big_wide_component.c26	libraries/vcs/components/six_glyph_big_wide_component.c26

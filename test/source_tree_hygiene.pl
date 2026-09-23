@@ -341,9 +341,9 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'assembler_component_constraints.pl') &&
 -f File::Spec->catfile($test,'vcs_interactive_sprite_orientation.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&
--f File::Spec->catfile($test,'vcs_standard_renderer_banked.pl') &&
--f File::Spec->catfile($test,'vcs_standard_renderer_banked.cpp') &&
--f File::Spec->catfile($test,'vcs_standard_renderer_banked_stella.pl') &&
+-f File::Spec->catfile($test,'vcs_all_five_banked.pl') &&
+-f File::Spec->catfile($test,'vcs_all_five_banked.cpp') &&
+-f File::Spec->catfile($test,'vcs_all_five_banked_stella.pl') &&
 -f File::Spec->catfile($test,'page_named_mem_object_codegen_test.c26') &&
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
@@ -366,8 +366,8 @@ $bankswitching !~ /^\[x\]/m
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
 -f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','f864','bankswitching_diagnostic.c26') &&
--f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','banked_standard_renderer.c26') &&
--f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','README.md')
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','all_five','banked_all_five.c26') &&
+-f File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','all_five','README.md')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
 # Maintained Stella tests may receive a command name such as `stella` or
 # `Xvfb` through the Makefiles.  Resolve those values through PATH rather than
@@ -421,7 +421,7 @@ index($top_make,'stella-bank-test: tools')>=0 &&
 index($top_make,'--stella')>=0 &&
 index($top_make,'perl test/vcs_dpc.pl')>=0 &&
 index($top_make,'bankswitching_diagnostic_suite.c26')<0 &&
-index($top_make,'stella-renderer-bank-test: tools')>=0 &&
+index($top_make,'stella-all-five-bank-test: tools')>=0 &&
 index($top_make,'stella-wide-score-test: tools')>=0 &&
 index($top_make,'stella-player-color-192-test: tools')>=0 &&
 index($top_make,'stella-all-five-player-color-192-test: tools')>=0 &&
@@ -533,20 +533,13 @@ index($linker_readme,'`RETURN COALESCING` is descriptive')>=0 &&
 index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
 
-my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','standard_renderer','Makefile'));
-$banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
-$banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*echo WARNING: ignoring user specific settings\s*\n\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
-$banked_renderer_make !~ /f6\.bin|f4\.bin|f8sc\.bin/ &&
-index($banked_renderer_make,'vcs_standard_4k_ntsc.cfg')<0
-   or die "banked standard renderer must remain one consolidated F8 public diagnostic\n";
+my $banked_all_five_make=slurp(File::Spec->catfile($repo,'examples','07_diagnostics/bankswitching','all_five','Makefile'));
+$banked_all_five_make =~ /^all:\s+f8\.bin\s*$/m &&
+$banked_all_five_make =~ /^play:\s+f8\.bin\s*\n\s*echo WARNING: ignoring user specific settings\s*\n\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+F8\s+"\$\(CURDIR\)\/f8\.bin"\s*$/m &&
+$banked_all_five_make !~ /f6\.bin|f4\.bin|f8sc\.bin|standard_4k_ntsc/ &&
+index($banked_all_five_make,'banked_all_five.c26')>=0
+   or die "banked all-five renderer must remain one consolidated F8 public diagnostic\n";
 
-my $standard_renderer_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','standard_4k_ntsc_renderer.s26'));
-index($standard_renderer_source,'.segmentregion "RENDERER_CODE", startup')>=0 &&
-index($standard_renderer_source,'.segmentalign "RENDERER_CODE", 256')>=0 &&
-index($standard_renderer_source,'.segmentprivate "RENDERER_CODE"')>=0 &&
-index($standard_renderer_source,'.callstackextra 4')>=0
-   or die "standard renderer lost object-owned placement or hidden-stack constraints
-";
 for my $component (
    'all_five/all_five.c26',
 ) {
@@ -1052,24 +1045,24 @@ for my $name (qw(missing size start type)) {
 -f File::Spec->catfile($test,'vcs_f6_f4_profiles.pl')
    or die "certified F6/F4 profiles or their regression test are missing\n";
 
-# The two complete drawscreen profiles remain installed only while item 57 ports
-# their useful compatibility/regression coverage; S10 is their deletion gate.
+# S10 is the deletion gate for the two complete monolithic drawscreen profiles.
 for my $rel (
-   'libraries/vcs/renderers/standard_4k_ntsc/README.md',
-   'libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md',
+   'libraries/vcs/renderers/standard_4k_ntsc',
+   'libraries/vcs/renderers/standard_4k_ntsc_playercolors',
 ) {
-   index(slurp(File::Spec->catfile($repo,split('/', $rel))),
-         '> **Legacy monolithic profile.**')>=0
-      or die "$rel does not identify the retained legacy monolithic profile\n";
+   !-e File::Spec->catfile($repo,split('/', $rel))
+      or die "retired legacy renderer still exists: $rel\n";
+   index($install_manifest,$rel)<0
+      or die "retired legacy renderer remains in install manifest: $rel\n";
 }
 my $vcs_catalog=slurp(File::Spec->catfile($repo,'libraries','vcs','README.md'));
-$vcs_catalog =~ /standard_4k_ntsc\/.*legacy monolithic/s &&
-$vcs_catalog =~ /standard_4k_ntsc_playercolors\/.*legacy monolithic/s
-   or die "VCS catalog does not identify both retained legacy monolithic profiles\n";
+$vcs_catalog !~ /renderers\/standard_4k_ntsc/
+   or die "VCS catalog still advertises a retired legacy renderer\n";
 my $component_guide=slurp(File::Spec->catfile(
    $repo,'libraries','vcs','renderers','COMPONENT_CONVERSION.md'));
-index($component_guide,'S10 then retires both monoliths')>=0
-   or die "component guide lost the item-57 legacy retirement gate\n";
+index($component_guide,'neither profile')>=0 &&
+index($component_guide,'installed or maintained after S10')>=0
+   or die "component guide lost the S10 legacy retirement closeout\n";
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my %hot_limits=(

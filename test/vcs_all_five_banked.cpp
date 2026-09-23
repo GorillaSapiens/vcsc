@@ -1,5 +1,5 @@
-//! @file vcs_standard_renderer_banked.cpp
-//! @brief Verify banked standard-renderer switching, timing, and visible raster identity.
+//! @file vcs_all_five_banked.cpp
+//! @brief Verify banked unified all-five switching, timing, and visible raster identity.
 
 #include <array>
 #include <cstdint>
@@ -14,7 +14,7 @@
 
 namespace {
 constexpr uint64_t kCyclesPerScanline = 76;
-constexpr uint64_t kExpectedFrameCycles = 20140;
+constexpr uint64_t kExpectedFrameCycles = 264 * kCyclesPerScanline;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
@@ -64,10 +64,9 @@ uint16_t hook_count_address = 0;
 uint16_t hook_epoch_address = 0;
 uint16_t hook_failure_address = 0;
 uint16_t ball_x_address = 0;
-uint16_t score_address = 0;
 
 [[noreturn]] void fail(const char *message) {
-   std::fprintf(stderr, "vcs_standard_renderer_banked: %s\n", message);
+   std::fprintf(stderr, "vcs_all_five_banked: %s\n", message);
    std::exit(1);
 }
 
@@ -160,7 +159,7 @@ void verify_frame_boundary() {
       const uint8_t count = inspect_address(hook_count_address);
       if (count != static_cast<uint8_t>(frame)) {
          std::fprintf(stderr,
-            "vcs_standard_renderer_banked: frame %d hook count is %u; expected %d\n",
+            "vcs_all_five_banked: frame %d hook count is %u; expected %d\n",
             frame, count, frame);
          std::exit(1);
       }
@@ -172,15 +171,11 @@ void verify_frame_boundary() {
       for (size_t i = 0; i < expected_x.size(); ++i) {
          const uint16_t base = static_cast<uint16_t>(ball_x_address - 4);
          if (inspect_address(static_cast<uint16_t>(base + i)) != expected_x[i]) {
-            std::fprintf(stderr, "vcs_standard_renderer_banked: frame %d object %zu X is %u expected %u\n",
+            std::fprintf(stderr, "vcs_all_five_banked: frame %d object %zu X is %u expected %u\n",
                frame, i, inspect_address(static_cast<uint16_t>(base + i)), expected_x[i]);
             std::exit(1);
          }
       }
-      if (inspect_address(score_address) != 0x21 ||
-          inspect_address(static_cast<uint16_t>(score_address + 1)) != 0x43 ||
-          inspect_address(static_cast<uint16_t>(score_address + 2)) != 0x65)
-         fail("banked overscan work did not update the next-frame BCD score");
    }
 }
 
@@ -277,9 +272,9 @@ void select_mapper(const std::string &mapper) {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 9) {
+   if (argc != 8) {
       std::fprintf(stderr,
-         "usage: %s ROM MAPPER hook_count hook_epoch hook_failure ball_x score\n",
+         "usage: %s ROM MAPPER hook_count hook_epoch hook_failure ball_x signature\n",
          argv[0]);
       return 2;
    }
@@ -288,8 +283,7 @@ int main(int argc, char **argv) {
    hook_epoch_address = parse_u16(argv[4]);
    hook_failure_address = parse_u16(argv[5]);
    ball_x_address = parse_u16(argv[6]);
-   score_address = parse_u16(argv[7]);
-   const uint16_t signature_address = parse_u16(argv[8]);
+   const uint16_t signature_address = parse_u16(argv[7]);
 
    std::ifstream input(argv[1], std::ios::binary);
    if (!input) fail("could not open ROM");
@@ -319,7 +313,7 @@ int main(int argc, char **argv) {
    for (size_t i = 1; i < frame_periods.size(); ++i) {
       if (frame_periods[i] != kExpectedFrameCycles) {
          std::fprintf(stderr,
-            "vcs_standard_renderer_banked: frame period %zu is %llu; expected %llu\n",
+            "vcs_all_five_banked: frame period %zu is %llu; expected %llu\n",
             i, static_cast<unsigned long long>(frame_periods[i]),
             static_cast<unsigned long long>(kExpectedFrameCycles));
          return 1;
@@ -333,7 +327,7 @@ int main(int argc, char **argv) {
    const size_t expected_switches = bank_count == 1 ? 0 : static_cast<size_t>(frame);
    if (destination_switches != expected_switches || source_restores != expected_switches) {
       std::fprintf(stderr,
-         "vcs_standard_renderer_banked: switches destination=%zu restore=%zu expected=%zu\n",
+         "vcs_all_five_banked: switches destination=%zu restore=%zu expected=%zu\n",
          destination_switches, source_restores, expected_switches);
       return 1;
    }
