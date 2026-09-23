@@ -232,20 +232,13 @@ stalled in the deliberately huge mapper diagnostics when sharded. The current
 all-five 170/181/192/228, pairwise, banked, banked-Stella, and hygiene focused
 set is 8/8 green.
 
-The S12 192-line/3-stripe probe is complete enough to constrain implementation.
-Current all-five uses four PF writes per scanline; full stripe data requires six.
-A six-byte zero-page PF cache is 36 cycles/scanline versus the existing 28-cycle
-four-absolute-load/store sequence, so S13 must reclaim 8 cycles per scanline.
-Known-good six-write phases exist in the maintained asymmetric renderer; see
-`.../stripes.txt` for the measured phase families and storage notes.
-
 The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
 random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
 and canonical disassembler mirror spelling such as `COLUBK + $40`.
 
 Immediate TODO
 --------------
-Finish the S11 broad regression when the long mapper diagnostics can complete,
-then implement `.../stripes.txt` S13. Preserve zero-path bytes/resources and use
-the measured six-write schedule constraint; do not bolt two PF0 stores onto the
-existing 192-line loop.
+Continue `.../stripes.txt` S13: make the stripes=1 192-line positive-stripe kernel
+exactly 192 scanlines with stable six-write phases by fixing pair/transition cycle
+balance. Do not generalize to N>1 until that timing is stable. Finish the S11 broad
+regression when the long mapper diagnostics can complete.

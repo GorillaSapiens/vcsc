@@ -74,3 +74,21 @@ and hygiene regressions to check the leaf ignore contracts. Focused validation:
 example_stella_play_contract, source_tree_hygiene, diagnostic cartridge,
 paddle/joystick tutorials, 0840/0FA0/3F+3E/DPC/E0 mapper checks, build-dependency
 contracts, plus F0/FC/FE/JANE/video-standard-layout/WD all pass.
+
+2026-09-22 23:46:00 PDT, preserve live S13 stripe-kernel prototype
+Continued the 192-line all-five positive-stripe timing prototype. The live source
+adds parameter stripes with a separately compiled stripes=1 path, a ten-byte
+zero-page cache, six PF writes per visible scanline, and folded missile/ball
+enable work intended to recover the eight-cycle steady-line budget. The zero
+stripe source path remains under explicit stripes==0 branches. The prototype is
+intentionally constrained to lines=192, missiles=1, player_colors=0 and stripes=1
+while timing is being stabilized; N>1 still has a compile-time guard.
+
+The prototype builds, but it is not raster-correct yet. The latest instrumented
+draw measured 14817 CPU cycles from draw start to end, about 194.96 scanlines
+instead of 192. Early steady lines show plausible six-write groups around
+PF0/PF1/PF2 11-14/17-20/23-26 and 41-43/49-50/55-56, but row-transition work
+causes the write phases to march late and eventually cross scanline boundaries.
+The next action is to repair transition and pair cycle balance first; do not add
+stripe-boundary reload/general N support until the stripes=1 raster is exactly
+192 lines with stable six-write phase families.

@@ -37,11 +37,13 @@ object, and pinned-palette Stella coverage while adding stripes.
 
 Steps
 -----
-Current next action: finish the S11 broad gate, then implement S13 using the
-measured S12 six-write schedule/storage constraints.
+Current next action: stabilize the S13 positive-stripe 192-line six-write kernel.
+The live stripes=1 prototype compiles and keeps stripes=0 isolated, but the latest
+trace stretches draw to about 195 scanlines and PF phases drift after row
+transitions. Fix pair/transition cycle balance before generalizing to N>1.
 
 S11. Finish broad regression; normalization is complete, but long mapper diagnostics still exceed the outer execution window.
-S13. Implement compile-time stripes with unchanged zero path; reclaim the measured 8 cycles/scanline in the 192 all-five schedule rather than appending PF0 writes.
+S13. Implement compile-time stripes with unchanged zero path; live prototype currently supports only stripes=1 on 192-line missiles=1/player_colors=0 and is not yet raster-correct.
 S14. Certify 192 stripes: ABI, TIA phase, simulator/Stella, motion, zero-path bytes/resources.
 S15. Certify every line mode, including non-divisible 228 and 181/170 handoffs.
 S16. Exercise supported missile/player-color combinations.

@@ -17,7 +17,19 @@
 parameter lines;
 parameter missiles := 1;
 parameter player_colors := 0;
+parameter stripes := 0;
 
+
+#if TEMPLATE_stripes > 0 && (TEMPLATE_lines != 192 || TEMPLATE_missiles != 1 || TEMPLATE_player_colors != 0)
+extern const uint8_t TEMPLATE_stripes_currently_require_192_solid_all_five[0];
+#endif
+#if TEMPLATE_stripes > 1
+extern const uint8_t TEMPLATE_stripes_s13_prototype_currently_supports_one_stripe[0];
+#endif
+#if TEMPLATE_stripes == 1
+extern const uint8_t TEMPLATE_playfield_colors[2];
+extern const uint8_t TEMPLATE_playfield_data[6];
+#endif
 
 // Common selector ABI and immutable positioning data. Schedule branches below
 // own only their measured private storage and frame-phase implementation.
@@ -188,6 +200,9 @@ uint8_t TEMPLATE_object_masks[60];
 uint8_t TEMPLATE_object_masks[48];
 #endif
 alias TEMPLATE_playfield_position TEMPLATE_object_masks[47]
+#if TEMPLATE_stripes == 1
+uint8_t TEMPLATE_stripe_cache[10];
+#endif
 
 require inline void TEMPLATE_init(void) {
 }
@@ -526,6 +541,39 @@ require inline void TEMPLATE_vblank(void) {
    asm stx GRP0;
    asm stx GRP1;
    asm stx CXCLR;
+#if TEMPLATE_stripes == 1
+   asm lda.a TEMPLATE_playfield_data;
+   asm and #$f0;
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_cache;
+   asm lda.a TEMPLATE_playfield_data + 1;
+   asm sta.z TEMPLATE_stripe_cache + 1;
+   asm lda.a TEMPLATE_playfield_data + 2;
+   asm sta.z TEMPLATE_stripe_cache + 2;
+   asm lda.a TEMPLATE_playfield_data + 3;
+   asm and #$f0;
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_cache + 3;
+   asm lda.a TEMPLATE_playfield_data + 4;
+   asm sta.z TEMPLATE_stripe_cache + 4;
+   asm lda.a TEMPLATE_playfield_data + 5;
+   asm sta.z TEMPLATE_stripe_cache + 5;
+   asm lda.a TEMPLATE_playfield_colors;
+   asm sta COLUPF;
+   asm lda.a TEMPLATE_playfield_colors + 1;
+   asm sta COLUBK;
+   // Keep the current row's three compact BL/M1/M0 masks in fixed zero-page
+   // slots.  Positive-stripe draw uses X as the eight-pair row counter, so
+   // these copies remove all indexed RMW penalties from the steady kernel.
+   asm lda.z TEMPLATE_object_masks;
+   asm sta.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_object_masks + 1;
+   asm sta.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_object_masks + 2;
+   asm sta.z TEMPLATE_stripe_cache + 8;
+   asm lda #0;
+   asm sta.z TEMPLATE_stripe_cache + 9;
+#endif
    asm dec.z TEMPLATE_player0_y;
 #if TEMPLATE_lines == 228
    asm lda #2;
@@ -543,7 +591,11 @@ require inline void TEMPLATE_vblank(void) {
    // the same phase used after every later row transition; no visible setup
    // scanline is consumed.
    asm lda.z TEMPLATE_object_masks + 23;
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 6;
+#else
    asm lsr.zx TEMPLATE_object_masks,x;
+#endif
    asm adc #0;
    asm sta ENABL;
 
@@ -559,40 +611,76 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm @TEMPLATE_first_player1_ready:;
    asm sta GRP1;
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+#else
    asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm lda #1;
    asm adc #0;
    asm sta ENAM1;
-
+#endif
    // Prime the left half of the first row while output is blanked.  The right
    // half is installed by the first timed raster line.
+#if TEMPLATE_stripes == 1
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+#else
    asm lda.a TEMPLATE_playfield;
    asm sta PF1;
    asm lda.a TEMPLATE_playfield + 1;
    asm sta PF2;
+#endif
 }
 
 require inline void TEMPLATE_draw(void) {
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
+#if TEMPLATE_stripes == 0
    asm bit.z $00;
    asm bit.z $00;
    asm nop;
+#endif
+#if TEMPLATE_stripes == 1
+   asm lda.z TEMPLATE_stripe_cache;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+#else
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+#endif
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
+#if TEMPLATE_stripes == 0
    asm bit.z $00;
    asm nop;
+#endif
+#if TEMPLATE_stripes == 1
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+#else
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+#endif
    asm bcc.same @first_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @first_continueP0;
@@ -602,10 +690,18 @@ require inline void TEMPLATE_draw(void) {
    // Preserve the selected P0 byte in A and the M0 bit in carry until the
    // common horizontal-blank entry.  Seven pad cycles replace the redundant
    // early ENAM0 materialization without changing the raster phase.
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 8;
+   // frame_ntsc_finish_deadline() is allowed to clobber X between vblank() and
+   // draw(). Seed the positive-stripe pair counter here, after the first P0
+   // graphics/mask result is already in A/C.
+   asm ldx #7;
+#else
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm bit.z $00;
    asm nop;
    asm dec.z TEMPLATE_object_masks + 43;
+#endif
    asm jmp @continuerenderer;
 
    asm .align 256;
@@ -614,14 +710,42 @@ require inline void TEMPLATE_draw(void) {
    // P0 remains in A across the M0-mask shift and pair counter.  Commit it in
    // horizontal blank before an extreme-right player can fetch the next row.
    asm sta GRP0;
-   // M0 was shifted at the end of the preceding P0 half.  Commit it before
-   // the beam enters the visible region.
+   // M0 was shifted at the end of the preceding P0 half.  Stripe mode folds
+   // this carry into the normalized left PF0 byte below.
+#if TEMPLATE_stripes == 0
    asm lda #1;
    asm adc #0;
    asm sta ENAM0;
+#endif
    asm @continuerenderer2:;
    // P1 half.  Update Ball before the display writes, then leave a three-cycle
    // gap between the left and right halves of the asymmetric playfield.
+#if TEMPLATE_stripes == 1
+   // PF0's low nibble is invisible.  VBLANK normalized it to $x1, so ADC can
+   // materialize an object-enable carry in bit 1 while the same byte remains
+   // valid PF0 data.  This folds the old LDA #1 enable setup into the new PF0
+   // writes and pays for the asymmetric sixth playfield byte.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Spend the P1 decrement in the safe left/right gap. This moves the right
+   // half onto the proven asymmetric phase window without changing pair length.
+   asm dec.z TEMPLATE_player1_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm lsr.z TEMPLATE_stripe_cache + 6;
+   asm adc #0;
+   asm sta PF0;
+   asm sta ENABL;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#else
    asm lda #1;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
@@ -634,12 +758,25 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.ax TEMPLATE_playfield+3,x;
    asm sty PF1;
    asm sta ENABL;
+#endif
    asm ldy.z TEMPLATE_player1_y;
-   asm dey;
    asm @goback:;
    asm @startrenderer:;
+#if TEMPLATE_stripes == 0
+   asm dey;
    asm sty.z TEMPLATE_player1_y;
+#endif
    asm cpy.z TEMPLATE_object_masks + 15;
+#if TEMPLATE_stripes == 1
+   // Eight cycles on either path: active takes the branch plus indexed fetch;
+   // blank falls through to an absolute load of the permanent zero byte.
+   asm bcc.same @stripe_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_continueP1;
+   asm @stripe_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_continueP1:;
+#else
    asm bcs.same @skipP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @continueP1;
@@ -648,32 +785,69 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm bit.z TEMPLATE_object_masks + 19;
    asm @continueP1:;
+#endif
    // Shift M1 first, then carry the selected P1 byte and M1 carry through the
    // scanline boundary.  Both visible objects are committed in the following
    // horizontal blank without changing the pair's cycle count.
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 7;
+   asm sta GRP1;
+   // Fold M1 carry into the next line's left PF0 ($x1/$x2 differ only in the
+   // invisible low nibble), eliminating the old LDA #1.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+#else
    asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm sta GRP1;
    asm lda #1;
    asm adc #0;
    asm sta ENAM1;
+#endif
 
    asm @p0renderer:;
    // P0 half.  Move eleven cycles of P0 bookkeeping ahead of the playfield
    // writes and remove the old carry clear; every Ball ADC gets its carry from
    // the immediately preceding LSR.  The pair remains exactly 152 cycles.
+#if TEMPLATE_stripes == 1
+   // P1 already installed this scanline's left PF0 while materializing M1.
+   // Start with PF1/PF2 here; the absolute right-PF0 store below restores the
+   // single cycle needed to keep each steady P1/P0 pair at exactly 152 cycles.
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+#else
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+#endif
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
+#if TEMPLATE_stripes == 1
+   // Y is not used by the cached right-half writes, so commit it here. The
+   // same three cycles used to follow PF2; moving them delays the reflected
+   // half while preserving the 152-cycle P1/P0 pair.
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+#else
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+#endif
+#if TEMPLATE_stripes == 0
    asm sty.z TEMPLATE_player0_y;
    asm nop;
+#endif
    asm bcc.same @drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @continueP0;
@@ -683,23 +857,48 @@ require inline void TEMPLATE_draw(void) {
    // Carry both the P0 graphics byte in A and the M0 enable bit in C across
    // DEC/BNE; neither instruction changes A or C.
    // The next P1 half materializes ENAM0 during horizontal blanking.
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 8;
+   asm dex;
+#else
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm dec.z TEMPLATE_object_masks + 43;
+#endif
    asm bne.same @continuerenderer;
+#if TEMPLATE_stripes == 1
+   // The last steady P0 leaves its graphics byte in A and M0 bit in carry.
+   // Commit both while installing the boundary line's left PF0.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   // X is the pair counter in the stripe steady loop. Restore the packed-mask
+   // row offset only for the row-transition path.
+   asm ldx.z TEMPLATE_stripe_cache + 9;
+#else
    asm sta GRP0;
    asm lda #1;
    asm adc #0;
    asm sta ENAM0;
+#endif
 
    // The sixteenth line of a row is a P1 half.  Draw the old row one last time,
    // advance X in the gap between the left and right playfield writes, and then
    // prepare the first P0 half of the next row without consuming a scanline.
    asm @altrenderer:;
    // Draw the completed row's boundary line while advancing to the next row.
+#if TEMPLATE_stripes == 1
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+#else
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+#endif
 #if TEMPLATE_lines == 228
    asm cpx #56;
 #else
@@ -708,6 +907,21 @@ require inline void TEMPLATE_draw(void) {
    asm bne.same @terminalrenderer_not_equal;
    asm jmp @terminalrenderer;
    asm @terminalrenderer_not_equal:;
+#if TEMPLATE_stripes == 1
+   // Stage the next row's first Ball bit while installing the old row's right
+   // stripe half. The normalized PF0 byte carries the Ball bit in invisible D1.
+   asm lda.zx TEMPLATE_object_masks + 4,x;
+   asm lsr;
+   asm sta.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta PF0;
+   asm sta ENABL;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#else
    // Keep both old-row right bytes in registers while X advances.  PF2 is
    // written first because it is the first register consumed on the reflected
    // right half.
@@ -725,6 +939,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda #1;
    asm adc #0;
    asm sta ENABL;
+#endif
    asm txa;
    asm adc #4;
    asm tax;
@@ -744,10 +959,33 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_continueP1:;
    // Shift M1 after GRP1. Its carry survives the next row's left playfield
    // writes and is materialized in the old seven-cycle Ball-enable slot.
+#if TEMPLATE_stripes == 1
+   asm lda.zx TEMPLATE_object_masks + 1,x;
+   asm lsr;
+   asm sta.z TEMPLATE_stripe_cache + 7;
+#else
    asm lsr.zx TEMPLATE_object_masks + 1,x;
+#endif
 
-   // First P0 half after a row transition.  Its four playfield writes must land
-   // at the same phases as every steady scanline.
+   // First P0 half after a row transition.
+#if TEMPLATE_stripes == 1
+   // M1's carry also installs this line's left PF0; the right PF0 uses an
+   // absolute store to keep the same one-cycle phase pad as the steady P0 half.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+#else
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
    asm ldy.ax TEMPLATE_playfield+1,x;
@@ -761,6 +999,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta.a PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+#endif
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    // Save the decremented P0 index only after the beam-critical writes.  The
@@ -775,13 +1014,38 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @transition_continueP0:;
    asm sta GRP0;
+#if TEMPLATE_stripes == 1
+   asm lda.zx TEMPLATE_object_masks + 2,x;
+   asm lsr;
+   asm sta.z TEMPLATE_stripe_cache + 8;
+#else
    asm lsr.zx TEMPLATE_object_masks + 2,x;
+#endif
 
    // Fall directly into the first P1 half.  The remaining-pair counter is set
    // after the four display writes so this line reaches the same safe phases as
    // the steady lines without changing the total pair length.
    asm @transition_firstP1:;
    // Commit the M0 carry left by the transition P0 half.
+#if TEMPLATE_stripes == 1
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm lsr.z TEMPLATE_stripe_cache + 6;
+   asm adc #0;
+   asm sta PF0;
+   asm sta ENABL;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#else
    asm lda #1;
    asm adc #0;
    asm sta ENAM0;
@@ -799,6 +1063,7 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm lda #7;
    asm sta.z TEMPLATE_object_masks + 43;
+#endif
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
    asm sty.z TEMPLATE_player1_y;
@@ -811,13 +1076,33 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
    asm @transition_first_doneP1:;
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 7;
+#else
    asm lsr.zx TEMPLATE_object_masks + 1,x;
+#endif
    asm lda #1;
    asm adc #0;
    asm sta ENAM1;
 
    // Fall directly into a P0 half.  Duplicating this one body avoids the
    // three-cycle jump that would otherwise shift every later row.
+#if TEMPLATE_stripes == 1
+   // Left PF0 was pre-staged with M1 above.
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+#else
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
@@ -829,6 +1114,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+#endif
    asm sty.z TEMPLATE_player0_y;
    asm bcc.same @transition_follow_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -836,10 +1122,23 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_follow_activeP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @transition_follow_continueP0:;
+#if TEMPLATE_stripes == 1
+   asm lsr.z TEMPLATE_stripe_cache + 8;
+#else
    asm lsr.zx TEMPLATE_object_masks + 2,x;
+#endif
+#if TEMPLATE_stripes == 1
+   // The first two bits of the new row were shifted directly into the scalar
+   // mask cache above. Preserve the new row offset for the next boundary and
+   // resume with six ordinary P1/P0 pairs. A and carry still hold P0/M0.
+   asm stx.z TEMPLATE_stripe_cache + 9;
+   asm ldx #6;
+   asm jmp @continuerenderer;
+#else
    asm dec.z TEMPLATE_object_masks + 43;
    asm beq.same @continuerenderer_not_equal;
    asm jmp @continuerenderer;
+#endif
    asm @continuerenderer_not_equal:;
    asm sta GRP0;
    asm lda #1;
