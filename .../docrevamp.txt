@@ -1,0 +1,38 @@
+DOCUMENTATION REVAMP SIDE QUEST
+===============================
+
+Why this exists
+---------------
+The compiler README had accumulated accurate feature-by-feature reference material,
+but much of it explained VCSC-only mechanisms before explaining why they exist.
+That makes the document harder to learn from: a reader can reach detailed syntax,
+placement rules, or ABI behavior without first knowing what Atari/6507 constraint
+the feature is solving.
+
+The compiler README pass established the preferred pattern:
+
+* Explain the goal/problem first, then the VCSC mechanism, then the detailed rules.
+* Relate extensions to the recurring target constraints: tiny writable RAM,
+  non-flat/aliased cartridge memory, and tight cycle/ROM-size control.
+* Keep precise reference detail; this is an editorial restructuring, not a
+  simplification of language or ABI contracts.
+* Split sections that are doing several unrelated conceptual jobs under one heading.
+* Review TODOs while editing. Public documentation should not advertise stale or
+  speculative TODOs unless there is a concrete unresolved design question worth
+  preserving.
+* Reflow ordinary prose to a readable width with `fmt`, but only paragraph by
+  paragraph. Do not run it blindly over Markdown lists, tables, code blocks,
+  headings, link definitions, or other structure it can damage.
+
+Future work
+-----------
+Apply the same goal-first readability pass to the other project READMEs and major
+public documentation. In particular, look for places where Atari/VCSC-specific
+features are introduced bottom-up from syntax or implementation details rather than
+from the user-visible problem they solve.
+
+Work one document at a time. Preserve established terminology and technical
+contracts, improve hierarchy and introductory framing, selectively reflow prose,
+and run the relevant documentation/hygiene regressions after each pass. This is a
+side quest; resume it when requested rather than displacing the active renderer
+stripes work.

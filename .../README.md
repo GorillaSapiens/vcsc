@@ -90,6 +90,13 @@ session.
 Short human-only release/tag reminder. Keep it in the developer-record directory;
 it is intentional project state, not generated residue.
 
+### `docrevamp.txt`
+
+Compact side-quest handoff for the documentation readability revamp: explain
+VCSC-specific features goal-first, preserve reference detail, and apply the same
+editorial pattern to other READMEs when that work is resumed.
+
+
 ### `context-history/`
 
 Cold archive. Daily work history lives in local-date files named `YYYY-MM-DD.txt`;

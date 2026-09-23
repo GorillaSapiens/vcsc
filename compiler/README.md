@@ -17,12 +17,35 @@ separate source suffixes, object formats, runtimes, calling conventions, and
 language surfaces. Parent-project features deliberately absent from VCSC are
 listed tersely at the end of this document.
 
+## Design goals
+
+VCSC is not trying to reproduce hosted C on a 6507. Most of its non-C
+facilities exist to make one of three Atari-specific constraints explicit
+enough for the compiler and linker to help with it:
+
+- **RAM is exceptionally scarce.** Static activations, linker overlay, phase
+  lifetimes, compile-time transforms, and carefully bounded helpers trade
+  reentrancy and generality for predictable use of the VCS's 128 bytes of RIOT
+  RAM.
+- **The hardware is not a flat C address space.** Cartridge banks, data-only
+  image chunks, split read/write RAM ports, fixed hardware bindings, directional
+  pointers/refs, and mapper-aware calls describe what the bus and cartridge
+  actually do instead of forcing those shapes into ordinary pointers.
+- **Cycles and bytes are part of correctness.** Page contracts, mandatory
+  source inlining, Direct Register Access, inline assembly, visual binary, BCD,
+  and compile-time builtins/xforms let source express work that must stay small,
+  predictable, or directly related to display-time hardware.
+
+The detailed rules below are easiest to read in that light: a VCSC extension
+should buy a concrete hardware, layout, timing, or memory advantage rather
+than exist merely because another C dialect has it.
+
 ## Language summary
 
 The largest differences from C are:
 
 - Assignment uses `:=`; `=` is not the assignment operator.
-- Direct Register Access uses dedicated `$...` pseudo-objects; lone `_` is obsolete.
+- Direct Register Access uses dedicated `$...` pseudo-objects.
 - Braces are required for `if`, `else`, `while`, `do`, and `for` bodies.
 - Integer and pointer types are declared by the target support source. There
   are no implicit `char`, `short`, `int`, `long`, or `bool` types.
@@ -54,6 +77,12 @@ paths still produces one inclusion.
 
 ### Instantiation
 
+Instantiation exists to make reusable, configurable source components
+practical without adding a runtime abstraction. The same component can be
+compiled more than once with different names and compile-time parameters,
+while each instance still becomes ordinary statically named VCSC code
+and data.
+
 Reusable source components are instantiated explicitly:
 
 ```vcsc
@@ -64,7 +93,6 @@ instantiate "component.c26" as second
 `instantiate` uses the ordinary include search path but processes the selected
 file on every invocation instead of participating in `include`'s MD5-based
 include-once set. There is no semicolon after an `instantiate` directive.
-The former `template` keyword has been removed; source must use `instantiate`.
 
 Within instantiated source, the exact identifier `TEMPLATE` becomes the
 instance identifier and an identifier beginning with `TEMPLATE_` normally
@@ -179,6 +207,12 @@ Skipped branches are lexer-inert except for nested conditional directives.
 
 ## Compiler builtins
 
+Compiler builtins provide target-specific compile-time calculations that
+would otherwise require hand-generated tables or runtime code. They look
+like calls in source, but the compiler evaluates them completely during
+compilation, so they cost no cartridge ROM or frame time beyond the constant
+they produce.
+
 Compiler builtins use ordinary call syntax but are owned by the compiler rather
 than declared by source code. Their names are reserved, their arguments are
 validated and folded at compile time, and they emit no runtime call or lookup
@@ -214,12 +248,13 @@ eight SECAM colors. The public `vcsc` driver accepts the same option and forward
 it to every C26 compilation stage. Omitting the option preserves the compiled-in
 tables exactly. Files must be readable and exactly 792 bytes.
 
-`builtin.c` contains the name/type/arity/argument-contract registry and shared
-dispatch used by both the parser and conditional preprocessor. Domain-specific
-evaluators live in `builtin_rgb.c`, which owns the reference tables and reusable
-nearest-palette matcher.
-
 ## Types
+
+VCSC makes the target support source define the machine's scalar
+representations instead of baking C's traditional fundamental types into
+the compiler. The goal is to make widths, signedness, endianness, pointers,
+and packed BCD explicit properties of the target rather than assumptions
+inherited from a desktop C implementation.
 
 The stock VCS machine definition, `libraries/vcs/vcs.c26`, declares:
 
@@ -307,6 +342,11 @@ ordinary binary integer type that represents the enum's complete value range.
 
 ## Integer literals and expression typing
 
+VCSC keeps literal syntax close to C, but adds forms useful for 8-bit
+graphics and exact-width arithmetic. Visual binary makes bit patterns
+readable as pictures, while literal type annotations let source pin the
+intended machine width when context should not decide it.
+
 Integer literals may be decimal, hexadecimal (`0x`), octal (leading `0`), or
 binary (`0b`). Underscores may separate digits.
 
@@ -361,6 +401,12 @@ pointers, or packed-BCD values.
 
 ### Packed BCD
 
+Packed BCD is useful on the VCS because scores, timers, and other decimal
+displays are often cheaper to keep in display-ready decimal form than to
+repeatedly convert from binary. VCSC therefore supports a deliberately
+bounded set of BCD operations directly, favoring small predictable code
+over a general-purpose decimal arithmetic library.
+
 Packed-BCD values store two decimal digits per byte, least-significant pair at
 the lowest address:
 
@@ -377,8 +423,11 @@ BCD `$42` in a `bcd8_t` destination.
 
 Supported BCD operations are assignment, same-representation widening or
 truncation, unary `+`, `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`,
-comparisons, truth tests, logical operators, and `switch` comparison. Several constant
-multiply/divide/remainder forms also lower inline:
+comparisons, truth tests, logical operators, and `switch` comparison.
+
+Unary '-' is not supported; all BCD values are unsigned.
+
+Several constant multiply/divide/remainder forms also lower inline:
 
 - multiplication, division, and remainder by a positive constant expression
   exactly equal to `10^n`, including `1` as `10^0`;
@@ -426,6 +475,12 @@ bitfields, is rejected.
 
 ## Declarations and storage
 
+The VCS has very little writable memory, so VCSC treats storage layout
+as part of compilation rather than relying on a conventional software
+stack. Objects receive static linker identities, and the linker reuses
+bytes when whole-program lifetime analysis proves that two activations
+cannot be live at the same time.
+
 ### Global and local objects
 
 Globals, named locals, parameters, return objects, and compiler temporaries are
@@ -454,6 +509,10 @@ from the translation unit's startup initializer exactly once. Split-address
 reads use the read alias and every initialization or later write uses the write
 alias.
 
+`noinit` is for state that must survive VCSC startup untouched, such as
+a reset probe, cartridge-RAM cookie, or value established by mapper entry
+code before the normal runtime begins.
+
 A file-scope mutable object may use `noinit` to reserve ordinary writable
 storage without adding it to startup BSS clearing:
 
@@ -479,10 +538,18 @@ distinct; sibling functions may occupy the same physical addresses.
 
 ### Access-qualified pointers
 
+Some VCS and cartridge hardware is meaningful in only one bus direction:
+a location may be safe to read but not write, or safe to write but not
+read. Access-qualified pointers let source express that hardware fact
+while keeping an ordinary 16-bit pointer representation; the restriction
+is checked by the compiler rather than carried as runtime metadata.
+
 For a non-pointer object, `const` requires an initializer and prohibits later
 writes. In `const uint8_t *p`, the pointed-to bytes are readable but cannot be
 written through `p`; the pointer object itself remains mutable. C's
 `uint8_t * const p` spelling is not supported.
+
+TODO: should we support 'uint8_t * const p' ???
 
 `writeonly` is the write-side counterpart for a one-address pointer:
 
@@ -506,6 +573,12 @@ access qualification is part of function and object ABI fingerprints, including
 aggregate members and separately compiled declarations.
 
 ### Cartridge-output topology
+
+Bank-switched cartridges have two different geometries: the physical bytes
+written to the cartridge image and the CPU addresses visible through
+the 6507's cartridge window. C26 topology declarations keep those two
+geometries separate so the linker can build the physical image, generate
+mapper transitions, and still reason about ordinary CPU addresses correctly.
 
 C26 may describe physical output chunks independently of allocatable `mem`
 regions. The output-wide declaration gives the fill byte and, for a
@@ -549,8 +622,8 @@ selector-controlled topologies require exactly one startup bank. Mixing direct
 and selector-controlled CPU banks is rejected until a separate window model is
 defined.
 
-A physical image chunk that is not CPU-addressable instead uses bare
-`$data_only`:
+A physical image chunk that is not CPU-addressable (e.g. DPC 2K display
+ROM and 255-byte Poly8 image tail) instead uses bare `$data_only`:
 
 ```vcsc
 bank bank2 { $image_size:0x0800 $file_index:2 $data_only };
@@ -561,8 +634,7 @@ A `$data_only` bank has no link start, CPU start, mapped size, selector, or
 startup state. Its matching `$data_bank:NAME` read-only `mem` has no `$start`;
 objects placed there use bank-local file offsets and cannot be referenced as
 6507 addresses. The linker rejects executable layouts and ordinary relocations
-to such objects. This is used by DPC for its 2K display ROM and 255-byte Poly8
-image tail.
+to such objects.
 
 `bank` and `mem` have separate namespaces, so both declarations may be named
 `bank1`. Source placement modifiers always refer to `mem bank1`; a `bank bank1`
@@ -583,6 +655,12 @@ routing. The linker map reports the resulting `C26 CARTRIDGE TOPOLOGY`.
 
 ### Memory regions
 
+`mem` declarations describe storage that the compiler and linker may actually
+allocate. Their purpose is to give source-level names to real hardware
+windows -- RIOT RAM, ROM banks, cartridge RAM, split read/write ports,
+and similar regions -- so placement, address-size selection, and bus-safety
+checks come from the hardware map instead of from naming conventions.
+
 A source file may declare named storage regions:
 
 ```vcsc
@@ -591,20 +669,29 @@ mem fast { $start:0x0080 $size:0x0010 $rw };
 fast uint16_t counter;
 ```
 
-An ordinary CPU-addressable region must provide `$start`, either `$size` or
-`$end`, and exactly one of `$rw` or `$ro`. A read-only region may additionally
-use `$bank:NAME` to name its physical C26 topology-bank owner. That qualifier is
-required when multiple physical banks intentionally share the same 16-bit link
-range; it keeps physical output identity separate from the CPU address encoded
-in instructions and pointers. A file-domain data-only region instead provides
-`$size`, `$ro`, and `$data_bank:NAME`; it deliberately has no `$start` and may
-contain only data destined for that topology bank. Split-address writable storage instead provides
-`$read_start`, `$write_start`, size/end, and `$rw`. An optional `$read_hazard`
-flag marks the write alias (or `$start` for a single-address region) as a range
-where a CPU *read bus cycle* has side effects; the compiler preserves that fact
-for final-link NMOS 6502 dummy/ghost-read checking. A completely empty `mem`
-declaration remains available as a policy-only name and creates no allocator
-region.
+#### Region shapes and allocator ownership
+
+A region declaration separates bytes the allocator owns from holes or
+hardware that merely occupy nearby addresses. Its shape also tells the
+toolchain whether one CPU address serves both directions, separate aliases
+are required, or the bytes exist only in the cartridge file and are never
+CPU-addressable.
+
+An ordinary CPU-addressable region must provide `$start`, either
+`$size` or `$end`, and exactly one of `$rw` or `$ro`. A read-only
+region may additionally use `$bank:NAME` to name its physical C26
+topology-bank owner. That qualifier is required when multiple physical
+banks intentionally share the same 16-bit link range; it keeps physical
+output identity separate from the CPU address encoded in instructions
+and pointers. A file-domain data-only region instead provides `$size`,
+`$ro`, and `$data_bank:NAME`; it deliberately has no `$start` and may
+contain only data destined for that topology bank. Split-address writable
+storage instead provides `$read_start`, `$write_start`, size/end, and
+`$rw`. An optional `$read_hazard` flag marks the write alias (or `$start`
+for a single-address region) as a range where a CPU *read bus cycle*
+has side effects; the compiler preserves that fact for final-link NMOS
+6502 dummy/ghost-read checking. A completely empty `mem` declaration
+remains available as a policy-only name and creates no allocator region.
 
 Complete declarations are authoritative linker metadata even when no object in
 the declaring translation unit currently uses the region. Identical declarations
@@ -619,19 +706,28 @@ trampoline corridors, bridges, vectors, selector bytes, and physical fill holes.
 A region is treated as zero page when its declared address range fits entirely
 within `$0000..$00ff`; the region's name has no special meaning.
 
-Unqualified DATA and BSS objects use the highest-priority writable region. When
-that choice is unique and its complete range lies in page zero, the compiler
-emits `.segmentaddrsize "DATA", zp` and `.segmentaddrsize "BSS", zp` into the
-assembler source. That explicit contract lets relocatable assembly retain the
-short addressing modes required by the Atari VCS without guessing from a
-symbol's temporary section offset. A target whose default writable region begins
-at `$0200`, or whose highest-priority choice is ambiguous, emits no contract and
-keeps absolute-family addressing. Named writable regions carry their own address-size contract independently of
-the unqualified DATA/BSS default. A named `$rw` region wholly inside page zero
-emits `zp`; a named `$rw` region outside page zero emits `absolute`. Split-address
-writable regions also emit `absolute`. This prevents an explicit cartridge-RAM
-object such as OMNI `cartram` at `$1000-$1FFF` from inheriting RIOT-RAM zero-page
-opcodes merely because ordinary variables default to `ram`.
+#### Address-size contracts
+
+Zero-page addressing is smaller and often faster on the 6502, but choosing it
+from a temporary object offset is unsafe in relocatable code. VCSC therefore
+attaches an address-size contract to each allocated region and lets the
+assembler choose the shortest encoding that final placement proves legal.
+
+Unqualified DATA and BSS objects use the highest-priority writable
+region. When that choice is unique and its complete range lies
+in page zero, the compiler emits `.segmentaddrsize "DATA", zp` and
+`.segmentaddrsize "BSS", zp` into the assembler source. That explicit
+contract lets relocatable assembly retain the short addressing modes
+required by the Atari VCS without guessing from a symbol's temporary
+section offset. A target whose default writable region begins at `$0200`,
+or whose highest-priority choice is ambiguous, emits no contract and
+keeps absolute-family addressing. Named writable regions carry their
+own address-size contract independently of the unqualified DATA/BSS
+default. A named `$rw` region wholly inside page zero emits `zp`; a named
+`$rw` region outside page zero emits `absolute`. Split-address writable
+regions also emit `absolute`. This prevents an explicit cartridge-RAM
+object such as OMNI `cartram` at `$1000-$1FFF` from inheriting RIOT-RAM
+zero-page opcodes merely because ordinary variables default to `ram`.
 
 Compiler-lowered ordinary 6502 memory operations deliberately do **not** carry
 `.z`, `.a`, `.zx`, `.ax`, `.zy`, `.ay`, `.ix`, or `.iy` addressing-mode
@@ -650,6 +746,13 @@ A file-scope object may combine one named read-only `mem` region with the hard
 `bank0 page const uint8_t glyph[8]` retain both explicit bank ownership and a
 true 256-byte containment requirement.  This is used for beam-critical banked
 renderer tables; it is not merely preferred alignment.
+
+#### Function and ROM placement
+
+Named read-only regions are also a way to control where code and immutable
+data physically exist in a banked cartridge. Source can pin one copy,
+request identical copies in several banks, or leave placement automatic
+and let the linker choose among compatible ROM regions.
 
 Named regions also describe non-inline function code and return-object
 placement. The compiler classifies each modifier from the region's declared
@@ -695,6 +798,13 @@ expansions have no independently placeable linker layout. For numbered bank
 regions, `main` may be unmarked or use `bank0`; explicitly placing it in `bank1`
 or another nonzero numbered bank is rejected.
 
+#### Cross-bank calls
+
+An ordinary `JSR` can reach only code that is currently mapped into the 6507
+address space. Selector-controlled cartridges therefore need an explicit
+cross-bank call contract so the linker can switch to the destination bank,
+call it, and return through mapper-specific machinery without pretending
+the banks are one flat address space.
 
 Selector-controlled profiles that support automatic cross-bank calls declare
 `$bankcall`. The public
@@ -707,6 +817,13 @@ rather than inferred from the return PC.
 
 The compiler/assembler/linker emit the descriptor field. F8/F6/F4(+SC), FA,
 DPC, FA2, JANE, 0840, UA/UASW, 0FA0, and WD consume it end-to-end.
+
+#### Replicated ROM objects
+
+Small immutable tables are sometimes cheaper to duplicate than to bank-switch
+around every access. VCSC can place one constant in a specific ROM region
+or replicate byte-identical copies across several banks, allowing each
+bank to resolve references to its local copy.
 
 A constant object may use one named read-only region:
 
@@ -730,13 +847,14 @@ and need not have the same low-twelve-bit offset. Mutable objects, split-address
 regions, duplicate region names, and non-`$ro` regions are rejected for
 multi-region object placement because no coherence protocol exists.
 
-Every `$ro` definition must be `const` and its initializer must be representable
-entirely at link time. It cannot require a startup write or silently become
-DATA/BSS in a read-only cartridge region. Unmarked private CODE and RODATA layouts remain eligible for deterministic
-automatic placement across every compatible read-only region in a multi-region
-linker topology. Explicit named-region placement remains a hard pin. Automatic
-placement does not extend to writable DATA/BSS/ZEROPAGE; those keep their
-configured or explicitly named RAM regions.
+Every `$ro` definition must be `const` and its initializer must be
+representable entirely at link time. It cannot require a startup write or
+silently become DATA/BSS in a read-only cartridge region. Unmarked private
+CODE and RODATA layouts remain eligible for deterministic automatic
+placement across every compatible read-only region in a multi-region
+linker topology. Explicit named-region placement remains a hard
+pin. Automatic placement does not extend to writable DATA/BSS/ZEROPAGE;
+those keep their configured or explicitly named RAM regions.
 
 For a Superchip bank, the source region describes only allocatable ROM. Exclude
 the RAM-port prefix, for example `$start:0xD100 $size:0x0E00`; `$size:0x1000`
@@ -744,6 +862,11 @@ would run through `$E0FF` rather than stopping at the end of the 4K bank mirror.
 The eventual banked cartridge writer still emits the complete physical bank.
 
 ### Page-aware data objects and functions
+
+On the 6502, crossing a 256-byte page can change addressing behavior and
+cycle timing. The `page` and `align()` contracts let source state those
+layout requirements directly, so the linker can satisfy or reject them
+instead of forcing programs to manufacture padding by hand.
 
 Every file-scope data-object definition is emitted in a private compiler-owned
 segment. This preserves the size and boundary of even a one- or two-byte scalar
@@ -775,15 +898,22 @@ absolute external bindings. The compiler emits the contract through the
 assembler/linker `.segmentalign` metadata rather than inserting literal padding
 into application data.
 
-A non-inline function definition is likewise emitted as its own `CODE` layout,
-so the linker knows its exact boundary and size. Ordinary functions receive the
-same soft containment preference. `page` on a function definition upgrades that
-function to hard containment; declarations without a body reject `page` because
-the final size is not yet known. Locals, extern data declarations, absolute external bindings,
-and named `mem` data regions do not yet accept the hard `page` modifier. Ordinary
-objects in named `mem` regions still receive private soft-placement segments.
+A non-inline function definition is likewise emitted as its own `CODE`
+layout, so the linker knows its exact boundary and size. Ordinary functions
+receive the same soft containment preference. `page` on a function definition
+upgrades that function to hard containment; declarations without a body
+reject `page` because the final size is not yet known. Locals, extern data
+declarations, absolute external bindings, and named `mem` data regions do
+not yet accept the hard `page` modifier. Ordinary objects in named `mem`
+regions still receive private soft-placement segments.
 
 ### Split-address allocated memory
+
+Several cartridge RAM designs expose the same physical byte at one CPU
+address for reads and another for writes. Split-address regions let VCSC
+model that as one allocated object with two bus aliases, so ordinary source
+can use the storage without pretending that a single conventional pointer
+can represent both directions.
 
 A named read/write region may expose separate CPU aliases for the same physical
 storage:
@@ -800,16 +930,17 @@ cartram uint8_t foo;
 cartram uint8_t buffer[32];
 ```
 
-The order matches explicit split refs: read address first, write address second.
-Loads from these objects use the read alias. Stores, runtime initializer writes,
-and startup BSS clearing use the write alias. The compiler preserves both
-symbolic aliases in relocations rather than replacing the object with a fixed
-integer address; the linker therefore allocates each object once and can report
-both final addresses. Neither the region name nor the relative order, spacing, alignment, or size
+The order matches explicit split refs: read address first, write address
+second.  Loads from these objects use the read alias. Stores, runtime
+initializer writes, and startup BSS clearing use the write alias. The
+compiler preserves both symbolic aliases in relocations rather than
+replacing the object with a fixed integer address; the linker therefore
+allocates each object once and can report both final addresses. Neither
+the region name nor the relative order, spacing, alignment, or size
 of the two windows is significant; those facts come entirely from the
-source-level `mem` declaration. Mapper RAM whose write port is destructive when
-read should add `$read_hazard`; the stock Superchip, FA/RAM Plus, and CommaVid
-profiles do so.
+source-level `mem` declaration. Mapper RAM whose write port is destructive
+when read should add `$read_hazard`; the stock Superchip, FA/RAM Plus,
+and CommaVid profiles do so.
 
 Split-address allocation supports persistent file-scope objects and automatic
 local objects, including arrays and inline-expansion-private locals. Automatic
@@ -885,6 +1016,12 @@ explicit cast.
 
 ## References
 
+`ref` passes an existing object by address instead of copying its
+value. Directional `ref const` and `ref writeonly` forms extend that
+idea to hardware and split-address storage: a callee receives exactly the
+address needed for the permitted direction, still using one ordinary 16-bit
+parameter rather than a fat pointer.
+
 A `ref` parameter is pass-by-reference. Its access qualifier selects both the
 address passed by the caller and the operations permitted in the callee:
 
@@ -927,6 +1064,11 @@ it is not an object-storage modifier.
 
 ## Absolute external bindings
 
+Absolute bindings are for storage that already exists at a hardware-defined
+address and therefore must not be allocated by the linker. They are the
+source-level bridge to fixed registers, ports, or other external bytes,
+including hardware whose read and write addresses differ.
+
 An address annotation binds a source name directly to pre-existing storage:
 
 ```vcsc
@@ -961,6 +1103,12 @@ that lies outside those managed windows.
 
 ## Functions and calls
 
+VCSC calls are designed around the 2600's tiny RAM rather than around a
+C-style software call stack. Call targets are statically known, parameters
+and return objects have linker-visible storage, and the linker overlays
+function activations when the acyclic call graph proves their lifetimes
+cannot overlap.
+
 ### Declarations and linkage
 
 Each function name has exactly one signature. Compatible declarations followed
@@ -984,6 +1132,11 @@ overlay from clobbering them without reserving space for the complete argument
 list.
 
 ### All parameters are static
+
+Parameters live in callee-owned static storage so a call does not need
+to build a language stack frame. This trades reentrancy for predictable
+code and lets the linker place or overlay parameter bytes using the same
+memory-region rules as the rest of a function activation.
 
 Every non-void parameter of every ordinary VCSC function is a callee-owned
 symbol. Before `JSR`, the caller evaluates and converts each argument and writes
@@ -1025,6 +1178,11 @@ memory-region modifier is rejected as redundant and ambiguous.
 
 ### Static activation and recursion
 
+Because every ordinary function has one fixed activation, the linker
+can reuse scarce RAM between callers, callees, and mutually exclusive
+siblings. The corresponding rule is fundamental: a function may never need
+two simultaneous activations, so recursion is not part of the language model.
+
 Every ordinary function body owns one logical activation consisting of its
 parameters, named locals, return object, and private compiler scratch. The
 compiler emits those pieces in function-owned activation segments. `vcsc-ld`
@@ -1046,6 +1204,12 @@ This restriction applies even to parameterless functions and functions whose
 bodies happen not to declare locals.
 
 ### VCS frame-phase lifetime metadata
+
+Function-call lifetime is not the only useful lifetime on a VCS. Renderer
+workspaces can be needed only during VSYNC, VBLANK, visible drawing, or
+overscan, so VCSC can describe those phase lifetimes and let the linker
+overlay explicitly disposable workspace whose frame intervals provably do
+not overlap.
 
 For the fixed NTSC scheduler and reusable instantiated-component lifecycle, the
 compiler also records when writable storage is live within a frame. The internal
@@ -1076,6 +1240,12 @@ physical bytes only for explicitly eligible, uninitialized writable objects with
 provably disjoint conservative intervals.
 
 ### Returns and `$$`
+
+VCSC does not dedicate A, X, or Y to language return values. A
+value-returning function instead owns static return storage, which
+keeps the ABI compatible with split-address memory and the same linker
+placement/overlay machinery used for parameters and locals. `$$` is the
+direct source name for that hidden object.
 
 A value-returning function owns an exact-sized hidden return object. It uses
 zero page by default. One writable `mem` modifier on the function selects that
@@ -1126,18 +1296,23 @@ binding it to a `ref` parameter, taking its address, or exposing it to inline
 assembly forces the normal separate objects and copy. The public
 `function$__return` symbol remains the allocation's ABI name.
 
-An ordinary callee ends with `RTS`; it does not place a language return value in
-A, X, or Y. `main` is the sole exception: it must be exactly `void main(void)`,
-stock startup tail-jumps to it, and its return/fall-through epilogue is
-`JMP ($FFFC)` so an erroneous return restarts through the RESET vector without
-requiring a fictitious hardware-stack return address. After an ordinary call, a
-caller that uses the value copies it from the return symbol's read address. Declarations and definitions must agree independently on
-the result region and code-region set. ABI metadata records an ordinary result
-region's identity/address class or a split region's identity and both window
-starts. Any writable modifier on a `void` function is rejected because there is
-no return object to place.
+An ordinary callee ends with `RTS`; it does not place a language return
+value in A, X, or Y. `main` is the sole exception: it must be exactly `void
+main(void)`, stock startup tail-jumps to it, and its return/fall-through
+epilogue is `JMP ($FFFC)` so an erroneous return restarts through the RESET
+vector without requiring a fictitious hardware-stack return address. After
+an ordinary call, a caller that uses the value copies it from the return
+symbol's read address. Declarations and definitions must agree independently
+on the result region and code-region set. ABI metadata records an ordinary
+result region's identity/address class or a split region's identity and
+both window starts. Any writable modifier on a `void` function is rejected
+because there is no return object to place.
 
 ### Inline functions
+
+Source `inline` is for code that must expand at the call site -- for example
+when call/return overhead, placement, or cycle structure matters. It is
+a semantic request for expansion, not a profitability hint to the optimizer.
 
 `inline` requires source expansion at every call site:
 
@@ -1162,6 +1337,12 @@ RAM as well as ROM, so inline helpers should remain small.
 
 ### Optimizer-selected specialization and inlining
 
+VCSC also has a separate optimization layer for cases where source does
+not require inlining. It may specialize a single known call site or,
+when explicitly enabled, measure a speculative final link and keep an
+internal-function expansion only when the resulting ROM/stack/RAM trade
+is actually acceptable.
+
 Ordinary `static` functions are different from source `inline`. Single-callsite
 ref/readonly-parameter specialization is part of normal compiler lowering. With
 the driver's explicit `-finline-profit` option, a reachable translation-unit-
@@ -1179,16 +1360,17 @@ observable storage identity, aliasing/mutation hazards, unsupported assembly
 escapes, exported ABI identity, lifecycle/contracts, or timing/placement geometry
 retain the ordinary ABI.
 
-Ordinary-function inlining is selected from real speculative final links rather
-than an instruction-count estimate. The driver accepts a legal expansion when
-final ROM shrinks, or when ROM is unchanged and the required hardware-stack
-reserve shrinks, provided activation/object RAM does not regress. `.same`/`.cross`
-branches, hard page containment, independently placed function regions, contract
-identity, and supported assembly-visible symbol families conservatively block
-movement when preservation is not proven. The measured inliner is opt-in because speculative final links can materially
-increase build time; use `vcsc -finline-profit -v` to run it and report measured
-decisions. Compile-only `-c` and assembly-only `-S` do not run final-link
-profitability trials.
+Ordinary-function inlining is selected from real speculative final links
+rather than an instruction-count estimate. The driver accepts a legal
+expansion when final ROM shrinks, or when ROM is unchanged and the required
+hardware-stack reserve shrinks, provided activation/object RAM does not
+regress. `.same`/`.cross` branches, hard page containment, independently
+placed function regions, contract identity, and supported assembly-visible
+symbol families conservatively block movement when preservation is not
+proven. The measured inliner is opt-in because speculative final links can
+materially increase build time; use `vcsc -finline-profit -v` to run it
+and report measured decisions. Compile-only `-c` and assembly-only `-S`
+do not run final-link profitability trials.
 
 ## Expressions and operators
 
@@ -1222,6 +1404,12 @@ scratch and no Y setup. Wider or otherwise general simple chains use one shared
 value slot for the whole chain rather than one nested slot per assignment.
 
 ### Direct Register Access
+
+Cycle-counted VCS code sometimes needs an exact CPU instruction rather
+than a compiler-managed temporary. Direct Register Access is that narrow
+escape hatch: it lets source name selected 6507 registers and flags only
+where VCSC can map the operation to the corresponding native instruction
+without silently saving, restoring, or materializing machine state.
 
 Direct Register Access (DRA) exposes selected physical 6507 CPU state at the
 exact source point through dedicated `$...` pseudo-objects. They are not C26
@@ -1324,6 +1512,11 @@ A string literal is a NUL-terminated read-only array of `int8_t`. It may
 initialize an `int8_t` array or decay to `int8_t *`; writing through such a
 pointer is invalid even though const-correctness is not yet fully enforced.
 
+`xform` exists for machines whose on-screen character codes are not the
+source character set. It translates literal text while compiling, so a
+program can write readable source strings yet store the exact display
+bytes without a runtime conversion table or loop.
+
 Named `xform` tables translate character and string literals at compile time:
 
 ```vcsc
@@ -1354,6 +1547,12 @@ A reversed range is diagnosed and compiled with its bounds exchanged.
 
 ## Inline assembly
 
+Inline assembly is the explicit escape hatch for instructions, hardware
+sequences, and cycle-sensitive code that should remain under programmer
+control. VCSC performs only the source-aware name/address rewrites it can
+prove safe; register effects, flags, stack use, and timing remain visible
+responsibilities of the assembly itself.
+
 Within a function, `asm` emits one assembler source line at that point:
 
 ```vcsc
@@ -1377,6 +1576,12 @@ of a split ref are compile-time errors. Register, flag, decimal-mode, stack, and
 cycle timing remain the programmer's responsibility.
 
 ## Generated-code and runtime model
+
+Generated code is biased toward predictable 6502 cost: small scalar
+operations are emitted inline, larger operations use narrowly selected
+helpers, and temporary storage belongs to statically analyzable activations
+rather than a hidden software stack. The details below describe how VCSC
+keeps that model small enough for VCS ROM and RAM budgets.
 
 The runtime workspace is eight zero-page bytes: one byte each for `arg0` and
 `arg1`, plus two bytes each for `ptr0` through `ptr2`. Each cell is a separate
@@ -1424,33 +1629,38 @@ required read/write side effects even for apparent no-op updates. The compiler
 does not assume A or flags survive across source statements; a comparison after
 an update may reload the byte, but still avoids generic scratch.
 
-The same direct-byte path also recognizes compact ROM-table and pointer idioms used
-by ordinary application code. A file-scope pointer initialized from an array is emitted
-as relocatable low/high data instead of BSS plus a run-time initializer. For statement
-code, an adjacent `p := array; p += byte_offset` pair can be fused into one relocatable
-pointer calculation when the byte offset and pointee contract prove the transformation.
-One-byte array and pointer subscripts can stay in A/Y; safe promoted unsigned-byte
-constant masks and shifts remain byte-sized; constant byte `<<=`/`>>=` use direct
-ASL/LSR sequences; and direct byte-array stores avoid constructing a general run-time
-lvalue. A non-coalesced automatic unsigned-byte scalar initializer also stores directly
-from A when the initializer has one of these exact direct lowerings, avoiding expression
-scratch entirely. Packed-BCD, return-coalesced, pointer-backed, and otherwise unproven
-initializers retain the general typed/scratch path. A low-byte-zero array base is used only
-when the declaration actually proves it: `align(256)` (or a stronger alignment), or
-the special case of an exactly 256-byte `page` object whose containment necessarily
-forces a page boundary. `page` by itself does **not** imply a zero low byte for smaller
-objects. With a proven page base, a page-selection chain can install only the selected
-high byte, a proven bounded low-byte offset can omit impossible carry propagation, and
-identical selector suffixes are shared. When a later page-pointer setup is proven to use exactly twice the earlier
-masked/shifted byte offsets and the intervening counted loop cannot mutate the pointer
-or source values, the compiler reuses the existing low byte with `ASL` instead of
-reconstructing the offset. The proof is byte-exact modulo 256 and does not allocate a
-hidden temporary. These shortcuts are deliberately narrow: absolute hardware bindings, most signed or
-packed-BCD forms, wider objects, calls/assembly across a reuse lifetime, and expressions
-that need general aliasing semantics still use the normal lowering machinery. The few
-additional direct application-code shapes recognized below are explicit exceptions.
-Ref-array formals are deliberately excluded from direct absolute-array stores: their
-declarator retains array shape, but their runtime representation is pointer-backed.
+The same direct-byte path also recognizes compact ROM-table and pointer
+idioms used by ordinary application code. A file-scope pointer initialized
+from an array is emitted as relocatable low/high data instead of BSS plus
+a run-time initializer. For statement code, an adjacent `p := array; p += byte_offset`
+pair can be fused into one relocatable pointer calculation when
+the byte offset and pointee contract prove the transformation. One-byte
+array and pointer subscripts can stay in A/Y; safe promoted unsigned-byte
+constant masks and shifts remain byte-sized; constant byte `<<=`/`>>=` use
+direct ASL/LSR sequences; and direct byte-array stores avoid constructing
+a general run-time lvalue. A non-coalesced automatic unsigned-byte scalar
+initializer also stores directly from A when the initializer has one of these
+exact direct lowerings, avoiding expression scratch entirely. Packed-BCD,
+return-coalesced, pointer-backed, and otherwise unproven initializers retain
+the general typed/scratch path. A low-byte-zero array base is used only when
+the declaration actually proves it: `align(256)` (or a stronger alignment),
+or the special case of an exactly 256-byte `page` object whose containment
+necessarily forces a page boundary. `page` by itself does **not** imply a
+zero low byte for smaller objects. With a proven page base, a page-selection
+chain can install only the selected high byte, a proven bounded low-byte
+offset can omit impossible carry propagation, and identical selector suffixes
+are shared. When a later page-pointer setup is proven to use exactly twice
+the earlier masked/shifted byte offsets and the intervening counted loop
+cannot mutate the pointer or source values, the compiler reuses the existing
+low byte with `ASL` instead of reconstructing the offset. The proof is
+byte-exact modulo 256 and does not allocate a hidden temporary. These
+shortcuts are deliberately narrow: absolute hardware bindings, most
+signed or packed-BCD forms, wider objects, calls/assembly across a reuse
+lifetime, and expressions that need general aliasing semantics still use
+the normal lowering machinery. The few additional direct application-code
+shapes recognized below are explicit exceptions. Ref-array formals are
+deliberately excluded from direct absolute-array stores: their declarator
+retains array shape, but their runtime representation is pointer-backed.
 
 The direct application-code path also covers three narrowly proven forms used by the
 public VCS examples. A runtime-indexed direct `uint8_t` array element may participate
