@@ -68,3 +68,23 @@ PF/object phases. The kernel already advances X four times per eight-pair mask
 row; generated advance slots can make X wrap on an even stripe boundary while
 compensated operands keep BL/M1/M0 on the same row. Removed the temporary
 countdown/index RAM; the generated pair-height table stays authoritative.
+2026-09-25 11:58:00 PDT, prove intra-row stripe boundary
+S13c2b moves the two-stripe proof boundary from 96/96 to 98/94 visible lines,
+so the A-to-B handoff occurs two lines inside a packed-mask row. X still wraps
+at the coarse 96-line row boundary; A owns line 96 and one final two-line pair.
+The VBLANK-precomputed GRP1 byte is loaded with forced absolute addressing,
+adding exactly one cycle so its commit wraps to cycle 0 of line 98. COLUPF and
+COLUBK then switch at cycles 6 and 12, both in hblank.
+
+The boundary line has its own +2-cycle PF phase family and later B lines settle
+to a stable +5-cycle family. PF values/colors switch exactly at line 98, the
+frame remains 262 lines, and P0/P1/M0/M1/Ball object commits remain hblank-safe.
+Focused one-stripe, two-stripe, branch, handoff, hygiene, and history tests pass.
+
+For S13c2c, generalize heights as coarse eight-pair rows plus a 0..7-pair tail.
+X can remain the coarse-row counter; inactive service can prepare the next X
+seed and an indirect-jump vector selecting one of eight fixed tail handlers.
+This avoids a per-pair countdown and also fits the later caller-provided height
+table design. The 98/94 split is a certification checkpoint, not final default
+geometry.
+

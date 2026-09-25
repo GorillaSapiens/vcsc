@@ -32,7 +32,7 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 #elif TEMPLATE_stripes == 2
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
-const uint8_t TEMPLATE_stripe_pair_heights[2] := { 48,48 };
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 49,47 };
 #endif
 
 // Common selector ABI and immutable positioning data. Schedule branches below
@@ -597,7 +597,7 @@ require inline void TEMPLATE_vblank(void) {
    // Precompute the P1 byte needed exactly at the 96-line boundary.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;
-   asm sbc #48;
+   asm sbc #49;
    asm tay;
    asm cpy.z TEMPLATE_object_masks + 15;
    asm bcs.same @TEMPLATE_stripe2_boundary_grp1_zero;
@@ -1779,13 +1779,14 @@ require inline void TEMPLATE_draw(void) {
    asm beq.same @stripe2_transition_entry;
    asm jmp @stripe_transition;
 
-   // At the 96-line midpoint X wraps naturally. Taken BEQ + LDX costs the
-   // same seven cycles as the ordinary not-taken BEQ + JMP row backedge.
+   // X-wrap identifies the coarse mask-row containing the generated
+   // boundary.  The first stripe owns one additional two-line pair in that
+   // row, so the exact A->B handoff occurs at visible line 98 rather than at
+   // the packed-mask row edge.  No per-pair countdown is charged.
    asm @stripe2_transition_entry:;
    asm ldx #$e8;
-   // Sixteenth line of each packed mask row. Finish the old row, stage the
-   // first Ball bit of the next row, then advance X once. The playfield itself
-   // does not change for stripes=1.
+
+   // Finish line 95 with stripe A using the ordinary row-transition P1 path.
    asm sta GRP0;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #0;
@@ -1804,17 +1805,104 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-   asm lda.z TEMPLATE_stripe_boundary_grp1;
-   asm dec.z TEMPLATE_player1_y;
-   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm ldy.z TEMPLATE_player1_y;
+   asm dey;
+   asm sty.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_delayed_transition_activeP1;
+   asm ldy #0;
+   asm sty.a GRP1;
+   asm jmp @stripe2_delayed_transition_continueP1;
+   asm @stripe2_delayed_transition_activeP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
+   asm @stripe2_delayed_transition_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
 
-   // Stripe B colors are already latched in zero page.
+   // Line 96 remains stripe A: first P0 half of the new packed-mask row.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcc.same @stripe2_delayed_transition_activeP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_delayed_transition_continueP0;
+   asm @stripe2_delayed_transition_activeP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_delayed_transition_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+
+   // Line 97 is the P1 half of the final A pair.  Its GRP1 byte was
+   // precomputed in VBLANK, buying the cycles needed to switch both colors in
+   // hblank before line 98 begins with stripe B.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm lda.a TEMPLATE_stripe_boundary_grp1;
+   asm sta GRP1;
    asm lda.z TEMPLATE_stripe_next_color;
    asm sta COLUPF;
    asm lda.z TEMPLATE_stripe_next_color + 1;
    asm sta COLUBK;
-   asm jmp @stripe2_firstP0;
+
+   // Line 98 is the P0 half of that same pair, now sourced from stripe B.
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_delayed_pair1_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_delayed_pair1_continueP0;
+   asm @stripe2_delayed_pair1_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_delayed_pair1_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm jmp @stripe2_pair2;
 
    asm @stripe2_transition:;
    // Sixteenth line of each packed mask row. Finish the old row, stage the

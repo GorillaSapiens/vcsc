@@ -226,10 +226,10 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13c2b. `stripes=2` keeps the generated `{48,48}`
-pair-height table, but the per-pair RAM countdown/index prototype was removed:
-its cost perturbs maintained PF/object phases. S13c2a instead uses generated
-X-wrap scheduling: X already advances four times per eight-pair mask row, and
-the four advance slots plus compensated operands can be chosen so wrap marks an
-even stripe boundary at no per-pair tax. Add an intra-row two-stripe boundary
-fixture next, then generalize that schedule before inactive-buffer refill work.
+Continue `.../stripes.txt` S13c2c. The two-stripe prototype now proves an
+intra-packed-row 98/94-line boundary. Generalize it as coarse eight-pair rows
+plus a 0..7-pair tail: X remains the free coarse-row counter, while inactive
+service prepares the next X seed and an indirect-jump vector selecting one of
+eight fixed tail handlers. Do not restore the discarded per-pair RAM countdown.
+After the generic scheduler is proven, restore default equal distribution and
+feed it through the same pair-height path before inactive-buffer refill work.

@@ -68,7 +68,7 @@ my @checks=(
    ['timing','vcs_frame_timing.cpp',[50,'--no-audio','--raw-lines',264],
       "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"],
    ['phase','vcs_playfield_phase.cpp',[12,12,40,'all-five-stripes2-192'],
-      "vcs_playfield_stripes2_192 ok: exact 96/96 data+color boundary with stable six-write phases\n"],
+      "vcs_playfield_stripes2_192 ok: exact 98/94 data+color boundary with stable six-write phases\n"],
    ['objects','vcs_standard_objects.cpp',['--hblank'],
       "vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4\n"],
 );

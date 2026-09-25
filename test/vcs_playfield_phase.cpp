@@ -331,13 +331,16 @@ int main(int argc, char **argv) {
                const uint64_t e[] = {19,25,31,49,55,61};
                std::copy(e,e+6,expected);
             }
-            if (all_five_stripes2_192_profile && row >= 6) {
-               for (size_t i = 0; i < expected_count; ++i) expected[i] += 4;
+            if (all_five_stripes2_192_profile && row * 16 + subline == 98) {
+               for (size_t i = 0; i < expected_count; ++i) expected[i] += 2;
+            }
+            else if (all_five_stripes2_192_profile && row * 16 + subline > 98) {
+               for (size_t i = 0; i < expected_count; ++i) expected[i] += 5;
             }
             const uint8_t stripe0_values[] = {0xf0,0xff,0xff,0xf0,0xff,0xff};
             const uint8_t stripe1_values[] = {0x50,0x81,0x42,0xa0,0x24,0x18};
             const uint8_t *expected_values = stripe0_values;
-            if (all_five_stripes2_192_profile && row >= 6) expected_values = stripe1_values;
+            if (all_five_stripes2_192_profile && row * 16 + subline >= 98) expected_values = stripe1_values;
             if (all_five_stripes2_192_profile && final_line) expected_values = stripe1_values + 3;
             for (size_t i = 0; i < expected_count; ++i) {
                if (found->second[i].cycle != expected[i]) {
@@ -359,17 +362,17 @@ int main(int argc, char **argv) {
          }
       }
       if (all_five_stripes2_192_profile) {
-         const uint64_t boundary_line = first_row_line + 96;
+         const uint64_t boundary_line = first_row_line + 98;
          bool saw_fg = false;
          bool saw_bg = false;
          for (const PfEvent &event : color_events) {
             if (event.line != boundary_line) continue;
-            if (event.address == kColupf && event.value == 0x4e && event.cycle == 8) saw_fg = true;
-            if (event.address == kColubk && event.value == 0x24 && event.cycle == 14) saw_bg = true;
+            if (event.address == kColupf && event.value == 0x4e && event.cycle == 6) saw_fg = true;
+            if (event.address == kColubk && event.value == 0x24 && event.cycle == 12) saw_bg = true;
          }
          if (!saw_fg || !saw_bg)
-            fail("two-stripe colors did not switch exactly in line-96 hblank");
-         std::printf("vcs_playfield_stripes2_192 ok: exact 96/96 data+color boundary with stable six-write phases\n");
+            fail("two-stripe colors did not switch exactly in line-98 hblank");
+         std::printf("vcs_playfield_stripes2_192 ok: exact 98/94 data+color boundary with stable six-write phases\n");
       }
       else
          std::printf("vcs_playfield_stripes_192 ok: 12 rows x 16 lines with stable six-write phases\n");
