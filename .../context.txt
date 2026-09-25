@@ -226,8 +226,8 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13. `stripes=2` now switches PF data exactly at 96/96
-with stable frame/object timing and focused value/phase coverage; its second half
-has a fixed +3-cycle phase offset. Colors still share one COLUPF/COLUBK pair. Solve
-the exact line-96 color handoff next, then generalize N>2. Finish S14 motion/resource
-certification and the S11 broad regression when mapper diagnostics can complete.
+Continue `.../stripes.txt` S13b. Positive stripes now use double-buffer state:
+A is the six-byte `stripe_cache`, B is six bytes, and `next_color[2]` is preloaded.
+`stripes=2` consumes four color bytes while retaining the proven 96/96 PF split.
+Make the exact midpoint color+buffer handoff next, then replace the fixed midpoint
+with generated even pair-heights and background refill. S14/broad regression follow.

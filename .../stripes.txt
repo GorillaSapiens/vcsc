@@ -3,9 +3,8 @@ VCSC RENDERER / STRIPES ROADMAP
 
 Goal
 ----
-Add compile-time playfield/color stripes to the consolidated `all_five`
-renderer, then to `multisprite` and `enhanced_multisprite_asymmetric`, while
-preserving the retired-renderer behavioral coverage and zero-stripe path.
+Add compile-time PF/color stripes to `all_five`, then the remaining maintained
+renderers, zero path.
 
 Stripe ABI
 ----------
@@ -16,41 +15,54 @@ then left/right PF0/PF1/PF2; stripe i owns
 `floor(i*L/N)..floor((i+1)*L/N)-1`. Preserve raster/timing/handoffs/resources/write
 phases; no runtime division or per-line feature test.
 
-The 192-line S12 probe measured the current all-five steady playfield writes at
-PF1/PF2 25/32 or 26/33 and reflected PF2/PF1 48/55; row boundaries use
-22/29 then 45/48. A maintained full-asymmetric renderer proves six-write phase
-families PF0/PF1/PF2 7/14/21 + 40/47/54 and 13/20/27 + 46/53/60. Positive
-stripes therefore need a real six-write reschedule, not two inserted PF0 stores.
-A six-byte zero-page PF cache costs 36 cycles/scanline versus the old four
-absolute load/store pairs at 28, so the 192 all-five visible body must reclaim
-8 cycles per scanline. For N=3 the public stripe payload is 24 ROM bytes versus
-the old 48-byte playfield; an eight-byte data/color cache is the useful prototype
-shape, with draw-dead object-mask scratch as a zero-extra-RAM overlay candidate.
+Positive stripes require a six-write PF0/PF1/PF2 schedule and must preserve the
+maintained write-phase families, frame timing, object raster, handoffs, and zero
+path. Completed timing measurements and discarded prototypes live in daily
+history and executable regressions.
 
 Renderer constraints
 --------------------
-Full-height 228/192 schedules enter draw at cycle 3, return at 0 with terminal
-WSYNC, no entry HMOVE/successor, and VBLANK <=1800. Score-composable 181/170
-uses one entry HMOVE plus successor. Preserve the maintained `vcs_all_five_*`,
-`vcs_player_color_*`, combined-color, pairwise-position, composition, TIA-phase,
-object, and pinned-palette Stella coverage while adding stripes.
+Preserve existing frame, handoff, resource, branch, object, phase, composition,
+and pinned-palette Stella contracts. Full-height 192/228 remains terminal-WSYNC
+and score-composable 170/181 retains its entry/successor behavior.
 
 Steps
 -----
-Current next action: finish the S13 two-stripe color handoff, then generalize N>2.
-`stripes=2` now splits PF data exactly 96/96: X starts at $E8 with first-half mask
-offsets biased by 24, so six rows wrap naturally at the midpoint without a per-row
-test. Line 95 stays stripe 0; line 96 begins stripe 1. The one-time handoff shifts
-the second-half six-write phases +3 without drift. Colors are still one shared
-COLUPF/COLUBK pair; the final N*2 color ABI remains unfinished. Zero/one stripes
-are unchanged.
+Architecture: positive stripes use two six-byte zero-page playfield
+buffers (A/B) plus a two-byte next-color latch. While one buffer is being
+displayed, dead/slack cycles refill the inactive buffer and prepare the next
+COLUPF/COLUBK pair. Stripe boundaries only switch colors/buffer ownership; they
+do not fetch/copy six PF bytes. The visible kernel is fundamentally a two-line
+kernel, so all stripe heights are even and the scheduler counts scanline pairs.
 
-S11. Finish broad regression; normalization is complete, but long mapper diagnostics still exceed the outer execution window.
-S13. Implement compile-time stripes with unchanged zero path; stripes=1 is raster-stable and stripes=2 has an exact 96/96 data split with shared colors; exact per-stripe color handoff and N>2 remain.
-S14. Certify 192 stripes: stripes=1 has exact value/phase, Stella, and zero-path byte-identity coverage; stripes=2 has frame/object/value/phase coverage; color, motion, and generalized ABI/resource certification remain.
+Height policy: the first generalized implementation owns an automatically
+generated height table. For L visible scanlines, distribute L/2 scanline pairs
+as evenly as possible across N stripes, then convert each entry back to an even
+scanline height. A later public ABI may accept programmer-supplied heights, but
+must reject odd heights, heights below the measured refill-service minimum, or
+a table whose sum is not exactly L. Never round heights. The minimum is the measured number of pairs needed to
+refill the inactive PF buffer and prepare next color/boundary state.
+
+S13a. Land double-buffer storage/ABI without changing the proven raster: A/B are six
+byte PF buffers; next_color is two bytes; stripes=2 consumes four public color
+bytes and preloads stripe 1 colors into next_color during VBLANK.
+S13b. Make stripes=2 perform an exact midpoint color+buffer handoff using the
+double-buffer state while preserving 262 lines, object raster, and PF phases.
+S13c. Replace the fixed 96-line midpoint with an internal pair-counted generated
+height table. Equal stripes are generated through this same table/state machine,
+not a separate kernel.
+S13d. Schedule inactive-buffer refill across the active stripe, measure the
+number of scanline pairs required, and make that the compile-time minimum stripe
+height.
+S13e. Generalize the double-buffer scheduler to N>2 and add asymmetric N=3/N=5
+fixtures that prove boundaries, colors, PF values, and frame timing.
+S14. Certify 192 stripes broadly: zero-path byte identity, resources, motion,
+branch contracts, visible handoff, exact RGB Stella references, and generated
+height-table edge cases.
 S15. Certify every line mode, including non-divisible 228 and 181/170 handoffs.
 S16. Exercise supported missile/player-color combinations.
-S17. Add public example/docs for geometry/storage/costs/composition.
+S17. Add public example/docs for geometry/storage/costs/composition and document
+the even-height/minimum-height contract.
 S18. Add/certify stripes in `multisprite`.
 S19. Add/certify stripes in `enhanced_multisprite_asymmetric` 192/228.
 S20. Close item 57 when obsolete renderers are gone and normal suite is clean.

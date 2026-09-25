@@ -43,12 +43,16 @@ without_usage($out) eq '' && $err eq '' or die "stripe build wrote output\n$out$
 -s $bin == 4096 or die "stripe cartridge is not exactly 4096 bytes\n";
 
 my $map=read_file($mapfile);
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_cache\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/m
-   or die "two-stripe cache is not twelve bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_cache\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0006\b/m
+   or die "stripe A/cache buffer is not six bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_buffer_b\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0006\b/m
+   or die "stripe B buffer is not six bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_color\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+   or die "stripe next-color latch is not two bytes\n";
 $map !~ /__vcsc_object\$game_playfield\b/
    or die "positive-stripe cartridge retained obsolete packed playfield ROM\n";
-$map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
-   or die "stripe color payload is not two bytes\n";
+$map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0004\b/m
+   or die "stripe color payload is not four bytes\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_data\s+load=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/m
    or die "stripe playfield payload is not twelve bytes\n";
 

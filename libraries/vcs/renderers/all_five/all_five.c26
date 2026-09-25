@@ -30,7 +30,7 @@ extern const uint8_t TEMPLATE_stripes_s13_prototype_currently_supports_two_strip
 extern const uint8_t TEMPLATE_playfield_colors[2];
 extern const uint8_t TEMPLATE_playfield_data[6];
 #elif TEMPLATE_stripes == 2
-extern const uint8_t TEMPLATE_playfield_colors[2];
+extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
 #endif
 
@@ -206,7 +206,9 @@ alias TEMPLATE_playfield_position TEMPLATE_object_masks[47]
 #if TEMPLATE_stripes == 1
 uint8_t TEMPLATE_stripe_cache[6];
 #elif TEMPLATE_stripes == 2
-uint8_t TEMPLATE_stripe_cache[12];
+uint8_t TEMPLATE_stripe_cache[6];
+uint8_t TEMPLATE_stripe_buffer_b[6];
+uint8_t TEMPLATE_stripe_next_color[2];
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -567,24 +569,30 @@ require inline void TEMPLATE_vblank(void) {
    asm lda.a TEMPLATE_playfield_data + 6;
    asm and #$f0;
    asm ora #1;
-   asm sta.z TEMPLATE_stripe_cache + 6;
+   asm sta.z TEMPLATE_stripe_buffer_b + 0;
    asm lda.a TEMPLATE_playfield_data + 7;
-   asm sta.z TEMPLATE_stripe_cache + 7;
+   asm sta.z TEMPLATE_stripe_buffer_b + 1;
    asm lda.a TEMPLATE_playfield_data + 8;
-   asm sta.z TEMPLATE_stripe_cache + 8;
+   asm sta.z TEMPLATE_stripe_buffer_b + 2;
    asm lda.a TEMPLATE_playfield_data + 9;
    asm and #$f0;
    asm ora #1;
-   asm sta.z TEMPLATE_stripe_cache + 9;
+   asm sta.z TEMPLATE_stripe_buffer_b + 3;
    asm lda.a TEMPLATE_playfield_data + 10;
-   asm sta.z TEMPLATE_stripe_cache + 10;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
    asm lda.a TEMPLATE_playfield_data + 11;
-   asm sta.z TEMPLATE_stripe_cache + 11;
+   asm sta.z TEMPLATE_stripe_buffer_b + 5;
 #endif
    asm lda.a TEMPLATE_playfield_colors;
    asm sta COLUPF;
    asm lda.a TEMPLATE_playfield_colors + 1;
    asm sta COLUBK;
+#if TEMPLATE_stripes == 2
+   asm lda.a TEMPLATE_playfield_colors + 2;
+   asm sta.z TEMPLATE_stripe_next_color;
+   asm lda.a TEMPLATE_playfield_colors + 3;
+   asm sta.z TEMPLATE_stripe_next_color + 1;
+#endif
 #endif
    asm dec.z TEMPLATE_player0_y;
 #if TEMPLATE_lines == 228
@@ -1802,22 +1810,22 @@ require inline void TEMPLATE_draw(void) {
    // first Ball bit of the next row, then advance X once. The playfield itself
    // does not change for stripes=1.
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    asm lsr.zx TEMPLATE_object_masks + 48,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
@@ -1835,19 +1843,19 @@ require inline void TEMPLATE_draw(void) {
 
    asm @stripe2_firstP0:;
    // First P0 line of the new mask row.
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
@@ -1866,25 +1874,25 @@ require inline void TEMPLATE_draw(void) {
    // at the same beam phase instead of drifting by two cycles.
    asm @stripe2_pair1:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 48,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -1896,24 +1904,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair1_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair1_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -1929,25 +1937,25 @@ require inline void TEMPLATE_draw(void) {
    // 152-cycle two-scanline cadence.
    asm @stripe2_pair2:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 48,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -1959,24 +1967,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair2_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair2_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -1993,25 +2001,25 @@ require inline void TEMPLATE_draw(void) {
    // 152-cycle two-scanline cadence.
    asm @stripe2_pair3:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 48,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2023,24 +2031,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair3_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair3_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -2057,25 +2065,25 @@ require inline void TEMPLATE_draw(void) {
    // 152-cycle two-scanline cadence.
    asm @stripe2_pair4:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 48,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2087,24 +2095,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair4_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair4_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -2121,25 +2129,25 @@ require inline void TEMPLATE_draw(void) {
    // 152-cycle two-scanline cadence.
    asm @stripe2_pair5:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 47,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2151,24 +2159,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair5_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 48,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair5_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -2185,25 +2193,25 @@ require inline void TEMPLATE_draw(void) {
    // 152-cycle two-scanline cadence.
    asm @stripe2_pair6:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 46,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2215,24 +2223,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair6_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 47,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair6_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -2249,25 +2257,25 @@ require inline void TEMPLATE_draw(void) {
    // 152-cycle two-scanline cadence.
    asm @stripe2_pair7:;
    asm sta GRP0;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM0;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 7;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 8;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
    asm lsr.zx TEMPLATE_object_masks + 45,x;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm adc #0;
    asm sta ENABL;
    asm dec.z TEMPLATE_player1_y;
    asm sta PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2279,24 +2287,24 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair7_continueP1:;
    asm lsr.zx TEMPLATE_object_masks + 46,x;
    asm sta GRP1;
-   asm lda.z TEMPLATE_stripe_cache + 6;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
    asm sta PF0;
 
-   asm lda.z TEMPLATE_stripe_cache + 7;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 8;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm lda.z TEMPLATE_stripe_cache + 10;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
-   asm lda.z TEMPLATE_stripe_cache + 11;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
    asm bcc.same @stripe2_pair7_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
@@ -2312,11 +2320,11 @@ require inline void TEMPLATE_draw(void) {
    // The last visible line needs no following object setup. Complete its right
    // playfield half and WSYNC so draw() returns at cycle zero of line 193.
    asm @stripe2_terminal:;
-   asm lda.z TEMPLATE_stripe_cache + 9;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
-   asm ldy.z TEMPLATE_stripe_cache + 10;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
    asm sty PF1;
-   asm ldy.z TEMPLATE_stripe_cache + 11;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
 #else
    // The first visible line is the P0 half of the normal two-line pipeline.

@@ -19,3 +19,16 @@ still the next blocker; do not describe this checkpoint as the final N*2 color A
 Added `vcs_all_five_stripes2_192.pl` and a dedicated fixture. Focused two-stripe,
 one-stripe, branch-contract, visible-handoff, source-hygiene, and context-format
 checks pass.
+
+2026-09-25 06:50:00 PDT, adopt stripe double buffering
+The stripe roadmap now uses two six-byte PF buffers plus a two-byte next-color
+latch. The visible scheduler counts two-scanline pairs; generated equal-height
+tables come first, and a later public height table must use even heights, sum to
+the visible height, and meet the measured inactive-buffer refill minimum.
+
+S13a landed without changing raster timing. For `stripes=2`, the existing
+`stripe_cache[6]` is buffer A, `stripe_buffer_b[6]` is buffer B, and
+`stripe_next_color[2]` holds the next COLUPF/COLUBK pair. The public color payload
+is now four bytes; VBLANK loads stripe 0 colors into TIA and preloads stripe 1
+colors into `stripe_next_color`. The existing exact 96/96 PF-data fixture remains
+green. Focused stripe, branch, handoff, hygiene, and context-format checks pass.
