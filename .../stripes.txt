@@ -43,14 +43,11 @@ must reject odd heights, heights below the measured refill-service minimum, or
 a table whose sum is not exactly L. Never round heights. The minimum is the measured number of pairs needed to
 refill the inactive PF buffer and prepare next color/boundary state.
 
-S13a. Land double-buffer storage/ABI without changing the proven raster: A/B are six
-byte PF buffers; next_color is two bytes; stripes=2 consumes four public color
-bytes and preloads stripe 1 colors into next_color during VBLANK.
-S13b. Make stripes=2 perform an exact midpoint color+buffer handoff using the
-double-buffer state while preserving 262 lines, object raster, and PF phases.
-S13c. Replace the fixed 96-line midpoint with an internal pair-counted generated
-height table. Equal stripes are generated through this same table/state machine,
-not a separate kernel.
+S13c1. Land the internal generated pair-height table and scheduler state without
+changing the proven midpoint timing. Equal-height stripes use pair counts, not raw
+scanlines; for the current 192/2 case the generated table is 48,48 pairs.
+S13c2. Make the visible kernel consume that pair countdown and replace the fixed
+96-line/X-wrap midpoint. Boundaries may occur on any two-scanline pair.
 S13d. Schedule inactive-buffer refill across the active stripe, measure the
 number of scanline pairs required, and make that the compile-time minimum stripe
 height.

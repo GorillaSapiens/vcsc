@@ -32,3 +32,32 @@ S13a landed without changing raster timing. For `stripes=2`, the existing
 is now four bytes; VBLANK loads stripe 0 colors into TIA and preloads stripe 1
 colors into `stripe_next_color`. The existing exact 96/96 PF-data fixture remains
 green. Focused stripe, branch, handoff, hygiene, and context-format checks pass.
+
+2026-09-25 08:20:00 PDT, complete exact two-stripe color handoff
+S13b now switches both PF data and colors exactly at the 96-line boundary.
+`stripes=2` keeps A/B six-byte PF buffers and preloads the second COLUPF/COLUBK
+pair in `stripe_next_color[2]`. A boundary P1 byte is prepared during VBLANK.
+At the midpoint, A is held across `DEC player1_y` and the final indexed mask
+shift; those instructions preserve A, so GRP1 lands at the start of line 96
+rather than the visible tail of line 95. COLUPF and COLUBK then write at line
+96 cycles 8 and 14, respectively, inside horizontal blank.
+
+The second-half PF schedule is uniformly one cycle later than the earlier
+data-only checkpoint (+4 versus the stripe-0 phase family), but remains stable.
+Moving steady second-half GRP1 commits ahead of their mask shifts keeps object
+writes in hblank without changing pair length. The asymmetric regression now
+uses distinct second-stripe colors and verifies exact data and color boundary,
+262-line frame timing, and standard P0/P1/M0/M1/Ball raster heights.
+
+2026-09-25 08:45:00 PDT, land generated pair-height state
+S13c1 adds the internal height-table model without changing visible timing.
+For the current 192-line/two-stripe profile the renderer owns a two-byte
+`stripe_pair_heights` table containing 48,48 two-scanline pairs. VBLANK loads
+`stripe_pairs_remaining` from entry zero and initializes `stripe_height_index`
+to one. The fixed midpoint still uses the proven X-wrap trigger; S13c2 will make
+the visible kernel consume the pair countdown and remove that special trigger.
+
+The two-stripe map regression now requires the generated two-byte RODATA table
+and both one-byte scheduler-state objects. Exact asymmetric PF/color boundary,
+frame timing, object raster, branch, handoff, hygiene, and history contracts
+remain unchanged.

@@ -55,6 +55,12 @@ $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4
    or die "stripe color payload is not four bytes\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_data\s+load=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/m
    or die "stripe playfield payload is not twelve bytes\n";
+$map =~ /^\s+RODATA\.__vcsc_object\$game_stripe_pair_heights\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+   or die "generated stripe pair-height table is not two bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_pairs_remaining\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
+   or die "stripe pair countdown state is missing\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_height_index\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
+   or die "stripe height-table index state is missing\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -64,7 +70,7 @@ my @checks=(
    ['timing','vcs_frame_timing.cpp',[50,'--no-audio','--raw-lines',264],
       "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"],
    ['phase','vcs_playfield_phase.cpp',[12,12,40,'all-five-stripes2-192'],
-      "vcs_playfield_stripes2_192 ok: exact 96/96 data boundary with stable six-write phases\n"],
+      "vcs_playfield_stripes2_192 ok: exact 96/96 data+color boundary with stable six-write phases\n"],
    ['objects','vcs_standard_objects.cpp',['--hblank'],
       "vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4\n"],
 );

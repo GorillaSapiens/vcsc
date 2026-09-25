@@ -32,6 +32,7 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 #elif TEMPLATE_stripes == 2
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 48,48 };
 #endif
 
 // Common selector ABI and immutable positioning data. Schedule branches below
@@ -209,6 +210,9 @@ uint8_t TEMPLATE_stripe_cache[6];
 uint8_t TEMPLATE_stripe_cache[6];
 uint8_t TEMPLATE_stripe_buffer_b[6];
 uint8_t TEMPLATE_stripe_next_color[2];
+uint8_t TEMPLATE_stripe_boundary_grp1;
+uint8_t TEMPLATE_stripe_pairs_remaining;
+uint8_t TEMPLATE_stripe_height_index;
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -592,6 +596,24 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_next_color;
    asm lda.a TEMPLATE_playfield_colors + 3;
    asm sta.z TEMPLATE_stripe_next_color + 1;
+   asm lda.a TEMPLATE_stripe_pair_heights;
+   asm sta.z TEMPLATE_stripe_pairs_remaining;
+   asm lda #1;
+   asm sta.z TEMPLATE_stripe_height_index;
+
+   // Precompute the P1 byte needed exactly at the 96-line boundary.
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc #48;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_stripe2_boundary_grp1_zero;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_stripe2_boundary_grp1_ready;
+   asm @TEMPLATE_stripe2_boundary_grp1_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe2_boundary_grp1_ready:;
+   asm sta.z TEMPLATE_stripe_boundary_grp1;
 #endif
 #endif
    asm dec.z TEMPLATE_player0_y;
@@ -1789,20 +1811,16 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-   asm ldy.z TEMPLATE_player1_y;
-   asm dey;
-   asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc.same @stripe2_boundary_activeP1;
-   asm ldy #0;
-   asm sty.a GRP1;
-   asm jmp @stripe2_boundary_continueP1;
-   asm @stripe2_boundary_activeP1:;
-   asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm sta GRP1;
-   asm @stripe2_boundary_continueP1:;
+   asm lda.z TEMPLATE_stripe_boundary_grp1;
+   asm dec.z TEMPLATE_player1_y;
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm sta GRP1;
 
+   // Stripe B colors are already latched in zero page.
+   asm lda.z TEMPLATE_stripe_next_color;
+   asm sta COLUPF;
+   asm lda.z TEMPLATE_stripe_next_color + 1;
+   asm sta COLUBK;
    asm jmp @stripe2_firstP0;
 
    asm @stripe2_transition:;
@@ -1902,8 +1920,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair1_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair1_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -1965,8 +1983,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair2_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair2_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -2029,8 +2047,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair3_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair3_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -2093,8 +2111,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair4_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair4_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -2157,8 +2175,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair5_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair5_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 48,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -2221,8 +2239,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair6_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair6_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 47,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -2285,8 +2303,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair7_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe2_pair7_continueP1:;
-   asm lsr.zx TEMPLATE_object_masks + 46,x;
    asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;

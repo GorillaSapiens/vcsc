@@ -226,8 +226,8 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13b. Positive stripes now use double-buffer state:
-A is the six-byte `stripe_cache`, B is six bytes, and `next_color[2]` is preloaded.
-`stripes=2` consumes four color bytes while retaining the proven 96/96 PF split.
-Make the exact midpoint color+buffer handoff next, then replace the fixed midpoint
-with generated even pair-heights and background refill. S14/broad regression follow.
+Continue `.../stripes.txt` S13c2. `stripes=2` now has an internal generated
+pair-height table `{48,48}`, a pair countdown, and height-table index state, while
+the proven 96/96 boundary still uses the old X-wrap trigger. Make the visible
+two-line kernel consume that countdown next so boundaries can occur on any pair;
+then schedule inactive-buffer refill and measure the minimum stripe height.

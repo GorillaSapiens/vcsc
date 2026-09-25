@@ -18,6 +18,8 @@ constexpr size_t kRomSize = 4096;
 constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kWsync = 0x0002;
+constexpr uint16_t kColupf = 0x0008;
+constexpr uint16_t kColubk = 0x0009;
 constexpr uint16_t kPf1 = 0x000E;
 constexpr uint16_t kPf2 = 0x000F;
 constexpr uint16_t kSwcha = 0x0280;
@@ -83,6 +85,7 @@ uint64_t virtual_cycles = 0;
 uint64_t cpu_cycles = 0;
 std::vector<WriteEvent> writes;
 std::vector<PfEvent> pf_events;
+std::vector<PfEvent> color_events;
 bool vsync_asserted = false;
 bool collect_pf0 = false;
 int frame = -1;
@@ -136,6 +139,12 @@ void apply_writes() {
          timer_divisor = event.address == kTim1t ? 1 :
                          event.address == kTim8t ? 8 :
                          event.address == kTim64t ? 64 : 1024;
+      }
+      else if (frame == 2 && (event.address == kColupf || event.address == kColubk)) {
+         color_events.push_back({virtual_cycles / kCyclesPerScanline -
+                                    frame_start / kCyclesPerScanline,
+                                 virtual_cycles % kCyclesPerScanline,
+                                 event.address, event.value});
       }
       else if (frame == 2 && ((collect_pf0 && event.address == 0x000D) || event.address == kPf1 || event.address == kPf2)) {
          pf_events.push_back({virtual_cycles / kCyclesPerScanline -
@@ -323,7 +332,7 @@ int main(int argc, char **argv) {
                std::copy(e,e+6,expected);
             }
             if (all_five_stripes2_192_profile && row >= 6) {
-               for (size_t i = 0; i < expected_count; ++i) expected[i] += 3;
+               for (size_t i = 0; i < expected_count; ++i) expected[i] += 4;
             }
             const uint8_t stripe0_values[] = {0xf0,0xff,0xff,0xf0,0xff,0xff};
             const uint8_t stripe1_values[] = {0x50,0x81,0x42,0xa0,0x24,0x18};
@@ -349,8 +358,19 @@ int main(int argc, char **argv) {
             }
          }
       }
-      if (all_five_stripes2_192_profile)
-         std::printf("vcs_playfield_stripes2_192 ok: exact 96/96 data boundary with stable six-write phases\n");
+      if (all_five_stripes2_192_profile) {
+         const uint64_t boundary_line = first_row_line + 96;
+         bool saw_fg = false;
+         bool saw_bg = false;
+         for (const PfEvent &event : color_events) {
+            if (event.line != boundary_line) continue;
+            if (event.address == kColupf && event.value == 0x4e && event.cycle == 8) saw_fg = true;
+            if (event.address == kColubk && event.value == 0x24 && event.cycle == 14) saw_bg = true;
+         }
+         if (!saw_fg || !saw_bg)
+            fail("two-stripe colors did not switch exactly in line-96 hblank");
+         std::printf("vcs_playfield_stripes2_192 ok: exact 96/96 data+color boundary with stable six-write phases\n");
+      }
       else
          std::printf("vcs_playfield_stripes_192 ok: 12 rows x 16 lines with stable six-write phases\n");
       return 0;
