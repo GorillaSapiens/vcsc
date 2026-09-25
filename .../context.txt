@@ -226,10 +226,8 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13c2c. The two-stripe prototype proves an
-intra-packed-row 98/94-line boundary. ROM `{coarse,tail}` descriptors are live;
-VBLANK prepares the current and next coarse X seeds plus the next tail selector.
-A cross-inline-body indirect-JMP tail vector was rejected because it breaks C26
-reachability, so implement compiler-visible direct tail dispatch at the X-wrap
-seam and certify a second uneven split with a different tail. Do not restore the
-discarded per-pair RAM countdown or put division/modulo in the visible path.
+Continue `.../stripes.txt` S13c2c. Tail landings 1 and 2 are certified:
+98/94 ({6,1}/{5,7}) and 100/92 ({6,2}/{5,6}), both with 262-line frames, exact
+PF/color boundaries, and hblank-safe objects. VBLANK prepares current/next X
+seeds and the next tail. Next: runtime X-wrap selection, then tails 0 and 3..7.
+No per-pair RAM countdown or visible division/modulo.

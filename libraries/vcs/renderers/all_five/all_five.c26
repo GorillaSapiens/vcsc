@@ -33,11 +33,18 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
 // S13c2c schedule descriptors split each pair height into coarse eight-pair
-// rows plus a 0..7-pair tail. The current certification split is 49/47 pairs:
-// {6,1} and {5,7}. These are immutable ROM descriptors; later S13c2c work
-// replaces the certification literals with the general N-stripe generator.
+// rows plus a 0..7-pair tail. Keep two certification schedules buildable so
+// the descriptor machinery is not accidentally coupled to tail=1 while the
+// visible tail-2 seam is developed. The default 49/47 case remains the live
+// 98/94 raster certification; -DVCS_STRIPES2_CERT_TAIL2 materializes the
+// neighboring 50/46 ({6,2},{5,6}) schedule for descriptor certification.
+#ifdef VCS_STRIPES2_CERT_TAIL2
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 50,46 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,2,5,6 };
+#else
 const uint8_t TEMPLATE_stripe_pair_heights[2] := { 49,47 };
 const uint8_t TEMPLATE_stripe_schedule[4] := { 6,1,5,7 };
+#endif
 #endif
 
 // Common selector ABI and immutable positioning data. Schedule branches below
@@ -628,7 +635,11 @@ require inline void TEMPLATE_vblank(void) {
    // Precompute the P1 byte needed exactly at the 96-line boundary.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;
+#ifdef VCS_STRIPES2_CERT_TAIL2
+   asm sbc #50;
+#else
    asm sbc #49;
+#endif
    asm tay;
    asm cpy.z TEMPLATE_object_masks + 15;
    asm bcs.same @TEMPLATE_stripe2_boundary_grp1_zero;
@@ -1880,6 +1891,101 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_delayed_transition_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
 
+#ifdef VCS_STRIPES2_CERT_TAIL2
+   // Tail-2 certification: line 97 is an ordinary A P1 half and line 98 is
+   // its ordinary A P0 half.  The color/data handoff then uses the following
+   // P1 half so stripe B begins on line 100.  This independently certifies a
+   // second fixed tail landing before the runtime selector is introduced.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_tail2_line97_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_tail2_line97_continueP1;
+   asm @stripe2_tail2_line97_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_tail2_line97_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   // Wrap this ordinary GRP1 commit into line-98 hblank.  Besides keeping the
+   // object contract, the two cycles put the following P0 half back on the
+   // established safe PF phase.
+   asm nop;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   // Line 98 remains stripe A: ordinary P0 half of the extra tail pair.
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_tail2_line98_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_tail2_line98_continueP0;
+   asm @stripe2_tail2_line98_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_tail2_line98_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+
+   // Line 99 is the final A P1 half. Its sprite byte was precomputed in
+   // VBLANK, paying for both color writes before line 100 begins.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm lda.a TEMPLATE_stripe_boundary_grp1;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_next_color;
+   asm sta COLUPF;
+   asm lda.z TEMPLATE_stripe_next_color + 1;
+   asm sta COLUBK;
+#else
    // Line 97 is the P1 half of the final A pair.  Its GRP1 byte was
    // precomputed in VBLANK, buying the cycles needed to switch both colors in
    // hblank before line 98 begins with stripe B.
@@ -1909,8 +2015,13 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUPF;
    asm lda.z TEMPLATE_stripe_next_color + 1;
    asm sta COLUBK;
+#endif
 
+#ifdef VCS_STRIPES2_CERT_TAIL2
+   // Line 100 is the P0 half of the boundary pair, now sourced from stripe B.
+#else
    // Line 98 is the P0 half of that same pair, now sourced from stripe B.
+#endif
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -1936,7 +2047,13 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe2_delayed_pair1_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+#ifdef VCS_STRIPES2_CERT_TAIL2
+   // B owns 46 pairs in the tail-2 certification build rather than 47.
+   // Enter one unrolled pair later so the total visible raster remains 192.
+   asm jmp @stripe2_pair3;
+#else
    asm jmp @stripe2_pair2;
+#endif
 
    asm @stripe2_transition:;
    // Sixteenth line of each packed mask row. Finish the old row, stage the
