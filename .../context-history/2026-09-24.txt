@@ -1,0 +1,70 @@
+2026-09-24 12:34:00 PDT, localize S13 stripe timing drift
+Resumed the live stripes=1 192-line all-five prototype and did instruction-level
+cycle accounting of the positive-stripe paths. The ordinary steady P1/P0 body is
+already exactly 152 CPU cycles, so it is not the source of the progressive phase
+drift. The inherited packed-playfield row-transition path is 324 cycles from the
+failed steady-loop branch through the resume jump, versus a 304-cycle four-line
+budget: exactly 20 cycles too long per transition. There are eleven such
+transitions in a 12-row 192-line frame, explaining 220 of the previously measured
+225 excess draw cycles; only about five cycles remain in entry/terminal handling.
+
+This changes the implementation direction. `stripes=1` has constant playfield data
+across the whole visible region, so carrying the old packed-playfield row-transition
+machinery into positive-stripe mode is needless work. The next implementation
+should make row boundaries only roll the BL/M1/M0 mask source. A promising exact
+budget is to keep X as the mask-row offset and remove the per-pair X countdown: an
+unrolled eight-pair row changes the three scalar 5-cycle mask shifts into three
+6-cycle indexed shifts (+3) but removes DEX/BNE (-5), saving two cycles per pair.
+Across eight pairs that yields the exact 16-cycle budget needed for TXA/CLC/ADC
+#4/TAX plus a zero-page row-count DEC/BNE. This also removes the scalar mask reload
+and row-offset save/restore that currently dominate the bad transition. Do not
+generalize to N>1 until this mask-row-only schedule is implemented and traced.
+
+Build/test execution was blocked in this container because the expected debs.zip
+was not mounted or present in the persistent file library, and system bison/flex
+are absent. Xvfb is present. No renderer source was changed without a compiler/trace
+check; the durable result of this turn is the closed timing diagnosis and the new
+S13 implementation shape recorded in stripes.txt.
+
+2026-09-24 15:34:00 PDT, stabilize S13 stripes=1 mask-row kernel
+The resumed unrolled positive-stripe kernel had already reduced the old 20-cycle
+row-transition error to a two-cycle row-backedge leak. Instruction tracing showed
+ordinary pair starts separated by 152 cycles, but each 16-line mask row advanced
+its next-row phase by two cycles. The long conditional backedge was the residual
+cost. Pair 1 still carried a two-cycle tail NOP; removing that one pad makes the
+whole row exactly 1216 cycles while keeping the six display writes themselves in
+safe repeatable families. The next mask row now starts at the same phase rather
+than drifting.
+
+Added a focused `vcs_all_five_stripes_192.pl` regression and fixture. It proves a
+4096-byte cartridge, 262-line displayed frame timing, exact P0/P1/M0/M1/Ball
+heights, and all six PF0/PF1/PF2 write phases across all 192 visible lines,
+including entry, mask-row boundaries, and the terminal line. The positive path
+now uses only a six-byte stripe cache; four stale scalar-mask/cache-state bytes
+and their VBLANK copies were removed. A positive-stripe cartridge no longer needs
+or links the legacy 48-byte packed `game_playfield` object. The focused stripe
+test passes with 83 total renderer+stack RAM bytes in the probe versus 87 before.
+
+The uploaded dependency bundle supplied working local Flex 2.6.4, Bison 3.8.2,
+and Stella 7.0. Removed the stray `.../docrevamp.txt` developer record that broke
+branding, and compacted current hot context to restore the 64 KiB hygiene budget.
+
+2026-09-24 17:15:00 PDT, fix stripe branch/handoff regressions
+The first S13 stripe package left every new conditional branch as `.flex`, which
+violated the renderer timing-contract audit, and put each branch-local terminal
+WSYNC before the surrounding preprocessor selector, which violated the static
+visible-component handoff contract even though the compiled stripe path did end
+through WSYNC.
+
+Annotated all local stripe conditionals `.same`. The one intentionally long
+row backedge cannot use a hard short-branch annotation, so it is now spelled as
+an explicit `beq.same` terminal skip followed by `jmp @stripe_transition`, which
+preserves the relaxed long-branch 3-cycle terminal / 5-cycle backedge timing.
+Moved the terminal `sta WSYNC` below the `TEMPLATE_stripes` selector so every
+compiled 192-line draw path still executes exactly one terminal WSYNC while the
+source-level draw function also textually ends through that WSYNC.
+
+Focused validation passes: `vcs_renderer_branch_contracts.pl`,
+`vcs_visible_component_handoff.pl`, `vcs_all_five_192.pl`,
+`vcs_all_five_stripes_192.pl`, `source_tree_hygiene.pl`, and `vcsc_branding.pl`.
+The stripe raster/frame/object regression remains unchanged by the contract fix.

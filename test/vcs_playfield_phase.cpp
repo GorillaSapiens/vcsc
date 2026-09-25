@@ -1,6 +1,7 @@
 //! @file vcs_playfield_phase.cpp
 //! @brief Verify the normalized two-line renderer's cycle-stable PF writes.
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -83,6 +84,7 @@ uint64_t cpu_cycles = 0;
 std::vector<WriteEvent> writes;
 std::vector<PfEvent> pf_events;
 bool vsync_asserted = false;
+bool collect_pf0 = false;
 int frame = -1;
 uint64_t frame_start = 0;
 bool timer_active = false;
@@ -135,7 +137,7 @@ void apply_writes() {
                          event.address == kTim8t ? 8 :
                          event.address == kTim64t ? 64 : 1024;
       }
-      else if (frame == 2 && (event.address == kPf1 || event.address == kPf2)) {
+      else if (frame == 2 && ((collect_pf0 && event.address == 0x000D) || event.address == kPf1 || event.address == kPf2)) {
          pf_events.push_back({virtual_cycles / kCyclesPerScanline -
                                  frame_start / kCyclesPerScanline,
                               virtual_cycles % kCyclesPerScanline,
@@ -159,6 +161,8 @@ int main(int argc, char **argv) {
       static_cast<uint64_t>(std::strtoull(argv[4], nullptr, 0)) : 43;
    const bool all_five_profile = argc == 6 && std::strcmp(argv[5], "all-five") == 0;
    const bool all_five_192_profile = argc == 6 && std::strcmp(argv[5], "all-five-192") == 0;
+   const bool all_five_stripes_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes-192") == 0;
    const bool all_five_phase_228_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-phase-228") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
@@ -180,7 +184,7 @@ int main(int argc, char **argv) {
                                        all_five_181_official_profile ||
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
-       !player_diagonal_profile && !player_diagonal_192_profile &&
+       !all_five_stripes_192_profile && !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 &&
@@ -188,6 +192,7 @@ int main(int argc, char **argv) {
       fail("checked raster row count must be 10, 11, 12, or 15");
    if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
       fail("source row count must equal checked rows or be 12 when checking 11");
+   collect_pf0 = all_five_stripes_192_profile;
    std::memset(memory_image, 0, sizeof(memory_image));
    // No joystick direction or console switch is pressed by default.  Leaving
    // these RIOT input registers at zero holds Reset and makes visible timing
@@ -256,6 +261,79 @@ int main(int argc, char **argv) {
          ++checked;
       }
       if (checked < 150) fail("too few complete visible playfield scanlines checked");
+   }
+
+   if (raster_rows && all_five_stripes_192_profile) {
+      const uint16_t addresses[] = {0x000D, kPf1, kPf2, 0x000D, kPf1, kPf2};
+      for (int row = 0; row < raster_rows; ++row) {
+         const uint64_t base = first_row_line + static_cast<uint64_t>(row) * 16u;
+         for (int subline = 0; subline < 16; ++subline) {
+            const uint64_t line = base + subline;
+            const auto found = by_line.find(line);
+            const bool final_line = row + 1 == raster_rows && subline == 15;
+            const size_t expected_count = final_line ? 3u : 6u;
+            if (found == by_line.end() || found->second.size() != expected_count) {
+               std::fprintf(stderr,
+                  "vcs_playfield_phase: stripe row %d line %d has %zu PF writes; expected %zu\n",
+                  row, subline, found == by_line.end() ? size_t{0} : found->second.size(),
+                  expected_count);
+               return 1;
+            }
+            for (size_t i = 0; i < expected_count; ++i) {
+               if (found->second[i].address != addresses[i]) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: stripe row %d line %d write %zu is reg $%02x; expected $%02x\n",
+                     row, subline, i, found->second[i].address, addresses[i]);
+                  return 1;
+               }
+            }
+            uint64_t expected[6] = {};
+            if (row == 0 && subline == 0) {
+               const uint64_t e[] = {9,15,21,38,44,50};
+               std::copy(e,e+6,expected);
+            }
+            else if (final_line) {
+               const uint64_t e[] = {11,17,23,0,0,0};
+               std::copy(e,e+6,expected);
+            }
+            else if (subline == 0) {
+               const uint64_t e[] = {24,30,36,42,48,54};
+               std::copy(e,e+6,expected);
+            }
+            else if (subline == 1) {
+               const uint64_t e[] = {17,23,29,51,57,63};
+               std::copy(e,e+6,expected);
+            }
+            else if (subline == 2) {
+               const uint64_t e[] = {21,27,33,51,57,63};
+               std::copy(e,e+6,expected);
+            }
+            else if (subline == 15) {
+               const uint64_t e[] = {20,26,32,49,55,61};
+               std::copy(e,e+6,expected);
+            }
+            else if (subline & 1) {
+               const uint64_t e[] = {15,21,27,49,55,61};
+               std::copy(e,e+6,expected);
+            }
+            else {
+               const uint64_t e[] = {19,25,31,49,55,61};
+               std::copy(e,e+6,expected);
+            }
+            for (size_t i = 0; i < expected_count; ++i) {
+               if (found->second[i].cycle != expected[i]) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: stripe row %d line %d write %zu cycle %llu; expected %llu\n",
+                     row, subline, i,
+                     static_cast<unsigned long long>(found->second[i].cycle),
+                     static_cast<unsigned long long>(expected[i]));
+                  return 1;
+               }
+            }
+         }
+      }
+      std::printf("vcs_playfield_stripes_192 ok: 12 rows x 16 lines with stable six-write phases\n");
+      return 0;
    }
 
    if (raster_rows && all_five_fixed_profile) {

@@ -201,7 +201,7 @@ uint8_t TEMPLATE_object_masks[48];
 #endif
 alias TEMPLATE_playfield_position TEMPLATE_object_masks[47]
 #if TEMPLATE_stripes == 1
-uint8_t TEMPLATE_stripe_cache[10];
+uint8_t TEMPLATE_stripe_cache[6];
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -562,17 +562,6 @@ require inline void TEMPLATE_vblank(void) {
    asm sta COLUPF;
    asm lda.a TEMPLATE_playfield_colors + 1;
    asm sta COLUBK;
-   // Keep the current row's three compact BL/M1/M0 masks in fixed zero-page
-   // slots.  Positive-stripe draw uses X as the eight-pair row counter, so
-   // these copies remove all indexed RMW penalties from the steady kernel.
-   asm lda.z TEMPLATE_object_masks;
-   asm sta.z TEMPLATE_stripe_cache + 6;
-   asm lda.z TEMPLATE_object_masks + 1;
-   asm sta.z TEMPLATE_stripe_cache + 7;
-   asm lda.z TEMPLATE_object_masks + 2;
-   asm sta.z TEMPLATE_stripe_cache + 8;
-   asm lda #0;
-   asm sta.z TEMPLATE_stripe_cache + 9;
 #endif
    asm dec.z TEMPLATE_player0_y;
 #if TEMPLATE_lines == 228
@@ -592,7 +581,7 @@ require inline void TEMPLATE_vblank(void) {
    // scanline is consumed.
    asm lda.z TEMPLATE_object_masks + 23;
 #if TEMPLATE_stripes == 1
-   asm lsr.z TEMPLATE_stripe_cache + 6;
+   asm lsr.z TEMPLATE_object_masks;
 #else
    asm lsr.zx TEMPLATE_object_masks,x;
 #endif
@@ -612,7 +601,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_first_player1_ready:;
    asm sta GRP1;
 #if TEMPLATE_stripes == 1
-   asm lsr.z TEMPLATE_stripe_cache + 7;
+   asm lsr.z TEMPLATE_object_masks + 1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #0;
    asm sta ENAM1;
@@ -639,6 +628,564 @@ require inline void TEMPLATE_vblank(void) {
 }
 
 require inline void TEMPLATE_draw(void) {
+#if TEMPLATE_stripes == 1
+   // Positive stripes use a row-offset X throughout visible drawing. The seven
+   // ordinary P1/P0 pairs are intentionally unrolled: this removes the per-pair
+   // counter without paying a RAM decrement, so indexed BL/M1/M0 shifts fit the
+   // same 152-cycle cadence. The first P0 half is staged by vblank().
+   asm lda.z TEMPLATE_stripe_cache;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_first_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_first_continueP0;
+   asm @stripe_first_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_first_continueP0:;
+   asm lsr.z TEMPLATE_object_masks + 2;
+   // Fill the tail of the staged first P0 scanline so pair 1 begins at
+   // cycle zero of the following line rather than eleven cycles early.
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm nop;
+   asm ldx #$d0;
+   asm jmp @stripe_pair1;
+
+   asm @stripe_transition:;
+   // Sixteenth line of each packed mask row. Finish the old row, stage the
+   // first Ball bit of the next row, then advance X once. The playfield itself
+   // does not change for stripes=1.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm dey;
+   asm sty.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_transition_activeP1;
+   asm ldy #0;
+   asm sty.a GRP1;
+   asm jmp @stripe_transition_continueP1;
+   asm @stripe_transition_activeP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm sta GRP1;
+   asm @stripe_transition_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+
+   // First P0 line of the new mask row.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcc.same @stripe_transition_activeP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_transition_continueP0;
+   asm @stripe_transition_activeP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_transition_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+
+   // Pair 1 is deliberately 150 cycles.  The two cycles reclaimed here pay
+   // the long row-backedge once per 16-line mask row, so every later row starts
+   // at the same beam phase instead of drifting by two cycles.
+   asm @stripe_pair1:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair1_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair1_continueP1;
+   asm @stripe_pair1_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair1_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair1_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair1_continueP0;
+   asm @stripe_pair1_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair1_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+
+   // Unrolled positive-stripe pair 2/7. X remains the packed-mask row
+   // offset. Indexed mask shifts cost one extra cycle each; deleting the old
+   // DEX/taken-BNE pair saves five, and the final NOP restores the exact
+   // 152-cycle two-scanline cadence.
+   asm @stripe_pair2:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair2_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair2_continueP1;
+   asm @stripe_pair2_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair2_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair2_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair2_continueP0;
+   asm @stripe_pair2_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair2_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm nop;
+
+   // Unrolled positive-stripe pair 3/7. X remains the packed-mask row
+   // offset. Indexed mask shifts cost one extra cycle each; deleting the old
+   // DEX/taken-BNE pair saves five, and the final NOP restores the exact
+   // 152-cycle two-scanline cadence.
+   asm @stripe_pair3:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair3_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair3_continueP1;
+   asm @stripe_pair3_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair3_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair3_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair3_continueP0;
+   asm @stripe_pair3_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair3_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm nop;
+
+   // Unrolled positive-stripe pair 4/7. X remains the packed-mask row
+   // offset. Indexed mask shifts cost one extra cycle each; deleting the old
+   // DEX/taken-BNE pair saves five, and the final NOP restores the exact
+   // 152-cycle two-scanline cadence.
+   asm @stripe_pair4:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair4_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair4_continueP1;
+   asm @stripe_pair4_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair4_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair4_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair4_continueP0;
+   asm @stripe_pair4_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair4_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm inx;
+
+   // Unrolled positive-stripe pair 5/7. X remains the packed-mask row
+   // offset. Indexed mask shifts cost one extra cycle each; deleting the old
+   // DEX/taken-BNE pair saves five, and the final NOP restores the exact
+   // 152-cycle two-scanline cadence.
+   asm @stripe_pair5:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair5_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair5_continueP1;
+   asm @stripe_pair5_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair5_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair5_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair5_continueP0;
+   asm @stripe_pair5_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair5_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm inx;
+
+   // Unrolled positive-stripe pair 6/7. X remains the packed-mask row
+   // offset. Indexed mask shifts cost one extra cycle each; deleting the old
+   // DEX/taken-BNE pair saves five, and the final NOP restores the exact
+   // 152-cycle two-scanline cadence.
+   asm @stripe_pair6:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair6_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair6_continueP1;
+   asm @stripe_pair6_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair6_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair6_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair6_continueP0;
+   asm @stripe_pair6_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair6_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm inx;
+
+   // Unrolled positive-stripe pair 7/7. X remains the packed-mask row
+   // offset. Indexed mask shifts cost one extra cycle each; deleting the old
+   // DEX/taken-BNE pair saves five, and the final NOP restores the exact
+   // 152-cycle two-scanline cadence.
+   asm @stripe_pair7:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
+   // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe_pair7_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe_pair7_continueP1;
+   asm @stripe_pair7_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe_pair7_continueP1:;
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe_pair7_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe_pair7_continueP0;
+   asm @stripe_pair7_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe_pair7_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm inx;
+   asm beq.same @stripe_terminal;
+   asm jmp @stripe_transition;
+
+   // The last visible line needs no following object setup. Complete its right
+   // playfield half and WSYNC so draw() returns at cycle zero of line 193.
+   asm @stripe_terminal:;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#else
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
@@ -1158,9 +1705,10 @@ require inline void TEMPLATE_draw(void) {
    asm sty.a PF2;
    asm bit.z $00;
    asm sta.a PF1;
-   asm sta WSYNC;
 
    asm @endrenderer:;
+#endif
+   asm sta WSYNC;
 }
 
 require inline void TEMPLATE_overscan(void) {
