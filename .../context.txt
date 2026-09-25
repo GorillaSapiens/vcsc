@@ -226,10 +226,8 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13. The stripes=1 192-line mask-row schedule is now
-cycle-stable and has focused six-write value/phase, object/frame, explicit-zero-path
-byte-identity, and pinned-palette Stella raster regressions. Generalize the
-compile-time stripe ABI to N>1 without disturbing that zero/one-stripe base; the
-hard part is exact-boundary cache+COLUPF/COLUBK handoff with no per-line feature
-test. Finish S14 motion/resource certification alongside that work. Finish the
-S11 broad regression when the long mapper diagnostics can complete.
+Continue `.../stripes.txt` S13. `stripes=2` now switches PF data exactly at 96/96
+with stable frame/object timing and focused value/phase coverage; its second half
+has a fixed +3-cycle phase offset. Colors still share one COLUPF/COLUBK pair. Solve
+the exact line-96 color handoff next, then generalize N>2. Finish S14 motion/resource
+certification and the S11 broad regression when mapper diagnostics can complete.

@@ -1,0 +1,21 @@
+2026-09-25 00:52:00 PDT, add exact two-stripe PF boundary
+S13 now has an executable `stripes=2` intermediate profile for the 192-line solid
+all-five kernel. The first 96 lines bias the packed-mask X schedule by 24 bytes and
+start X at $E8. Six mask rows advance X by exactly 24, so it wraps to zero at the
+midpoint without adding a per-row stripe test. The taken midpoint BEQ plus
+`LDX #$E8` has the same seven-cycle cost as the ordinary not-taken BEQ plus JMP.
+
+A midpoint-only old-row transition keeps stripe-0 PF data through visible line 95;
+the stripe-1 cache begins on line 96 exactly. Sharing the remainder of the second
+half costs one midpoint JMP, giving the second 96 lines a fixed +3-cycle PF phase
+offset rather than cumulative drift. The frame remains 262 lines and standard
+P0/P1/M0/M1/Ball heights remain 7/7/6/8/4. An asymmetric second stripe exposed
+and fixed the terminal-line expectation: the final three PF writes are the right
+half bytes.
+
+The intermediate two-stripe ABI intentionally keeps a single shared COLUPF/COLUBK
+pair while using twelve playfield-data bytes. Exact per-stripe color switching is
+still the next blocker; do not describe this checkpoint as the final N*2 color ABI.
+Added `vcs_all_five_stripes2_192.pl` and a dedicated fixture. Focused two-stripe,
+one-stripe, branch-contract, visible-handoff, source-hygiene, and context-format
+checks pass.

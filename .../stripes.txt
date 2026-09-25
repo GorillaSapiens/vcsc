@@ -37,17 +37,17 @@ object, and pinned-palette Stella coverage while adding stripes.
 
 Steps
 -----
-Current next action: generalize the stable S13 192-line positive-stripe kernel
-from `stripes=1` to N>1. The one-stripe base now has exact 1216-cycle mask rows:
-removing pair 1's two-cycle tail pad pays the long row backedge, so every row
-returns to the same six-write PF phase families. X remains the packed-mask row
-offset; stripe data itself is a six-byte zero-page cache, and the obsolete packed
-48-byte playfield object is not linked in positive-stripe cartridges. Preserve the
-new focused frame/object/PF-phase regression while adding stripe-boundary selection.
+Current next action: finish the S13 two-stripe color handoff, then generalize N>2.
+`stripes=2` now splits PF data exactly 96/96: X starts at $E8 with first-half mask
+offsets biased by 24, so six rows wrap naturally at the midpoint without a per-row
+test. Line 95 stays stripe 0; line 96 begins stripe 1. The one-time handoff shifts
+the second-half six-write phases +3 without drift. Colors are still one shared
+COLUPF/COLUBK pair; the final N*2 color ABI remains unfinished. Zero/one stripes
+are unchanged.
 
 S11. Finish broad regression; normalization is complete, but long mapper diagnostics still exceed the outer execution window.
-S13. Implement compile-time stripes with unchanged zero path; stripes=1 on 192-line missiles=1/player_colors=0 is raster-stable, N>1 remains.
-S14. Certify 192 stripes: stripes=1 now has exact six-write value/phase checks, pinned-palette Stella raster certification, and explicit stripes=0 byte-identity coverage; motion and the generalized N>1 ABI/resource contract remain.
+S13. Implement compile-time stripes with unchanged zero path; stripes=1 is raster-stable and stripes=2 has an exact 96/96 data split with shared colors; exact per-stripe color handoff and N>2 remain.
+S14. Certify 192 stripes: stripes=1 has exact value/phase, Stella, and zero-path byte-identity coverage; stripes=2 has frame/object/value/phase coverage; color, motion, and generalized ABI/resource certification remain.
 S15. Certify every line mode, including non-divisible 228 and 181/170 handoffs.
 S16. Exercise supported missile/player-color combinations.
 S17. Add public example/docs for geometry/storage/costs/composition.
