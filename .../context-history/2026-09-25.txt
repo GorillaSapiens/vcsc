@@ -88,3 +88,12 @@ This avoids a per-pair countdown and also fits the later caller-provided height
 table design. The 98/94 split is a certification checkpoint, not final default
 geometry.
 
+
+2026-09-25 12:05:00 PDT, stripe coarse/tail descriptors
+S13c2c1 materializes and certifies the ROM coarse/tail scheduler descriptor for
+the current 98/94 proof split: 49/47 pairs -> {6,1,5,7}. The visible raster is
+unchanged. S13c2c2 will consume the descriptor at the X-wrap hook.
+2026-09-25 12:28:00 PDT, consume first stripe schedule descriptor
+S13c2c2 now derives the first visible X seed from the ROM coarse-row descriptor
+in VBLANK and draw loads the generated zero-page seed instead of immediate $e8.
+One entry-padding cycle was reclaimed, preserving the certified 98/94 raster.

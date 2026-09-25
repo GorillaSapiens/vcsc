@@ -49,14 +49,25 @@ $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_buffer_b\s+run=\$[0-9A-Fa-f]{4}\s+s
    or die "stripe B buffer is not six bytes\n";
 $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_color\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
    or die "stripe next-color latch is not two bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
+   or die "stripe generated X seed is not one byte\n";
 $map !~ /__vcsc_object\$game_playfield\b/
    or die "positive-stripe cartridge retained obsolete packed playfield ROM\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0004\b/m
    or die "stripe color payload is not four bytes\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_data\s+load=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/m
    or die "stripe playfield payload is not twelve bytes\n";
-$map =~ /^\s+RODATA\.__vcsc_object\$game_stripe_pair_heights\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+$map =~ /^\s+RODATA\.__vcsc_object\$game_stripe_pair_heights\s+load=\$([0-9A-Fa-f]{4})\s+size=\$0002\b/m
    or die "generated stripe pair-height table is not two bytes\n";
+my $height_addr=hex($1);
+$map =~ /^\s+RODATA\.__vcsc_object\$game_stripe_schedule\s+load=\$([0-9A-Fa-f]{4})\s+size=\$0004\b/m
+   or die "generated coarse/tail stripe schedule is not four bytes\n";
+my $schedule_addr=hex($1);
+my $rom=read_file($bin);
+substr($rom,$height_addr-0xf000,2) eq pack('C*',49,47)
+   or die "generated stripe pair heights are not 49/47\n";
+substr($rom,$schedule_addr-0xf000,4) eq pack('C*',6,1,5,7)
+   or die "generated coarse/tail stripe schedule is not {6,1,5,7}\n";
 $map !~ /game_stripe_pairs_remaining|game_stripe_height_index/
    or die "obsolete runtime stripe countdown state remains\n";
 

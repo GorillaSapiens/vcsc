@@ -32,7 +32,12 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 #elif TEMPLATE_stripes == 2
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
+// S13c2c schedule descriptors split each pair height into coarse eight-pair
+// rows plus a 0..7-pair tail. The current certification split is 49/47 pairs:
+// {6,1} and {5,7}. These are immutable ROM descriptors; later S13c2c work
+// replaces the certification literals with the general N-stripe generator.
 const uint8_t TEMPLATE_stripe_pair_heights[2] := { 49,47 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,1,5,7 };
 #endif
 
 // Common selector ABI and immutable positioning data. Schedule branches below
@@ -211,6 +216,7 @@ uint8_t TEMPLATE_stripe_cache[6];
 uint8_t TEMPLATE_stripe_buffer_b[6];
 uint8_t TEMPLATE_stripe_next_color[2];
 uint8_t TEMPLATE_stripe_boundary_grp1;
+uint8_t TEMPLATE_stripe_x_seed;
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -594,6 +600,16 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_next_color;
    asm lda.a TEMPLATE_playfield_colors + 3;
    asm sta.z TEMPLATE_stripe_next_color + 1;
+   // Convert the first coarse-row descriptor to the X seed used by the visible
+   // stride-four mask schedule: seed = 256 - 4*coarse_rows.  This work stays in
+   // VBLANK; the raster only pays one zero-page LDX at entry.
+   asm lda.a TEMPLATE_stripe_schedule;
+   asm asl;
+   asm asl;
+   asm eor #$ff;
+   asm clc;
+   asm adc #1;
+   asm sta.z TEMPLATE_stripe_x_seed;
    // Precompute the P1 byte needed exactly at the 96-line boundary.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;
@@ -1263,9 +1279,12 @@ require inline void TEMPLATE_draw(void) {
    // cycle zero of the following line rather than eleven cycles early.
    asm bit.z $00;
    asm bit.z $00;
-   asm bit.z $00;
+   // LDX zp costs one more cycle than the old immediate seed.  Replace the
+   // third three-cycle BIT with a two-cycle NOP so pair 1 keeps its exact entry
+   // phase while X now comes from the generated coarse-row descriptor.
    asm nop;
-   asm ldx #$e8;
+   asm nop;
+   asm ldx.z TEMPLATE_stripe_x_seed;
    asm jmp @stripe_pair1;
 
    asm @stripe_transition:;
