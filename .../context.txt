@@ -227,7 +227,9 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 Immediate TODO
 --------------
 Continue `.../stripes.txt` S13. The stripes=1 192-line mask-row schedule is now
-cycle-stable and has a focused six-write phase/object/frame regression. Generalize
-the compile-time stripe ABI to N>1 without disturbing that zero/one-stripe base,
-then proceed to S14 certification. Finish the S11 broad regression when the long
-mapper diagnostics can complete.
+cycle-stable and has focused six-write value/phase, object/frame, explicit-zero-path
+byte-identity, and pinned-palette Stella raster regressions. Generalize the
+compile-time stripe ABI to N>1 without disturbing that zero/one-stripe base; the
+hard part is exact-boundary cache+COLUPF/COLUBK handoff with no per-line feature
+test. Finish S14 motion/resource certification alongside that work. Finish the
+S11 broad regression when the long mapper diagnostics can complete.

@@ -47,7 +47,7 @@ new focused frame/object/PF-phase regression while adding stripe-boundary select
 
 S11. Finish broad regression; normalization is complete, but long mapper diagnostics still exceed the outer execution window.
 S13. Implement compile-time stripes with unchanged zero path; stripes=1 on 192-line missiles=1/player_colors=0 is raster-stable, N>1 remains.
-S14. Certify 192 stripes: ABI, TIA phase, simulator/Stella, motion, zero-path bytes/resources.
+S14. Certify 192 stripes: stripes=1 now has exact six-write value/phase checks, pinned-palette Stella raster certification, and explicit stripes=0 byte-identity coverage; motion and the generalized N>1 ABI/resource contract remain.
 S15. Certify every line mode, including non-divisible 228 and 181/170 handoffs.
 S16. Exercise supported missile/player-color combinations.
 S17. Add public example/docs for geometry/storage/costs/composition.

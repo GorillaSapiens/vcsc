@@ -42,6 +42,29 @@ $rc==0 && !$sig or die "stripe build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "stripe build wrote output\n$out$err";
 -s $bin == 4096 or die "stripe cartridge is not exactly 4096 bytes\n";
 
+# The explicit zero-stripe selector must remain byte-identical to the historical
+# default path.  This catches accidental resource/timing/codegen changes while
+# the positive-stripe implementation evolves.
+my $zero_src=read_file(File::Spec->catfile($repo,qw(test fixtures all_five_192 smoke.c26)));
+my $zero_explicit=$zero_src;
+$zero_explicit =~ s/(instantiate \"renderers\/all_five\/all_five\.c26\" as game \(lines:=192)\)/$1, stripes:=0)/
+   or die "could not add explicit stripes:=0 to zero-path fixture\n";
+my $zero_default_src=File::Spec->catfile($tmp,'stripe_zero_default.c26');
+my $zero_explicit_src=File::Spec->catfile($tmp,'stripe_zero_explicit.c26');
+open(my $zdf,'>:raw',$zero_default_src) or die "write $zero_default_src: $!\n";
+print {$zdf} $zero_src; close($zdf);
+open(my $zef,'>:raw',$zero_explicit_src) or die "write $zero_explicit_src: $!\n";
+print {$zef} $zero_explicit; close($zef);
+my $zero_default_bin=File::Spec->catfile($tmp,'stripe_zero_default.bin');
+my $zero_explicit_bin=File::Spec->catfile($tmp,'stripe_zero_explicit.bin');
+for my $build ([$zero_default_src,$zero_default_bin],[$zero_explicit_src,$zero_explicit_bin]) {
+   ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$build->[0],'-o',$build->[1]);
+   $rc==0 && !$sig or die "zero-stripe build failed\n$out$err";
+   without_usage($out) eq '' && $err eq '' or die "zero-stripe build wrote output\n$out$err";
+}
+read_file($zero_default_bin) eq read_file($zero_explicit_bin)
+   or die "explicit stripes:=0 changed the historical all-five ROM bytes\n";
+
 my $map=read_file($mapfile);
 $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_cache\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0006\b/m
    or die "stripe cache is not six bytes\n";

@@ -68,3 +68,24 @@ Focused validation passes: `vcs_renderer_branch_contracts.pl`,
 `vcs_visible_component_handoff.pl`, `vcs_all_five_192.pl`,
 `vcs_all_five_stripes_192.pl`, `source_tree_hygiene.pl`, and `vcsc_branding.pl`.
 The stripe raster/frame/object regression remains unchanged by the contract fix.
+
+2026-09-24 20:24:00 PDT, strengthen S14 stripe certification
+Extended `vcs_all_five_stripes_192.pl` so the six PF0/PF1/PF2 write families now
+validate values as well as phases (PF0 compares only its hardware-significant high
+nibble because the kernel intentionally reuses the ignored low nibble while
+materializing object-enable carry). Added an explicit `stripes:=0` build and
+requires it to be byte-identical to the historical default all-five ROM.
+
+Added required pinned-palette Stella coverage in
+`vcs_all_five_stripes_192_stella.pl` with an asymmetric positive-stripe fixture and
+reviewed exact-RGB digest. The first attempted legacy-renderer raster equivalence
+was correctly rejected: its four-byte packed playfield cannot represent the new
+six-write PF0/PF1/PF2 schedule directly. The maintained simulator value/phase
+regression independently locks all six stripe bytes, while Stella locks the actual
+rendered raster.
+
+Focused stripe, Stella, branch-contract, visible-handoff, hygiene, and branding
+tests pass. N>1 is still blocked on the real exact-boundary handoff: playfield data
+and both color registers must switch on the same visible boundary without adding a
+per-line feature test or overrunning the 76-cycle scanline. Do not accept a data-only
+or row-aligned approximation as the ABI.

@@ -320,6 +320,7 @@ int main(int argc, char **argv) {
                const uint64_t e[] = {19,25,31,49,55,61};
                std::copy(e,e+6,expected);
             }
+            const uint8_t expected_values[] = {0xf0,0xff,0xff,0xf0,0xff,0xff};
             for (size_t i = 0; i < expected_count; ++i) {
                if (found->second[i].cycle != expected[i]) {
                   std::fprintf(stderr,
@@ -327,6 +328,13 @@ int main(int argc, char **argv) {
                      row, subline, i,
                      static_cast<unsigned long long>(found->second[i].cycle),
                      static_cast<unsigned long long>(expected[i]));
+                  return 1;
+               }
+               const uint8_t value_mask = found->second[i].address == 0x000D ? 0xf0 : 0xff;
+               if ((found->second[i].value & value_mask) != (expected_values[i] & value_mask)) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: stripe row %d line %d write %zu value $%02x; expected $%02x mask $%02x\n",
+                     row, subline, i, found->second[i].value, expected_values[i], value_mask);
                   return 1;
                }
             }
