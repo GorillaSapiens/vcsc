@@ -226,8 +226,10 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13c2. `stripes=2` now has an internal generated
-pair-height table `{48,48}`, a pair countdown, and height-table index state, while
-the proven 96/96 boundary still uses the old X-wrap trigger. Make the visible
-two-line kernel consume that countdown next so boundaries can occur on any pair;
-then schedule inactive-buffer refill and measure the minimum stripe height.
+Continue `.../stripes.txt` S13c2b. `stripes=2` keeps the generated `{48,48}`
+pair-height table, but the per-pair RAM countdown/index prototype was removed:
+its cost perturbs maintained PF/object phases. S13c2a instead uses generated
+X-wrap scheduling: X already advances four times per eight-pair mask row, and
+the four advance slots plus compensated operands can be chosen so wrap marks an
+even stripe boundary at no per-pair tax. Add an intra-row two-stripe boundary
+fixture next, then generalize that schedule before inactive-buffer refill work.

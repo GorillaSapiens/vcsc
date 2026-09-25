@@ -28,26 +28,28 @@ and score-composable 170/181 retains its entry/successor behavior.
 
 Steps
 -----
-Architecture: positive stripes use two six-byte zero-page playfield
-buffers (A/B) plus a two-byte next-color latch. While one buffer is being
-displayed, dead/slack cycles refill the inactive buffer and prepare the next
-COLUPF/COLUBK pair. Stripe boundaries only switch colors/buffer ownership; they
-do not fetch/copy six PF bytes. The visible kernel is fundamentally a two-line
-kernel, so all stripe heights are even and the scheduler counts scanline pairs.
+Architecture: positive stripes double-buffer two six-byte PF images plus a
+two-byte next-color latch. Refill the inactive side during the active stripe;
+boundaries only switch buffer/colors. The two-line kernel requires even heights
+and schedules in scanline pairs.
 
-Height policy: the first generalized implementation owns an automatically
-generated height table. For L visible scanlines, distribute L/2 scanline pairs
-as evenly as possible across N stripes, then convert each entry back to an even
-scanline height. A later public ABI may accept programmer-supplied heights, but
-must reject odd heights, heights below the measured refill-service minimum, or
-a table whose sum is not exactly L. Never round heights. The minimum is the measured number of pairs needed to
-refill the inactive PF buffer and prepare next color/boundary state.
+Height policy: initially generate pair heights by distributing L/2 pairs as
+evenly as possible across N stripes. Later accept caller heights, rejecting odd
+values, sums other than L, and heights below the measured refill minimum. Never
+round.
 
-S13c1. Land the internal generated pair-height table and scheduler state without
-changing the proven midpoint timing. Equal-height stripes use pair counts, not raw
-scanlines; for the current 192/2 case the generated table is 48,48 pairs.
-S13c2. Make the visible kernel consume that pair countdown and replace the fixed
-96-line/X-wrap midpoint. Boundaries may occur on any two-scanline pair.
+S13c1. Land the internal generated pair-height table without changing the proven
+midpoint timing. Equal-height stripes use pair counts, not raw scanlines; for the
+current 192/2 case the generated table is 48,48 pairs. The RAM-countdown prototype was discarded because charging every pair would
+disturb maintained PF/object phases.
+S13c2a. Replace the per-pair RAM countdown with a generated X-wrap schedule.
+X already advances four times per eight-pair mask row; move those four advances
+so the generated height makes X wrap on the requested pair, with operand offsets
+compensated so BL/M1/M0 still address the same mask row.
+S13c2b. Add an asymmetric two-stripe fixture with an intra-row boundary and
+prove PF data/colors, object hblank commits, and frame timing.
+S13c2c. Generalize that schedule per double-buffer stripe segment from the
+generated height table.
 S13d. Schedule inactive-buffer refill across the active stripe, measure the
 number of scanline pairs required, and make that the compile-time minimum stripe
 height.

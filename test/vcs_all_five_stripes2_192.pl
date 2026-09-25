@@ -57,10 +57,8 @@ $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_data\s+load=\$[0-9A-Fa-f]{4}\
    or die "stripe playfield payload is not twelve bytes\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_stripe_pair_heights\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
    or die "generated stripe pair-height table is not two bytes\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_pairs_remaining\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe pair countdown state is missing\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_height_index\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe height-table index state is missing\n";
+$map !~ /game_stripe_pairs_remaining|game_stripe_height_index/
+   or die "obsolete runtime stripe countdown state remains\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));

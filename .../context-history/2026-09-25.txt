@@ -61,3 +61,10 @@ The two-stripe map regression now requires the generated two-byte RODATA table
 and both one-byte scheduler-state objects. Exact asymmetric PF/color boundary,
 frame timing, object raster, branch, handoff, hygiene, and history contracts
 remain unchanged.
+
+2026-09-25 09:58:00 PDT, correct stripe scheduler direction
+S13c2 rejected a RAM countdown on every two-line pair because it perturbs
+PF/object phases. The kernel already advances X four times per eight-pair mask
+row; generated advance slots can make X wrap on an even stripe boundary while
+compensated operands keep BL/M1/M0 on the same row. Removed the temporary
+countdown/index RAM; the generated pair-height table stays authoritative.

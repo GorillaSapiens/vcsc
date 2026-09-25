@@ -211,8 +211,6 @@ uint8_t TEMPLATE_stripe_cache[6];
 uint8_t TEMPLATE_stripe_buffer_b[6];
 uint8_t TEMPLATE_stripe_next_color[2];
 uint8_t TEMPLATE_stripe_boundary_grp1;
-uint8_t TEMPLATE_stripe_pairs_remaining;
-uint8_t TEMPLATE_stripe_height_index;
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -596,11 +594,6 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_next_color;
    asm lda.a TEMPLATE_playfield_colors + 3;
    asm sta.z TEMPLATE_stripe_next_color + 1;
-   asm lda.a TEMPLATE_stripe_pair_heights;
-   asm sta.z TEMPLATE_stripe_pairs_remaining;
-   asm lda #1;
-   asm sta.z TEMPLATE_stripe_height_index;
-
    // Precompute the P1 byte needed exactly at the 96-line boundary.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;
