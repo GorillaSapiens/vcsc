@@ -217,6 +217,8 @@ uint8_t TEMPLATE_stripe_buffer_b[6];
 uint8_t TEMPLATE_stripe_next_color[2];
 uint8_t TEMPLATE_stripe_boundary_grp1;
 uint8_t TEMPLATE_stripe_x_seed;
+uint8_t TEMPLATE_stripe_next_x_seed;
+uint8_t TEMPLATE_stripe_next_tail;
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -610,6 +612,19 @@ require inline void TEMPLATE_vblank(void) {
    asm clc;
    asm adc #1;
    asm sta.z TEMPLATE_stripe_x_seed;
+
+   // Prepare the following stripe's scheduler state while VBLANK is free.
+   // Visible code must never divide/modulo a height or derive a coarse seed.
+   asm lda.a TEMPLATE_stripe_schedule + 2;
+   asm asl;
+   asm asl;
+   asm eor #$ff;
+   asm clc;
+   asm adc #1;
+   asm sta.z TEMPLATE_stripe_next_x_seed;
+   asm lda.a TEMPLATE_stripe_schedule + 3;
+   asm sta.z TEMPLATE_stripe_next_tail;
+
    // Precompute the P1 byte needed exactly at the 96-line boundary.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;

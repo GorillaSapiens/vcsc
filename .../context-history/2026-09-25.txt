@@ -97,3 +97,11 @@ unchanged. S13c2c2 will consume the descriptor at the X-wrap hook.
 S13c2c2 now derives the first visible X seed from the ROM coarse-row descriptor
 in VBLANK and draw loads the generated zero-page seed instead of immediate $e8.
 One entry-padding cycle was reclaimed, preserving the certified 98/94 raster.
+
+2026-09-25 14:03:13 PDT, stripe tail dispatch experiment
+Tried a VBLANK-prepared zero-page indirect JMP to a visible tail landing. The
+cross-inline-body label address caused generated caller-loop reachability to
+break (unresolved @while_start_0), so that dispatch shape was rejected rather
+than worked around. Kept descriptor work off the raster: VBLANK now prepares
+both current and next coarse X seeds plus the next 0..7 tail selector. The next
+implementation uses compiler-visible direct tail dispatch at the X-wrap seam.

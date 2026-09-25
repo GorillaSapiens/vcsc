@@ -226,10 +226,10 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13c2c. The two-stripe prototype now proves an
-intra-packed-row 98/94-line boundary. Generalize it as coarse eight-pair rows
-plus a 0..7-pair tail: X remains the free coarse-row counter, while inactive
-service prepares the next X seed and an indirect-jump vector selecting one of
-eight fixed tail handlers. Do not restore the discarded per-pair RAM countdown.
-After the generic scheduler is proven, restore default equal distribution and
-feed it through the same pair-height path before inactive-buffer refill work.
+Continue `.../stripes.txt` S13c2c. The two-stripe prototype proves an
+intra-packed-row 98/94-line boundary. ROM `{coarse,tail}` descriptors are live;
+VBLANK prepares the current and next coarse X seeds plus the next tail selector.
+A cross-inline-body indirect-JMP tail vector was rejected because it breaks C26
+reachability, so implement compiler-visible direct tail dispatch at the X-wrap
+seam and certify a second uneven split with a different tail. Do not restore the
+discarded per-pair RAM countdown or put division/modulo in the visible path.

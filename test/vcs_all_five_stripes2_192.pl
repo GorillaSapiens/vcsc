@@ -51,6 +51,10 @@ $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_color\s+run=\$[0-9A-Fa-f]{4}\s
    or die "stripe next-color latch is not two bytes\n";
 $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
    or die "stripe generated X seed is not one byte\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
+   or die "stripe next generated X seed is not one byte\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_tail\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
+   or die "stripe next tail selector is not one byte\n";
 $map !~ /__vcsc_object\$game_playfield\b/
    or die "positive-stripe cartridge retained obsolete packed playfield ROM\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0004\b/m
