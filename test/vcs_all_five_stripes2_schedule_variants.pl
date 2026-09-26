@@ -37,6 +37,7 @@ for my $case (
    ['tail0',['-DVCS_STRIPES2_CERT_TAIL0'],[48,48],[6,0,6,0]],
    ['tail1',[],[49,47],[6,1,5,7]],
    ['tail2',['-DVCS_STRIPES2_CERT_TAIL2'],[50,46],[6,2,5,6]],
+   ['tail3',['-DVCS_STRIPES2_CERT_TAIL3'],[51,45],[6,3,5,5]],
 ) {
    my($name,$defs,$heights,$schedule)=@$case;
    my $bin=File::Spec->catfile($tmp,"all_five_stripes2_${name}.bin");

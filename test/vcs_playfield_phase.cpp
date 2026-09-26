@@ -178,6 +178,8 @@ int main(int argc, char **argv) {
       std::strcmp(argv[5], "all-five-stripes2-tail0-192") == 0;
    const bool all_five_stripes2_tail2_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-tail2-192") == 0;
+   const bool all_five_stripes2_tail3_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-tail3-192") == 0;
    const bool all_five_phase_228_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-phase-228") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
@@ -200,7 +202,8 @@ int main(int argc, char **argv) {
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
        !all_five_stripes_192_profile && !all_five_stripes2_192_profile &&
-       !all_five_stripes2_tail0_192_profile && !all_five_stripes2_tail2_192_profile && !player_diagonal_profile && !player_diagonal_192_profile &&
+       !all_five_stripes2_tail0_192_profile && !all_five_stripes2_tail2_192_profile &&
+       !all_five_stripes2_tail3_192_profile && !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 &&
@@ -210,7 +213,8 @@ int main(int argc, char **argv) {
       fail("source row count must equal checked rows or be 12 when checking 11");
    const bool any_stripes2_profile = all_five_stripes2_192_profile ||
                                       all_five_stripes2_tail0_192_profile ||
-                                      all_five_stripes2_tail2_192_profile;
+                                      all_five_stripes2_tail2_192_profile ||
+                                      all_five_stripes2_tail3_192_profile;
    collect_pf0 = all_five_stripes_192_profile || any_stripes2_profile;
    std::memset(memory_image, 0, sizeof(memory_image));
    // No joystick direction or console switch is pressed by default.  Leaving
@@ -363,12 +367,30 @@ int main(int argc, char **argv) {
             else if (all_five_stripes2_tail2_192_profile && visible_line > 100) {
                for (size_t i = 0; i < expected_count; ++i) expected[i] += 5;
             }
+            else if (all_five_stripes2_tail3_192_profile && visible_line == 96) {
+               const uint64_t e[] = {24,30,36,42,48,54};
+               std::copy(e,e+6,expected);
+            }
+            else if (all_five_stripes2_tail3_192_profile &&
+                     (visible_line == 97 || visible_line == 99 || visible_line == 101)) {
+               const uint64_t e[] = {17,23,29,51,57,63};
+               std::copy(e,e+6,expected);
+            }
+            else if (all_five_stripes2_tail3_192_profile &&
+                     (visible_line == 98 || visible_line == 100 || visible_line == 102)) {
+               const uint64_t e[] = {23,29,35,53,59,65};
+               std::copy(e,e+6,expected);
+            }
+            else if (all_five_stripes2_tail3_192_profile && visible_line > 102) {
+               for (size_t i = 0; i < expected_count; ++i) expected[i] += 5;
+            }
             const uint8_t stripe0_values[] = {0xf0,0xff,0xff,0xf0,0xff,0xff};
             const uint8_t stripe1_values[] = {0x50,0x81,0x42,0xa0,0x24,0x18};
             const uint8_t *expected_values = stripe0_values;
             if (all_five_stripes2_tail0_192_profile && row * 16 + subline >= 96) expected_values = stripe1_values;
             if (all_five_stripes2_192_profile && row * 16 + subline >= 98) expected_values = stripe1_values;
             if (all_five_stripes2_tail2_192_profile && row * 16 + subline >= 100) expected_values = stripe1_values;
+            if (all_five_stripes2_tail3_192_profile && row * 16 + subline >= 102) expected_values = stripe1_values;
             if (any_stripes2_profile && final_line) expected_values = stripe1_values + 3;
             for (size_t i = 0; i < expected_count; ++i) {
                if (found->second[i].cycle != expected[i]) {
@@ -391,7 +413,8 @@ int main(int argc, char **argv) {
       }
       if (any_stripes2_profile) {
          const uint64_t boundary_offset = all_five_stripes2_tail0_192_profile ? 96 :
-                                          (all_five_stripes2_tail2_192_profile ? 100 : 98);
+                                          (all_five_stripes2_tail2_192_profile ? 100 :
+                                           (all_five_stripes2_tail3_192_profile ? 102 : 98));
          const uint64_t boundary_line = first_row_line + boundary_offset;
          bool saw_fg = false;
          bool saw_bg = false;
@@ -408,6 +431,8 @@ int main(int argc, char **argv) {
             std::printf("vcs_playfield_stripes2_tail0_192 ok: exact 96/96 data+color boundary with stable six-write phases\n");
          else if (all_five_stripes2_tail2_192_profile)
             std::printf("vcs_playfield_stripes2_tail2_192 ok: exact 100/92 data+color boundary with stable six-write phases\n");
+         else if (all_five_stripes2_tail3_192_profile)
+            std::printf("vcs_playfield_stripes2_tail3_192 ok: exact 102/90 data+color boundary with stable six-write phases\n");
          else
             std::printf("vcs_playfield_stripes2_192 ok: exact 98/94 data+color boundary with stable six-write phases\n");
       }

@@ -233,3 +233,6 @@ and the selector executes between its load and GRP1 store, so both 98/94 and
 There are 14 unfinished stripe steps. Next add/certify tails 0 and 3..7, then
 extend runtime selection to all eight tails. No per-pair countdown or visible
 division/modulo.
+
+Stripe status: fixed tails 0/3 and runtime tails 1/2 are certified. Tail 3 is
+51/45 pairs ({6,3},{5,5}), switching data/colors at line 102; tails 4..7 remain.

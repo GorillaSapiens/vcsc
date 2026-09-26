@@ -11,3 +11,11 @@ runtime selection remains the proven tail-1/2 path; tail 0 is isolated behind
 VCS_STRIPES2_CERT_TAIL0 until all fixed tail landings are certified and the
 final all-eight selector is solved once.
 
+
+2026-09-26 22:45:00 PDT, certify stripe tail 3
+Tail 3 now has an executable 51/45-pair ({6,3},{5,5}) certification fixture.
+The exact data/color handoff is visible line 102.  The coarse-wrap line has a
+one-time measured phase, the extra A pairs have stable alternating phases, and
+B settles to the established +5 family.  Frame timing remains 262 lines and all
+five object commits remain hblank-safe.  Production runtime selection remains
+the proven tail-1/2 selector while fixed tails are certified independently.
