@@ -1,0 +1,13 @@
+2026-09-26 21:45:00 PDT, certify stripe tail 0
+Tail 0 now has an executable 48/48-pair ({6,0},{6,0}) certification fixture.
+The row-edge boundary switches PF data at visible line 96 and uses a VBLANK-
+precomputed boundary P0 byte so all six PF writes fit on the boundary line.
+Colors switch at line-96 cycles 15/21; later B lines return to the established
++4 phase family. Frame timing and all five object hblank commits pass.
+
+The attempted three-way live selector made tail 2 two cycles late and pushed an
+object commit into visible time, so that integration was backed out. Production
+runtime selection remains the proven tail-1/2 path; tail 0 is isolated behind
+VCS_STRIPES2_CERT_TAIL0 until all fixed tail landings are certified and the
+final all-eight selector is solved once.
+

@@ -174,6 +174,8 @@ int main(int argc, char **argv) {
       std::strcmp(argv[5], "all-five-stripes-192") == 0;
    const bool all_five_stripes2_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-192") == 0;
+   const bool all_five_stripes2_tail0_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-tail0-192") == 0;
    const bool all_five_stripes2_tail2_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-tail2-192") == 0;
    const bool all_five_phase_228_profile = argc == 6 &&
@@ -198,7 +200,7 @@ int main(int argc, char **argv) {
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
        !all_five_stripes_192_profile && !all_five_stripes2_192_profile &&
-       !all_five_stripes2_tail2_192_profile && !player_diagonal_profile && !player_diagonal_192_profile &&
+       !all_five_stripes2_tail0_192_profile && !all_five_stripes2_tail2_192_profile && !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 &&
@@ -207,6 +209,7 @@ int main(int argc, char **argv) {
    if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
       fail("source row count must equal checked rows or be 12 when checking 11");
    const bool any_stripes2_profile = all_five_stripes2_192_profile ||
+                                      all_five_stripes2_tail0_192_profile ||
                                       all_five_stripes2_tail2_192_profile;
    collect_pf0 = all_five_stripes_192_profile || any_stripes2_profile;
    std::memset(memory_image, 0, sizeof(memory_image));
@@ -337,7 +340,14 @@ int main(int argc, char **argv) {
                std::copy(e,e+6,expected);
             }
             const int visible_line = row * 16 + subline;
-            if (all_five_stripes2_192_profile && visible_line == 98) {
+            if (all_five_stripes2_tail0_192_profile && visible_line == 96) {
+               const uint64_t e[] = {32,38,44,59,65,71};
+               std::copy(e,e+6,expected);
+            }
+            else if (all_five_stripes2_tail0_192_profile && visible_line > 96) {
+               for (size_t i = 0; i < expected_count; ++i) expected[i] += 4;
+            }
+            else if (all_five_stripes2_192_profile && visible_line == 98) {
                for (size_t i = 0; i < expected_count; ++i) expected[i] += 2;
             }
             else if (all_five_stripes2_192_profile && visible_line > 98) {
@@ -356,6 +366,7 @@ int main(int argc, char **argv) {
             const uint8_t stripe0_values[] = {0xf0,0xff,0xff,0xf0,0xff,0xff};
             const uint8_t stripe1_values[] = {0x50,0x81,0x42,0xa0,0x24,0x18};
             const uint8_t *expected_values = stripe0_values;
+            if (all_five_stripes2_tail0_192_profile && row * 16 + subline >= 96) expected_values = stripe1_values;
             if (all_five_stripes2_192_profile && row * 16 + subline >= 98) expected_values = stripe1_values;
             if (all_five_stripes2_tail2_192_profile && row * 16 + subline >= 100) expected_values = stripe1_values;
             if (any_stripes2_profile && final_line) expected_values = stripe1_values + 3;
@@ -379,20 +390,23 @@ int main(int argc, char **argv) {
          }
       }
       if (any_stripes2_profile) {
-         const uint64_t boundary_offset = all_five_stripes2_tail2_192_profile ? 100 : 98;
+         const uint64_t boundary_offset = all_five_stripes2_tail0_192_profile ? 96 :
+                                          (all_five_stripes2_tail2_192_profile ? 100 : 98);
          const uint64_t boundary_line = first_row_line + boundary_offset;
          bool saw_fg = false;
          bool saw_bg = false;
          for (const PfEvent &event : color_events) {
             if (event.line != boundary_line) continue;
-            const uint64_t fg_cycle = 6;
-            const uint64_t bg_cycle = 12;
+            const uint64_t fg_cycle = all_five_stripes2_tail0_192_profile ? 15 : 6;
+            const uint64_t bg_cycle = all_five_stripes2_tail0_192_profile ? 21 : 12;
             if (event.address == kColupf && event.value == 0x4e && event.cycle == fg_cycle) saw_fg = true;
             if (event.address == kColubk && event.value == 0x24 && event.cycle == bg_cycle) saw_bg = true;
          }
          if (!saw_fg || !saw_bg)
             fail("two-stripe colors did not switch exactly in boundary hblank");
-         if (all_five_stripes2_tail2_192_profile)
+         if (all_five_stripes2_tail0_192_profile)
+            std::printf("vcs_playfield_stripes2_tail0_192 ok: exact 96/96 data+color boundary with stable six-write phases\n");
+         else if (all_five_stripes2_tail2_192_profile)
             std::printf("vcs_playfield_stripes2_tail2_192 ok: exact 100/92 data+color boundary with stable six-write phases\n");
          else
             std::printf("vcs_playfield_stripes2_192 ok: exact 98/94 data+color boundary with stable six-write phases\n");

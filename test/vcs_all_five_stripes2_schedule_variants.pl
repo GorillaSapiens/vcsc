@@ -34,6 +34,7 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(test fixtures all_five_stripes2_192 smoke.c26));
 
 for my $case (
+   ['tail0',['-DVCS_STRIPES2_CERT_TAIL0'],[48,48],[6,0,6,0]],
    ['tail1',[],[49,47],[6,1,5,7]],
    ['tail2',['-DVCS_STRIPES2_CERT_TAIL2'],[50,46],[6,2,5,6]],
 ) {
