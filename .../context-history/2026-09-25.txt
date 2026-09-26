@@ -114,3 +114,12 @@ one pair later preserves 192 visible lines. Frame timing is 262 lines, object
 commits stay in hblank, colors switch at cycles 6/12, line 100 has a +4 PF
 phase, and later B lines use +5. Descriptor and raster regressions cover both.
 Next: runtime selection among compiler-visible fixed tail landings at X-wrap.
+
+2026-09-25 16:50:00 PDT, runtime tail 1/2 selection
+The two-stripe visible kernel now selects certified tail 1 or tail 2 from the
+current ROM-derived tail state instead of compile-time visible branches. VBLANK
+precomputes the coarse-wrap P1 byte. The selector runs between loading that byte
+and storing GRP1, exactly replacing the dynamic lookup cost; tail 2 uses a
+two-cycle pad to match tail 1. Both 98/94 and 100/92 raster tests remain green.
+The stripe roadmap is now one flat list with 14 unfinished steps; new-name work
+is explicitly before the public example/docs step.

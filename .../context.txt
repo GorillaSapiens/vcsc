@@ -226,8 +226,10 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` S13c2c. Tail landings 1 and 2 are certified:
-98/94 ({6,1}/{5,7}) and 100/92 ({6,2}/{5,6}), both with 262-line frames, exact
-PF/color boundaries, and hblank-safe objects. VBLANK prepares current/next X
-seeds and the next tail. Next: runtime X-wrap selection, then tails 0 and 3..7.
-No per-pair RAM countdown or visible division/modulo.
+Continue the flattened `.../stripes.txt` roadmap. Runtime tail 1/2 selection is
+now complete in one visible renderer: VBLANK precomputes the coarse-wrap P1 byte,
+and the selector executes between its load and GRP1 store, so both 98/94 and
+100/92 certifications retain their exact phases and hblank-safe object commits.
+There are 14 unfinished stripe steps. Next add/certify tails 0 and 3..7, then
+extend runtime selection to all eight tails. No per-pair countdown or visible
+division/modulo.
