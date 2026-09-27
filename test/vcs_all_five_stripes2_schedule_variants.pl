@@ -35,9 +35,13 @@ my $source=File::Spec->catfile($repo,qw(test fixtures all_five_stripes2_192 smok
 
 for my $case (
    ['tail0',['-DVCS_STRIPES2_CERT_TAIL0'],[48,48],[6,0,6,0]],
-   ['tail1',[],[49,47],[6,1,5,7]],
+   ['tail1',['-DVCS_STRIPES2_CERT_TAIL1'],[49,47],[6,1,5,7]],
    ['tail2',['-DVCS_STRIPES2_CERT_TAIL2'],[50,46],[6,2,5,6]],
    ['tail3',['-DVCS_STRIPES2_CERT_TAIL3'],[51,45],[6,3,5,5]],
+   ['tail4',['-DVCS_STRIPES2_CERT_TAIL4'],[52,44],[6,4,5,4]],
+   ['tail5',['-DVCS_STRIPES2_CERT_TAIL5'],[53,43],[6,5,5,3]],
+   ['tail6',['-DVCS_STRIPES2_CERT_TAIL6'],[54,42],[6,6,5,2]],
+   ['tail7',['-DVCS_STRIPES2_CERT_TAIL7'],[55,41],[6,7,5,1]],
 ) {
    my($name,$defs,$heights,$schedule)=@$case;
    my $bin=File::Spec->catfile($tmp,"all_five_stripes2_${name}.bin");

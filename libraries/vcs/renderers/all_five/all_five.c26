@@ -32,24 +32,37 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 #elif TEMPLATE_stripes == 2
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
-// S13c2c schedule descriptors split each pair height into coarse eight-pair
-// rows plus a 0..7-pair tail. Keep two certification schedules buildable so
-// the descriptor machinery is not accidentally coupled to tail=1 while the
-// visible tail-2 seam is developed. The default 49/47 case remains the live
-// 98/94 raster certification; -DVCS_STRIPES2_CERT_TAIL2 materializes the
-// neighboring 50/46 ({6,2},{5,6}) schedule for descriptor certification.
+// Pair-height descriptors split each stripe into coarse eight-pair rows plus
+// a 0..7-pair tail.  The public two-stripe default is the equal 48/48-pair
+// split.  Certification defines retain every neighboring tail value so the
+// one runtime scheduler is exercised across all eight legal tail landings.
 #ifdef VCS_STRIPES2_CERT_TAIL0
 const uint8_t TEMPLATE_stripe_pair_heights[2] := { 48,48 };
 const uint8_t TEMPLATE_stripe_schedule[4] := { 6,0,6,0 };
+#elif defined(VCS_STRIPES2_CERT_TAIL7)
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 55,41 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,7,5,1 };
+#elif defined(VCS_STRIPES2_CERT_TAIL6)
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 54,42 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,6,5,2 };
+#elif defined(VCS_STRIPES2_CERT_TAIL5)
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 53,43 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,5,5,3 };
+#elif defined(VCS_STRIPES2_CERT_TAIL4)
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 52,44 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,4,5,4 };
 #elif defined(VCS_STRIPES2_CERT_TAIL3)
 const uint8_t TEMPLATE_stripe_pair_heights[2] := { 51,45 };
 const uint8_t TEMPLATE_stripe_schedule[4] := { 6,3,5,5 };
 #elif defined(VCS_STRIPES2_CERT_TAIL2)
 const uint8_t TEMPLATE_stripe_pair_heights[2] := { 50,46 };
 const uint8_t TEMPLATE_stripe_schedule[4] := { 6,2,5,6 };
-#else
+#elif defined(VCS_STRIPES2_CERT_TAIL1)
 const uint8_t TEMPLATE_stripe_pair_heights[2] := { 49,47 };
 const uint8_t TEMPLATE_stripe_schedule[4] := { 6,1,5,7 };
+#else
+const uint8_t TEMPLATE_stripe_pair_heights[2] := { 48,48 };
+const uint8_t TEMPLATE_stripe_schedule[4] := { 6,0,6,0 };
 #endif
 #endif
 
@@ -231,14 +244,23 @@ uint8_t TEMPLATE_stripe_next_color[2];
 uint8_t TEMPLATE_stripe_boundary_grp1;
 uint8_t TEMPLATE_stripe_boundary_grp0;
 uint8_t TEMPLATE_stripe_wrap_grp1;
+#if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
+uint8_t TEMPLATE_stripe_wrap_grp0;
+uint8_t TEMPLATE_stripe_tail_a_ptr[2];
+uint8_t TEMPLATE_stripe_tail_b_ptr[2];
+#endif
 uint8_t TEMPLATE_stripe_x_seed;
 uint8_t TEMPLATE_stripe_next_x_seed;
 uint8_t TEMPLATE_stripe_tail;
 uint8_t TEMPLATE_stripe_next_tail;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+uint8_t TEMPLATE_stripe_refill_grp1[6];
+#endif
 #endif
 
 require inline void TEMPLATE_init(void) {
 }
+
 
 require inline void TEMPLATE_vblank(void) {
    // Internal assembly helpers add one hidden JSR level.
@@ -608,6 +630,17 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_buffer_b + 4;
    asm lda.a TEMPLATE_playfield_data + 11;
    asm sta.z TEMPLATE_stripe_buffer_b + 5;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   // Prove the visible refill really owns B: erase the normal VBLANK preload.
+   // Six one-shot tail-7 service pairs must reconstruct it before the switch.
+   asm lda #0;
+   asm sta.z TEMPLATE_stripe_buffer_b + 0;
+   asm sta.z TEMPLATE_stripe_buffer_b + 1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 2;
+   asm sta.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
+   asm sta.z TEMPLATE_stripe_buffer_b + 5;
+#endif
 #endif
    asm lda.a TEMPLATE_playfield_colors;
    asm sta COLUPF;
@@ -630,6 +663,21 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_x_seed;
    asm lda.a TEMPLATE_stripe_schedule + 1;
    asm sta.z TEMPLATE_stripe_tail;
+#if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
+   // The two seven-byte-cell dispatch tables share one page.  Each cell
+   // commits the already-precomputed GRP0 byte between its X seed and JMP.
+   // VBLANK computes tail*7 = tail*8-tail and the B-table +56 offset.
+   asm sta.z TEMPLATE_stripe_tail_a_ptr; // tail
+   asm asl;
+   asm asl;
+   asm asl;                              // tail*8
+   asm sec;
+   asm sbc.z TEMPLATE_stripe_tail_a_ptr; // tail*7
+   asm sta.z TEMPLATE_stripe_tail_a_ptr;
+   asm clc;
+   asm adc #56;
+   asm sta.z TEMPLATE_stripe_tail_b_ptr;
+#endif
 
    // Prepare the following stripe's scheduler state while VBLANK is free.
    // Visible code must never divide/modulo a height or derive a coarse seed.
@@ -688,6 +736,47 @@ require inline void TEMPLATE_vblank(void) {
    asm lda #0;
    asm @TEMPLATE_stripe2_wrap_grp1_ready:;
    asm sta.z TEMPLATE_stripe_wrap_grp1;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   // Refill probe: cache the exact P1 bytes for B pairs 1..6 (absolute
+   // visible pair indices 49..54).  A service pair can then replace the
+   // normal fourteen-cycle dynamic sprite selection with a seven-cycle
+   // ROM->inactive-buffer copy plus a three-cycle cached GRP1 load.
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc #49;
+   asm sta.z TEMPLATE_object_masks + 43;
+   asm ldx #0;
+   asm @TEMPLATE_stripe_refill_grp1_loop:;
+   asm ldy.z TEMPLATE_object_masks + 43;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_stripe_refill_grp1_zero;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_stripe_refill_grp1_store;
+   asm @TEMPLATE_stripe_refill_grp1_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_refill_grp1_store:;
+   asm sta.zx TEMPLATE_stripe_refill_grp1,x;
+   asm dec.z TEMPLATE_object_masks + 43;
+   asm inx;
+   asm cpx #6;
+   asm bcc.same @TEMPLATE_stripe_refill_grp1_loop;
+#endif
+#if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
+   // Pair-48 P0 (visible line 96) is fixed for the first boundary row.  The
+   // precomputed byte buys the ten cycles used by the A-suffix dispatch.
+   asm lda.z TEMPLATE_object_masks + 27;
+   asm sec;
+   asm sbc #48;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs.same @TEMPLATE_stripe2_wrap_grp0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_stripe2_wrap_grp0_ready;
+   asm @TEMPLATE_stripe2_wrap_grp0_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe2_wrap_grp0_ready:;
+   asm sta.z TEMPLATE_stripe_wrap_grp0;
+#endif
 #endif
 #endif
    asm dec.z TEMPLATE_player0_y;
@@ -1342,6 +1431,14 @@ require inline void TEMPLATE_draw(void) {
    asm lsr.z TEMPLATE_object_masks + 2;
    // Fill the tail of the staged first P0 scanline so pair 1 begins at
    // cycle zero of the following line rather than eleven cycles early.
+#if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
+   // Two high-byte stores plus NOP consume the exact ten entry-pad cycles they
+   // replace. A is the staged P0 sprite byte here, so use Y to preserve it.
+   asm ldy #>@stripe2_all8_dispatch_page;
+   asm sty.z TEMPLATE_stripe_tail_a_ptr + 1;
+   asm sty.z TEMPLATE_stripe_tail_b_ptr + 1;
+   asm nop;
+#else
    asm bit.z $00;
    asm bit.z $00;
    // LDX zp costs one more cycle than the old immediate seed.  Replace the
@@ -1349,6 +1446,7 @@ require inline void TEMPLATE_draw(void) {
    // phase while X now comes from the generated coarse-row descriptor.
    asm nop;
    asm nop;
+#endif
    asm ldx.z TEMPLATE_stripe_x_seed;
    asm jmp @stripe_pair1;
 
@@ -1892,13 +1990,527 @@ require inline void TEMPLATE_draw(void) {
    asm dec.z TEMPLATE_player1_y;
    asm lda.a TEMPLATE_stripe_wrap_grp1;
 
-#ifdef VCS_STRIPES2_CERT_TAIL3
-   // Tail-3 certification keeps a third intra-row landing isolated while the
-   // production selector remains the already-certified tail-1/2 path.
+#if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
+   // Tail 0 switches at the packed-row edge. Keep its complete handler next
+   // to this branch so the timing-contract branch remains genuinely short.
    asm ldy.z TEMPLATE_stripe_tail;
+   asm bne.same @stripe2_all8_positive;
+   // Tail zero falls through after a five-cycle LDY/BNE selector.  Use the
+   // six-cycle absolute mask shift below to recover the one cycle required by
+   // the independently certified row-edge entrance.
+   asm @stripe2_all8_tail0:;
+   asm sta GRP1;
+   asm lsr.z TEMPLATE_object_masks + 25;
+   asm lda.z TEMPLATE_stripe_next_color;
+   asm sta COLUPF;
+   asm lda.z TEMPLATE_stripe_next_color + 1;
+   asm sta COLUBK;
+   asm lda #0;
+   asm adc #0;
+   asm sta ENAM1;
+   asm lda.z TEMPLATE_stripe_buffer_b;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_boundary_grp0;
+   asm lsr.z TEMPLATE_object_masks + 26;
+   // Tail 0 always enters B at pair 1.  Bypassing the generic table here
+   // removes five unnecessary cycles and keeps the following ENAM1 commit in
+   // hblank; tail 0 is already a dedicated row-edge path.
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_pair1;
+
+   asm @stripe2_all8_positive:;
+   // Positive branch path is six cycles; four pad cycles balance it to the
+   // same ten-cycle selector entrance as tail zero and the historical path.
+   asm bit.a $00;
+   asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   // Common line-96 A P0.  Its sprite byte is precomputed in VBLANK; replacing
+   // the dynamic lookup pays the ten-cycle A-suffix table dispatch below.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   // Keep player bookkeeping after all six PF writes.  Putting DEC between
+   // the halves shifts the right PF family by five cycles.  The precomputed
+   // byte can commit before dispatch because neither memory LSR nor JMP (zp)
+   // changes A.
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_wrap_grp0;
+   asm lsr.z TEMPLATE_object_masks + 26;
+   asm jmp (TEMPLATE_stripe_tail_a_ptr);
+
+   asm @stripe2_all8_a1:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   asm lda.a TEMPLATE_playfield_data + 6;
+   asm and #$f0;
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 0;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 0;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_all8_a1_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_all8_a1_continueP1;
+   asm @stripe2_all8_a1_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_all8_a1_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 51,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_all8_a1_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_all8_a1_continueP0;
+   asm @stripe2_all8_a1_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_all8_a1_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 51,x;
+   asm @stripe2_all8_a2:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   asm lda.a TEMPLATE_playfield_data + 7;
+   asm sta.z TEMPLATE_stripe_buffer_b + 1;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 1;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_all8_a2_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_all8_a2_continueP1;
+   asm @stripe2_all8_a2_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_all8_a2_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_all8_a2_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_all8_a2_continueP0;
+   asm @stripe2_all8_a2_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_all8_a2_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm @stripe2_all8_a3:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   asm lda.a TEMPLATE_playfield_data + 8;
+   asm sta.z TEMPLATE_stripe_buffer_b + 2;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 2;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_all8_a3_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_all8_a3_continueP1;
+   asm @stripe2_all8_a3_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_all8_a3_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_all8_a3_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_all8_a3_continueP0;
+   asm @stripe2_all8_a3_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_all8_a3_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm @stripe2_all8_a4:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   asm lda.a TEMPLATE_playfield_data + 9;
+   asm and #$f0;
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 3;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 3;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_all8_a4_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_all8_a4_continueP1;
+   asm @stripe2_all8_a4_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_all8_a4_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_all8_a4_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_all8_a4_continueP0;
+   asm @stripe2_all8_a4_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_all8_a4_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm @stripe2_all8_a5:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   asm lda.a TEMPLATE_playfield_data + 10;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 4;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_all8_a5_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_all8_a5_continueP1;
+   asm @stripe2_all8_a5_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_all8_a5_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_all8_a5_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_all8_a5_continueP0;
+   asm @stripe2_all8_a5_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_all8_a5_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm @stripe2_all8_a6:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_PROBE
+   asm lda.a TEMPLATE_playfield_data + 11;
+   asm sta.z TEMPLATE_stripe_buffer_b + 5;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 5;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_all8_a6_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_all8_a6_continueP1;
+   asm @stripe2_all8_a6_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_all8_a6_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_all8_a6_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_all8_a6_continueP0;
+   asm @stripe2_all8_a6_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_all8_a6_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   asm @stripe2_all8_final_a_p1:;
+   // All positive-tail A suffixes converge with X=$ec and the next P1 byte in
+   // A.  Finish stripe A, switch colors, and draw stripe B's boundary P0.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   asm lda.a TEMPLATE_stripe_boundary_grp1;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_next_color;
+   asm sta COLUPF;
+   asm lda.z TEMPLATE_stripe_next_color + 1;
+   asm sta COLUBK;
+   asm lda.z TEMPLATE_stripe_buffer_b;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_boundary_grp0;
+   asm lsr.z TEMPLATE_object_masks + 26;
+   asm jmp (TEMPLATE_stripe_tail_b_ptr);
+
+#else
+#if defined(VCS_STRIPES2_CERT_TAIL3) || defined(VCS_STRIPES2_CERT_TAIL4) || defined(VCS_STRIPES2_CERT_TAIL5) || defined(VCS_STRIPES2_CERT_TAIL6) || defined(VCS_STRIPES2_CERT_TAIL7)
+   // Fixed tail-3..7 certification skeleton.  These builds prove each landing
+   // independently while the production runtime selector remains tail 1/2.
+   asm ldy.z TEMPLATE_stripe_tail;
+#if defined(VCS_STRIPES2_CERT_TAIL7)
+   asm cpy #7;
+#elif defined(VCS_STRIPES2_CERT_TAIL6)
+   asm cpy #6;
+#elif defined(VCS_STRIPES2_CERT_TAIL5)
+   asm cpy #5;
+#elif defined(VCS_STRIPES2_CERT_TAIL4)
+   asm cpy #4;
+#else
    asm cpy #3;
-   asm beq.same @stripe2_tail3_selected;
-   asm @stripe2_tail3_selected:;
+#endif
+   asm beq.same @stripe2_cert_tail_selected;
+   asm @stripe2_cert_tail_selected:;
    asm nop;
    asm sta GRP1;
    asm lsr.zx TEMPLATE_object_masks + 49,x;
@@ -1922,15 +2534,15 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bcc.same @stripe2_line96_tail3_activeP0;
+   asm bcc.same @stripe2_cert_line96_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
-   asm jmp @stripe2_line96_tail3_continueP0;
-   asm @stripe2_line96_tail3_activeP0:;
+   asm jmp @stripe2_cert_line96_continueP0;
+   asm @stripe2_cert_line96_activeP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm @stripe2_line96_tail3_continueP0:;
+   asm @stripe2_cert_line96_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
 
-   // Lines 97/98: first complete extra A pair.
+   // Extra complete A pair 1.
    asm sta GRP0;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #0;
@@ -1950,14 +2562,24 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
+#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm lda.a TEMPLATE_playfield_data + 6;
+   asm and #$f0;
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 0;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 0;
+#else
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc.same @stripe2_tail3_line97_drawP1;
+   asm bcc.same @stripe2_cert_pair1_drawP1;
    asm lda.z TEMPLATE_object_masks + 19;
-   asm bcs.same @stripe2_tail3_line97_continueP1;
-   asm @stripe2_tail3_line97_drawP1:;
+   asm bcs.same @stripe2_cert_pair1_continueP1;
+   asm @stripe2_cert_pair1_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm @stripe2_tail3_line97_continueP1:;
+   asm @stripe2_cert_pair1_continueP1:;
+#endif
    asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm nop;
    asm sta GRP1;
@@ -1979,15 +2601,15 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_cache + 5;
    asm sta PF2;
-   asm bcc.same @stripe2_tail3_line98_drawP0;
+   asm bcc.same @stripe2_cert_pair1_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
-   asm jmp @stripe2_tail3_line98_continueP0;
-   asm @stripe2_tail3_line98_drawP0:;
+   asm jmp @stripe2_cert_pair1_continueP0;
+   asm @stripe2_cert_pair1_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm @stripe2_tail3_line98_continueP0:;
+   asm @stripe2_cert_pair1_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
 
-   // Lines 99/100: second complete extra A pair.
+   // Extra complete A pair 2.
    asm sta GRP0;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #0;
@@ -2007,14 +2629,24 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
+#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm lda.a TEMPLATE_playfield_data + 7;
+   asm sta.z TEMPLATE_stripe_buffer_b + 1;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 1;
+   asm nop;
+   asm nop;
+#else
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc.same @stripe2_tail3_line99_drawP1;
+   asm bcc.same @stripe2_cert_pair2_drawP1;
    asm lda.z TEMPLATE_object_masks + 19;
-   asm bcs.same @stripe2_tail3_line99_continueP1;
-   asm @stripe2_tail3_line99_drawP1:;
+   asm bcs.same @stripe2_cert_pair2_continueP1;
+   asm @stripe2_cert_pair2_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm @stripe2_tail3_line99_continueP1:;
+   asm @stripe2_cert_pair2_continueP1:;
+#endif
    asm lsr.zx TEMPLATE_object_masks + 49,x;
    asm nop;
    asm sta GRP1;
@@ -2036,16 +2668,16 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_cache + 5;
    asm sta PF2;
-   asm bcc.same @stripe2_tail3_line100_drawP0;
+   asm bcc.same @stripe2_cert_pair2_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
-   asm jmp @stripe2_tail3_line100_continueP0;
-   asm @stripe2_tail3_line100_drawP0:;
+   asm jmp @stripe2_cert_pair2_continueP0;
+   asm @stripe2_cert_pair2_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm @stripe2_tail3_line100_continueP0:;
+   asm @stripe2_cert_pair2_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+#if defined(VCS_STRIPES2_CERT_TAIL4) || defined(VCS_STRIPES2_CERT_TAIL5) || defined(VCS_STRIPES2_CERT_TAIL6) || defined(VCS_STRIPES2_CERT_TAIL7)
 
-   // Line 101 is the final A P1 half. Its sprite byte is precomputed in
-   // VBLANK, paying for the color handoff before stripe B begins on line 102.
+   // Extra complete A pair 3.
    asm sta GRP0;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #0;
@@ -2065,7 +2697,299 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
+#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm lda.a TEMPLATE_playfield_data + 8;
+   asm sta.z TEMPLATE_stripe_buffer_b + 2;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 2;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_cert_pair3_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_cert_pair3_continueP1;
+   asm @stripe2_cert_pair3_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_cert_pair3_continueP1:;
+#endif
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm nop;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_cert_pair3_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_cert_pair3_continueP0;
+   asm @stripe2_cert_pair3_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_cert_pair3_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+#endif
+#if defined(VCS_STRIPES2_CERT_TAIL5) || defined(VCS_STRIPES2_CERT_TAIL6) || defined(VCS_STRIPES2_CERT_TAIL7)
+
+   // Extra complete A pair 4.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm lda.a TEMPLATE_playfield_data + 9;
+   asm and #$f0;
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 3;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 3;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_cert_pair4_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_cert_pair4_continueP1;
+   asm @stripe2_cert_pair4_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_cert_pair4_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_cert_pair4_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_cert_pair4_continueP0;
+   asm @stripe2_cert_pair4_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_cert_pair4_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+#endif
+#if defined(VCS_STRIPES2_CERT_TAIL6) || defined(VCS_STRIPES2_CERT_TAIL7)
+
+   // Extra complete A pair 5.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm lda.a TEMPLATE_playfield_data + 10;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 4;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_cert_pair5_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_cert_pair5_continueP1;
+   asm @stripe2_cert_pair5_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_cert_pair5_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_cert_pair5_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_cert_pair5_continueP0;
+   asm @stripe2_cert_pair5_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_cert_pair5_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+#endif
+#if defined(VCS_STRIPES2_CERT_TAIL7)
+
+   // Extra complete A pair 6.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm lda.a TEMPLATE_playfield_data + 11;
+   asm sta.z TEMPLATE_stripe_buffer_b + 5;
+   asm lda.z TEMPLATE_stripe_refill_grp1 + 5;
+   asm nop;
+   asm nop;
+#else
+   asm ldy.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcc.same @stripe2_cert_pair6_drawP1;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm bcs.same @stripe2_cert_pair6_continueP1;
+   asm @stripe2_cert_pair6_drawP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @stripe2_cert_pair6_continueP1:;
+#endif
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm inx;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_cache + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_cache + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_cache + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_cert_pair6_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_cert_pair6_continueP0;
+   asm @stripe2_cert_pair6_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_cert_pair6_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+#endif
+
+   // Final A P1 half.  The sprite byte is precomputed in VBLANK, paying for
+   // the color handoff before stripe B begins on the next scanline.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #0;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+#if defined(VCS_STRIPES2_CERT_TAIL7)
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+#elif defined(VCS_STRIPES2_CERT_TAIL6)
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+#elif defined(VCS_STRIPES2_CERT_TAIL5)
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+#else
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+#endif
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #0;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+#if defined(VCS_STRIPES2_CERT_TAIL7)
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+#elif defined(VCS_STRIPES2_CERT_TAIL6)
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+#elif defined(VCS_STRIPES2_CERT_TAIL5)
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+#else
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+#endif
    asm lda.a TEMPLATE_stripe_boundary_grp1;
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_next_color;
@@ -2073,7 +2997,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_stripe_next_color + 1;
    asm sta COLUBK;
 
-   // Boundary P0 half is stripe B on line 102.
+   // Boundary P0 half is stripe B.
    asm lda.z TEMPLATE_stripe_buffer_b + 0;
    asm adc #0;
    asm sta ENAM1;
@@ -2086,20 +3010,57 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm sty.z TEMPLATE_player0_y;
+#if defined(VCS_STRIPES2_CERT_TAIL4) || defined(VCS_STRIPES2_CERT_TAIL5) || defined(VCS_STRIPES2_CERT_TAIL6) || defined(VCS_STRIPES2_CERT_TAIL7)
+   // Later pair positions need the row-offset INX.  The VBLANK-precomputed
+   // P0 byte pays for that advance after the six PF writes.
+#endif
    asm lda.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.a PF0;
    asm lda.z TEMPLATE_stripe_buffer_b + 4;
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
-   asm bcc.same @stripe2_boundary_tail3_drawP0;
+#if defined(VCS_STRIPES2_CERT_TAIL4) || defined(VCS_STRIPES2_CERT_TAIL5) || defined(VCS_STRIPES2_CERT_TAIL6) || defined(VCS_STRIPES2_CERT_TAIL7)
+   asm lda.z TEMPLATE_stripe_boundary_grp0;
+#else
+   asm bcc.same @stripe2_cert_boundary_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
-   asm jmp @stripe2_boundary_tail3_continueP0;
-   asm @stripe2_boundary_tail3_drawP0:;
+   asm jmp @stripe2_cert_boundary_continueP0;
+   asm @stripe2_cert_boundary_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm @stripe2_boundary_tail3_continueP0:;
+   asm @stripe2_cert_boundary_continueP0:;
+#endif
+#if defined(VCS_STRIPES2_CERT_TAIL7)
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm inx;
+#elif defined(VCS_STRIPES2_CERT_TAIL6)
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm inx;
+#elif defined(VCS_STRIPES2_CERT_TAIL5)
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm inx;
+#elif defined(VCS_STRIPES2_CERT_TAIL4)
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm inx;
+#else
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+#endif
+#if defined(VCS_STRIPES2_CERT_TAIL7)
+   // Tail 7 lands immediately before the packed-row transition.  The normal
+   // pair-7 backedge contributes five cycles before that transition; preserve
+   // them here so the transition GRP1 commit stays in hblank.
+   asm bit.z $00;
+   asm nop;
+   asm jmp @stripe2_transition;
+#elif defined(VCS_STRIPES2_CERT_TAIL6)
+   asm jmp @stripe2_pair7;
+#elif defined(VCS_STRIPES2_CERT_TAIL5)
+   asm jmp @stripe2_pair6;
+#elif defined(VCS_STRIPES2_CERT_TAIL4)
+   asm jmp @stripe2_pair5;
+#else
    asm jmp @stripe2_pair4;
+#endif
 
 #elif defined(VCS_STRIPES2_CERT_TAIL0)
    // Tail-0 certification keeps the proven row-edge landing isolated while
@@ -2388,6 +3349,7 @@ require inline void TEMPLATE_draw(void) {
    asm lsr.zx TEMPLATE_object_masks + 50,x;
    asm jmp @stripe2_pair2;
 
+#endif
 #endif
 
    asm @stripe2_transition:;
@@ -2911,6 +3873,63 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_buffer_b + 5;
    asm sty PF2;
+#if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
+   // Keep the dispatch table out of the hot kernel so its size cannot disturb
+   // any .same/.cross branch placement.  The terminal jump is absorbed by the
+   // final WSYNC; mid-frame indirect dispatch jumps here and back to handlers.
+   asm jmp @stripe2_all8_after_dispatch_page;
+   asm .align 256;
+   asm @stripe2_all8_dispatch_page:;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_tail0;
+   asm ldx #$ec;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_final_a_p1;
+   asm ldx #$eb;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_a6;
+   asm ldx #$ea;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_a5;
+   asm ldx #$e9;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_a4;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_a3;
+   asm ldx #$e7;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_a2;
+   asm ldx #$e6;
+   asm sta GRP0;
+   asm jmp @stripe2_all8_a1;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_pair1;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_pair2;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_pair3;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_pair4;
+   asm ldx #$e9;
+   asm sta GRP0;
+   asm jmp @stripe2_pair5;
+   asm ldx #$ea;
+   asm sta GRP0;
+   asm jmp @stripe2_pair6;
+   asm ldx #$eb;
+   asm sta GRP0;
+   asm jmp @stripe2_pair7;
+   asm ldx #$ec;
+   asm sta GRP0;
+   asm jmp @stripe2_transition;
+   asm @stripe2_all8_after_dispatch_page:;
+#endif
 #else
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right

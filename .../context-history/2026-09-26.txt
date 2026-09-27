@@ -19,3 +19,8 @@ one-time measured phase, the extra A pairs have stable alternating phases, and
 B settles to the established +5 family.  Frame timing remains 262 lines and all
 five object commits remain hblank-safe.  Production runtime selection remains
 the proven tail-1/2 selector while fixed tails are certified independently.
+
+2026-09-26 17:18:00 PDT, all-eight stripes and refill proof
+Runtime tails 0..7 and default 48/48-pair scheduling are green.  A probe erases
+inactive B and rebuilds its six PF bytes from ROM in six beam-neutral pairs.
+Raw PF refill is 12 scanlines; repeated service/cache scheduling remains open.

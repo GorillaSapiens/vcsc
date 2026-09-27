@@ -68,10 +68,10 @@ $map =~ /^\s+RODATA\.__vcsc_object\$game_stripe_schedule\s+load=\$([0-9A-Fa-f]{4
    or die "generated coarse/tail stripe schedule is not four bytes\n";
 my $schedule_addr=hex($1);
 my $rom=read_file($bin);
-substr($rom,$height_addr-0xf000,2) eq pack('C*',49,47)
-   or die "generated stripe pair heights are not 49/47\n";
-substr($rom,$schedule_addr-0xf000,4) eq pack('C*',6,1,5,7)
-   or die "generated coarse/tail stripe schedule is not {6,1,5,7}\n";
+substr($rom,$height_addr-0xf000,2) eq pack('C*',48,48)
+   or die "generated stripe pair heights are not 48/48\n";
+substr($rom,$schedule_addr-0xf000,4) eq pack('C*',6,0,6,0)
+   or die "generated coarse/tail stripe schedule is not {6,0,6,0}\n";
 $map !~ /game_stripe_pairs_remaining|game_stripe_height_index/
    or die "obsolete runtime stripe countdown state remains\n";
 
@@ -82,8 +82,8 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 my @checks=(
    ['timing','vcs_frame_timing.cpp',[50,'--no-audio','--raw-lines',264],
       "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"],
-   ['phase','vcs_playfield_phase.cpp',[12,12,40,'all-five-stripes2-192'],
-      "vcs_playfield_stripes2_192 ok: exact 98/94 data+color boundary with stable six-write phases\n"],
+   ['phase','vcs_playfield_phase.cpp',[12,12,40,'all-five-stripes2-all8-tail0-192'],
+      "vcs_playfield_stripes2_all8_tail0_192 ok: exact 96/96 data+color boundary with stable runtime phases\n"],
    ['objects','vcs_standard_objects.cpp',['--hblank'],
       "vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4\n"],
 );

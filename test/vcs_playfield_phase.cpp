@@ -180,6 +180,28 @@ int main(int argc, char **argv) {
       std::strcmp(argv[5], "all-five-stripes2-tail2-192") == 0;
    const bool all_five_stripes2_tail3_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-tail3-192") == 0;
+   const bool all_five_stripes2_tail4_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-tail4-192") == 0;
+   const bool all_five_stripes2_tail5_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-tail5-192") == 0;
+   const bool all_five_stripes2_tail6_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-tail6-192") == 0;
+   const bool all_five_stripes2_tail7_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-tail7-192") == 0;
+   int all_five_stripes2_all8_tail = -1;
+   if (argc == 6) {
+      int tail = -1;
+      char extra = 0;
+      if (std::sscanf(argv[5], "all-five-stripes2-all8-tail%d-192%c", &tail, &extra) == 1 &&
+          tail >= 0 && tail <= 7)
+         all_five_stripes2_all8_tail = tail;
+   }
+   const int fixed_tail_3_7 =
+      all_five_stripes2_tail3_192_profile ? 3 :
+      all_five_stripes2_tail4_192_profile ? 4 :
+      all_five_stripes2_tail5_192_profile ? 5 :
+      all_five_stripes2_tail6_192_profile ? 6 :
+      all_five_stripes2_tail7_192_profile ? 7 : 0;
    const bool all_five_phase_228_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-phase-228") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
@@ -203,7 +225,10 @@ int main(int argc, char **argv) {
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
        !all_five_stripes_192_profile && !all_five_stripes2_192_profile &&
        !all_five_stripes2_tail0_192_profile && !all_five_stripes2_tail2_192_profile &&
-       !all_five_stripes2_tail3_192_profile && !player_diagonal_profile && !player_diagonal_192_profile &&
+       !all_five_stripes2_tail3_192_profile && !all_five_stripes2_tail4_192_profile &&
+       !all_five_stripes2_tail5_192_profile && !all_five_stripes2_tail6_192_profile &&
+       !all_five_stripes2_tail7_192_profile && all_five_stripes2_all8_tail < 0 &&
+       !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 &&
@@ -214,7 +239,12 @@ int main(int argc, char **argv) {
    const bool any_stripes2_profile = all_five_stripes2_192_profile ||
                                       all_five_stripes2_tail0_192_profile ||
                                       all_five_stripes2_tail2_192_profile ||
-                                      all_five_stripes2_tail3_192_profile;
+                                      all_five_stripes2_tail3_192_profile ||
+                                      all_five_stripes2_tail4_192_profile ||
+                                      all_five_stripes2_tail5_192_profile ||
+                                      all_five_stripes2_tail6_192_profile ||
+                                      all_five_stripes2_tail7_192_profile ||
+                                      all_five_stripes2_all8_tail >= 0;
    collect_pf0 = all_five_stripes_192_profile || any_stripes2_profile;
    std::memset(memory_image, 0, sizeof(memory_image));
    // No joystick direction or console switch is pressed by default.  Leaving
@@ -344,7 +374,42 @@ int main(int argc, char **argv) {
                std::copy(e,e+6,expected);
             }
             const int visible_line = row * 16 + subline;
-            if (all_five_stripes2_tail0_192_profile && visible_line == 96) {
+            if (all_five_stripes2_all8_tail >= 0) {
+               const int tail = all_five_stripes2_all8_tail;
+               const int boundary = 96 + tail * 2;
+               if (tail == 0) {
+                  if (visible_line == 96) {
+                     for (size_t i = 0; i < expected_count; ++i) expected[i] += 8;
+                  }
+                  else if (visible_line > 96) {
+                     for (size_t i = 0; i < expected_count; ++i) expected[i] += 4;
+                  }
+               }
+               else if (visible_line == 97) {
+                  for (size_t i = 0; i < expected_count; ++i) expected[i] += 1;
+               }
+               else if (visible_line >= 98 && visible_line < boundary) {
+                  const uint64_t phase = (visible_line == 98 || (visible_line & 1)) ? 3 : 5;
+                  for (size_t i = 0; i < expected_count; ++i) expected[i] += phase;
+               }
+               else if (visible_line == boundary) {
+                  const uint64_t left_phase = tail == 1 ? 3 : 5;
+                  const int64_t right_phase = tail == 1 ? -4 : -2;
+                  for (size_t i = 0; i < expected_count && i < 3; ++i) expected[i] += left_phase;
+                  for (size_t i = 3; i < expected_count; ++i)
+                     expected[i] = static_cast<uint64_t>(static_cast<int64_t>(expected[i]) + right_phase);
+               }
+               else if (visible_line > boundary) {
+                  if (tail == 7) {
+                     for (size_t i = 0; i < expected_count; ++i)
+                        expected[i] = static_cast<uint64_t>(static_cast<int64_t>(expected[i]) - 2);
+                  }
+                  else {
+                     for (size_t i = 0; i < expected_count; ++i) expected[i] += 3;
+                  }
+               }
+            }
+            else if (all_five_stripes2_tail0_192_profile && visible_line == 96) {
                const uint64_t e[] = {32,38,44,59,65,71};
                std::copy(e,e+6,expected);
             }
@@ -367,30 +432,37 @@ int main(int argc, char **argv) {
             else if (all_five_stripes2_tail2_192_profile && visible_line > 100) {
                for (size_t i = 0; i < expected_count; ++i) expected[i] += 5;
             }
-            else if (all_five_stripes2_tail3_192_profile && visible_line == 96) {
+            else if (fixed_tail_3_7 && visible_line == 96) {
                const uint64_t e[] = {24,30,36,42,48,54};
                std::copy(e,e+6,expected);
             }
-            else if (all_five_stripes2_tail3_192_profile &&
-                     (visible_line == 97 || visible_line == 99 || visible_line == 101)) {
+            else if (fixed_tail_3_7 && visible_line >= 97 &&
+                     visible_line < 96 + fixed_tail_3_7 * 2 &&
+                     (visible_line & 1)) {
                const uint64_t e[] = {17,23,29,51,57,63};
                std::copy(e,e+6,expected);
             }
-            else if (all_five_stripes2_tail3_192_profile &&
-                     (visible_line == 98 || visible_line == 100 || visible_line == 102)) {
+            else if (fixed_tail_3_7 && visible_line >= 98 &&
+                     visible_line <= 96 + fixed_tail_3_7 * 2 &&
+                     !(visible_line & 1)) {
                const uint64_t e[] = {23,29,35,53,59,65};
                std::copy(e,e+6,expected);
             }
-            else if (all_five_stripes2_tail3_192_profile && visible_line > 102) {
-               for (size_t i = 0; i < expected_count; ++i) expected[i] += 5;
+            else if (fixed_tail_3_7 && visible_line > 96 + fixed_tail_3_7 * 2) {
+               const uint64_t phase = fixed_tail_3_7 == 3 ? 5 : 2;
+               for (size_t i = 0; i < expected_count; ++i) expected[i] += phase;
             }
             const uint8_t stripe0_values[] = {0xf0,0xff,0xff,0xf0,0xff,0xff};
             const uint8_t stripe1_values[] = {0x50,0x81,0x42,0xa0,0x24,0x18};
             const uint8_t *expected_values = stripe0_values;
+            if (all_five_stripes2_all8_tail >= 0 &&
+                row * 16 + subline >= 96 + all_five_stripes2_all8_tail * 2)
+               expected_values = stripe1_values;
             if (all_five_stripes2_tail0_192_profile && row * 16 + subline >= 96) expected_values = stripe1_values;
             if (all_five_stripes2_192_profile && row * 16 + subline >= 98) expected_values = stripe1_values;
             if (all_five_stripes2_tail2_192_profile && row * 16 + subline >= 100) expected_values = stripe1_values;
-            if (all_five_stripes2_tail3_192_profile && row * 16 + subline >= 102) expected_values = stripe1_values;
+            if (fixed_tail_3_7 && row * 16 + subline >= 96 + fixed_tail_3_7 * 2)
+               expected_values = stripe1_values;
             if (any_stripes2_profile && final_line) expected_values = stripe1_values + 3;
             for (size_t i = 0; i < expected_count; ++i) {
                if (found->second[i].cycle != expected[i]) {
@@ -412,27 +484,42 @@ int main(int argc, char **argv) {
          }
       }
       if (any_stripes2_profile) {
-         const uint64_t boundary_offset = all_five_stripes2_tail0_192_profile ? 96 :
-                                          (all_five_stripes2_tail2_192_profile ? 100 :
-                                           (all_five_stripes2_tail3_192_profile ? 102 : 98));
+         const uint64_t boundary_offset = all_five_stripes2_all8_tail >= 0 ?
+                                             96 + all_five_stripes2_all8_tail * 2 :
+                                             (all_five_stripes2_tail0_192_profile ? 96 :
+                                              (all_five_stripes2_tail2_192_profile ? 100 :
+                                               (fixed_tail_3_7 ? 96 + fixed_tail_3_7 * 2 : 98)));
          const uint64_t boundary_line = first_row_line + boundary_offset;
          bool saw_fg = false;
          bool saw_bg = false;
          for (const PfEvent &event : color_events) {
             if (event.line != boundary_line) continue;
-            const uint64_t fg_cycle = all_five_stripes2_tail0_192_profile ? 15 : 6;
-            const uint64_t bg_cycle = all_five_stripes2_tail0_192_profile ? 21 : 12;
+            const bool all8_tail0 = all_five_stripes2_all8_tail == 0;
+            const uint64_t fg_cycle = all8_tail0 ? 13 :
+                                      (all_five_stripes2_tail0_192_profile ? 15 :
+                                       (all_five_stripes2_all8_tail >= 0 ? 7 : 6));
+            const uint64_t bg_cycle = all8_tail0 ? 19 :
+                                      (all_five_stripes2_tail0_192_profile ? 21 :
+                                       (all_five_stripes2_all8_tail >= 0 ? 13 : 12));
             if (event.address == kColupf && event.value == 0x4e && event.cycle == fg_cycle) saw_fg = true;
             if (event.address == kColubk && event.value == 0x24 && event.cycle == bg_cycle) saw_bg = true;
          }
          if (!saw_fg || !saw_bg)
             fail("two-stripe colors did not switch exactly in boundary hblank");
-         if (all_five_stripes2_tail0_192_profile)
+         if (all_five_stripes2_all8_tail >= 0)
+            std::printf("vcs_playfield_stripes2_all8_tail%d_192 ok: exact %llu/%llu data+color boundary with stable runtime phases\n",
+                        all_five_stripes2_all8_tail,
+                        static_cast<unsigned long long>(boundary_offset),
+                        static_cast<unsigned long long>(192 - boundary_offset));
+         else if (all_five_stripes2_tail0_192_profile)
             std::printf("vcs_playfield_stripes2_tail0_192 ok: exact 96/96 data+color boundary with stable six-write phases\n");
          else if (all_five_stripes2_tail2_192_profile)
             std::printf("vcs_playfield_stripes2_tail2_192 ok: exact 100/92 data+color boundary with stable six-write phases\n");
-         else if (all_five_stripes2_tail3_192_profile)
-            std::printf("vcs_playfield_stripes2_tail3_192 ok: exact 102/90 data+color boundary with stable six-write phases\n");
+         else if (fixed_tail_3_7)
+            std::printf("vcs_playfield_stripes2_tail%d_192 ok: exact %llu/%llu data+color boundary with stable six-write phases\n",
+                        fixed_tail_3_7,
+                        static_cast<unsigned long long>(boundary_offset),
+                        static_cast<unsigned long long>(192 - boundary_offset));
          else
             std::printf("vcs_playfield_stripes2_192 ok: exact 98/94 data+color boundary with stable six-write phases\n");
       }
