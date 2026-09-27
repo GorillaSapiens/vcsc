@@ -39,6 +39,8 @@ my $bin=File::Spec->catfile($tmp,'all_five_stripes2_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'all_five_stripes2_192.map');
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "stripe build failed\n$out$err";
+$out =~ /^  rom\s+used=3750 bytes .* free=340 bytes/m or die "stripe ROM footprint changed\n$out";
+$out =~ /^  ram\s+used=103 bytes .* free=25 bytes/m or die "stripe RAM footprint changed\n$out";
 without_usage($out) eq '' && $err eq '' or die "stripe build wrote output\n$out$err";
 -s $bin == 4096 or die "stripe cartridge is not exactly 4096 bytes\n";
 

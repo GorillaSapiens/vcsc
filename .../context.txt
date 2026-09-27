@@ -226,10 +226,7 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue the flat `.../stripes.txt` roadmap.  Tails 0..7, the runtime all-eight
-dispatcher, and default generated 48/48-pair (96/96-line) scheduling are green.
-A probe rebuilds a deliberately erased inactive B buffer from ROM in six
-beam-neutral pairs: raw PF refill is 12 scanlines.  Next solve repeated service
-placement and future P1-cache preparation; only then enforce minimum height.
-Twelve top-level stripe steps remain.
-
+Continue `.../stripes.txt`.  Tails 0..7, all-eight dispatch, equal 96/96,
+cache-free six-pair refill, motion, and broad 192-line certification are green.
+Next solve rolling refill, then minimum height. Future public name: `gameplay`.
+Ten stripe steps remain.

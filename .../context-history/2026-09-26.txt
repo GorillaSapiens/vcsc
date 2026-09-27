@@ -24,3 +24,22 @@ the proven tail-1/2 selector while fixed tails are certified independently.
 Runtime tails 0..7 and default 48/48-pair scheduling are green.  A probe erases
 inactive B and rebuilds its six PF bytes from ROM in six beam-neutral pairs.
 Raw PF refill is 12 scanlines; repeated service/cache scheduling remains open.
+
+2026-09-26 19:15:00 PDT, self-host stripe refill
+The six-pair refill probe no longer has a third six-byte sprite cache.  Inactive
+B holds the six P1 service bytes; each service pair consumes B[i], then replaces
+it in place with the next stripe PF byte.  The probe stays beam-neutral, passes
+objects/timing/phases, and returns to the normal 103-byte RAM footprint.
+
+2026-09-26 19:40:00 PDT, harden stripe refill and motion
+The refill fixture now puts P1 at Y=55 so all six service pairs consume nonzero
+graphics from inactive B before overwriting those bytes with PF data.  A second
+cache-free probe certifies the same six copies when P1 is inactive.  Stripe2
+RAM is locked at 103 bytes with no third refill cache.  A compact moving-P0
+fixture also certifies changing RESP/HMP placement in the 4K stripe cart,
+completing the broad 192-line stripe certification checklist.
+
+
+2026-09-26 20:20:00 PDT, stripe certification/name
+192-line certification is complete.  Future public renderer name: `gameplay`;
+defer the path/API rename until the stripe ABI is stable. Ten steps remain.

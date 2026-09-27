@@ -93,6 +93,7 @@ std::map<int,std::array<uint8_t,ObjectCount>> frame_x;
 bool score_above = false;
 bool scoreless = false;
 bool motion_mode = false;
+bool drift_mode = false;
 bool ball_edge_mode = false;
 int ball_first_override = -1;
 int ball_lines_override = -1;
@@ -313,6 +314,7 @@ int expected_post_resp_handoff_resp_cycle(uint8_t x) {
    return 9+5*steps-(early ? 1 : 0);
 }
 std::array<uint8_t,ObjectCount> desired_x_for_frame(int checked) {
+   if (drift_mode) return {{static_cast<uint8_t>(21+checked),130,50,110,80}};
    if (!motion_mode) return {{20,130,50,110,80}};
    const auto found=frame_x.find(checked);
    if (found==frame_x.end()) fail("missing desired-position frame");
@@ -532,7 +534,7 @@ bool expected_enable(Object object,int relative_line) {
 }
 
 void verify_static_object_pixel_raster() {
-   if (motion_mode) return;
+   if (motion_mode || drift_mode) return;
    const int checked=2;
    const auto found=timed_writes.find(checked);
    if (found==timed_writes.end() || found->second.empty()) fail("missing static object raster trace");
@@ -639,7 +641,7 @@ void verify_frames() {
 
 int main(int argc,char **argv) {
    if (argc != 4 && argc != 5 && argc != 6 && argc != 11 && argc != 12) {
-      std::fprintf(stderr,"usage: %s ROM above|below|none static|ball-edge|motion [args]\n",argv[0]);
+      std::fprintf(stderr,"usage: %s ROM above|below|none static|ball-edge|drift|motion [args]\n",argv[0]);
       return 2;
    }
    scoreless = std::strcmp(argv[2],"none")==0;
@@ -647,14 +649,18 @@ int main(int argc,char **argv) {
    if (!scoreless && !score_above && std::strcmp(argv[2],"below")!=0)
       fail("bad score order");
    motion_mode = std::strcmp(argv[3],"motion")==0;
+   drift_mode = std::strcmp(argv[3],"drift")==0;
    ball_edge_mode = std::strcmp(argv[3],"ball-edge")==0;
-   if (!motion_mode && !ball_edge_mode && std::strcmp(argv[3],"static")!=0) fail("bad scene mode");
+   if (!motion_mode && !drift_mode && !ball_edge_mode && std::strcmp(argv[3],"static")!=0) fail("bad scene mode");
    if (motion_mode) {
       if (argc != 11 && argc != 12) fail("motion mode needs seven zero-page addresses");
       object_x_zp=parse_zp(argv[4]);
       for (size_t i=0;i<5;++i) y_zp[i]=parse_zp(argv[5+static_cast<int>(i)]);
       motion_frame_zp=parse_zp(argv[10]);
       if (argc==12) poison_score=std::strcmp(argv[11],"poison")==0;
+   }
+   else if (drift_mode) {
+      if (argc != 4) fail("drift mode takes no extra arguments");
    }
    else if (ball_edge_mode) {
       if (argc != 6) fail("ball-edge mode needs expected first line and line count");

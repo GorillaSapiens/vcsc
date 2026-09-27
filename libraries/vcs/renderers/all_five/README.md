@@ -105,6 +105,7 @@ VSYNC, VBLANK, RIOT timer deadlines and visible-component order.
 ## Maintained examples
 
 - `examples/04_renderers/all_five/no_score/` instantiates `lines:=192`.
+- `examples/04_renderers/all_five/stripes/` is the current runnable 192-line two-stripe prototype.
 - `examples/04_renderers/all_five/score_{above,below}/` contains the centered,
   left, right, two-plus-two, three-plus-three, and poison `lines:=181`
   compositions.

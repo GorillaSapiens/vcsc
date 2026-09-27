@@ -253,9 +253,6 @@ uint8_t TEMPLATE_stripe_x_seed;
 uint8_t TEMPLATE_stripe_next_x_seed;
 uint8_t TEMPLATE_stripe_tail;
 uint8_t TEMPLATE_stripe_next_tail;
-#ifdef VCS_STRIPES2_REFILL_PROBE
-uint8_t TEMPLATE_stripe_refill_grp1[6];
-#endif
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -630,9 +627,10 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_buffer_b + 4;
    asm lda.a TEMPLATE_playfield_data + 11;
    asm sta.z TEMPLATE_stripe_buffer_b + 5;
-#ifdef VCS_STRIPES2_REFILL_PROBE
-   // Prove the visible refill really owns B: erase the normal VBLANK preload.
-   // Six one-shot tail-7 service pairs must reconstruct it before the switch.
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
+   // Cache-free refill certification starts with an empty inactive buffer.
+   // The selected service window has P1 inactive, so six visible pairs can
+   // reconstruct B using literal zero GRP1 values.
    asm lda #0;
    asm sta.z TEMPLATE_stripe_buffer_b + 0;
    asm sta.z TEMPLATE_stripe_buffer_b + 1;
@@ -640,6 +638,12 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_buffer_b + 3;
    asm sta.z TEMPLATE_stripe_buffer_b + 4;
    asm sta.z TEMPLATE_stripe_buffer_b + 5;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   // The refill probe deliberately does not leave B holding playfield data.
+   // B temporarily becomes the six-byte P1 service cache instead; each
+   // visible service pair consumes B[i] as GRP1 and overwrites that same byte
+   // with the next stripe's PF data.  This proves the A/B buffers are enough
+   // for the primitive and avoids a hidden third six-byte cache.
 #endif
 #endif
    asm lda.a TEMPLATE_playfield_colors;
@@ -737,10 +741,9 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_stripe2_wrap_grp1_ready:;
    asm sta.z TEMPLATE_stripe_wrap_grp1;
 #ifdef VCS_STRIPES2_REFILL_PROBE
-   // Refill probe: cache the exact P1 bytes for B pairs 1..6 (absolute
-   // visible pair indices 49..54).  A service pair can then replace the
-   // normal fourteen-cycle dynamic sprite selection with a seven-cycle
-   // ROM->inactive-buffer copy plus a three-cycle cached GRP1 load.
+   // Seed B with the exact P1 bytes for the six tail-7 service pairs
+   // (absolute visible pair indices 49..54).  The visible refill consumes
+   // each byte once and replaces it in place with PF data.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;
    asm sbc #49;
@@ -755,7 +758,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_stripe_refill_grp1_zero:;
    asm lda #0;
    asm @TEMPLATE_stripe_refill_grp1_store:;
-   asm sta.zx TEMPLATE_stripe_refill_grp1,x;
+   asm sta.zx TEMPLATE_stripe_buffer_b,x;
    asm dec.z TEMPLATE_object_masks + 43;
    asm inx;
    asm cpx #6;
@@ -2081,12 +2084,21 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#ifdef VCS_STRIPES2_REFILL_PROBE
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
    asm lda.a TEMPLATE_playfield_data + 6;
-   asm and #$f0;
    asm ora #1;
    asm sta.z TEMPLATE_stripe_buffer_b + 0;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 0;
+   asm lda #0;
+   asm bit.z $00;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   asm ldy.z TEMPLATE_stripe_buffer_b + 0;
+   asm lda.a TEMPLATE_playfield_data + 6;
+   // Stripe PF0 source bytes are canonical TIA values: the ignored low
+   // nibble is zero.  ORA #1 adds the hidden enable baseline without the
+   // two-cycle AND used by the defensive VBLANK preload.
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 0;
+   asm tya;
 #else
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2145,11 +2157,17 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#ifdef VCS_STRIPES2_REFILL_PROBE
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
    asm lda.a TEMPLATE_playfield_data + 7;
    asm sta.z TEMPLATE_stripe_buffer_b + 1;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 1;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm lda.a TEMPLATE_playfield_data + 7;
+   asm sta.z TEMPLATE_stripe_buffer_b + 1;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2209,11 +2227,17 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#ifdef VCS_STRIPES2_REFILL_PROBE
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
    asm lda.a TEMPLATE_playfield_data + 8;
    asm sta.z TEMPLATE_stripe_buffer_b + 2;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 2;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm lda.a TEMPLATE_playfield_data + 8;
+   asm sta.z TEMPLATE_stripe_buffer_b + 2;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2273,12 +2297,21 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#ifdef VCS_STRIPES2_REFILL_PROBE
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
    asm lda.a TEMPLATE_playfield_data + 9;
-   asm and #$f0;
    asm ora #1;
    asm sta.z TEMPLATE_stripe_buffer_b + 3;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 3;
+   asm lda #0;
+   asm bit.z $00;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   asm ldy.z TEMPLATE_stripe_buffer_b + 3;
+   asm lda.a TEMPLATE_playfield_data + 9;
+   // Stripe PF0 source bytes are canonical TIA values: the ignored low
+   // nibble is zero.  ORA #1 adds the hidden enable baseline without the
+   // two-cycle AND used by the defensive VBLANK preload.
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 3;
+   asm tya;
 #else
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2337,11 +2370,17 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#ifdef VCS_STRIPES2_REFILL_PROBE
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
    asm lda.a TEMPLATE_playfield_data + 10;
    asm sta.z TEMPLATE_stripe_buffer_b + 4;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 4;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm lda.a TEMPLATE_playfield_data + 10;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2401,11 +2440,17 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#ifdef VCS_STRIPES2_REFILL_PROBE
+#ifdef VCS_STRIPES2_REFILL_ZERO_PROBE
    asm lda.a TEMPLATE_playfield_data + 11;
    asm sta.z TEMPLATE_stripe_buffer_b + 5;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 5;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE)
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm lda.a TEMPLATE_playfield_data + 11;
+   asm sta.z TEMPLATE_stripe_buffer_b + 5;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2562,14 +2607,23 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
-   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
-   // refill can replace P1 selection without moving the beam.
+#if defined(VCS_STRIPES2_REFILL_ZERO_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
    asm lda.a TEMPLATE_playfield_data + 6;
-   asm and #$f0;
    asm ora #1;
    asm sta.z TEMPLATE_stripe_buffer_b + 0;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 0;
+   asm lda #0;
+   asm bit.z $00;
+#elif defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm ldy.z TEMPLATE_stripe_buffer_b + 0;
+   asm lda.a TEMPLATE_playfield_data + 6;
+   // Stripe PF0 source bytes are canonical TIA values: the ignored low
+   // nibble is zero.  ORA #1 adds the hidden enable baseline without the
+   // two-cycle AND used by the defensive VBLANK preload.
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 0;
+   asm tya;
 #else
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2629,13 +2683,19 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
-   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
-   // refill can replace P1 selection without moving the beam.
+#if defined(VCS_STRIPES2_REFILL_ZERO_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
    asm lda.a TEMPLATE_playfield_data + 7;
    asm sta.z TEMPLATE_stripe_buffer_b + 1;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 1;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm lda.a TEMPLATE_playfield_data + 7;
+   asm sta.z TEMPLATE_stripe_buffer_b + 1;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2697,13 +2757,19 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
-   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
-   // refill can replace P1 selection without moving the beam.
+#if defined(VCS_STRIPES2_REFILL_ZERO_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
    asm lda.a TEMPLATE_playfield_data + 8;
    asm sta.z TEMPLATE_stripe_buffer_b + 2;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 2;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm lda.a TEMPLATE_playfield_data + 8;
+   asm sta.z TEMPLATE_stripe_buffer_b + 2;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2766,14 +2832,23 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
-   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
-   // refill can replace P1 selection without moving the beam.
+#if defined(VCS_STRIPES2_REFILL_ZERO_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
    asm lda.a TEMPLATE_playfield_data + 9;
-   asm and #$f0;
    asm ora #1;
    asm sta.z TEMPLATE_stripe_buffer_b + 3;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 3;
+   asm lda #0;
+   asm bit.z $00;
+#elif defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm ldy.z TEMPLATE_stripe_buffer_b + 3;
+   asm lda.a TEMPLATE_playfield_data + 9;
+   // Stripe PF0 source bytes are canonical TIA values: the ignored low
+   // nibble is zero.  ORA #1 adds the hidden enable baseline without the
+   // two-cycle AND used by the defensive VBLANK preload.
+   asm ora #1;
+   asm sta.z TEMPLATE_stripe_buffer_b + 3;
+   asm tya;
 #else
    asm ldy.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
@@ -2835,13 +2910,19 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
-   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
-   // refill can replace P1 selection without moving the beam.
+#if defined(VCS_STRIPES2_REFILL_ZERO_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
    asm lda.a TEMPLATE_playfield_data + 10;
    asm sta.z TEMPLATE_stripe_buffer_b + 4;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 4;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm lda.a TEMPLATE_playfield_data + 10;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
@@ -2904,13 +2985,19 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
-#if defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
-   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
-   // refill can replace P1 selection without moving the beam.
+#if defined(VCS_STRIPES2_REFILL_ZERO_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
    asm lda.a TEMPLATE_playfield_data + 11;
    asm sta.z TEMPLATE_stripe_buffer_b + 5;
-   asm lda.z TEMPLATE_stripe_refill_grp1 + 5;
+   asm lda #0;
+   asm bit.z $00;
    asm nop;
+#elif defined(VCS_STRIPES2_REFILL_PROBE) && defined(VCS_STRIPES2_CERT_TAIL7)
+   // Six one-shot tail-7 service pairs prove a complete six-byte ROM->RAM
+   // refill can replace P1 selection without moving the beam.
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm lda.a TEMPLATE_playfield_data + 11;
+   asm sta.z TEMPLATE_stripe_buffer_b + 5;
+   asm tya;
    asm nop;
 #else
    asm ldy.z TEMPLATE_player1_y;
