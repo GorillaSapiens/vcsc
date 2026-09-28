@@ -43,3 +43,28 @@ completing the broad 192-line stripe certification checklist.
 2026-09-26 20:20:00 PDT, stripe certification/name
 192-line certification is complete.  Future public renderer name: `gameplay`;
 defer the path/API rename until the stripe ABI is stable. Ten steps remain.
+2026-09-26 22:28:40 PDT, add kernel cycle search
+Added libraries/vcs/renderers/kernel_schedule_search.pl. Inputs pair semantic
+operations with exact assembly/cycle templates, dependencies, event windows,
+and optional implementation alternatives. Search horizons cross scanline-pair
+boundaries, so pair-tail setup is first-class. Added a documented all_five
+six-scanline staging bandwidth problem and regression; it finds one seven-cycle
+ROM-to-RAM staging copy on each of six consecutive scanlines. This is a bandwidth
+proof with broad PF windows, not yet the exact generated-kernel schedule.
+2026-09-26 22:43:59 PDT, prove six-line PF refill
+Added an exact ordinary-pair input for kernel_schedule_search.pl. It pins all
+12 PF writes to maintained phases and selects the self-hosted P1 staging path.
+A new VCS_STRIPES2_REFILL_6LINE_PROBE seeds the inactive six-byte buffer with
+alternating P1/P0 service bytes for three pairs, then overwrites one slot on
+each scanline with PF0L/PF1L/PF2L/PF0R/PF1R/PF2R. A stays the sprite byte while
+Y performs the ROM-to-RAM copy. Canonical PF0 bytes use INY to add the hidden
+low-bit baseline. The three service P0 lines have temporary -2/-4/-4 PF phase
+families, but each pair restores cadence; frame timing, PF values/colors, and all
+five object hblank checks pass. Raw PF refill is therefore six scanlines, not 12.
+Rolling production of the six service sprite bytes remains unsolved for N>2.
+
+2026-09-26 23:08:00 PDT, constrain stripe refill
+-------------------------------------------------
+* Solver: P0 needs one seed; known-mode P1 fits. Exhaustive uint8 y/height
+  checking bounds a uniform three-pair P1 window to start <=4; six lines remains
+  the mixed-state target.

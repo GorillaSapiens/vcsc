@@ -492,3 +492,65 @@ Use existing profiles as focused examples rather than copying one wholesale:
 When the new renderer disagrees with one of these, do not cargo-cult the older
 implementation. State which contract differs, prove the new schedule, and keep
 both profiles separately testable.
+
+## Cycle-schedule search helper
+
+`libraries/vcs/renderers/kernel_schedule_search.pl` is the maintained brute-force
+helper for cycle-exact renderer scheduling problems.  Its input is a Perl data
+file so a problem can carry comments, high-level semantic descriptions, exact
+assembly templates, dependencies, and TIA event windows together.  A semantic
+operation may supply several assembly implementations; the search chooses both
+an implementation and a legal placement/order.
+
+The search horizon is absolute CPU cycles.  With the normal 76-cycle TIA line,
+cycles 0..151 describe one two-scanline kernel pair.  Use a longer horizon when
+searching several consecutive pairs.  Work near the tail of the second line is
+therefore naturally available to prepare the next pair: model the preparation as
+an ordinary operation and express the consumer with `after` dependencies rather
+than artificially ending the problem at the last visible TIA write.
+
+Run:
+
+```sh
+perl libraries/vcs/renderers/kernel_schedule_search.pl --help
+perl libraries/vcs/renderers/kernel_schedule_search.pl \
+  libraries/vcs/renderers/all_five/stripe_stage_search.pl
+```
+
+The report gives absolute and `line:cycle` coordinates, selected implementation,
+high-level purpose, exact assembly/cycle cost, event coordinates, and inserted
+idle gaps.  A problem may provide `idle_fillers` such as the 6502's two- and
+three-cycle NOP forms; when it does, every inserted gap must be synthesized from
+those real instructions, so the search cannot invent a one-cycle pause.  Treat
+addressing mode as another implementation choice whenever it is useful as a
+single-cycle timing control: for example a zero-page `LDA`/`STA` is one cycle
+shorter than its absolute form.  Put both spellings in the input with their real
+assembly and event offsets rather than correcting the result by hand afterward.
+
+`--max-solutions N` shows several legal schedules; `--all` exhaustively
+enumerates them and can of course become very large.  The solver deliberately
+does not guess branch/page-cross penalties or register liveness: encode each
+concrete timing alternative explicitly so a returned schedule is auditable.
+
+The all-five stripe work keeps progressively tighter examples beside the
+renderer.  `stripe_stage_search.pl` is the broad six-scanline bandwidth proof;
+`stripe_pair_exact_search.pl` pins one ordinary pair to the maintained PF
+phases; `stripe_three_pair_exact_search.pl` proves six PF staging writes across
+three consecutive pairs while allowing pair-tail setup; and
+`stripe_p0_stage_bound_search.pl` records the original five-cycle deficit when an
+odd-line staging copy and a fully dynamic next-pair P0 lookup are both charged
+to the ordinary P0 half. `stripe_p0_service_phase_search.pl` then feeds the
+measured -2/-4/-4 service phases back into the model and proves that only one
+P0 seed is needed: the later two pairs stage a PF byte and dynamically produce
+the following GRP0 without drift. `stripe_p1_uniform_service_search.pl` proves
+both known-active and known-inactive P1 service bodies at the same cadence; the
+regression exhaustively checks that such a three-pair uniform window begins by
+pair 4 for every uint8 P1 y/height state.
+`stripe_mixed_service_search.pl` tightens that result: given one preclassified
+three-bit activity pattern for each player, all 64 P0/P1 combinations stage six
+PF bytes in the same six scanlines. P1 carries alternating PF bytes in X, P0
+stages the others in cycles recovered from its height compare, and direct
+Ball/M1/M0 shifts keep X available as payload. The emitted active/active probe
+certifies the tightest path against the simulator. These files are design inputs
+as well as regressions; keep their comments synchronized with the renderer
+architecture they are meant to test.

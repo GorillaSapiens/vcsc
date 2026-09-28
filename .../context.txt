@@ -226,7 +226,11 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`.  Tails 0..7, all-eight dispatch, equal 96/96,
-cache-free six-pair refill, motion, and broad 192-line certification are green.
-Next solve rolling refill, then minimum height. Future public name: `gameplay`.
-Ten stripe steps remain.
+Continue `.../stripes.txt`. The generic cycle solver now proves six PF bytes
+in six scanlines with real fillers and addressing-mode timing choices. A new
+mixed-service model proves all 64 preclassified P0/P1 three-pair activity
+patterns fit the same six-line cadence without a sprite cache; the active/active
+emitted probe is green at the unchanged 98-byte RAM footprint. The remaining
+step is rolling generation/dispatch of those two three-bit activity patterns
+without a stripe-count cache or per-pair activity tax. Then include next colors
+and derive the public minimum. `gameplay`; 10 left.

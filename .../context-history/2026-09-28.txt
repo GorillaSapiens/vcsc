@@ -1,0 +1,15 @@
+2026-09-28 11:52:55 PDT, Six-line mixed service solved
+Added a preclassified mixed-player service model.
+All 64 P0/P1 three-bit activity patterns fit.
+P1 carries PF bytes 0/2/4 in X across P0 lines.
+P0 stages PF bytes 1/3/5 after removing CPY work.
+Direct Ball/M1/M0 shifts free X from mask indexing.
+The final tail restores X without disturbing carry/A.
+Added active/active emitted-code certification.
+Frame, PF phases, objects, and 98-byte RAM are green.
+Next: roll and dispatch activity patterns cheaply.
+
+2026-09-28 12:03:00 PDT, Refresh clean-build ROM ledger
+A clean tool rebuild emits the unchanged stripe smoke ROM at 3748 bytes.
+The incoming 3750-byte expectation was stale by two bytes.
+Verified against the untouched incoming all_five source before updating it.
