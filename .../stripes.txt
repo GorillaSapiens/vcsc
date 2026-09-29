@@ -23,12 +23,10 @@ Measurements and discarded prototypes belong in tests or daily history.
 Steps
 -----
 Completed: 192-line `stripes:=1/2`, A/B buffers, all tail handlers, runtime
-dispatch, equal heights, motion/Stella/resource contracts, and six-line PF refill
-are green. No third cache or stripe-count RAM is used; canonical PF0 source bytes
-keep their low nibble zero for the hidden enable baseline.
-
-
-192-line certification is complete: zero-path identity, resources, generated-height edges, branch/handoff contracts, Stella RGB, and moving-P0 RESP/HMP. The future public renderer name is `gameplay`; the actual path/API rename waits until the stripe ABI is stable.
+dispatch, six-line PF refill, zero-path/resource/height/branch/handoff/motion
+contracts, and Stella RGB are green. No third cache or stripe-count RAM is used;
+canonical PF0 source bytes keep their low nibble zero for the hidden enable
+baseline. Future public renderer name: `gameplay`; rename waits for stable ABI.
 
 Remaining:
 
@@ -42,10 +40,13 @@ Remaining:
    bytes with RAM still 103. A common uniform window is guaranteed among the five
    fixed ordinary starts 1,3,5,9,11; five is minimal. Candidate dispatch itself
    is zero cadence cost: direct Ball/M1 shifts plus the removed tail NOP pay for
-   CPX/BEQ, while direct-versus-absolute M0 addressing balances selected and
-   non-selected paths exactly. Next build the rolling producer that chooses the
-   candidate and prepares both service pointers before this two-row dispatch
-   region, without a stripe-count cache or a general per-pair feature tax.
+   CPX/BEQ, while direct-versus-absolute M0 addressing balances both paths. Use
+   pair 32 as planner origin: a 16-byte low-nibble transition alias table safely
+   over-approximates blocked candidates, still at most four of five across both
+   players, so no range checks are needed. X can retain the selected relative
+   start while the four reclaimed bytes become the two service pointers. Next
+   emit/schedule that producer before the two-row dispatch region without a
+   stripe-count cache or general per-pair feature tax.
 2. Measure the complete rolling service pipeline (including service-sprite and
    next-color preparation) and enforce the resulting minimum even stripe height.
    Six lines is now the proven PF-copy cost, not yet the public minimum.

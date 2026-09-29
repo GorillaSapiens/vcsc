@@ -351,6 +351,86 @@ $want_four=$want_four*(@minimal_universe-$_)/($_+1) for 0..3;
 scalar(keys %covered_four)==$want_four
    or die "some four ordinary starts unexpectedly guarantee a common uniform window\n";
 
+# Pair 32 is a particularly useful rolling-planner origin: it is aligned to a
+# 16-pair period, so the five relative starts 1,3,5,9,11 can be screened using
+# only the low nibble of each activity-transition position.  The table below
+# deliberately aliases every later 16-pair period onto the same candidate.
+# Those aliases can create false conflicts, but never false safety: a real
+# conflict is always marked, and each of the four P0/P1 threshold/wrap
+# transitions still marks at most one bit.  Thus even the conservative alias
+# masks cannot block all five candidates.  This buys a fixed 16-byte table and
+# removes planner range checks.
+my @transition_alias=(0,1,1,2,2,4,4,0,0,8,8,16,16,0,0,0);
+my %alias_masks;
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $alias=$transition_alias[$y & 15] |
+                $transition_alias[(($y-$h)&255) & 15];
+      $alias_masks{$alias}=1;
+      my $true=0;
+      for my $i (0..$#dispatch_candidates) {
+         my $s=$dispatch_candidates[$i];
+         my $a0=(($y-$s    ) & 255) < $h ? 1 : 0;
+         my $a1=(($y-$s-1  ) & 255) < $h ? 1 : 0;
+         my $a2=(($y-$s-2  ) & 255) < $h ? 1 : 0;
+         $true |= 1 << $i unless $a0==$a1 && $a1==$a2;
+      }
+      ($true & ~$alias)==0
+         or die "transition alias lost a real conflict y=$y h=$h true=$true alias=$alias\n";
+      unpack('%32b*',pack('L',$alias)) <= 2
+         or die "one player alias-blocked more than two candidates y=$y h=$h alias=$alias\n";
+   }
+}
+my @alias_masks=sort {$a<=>$b} keys %alias_masks;
+my @first_free_start;
+for my $mask (0..31) {
+   my $start;
+   for my $i (0..$#dispatch_candidates) {
+      if (!(($mask>>$i)&1)) { $start=$dispatch_candidates[$i]; last; }
+   }
+   $first_free_start[$mask]=defined($start) ? $start : 0;
+}
+for my $m0 (@alias_masks) {
+   for my $m1 (@alias_masks) {
+      my $u=$m0|$m1;
+      unpack('%32b*',pack('L',$u)) <= 4
+         or die "two-player transition alias blocks more than four candidates mask=$u\n";
+      my $s=$first_free_start[$u];
+      $s && grep($_==$s,@dispatch_candidates)
+         or die "alias selector lost a free candidate mask=$u start=$s\n";
+      my ($i)=grep { $dispatch_candidates[$_]==$s } 0..$#dispatch_candidates;
+      !(($u>>$i)&1)
+         or die "alias selector chose a blocked candidate mask=$u start=$s\n";
+   }
+}
+
+# Once the selector returns relative start r, X can keep r all the way through
+# pointer construction and the candidate-dispatch region.  P1's first service
+# source row is y-(32+r); P0 is one pipeline decrement ahead at y-(33+r).
+# If a selected three-pair window is active, its first source row can never be
+# 0 or 1, so biasing the graphics pointer by source-2 is safe and local Y=2,1,0
+# addresses exactly the required three bytes.
+for my $which (qw(P1 P0)) {
+   my $ahead=$which eq 'P0' ? 1 : 0;
+   for my $y (0..255) {
+      for my $h (0..255) {
+         for my $r (@dispatch_candidates) {
+            my $q=($y-32-$r-$ahead)&255;
+            my @active=map { (($q-$_)&255)<$h ? 1:0 } 0..2;
+            next unless $active[0]==$active[1] && $active[1]==$active[2];
+            if ($active[0]) {
+               $q>=2 or die "$which active uniform window underflows pointer bias y=$y h=$h r=$r q=$q\n";
+               my $bias=($q-2)&255;
+               (($bias+2)&255)==$q &&
+               (($bias+1)&255)==(($q-1)&255) &&
+               $bias==(($q-2)&255)
+                  or die "$which active service pointer bias changed y=$y h=$h r=$r q=$q\n";
+            }
+         }
+      }
+   }
+}
+
 # The selector itself can be free in the raster cadence.  Three ordinary
 # indexed mask shifts plus the pair-tail NOP cost 20 cycles.  In a candidate
 # pair direct Ball/M1 shifts recover two cycles; CPX/BEQ plus a direct M0 shift

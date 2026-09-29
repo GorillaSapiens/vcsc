@@ -127,31 +127,6 @@ Open workstreams
    sink validation is separate from A5 bus legality. CM is modeled; DPC+/CDF
    remain unsupported/raw. See 2026-09-14 history for the semantic audit.
 
-5. **Zero static initializer placement**
-   Mutable all-zero link-time static initializers are emitted directly as
-   BSS/ZEROPAGE rather than DATA. This avoids pointless ROM copies and lets more
-   programs select the compact startup. Const/readonly objects and pointer
-   initializers that require backing objects retain their required storage
-   semantics. Regression tests own the detailed placement/footprint expectations.
-
-6. **Heart score component**
-   Complete for 0..11 hearts with left-half steps through 10.5; score 11 ignores
-   `half`. Default profile is 7 lines / 8 RIOT bytes. `line_markers:=1` selects
-   a 10-line / 12-byte profile with independent `lines` 0..11 and `line_color`,
-   drawing 8-pixel PF segments above/below on the same 12-pixel pitch without
-   changing the heart raster. `draw()` self-positions P0/P1. 4K above/below
-   `player_color_181` demos use right UP/DOWN for health, right LEFT/RIGHT for
-   markers, left stick for P0/P1/Ball and SELECT to cycle. See
-   `.../heart_score.txt`.
-
-7. **Direct Register Access**
-   `.../DRA.txt` is authoritative. DRA1-DRA12 are complete: the dedicated DRA
-   parser/AST/rejection surface, exact `$A/$X/$Y` direct loads/stores, native
-   register transfers, direct flag reads/writes, compound short-circuit flag
-   conditions, optimizer/register-lifetime barriers, full migration from lone
-   `_`, bounded trivial-inline-assembly cleanup, final public documentation, and
-   broad certification are complete. Lone `_` is an intentional error.
-
 Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. All three stock paths establish the
@@ -184,17 +159,6 @@ owns the installed libraries and release payload. Installed example Makefiles
 retain `$(ROOT)/libraries/vcs`; only their driver path is rewritten to
 `$(ROOT)/bin/vcsc[.exe]`. Driver/runtime/profile lookup uses the same
 `libraries/...` relative paths in source and installed trees.
-
-Human-readable linked listings
-------------------------------
-Final `.lst` sidecars now preserve C26/S26 source provenance through compile,
-assemble, object, and link. Each source statement is followed by readable
-generated 6502 assembly with final linked logical address and emitted bytes;
-resolved 16-bit operands are shown so split-address mappings such as Superchip
-read/write aliases are directly visible. Synthetic material is labeled rather
-than assigned false provenance. Source metadata is transparent to peephole
-optimization, and focused regressions lock source/assembly/address/byte
-correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Test policy
 -----------
@@ -229,8 +193,8 @@ Immediate TODO
 Continue `.../stripes.txt`. Six PF bytes plus both next colors now fit the
 branchless dual-uniform-pointer six-line service window. Production reclaimed
 four dead/redundant scheduler bytes as the two service pointers (3712-byte ROM,
-103-byte RAM). A common uniform window is guaranteed by the minimal fixed starts
-1,3,5,9,11, and candidate dispatch can be embedded at zero pair-cadence cost.
-Next build the rolling producer that chooses that start and prepares both
-service pointers before the two-row dispatch region; then measure the complete
-pipeline and derive the public minimum. `gameplay`; 10 left.
+103-byte RAM). A common uniform window is guaranteed by starts 1,3,5,9,11 and zero-cost
+candidate dispatch. With pair 32 as origin, a 16-byte low-nibble transition
+alias table safely over-marks conflicts but still leaves a candidate; X can hold
+that start through pointer construction/dispatch. Next emit and schedule this
+producer, then measure the complete pipeline/public minimum. `gameplay`; 10 left.
