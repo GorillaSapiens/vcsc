@@ -18,8 +18,9 @@
 # That saves enough time for each P0 tail to have eight real cycles after the
 # sprite/mask work.  Pairs 0 and 1 use those cycles to copy COLUPF/COLUBK with
 # deliberately-absolute stores (4+4 cycles); pair 2 restores the packed-mask X
-# seed and uses three ordinary NOPs.  Thus six scanlines move all six PF bytes
-# *and* both colors while retaining the pair cadence.
+# value from scratch and jumps through a two-byte resume vector (3+5 cycles).
+# Thus six scanlines move all six PF bytes *and* both colors while retaining
+# the pair cadence, and one shared service body can return to any candidate.
 #
 # Pointer construction/start dispatch is deliberately outside this proof.  A
 # separate exhaustive regression proves the minimal fixed ordinary candidate
@@ -108,8 +109,8 @@ for my $p (0..2) {
          ["stx.a next_color_slot+$p",4];
    } else {
       push @tail_extra,
-         ['ldx #service_resume_x',2],
-         ['nop',2], ['nop',2], ['nop',2];
+         ['ldx.z service_resume_x',3],
+         ['jmp (service_resume_ptr)',5];
    }
 
    push @ops, {

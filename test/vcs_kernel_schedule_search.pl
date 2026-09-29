@@ -180,6 +180,10 @@ $out !~ /cpy\.z .*player[01]_height/
    or die "dual-uniform pointer service reintroduced a hot player height test\n$out";
 $out =~ /stx\.a next_color_slot\+0/ && $out =~ /stx\.a next_color_slot\+1/
    or die "dual-uniform pointer service no longer fills both eight-cycle color slots\n$out";
+$out =~ /ldx\.z service_resume_x/ && $out =~ /jmp \(service_resume_ptr\)/
+   or die "dual-uniform pointer service lost dynamic X restore/resume vector tail\n$out";
+$out !~ /ldx #service_resume_x/
+   or die "dual-uniform pointer service regressed to a fixed resume X value\n$out";
 $err =~ /^searched=13 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
    or die "unexpected dual-uniform pointer solver statistics: $err";
 
@@ -431,12 +435,12 @@ for my $which (qw(P1 P0)) {
    }
 }
 
-# The selector itself can be free in the raster cadence.  Three ordinary
-# indexed mask shifts plus the pair-tail NOP cost 20 cycles.  In a candidate
-# pair direct Ball/M1 shifts recover two cycles; CPX/BEQ plus a direct M0 shift
-# costs ten cycles when selected, while the not-selected path balances the
-# one-cycle-shorter branch with a six-cycle absolute M0 shift.  Both paths are
-# exactly the original 20-cycle budget.
+# The selector itself is free in the raster cadence and can target one shared
+# service body without relying on a short branch.  The non-selected candidate
+# path is exactly the ordinary 20-cycle mask/tail budget.  The selected path
+# is 22 cycles: its local BNE falls through, then an unconditional JMP spends
+# the two idle cycles at the front of the shared service.  The service therefore
+# still begins its first STA GRP0 at pair cycle 2.
 my $dispatch_search=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_dual_uniform_dispatch_search.pl));
 ($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','2',$dispatch_search);
 $rc==0 && !$sig or die "dual-uniform dispatch search failed\n$out$err";
@@ -444,10 +448,98 @@ $out =~ /candidate_tail\[selected\]/
    or die "selected dual-uniform dispatch path is no longer schedulable\n$out";
 $out =~ /candidate_tail\[not_selected\]/
    or die "non-selected dual-uniform dispatch path is no longer schedulable\n$out";
-$out =~ /0\.\.\s*19\s+0:00\.\.0:19\s+candidate_tail\[selected\]/
-   or die "selected dispatch path no longer consumes exact 20-cycle budget\n$out";
+$out =~ /0\.\.\s*21\s+0:00\.\.0:21\s+candidate_tail\[selected\]/
+   or die "selected dispatch path no longer consumes the service's two-cycle entry idle\n$out";
+$out =~ /jmp shared_service/
+   or die "selected dispatch path lost range-free JMP to shared service\n$out";
 $out =~ /0\.\.\s*19\s+0:00\.\.0:19\s+candidate_tail\[not_selected\]/
    or die "non-selected dispatch path no longer consumes exact 20-cycle budget\n$out";
+
+# A stronger single-row service only requires P1 to be uniform.  P0 can be
+# arbitrary because the planner caches the three exact P0 sprite bytes.  In one
+# eight-pair packed row the three fixed starts 0,2,4 always contain a uniform
+# three-pair P1 window and all fit before the tail-7 A/B boundary. Two starts
+# are not enough anywhere in starts 0..5.
+my @p1_cache_candidates=(0,2,4);
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $found;
+      for my $s (@p1_cache_candidates) {
+         my @a=map { (($y-$s-$_)&255)<$h ? 1:0 } 0..2;
+         if ($a[0]==$a[1] && $a[1]==$a[2]) { $found=$s; last; }
+      }
+      defined $found or die "no P1-uniform window in starts 0,2,4 y=$y h=$h\n";
+   }
+}
+for my $a (0..4) {
+   for my $b ($a+1..5) {
+      my $can_fail=0;
+      OUTER: for my $y (0..255) {
+         for my $h (0..255) {
+            my $ba=0; my $bb=0;
+            for my $spec ([$a,\$ba],[$b,\$bb]) {
+               my($s,$out)=@$spec;
+               my @v=map { (($y-$s-$_)&255)<$h ? 1:0 } 0..2;
+               $$out=1 unless $v[0]==$v[1] && $v[1]==$v[2];
+            }
+            if ($ba && $bb) { $can_fail=1; last OUTER; }
+         }
+      }
+      $can_fail or die "two starts unexpectedly guarantee P1 uniformity: $a,$b\n";
+   }
+}
+
+my $p1cache_dispatch=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_p1_cache_dispatch_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$p1cache_dispatch);
+$rc==0 && !$sig or die "P1-cache dispatch search failed\n$out$err";
+$out =~ /P1-cache three-candidate dispatch/
+   or die "P1-cache dispatch solution header missing\n$out";
+$out =~ /0\.\.\s*24\s+0:00\.\.0:24\s+candidate0_tail/
+   or die "candidate 0 no longer matches the 25-cycle row-backedge envelope\n$out";
+$out =~ /25\.\.\s*44\s+0:25\.\.0:44\s+candidate2_tail/
+   or die "candidate 2 no longer matches the 20-cycle pair-1 envelope\n$out";
+$out =~ /45\.\.\s*64\s+0:45\.\.0:64\s+candidate4_tail/
+   or die "candidate 4 no longer matches the 20-cycle pair-3 envelope\n$out";
+$out =~ /jmp \(candidate0_ptr\)/ && $out =~ /jmp \(candidate2_ptr\)/ &&
+$out =~ /jmp shared_service/
+   or die "P1-cache dispatch lost its two pointers plus fallback\n$out";
+
+my $p1cache_row_gate=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_p1_cache_row_gate_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','5',$p1cache_row_gate);
+$rc==0 && !$sig or die "P1-cache row-gate search failed\n$out$err";
+for my $variant (qw(old_normal_reference gated_normal gated_service gated_boundary old_boundary_reference)) {
+   $out =~ /row_gate\[$variant\]/
+      or die "P1-cache row gate lost $variant path\n$out";
+}
+my $ten_cycle_paths=()=$out =~ /0\.\.\s*9\s+0:00\.\.0:09\s+row_gate\[/g;
+$ten_cycle_paths==5
+   or die "P1-cache row gate no longer keeps every GRP0 commit at cycle 10\n$out";
+$out =~ /inx ; X=\$80/ && $out =~ /inx ; X=\$84/ && $out =~ /sta\.a GRP0/
+   or die "P1-cache row gate lost service/boundary sentinel compensation\n$out";
+
+my $p1cache=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_p1_uniform_p0_cache_service_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$p1cache);
+$rc==0 && !$sig or die "P1-uniform/P0-cache service search failed\n$out$err";
+$out =~ /P1-uniform\/P0-cache three-pair service/
+   or die "P1-uniform/P0-cache solution header missing\n$out";
+for my $n (0..5) {
+   $out =~ /inactive_pf\+$n/
+      or die "P1-uniform/P0-cache service lost PF byte $n\n$out";
+}
+for my $n (0..1) {
+   $out =~ /next_color_slot\+$n/
+      or die "P1-uniform/P0-cache service lost color byte $n\n$out";
+}
+for my $n (0..2) {
+   $out =~ /p0_service_byte\+$n/
+      or die "P1-uniform/P0-cache service lost exact P0 byte $n\n$out";
+}
+$out =~ /ldy #2/ && $out =~ /\bdey\b/
+   or die "P1-uniform/P0-cache service lost local 2\/1\/0 index\n$out";
+$out =~ /jmp \(service_resume_ptr\)/
+   or die "P1-uniform/P0-cache service lost dynamic resume tail\n$out";
+$out !~ /cpy\.z .*height/
+   or die "P1-uniform/P0-cache service reintroduced a hot height test\n$out";
 
 # Exact-P1-pointer service removes mixed-pattern dispatch entirely.  The
 # inactive PF buffer starts as three exact P1 pointers, and each pair overwrites

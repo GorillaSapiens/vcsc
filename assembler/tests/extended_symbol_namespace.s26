@@ -1,11 +1,13 @@
 ; Linker-visible symbols may contain ? and @ as long as they do not begin with
 ; @, which remains reserved for assembler-local labels.
-.export ?@compiler_entry
+.export ?@compiler_entry, ?@compiler_mid
 .import ?@runtime_helper
 
 .proc ?@compiler_entry
     jsr ?@runtime_helper
 @local:
+?@compiler_mid:
+    ; A compiler-owned global label must not change the surrounding @ scope.
     bne @local
     rts
 .endproc

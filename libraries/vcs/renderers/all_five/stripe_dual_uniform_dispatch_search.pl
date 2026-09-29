@@ -4,31 +4,33 @@
 # A planner supplies X = one chosen start from 1,3,5,9,11.  In the
 # two known packed rows around the rolling-service region the mask shifts can
 # use direct addresses instead of the ordinary six-cycle indexed form.  On a
-# candidate pair, spend those recovered cycles on CPX/BEQ and remove the usual
-# two-cycle pair-tail NOP.  The selected path uses a five-cycle zero-page M0
-# shift; the non-selected path uses a deliberately six-cycle absolute shift.
-# Both paths are therefore exactly 20 cycles, the same cost as the ordinary
-# three indexed mask shifts plus tail NOP (6+6+6+2).
+# candidate pair, direct Ball/M1/M0 shifts and the removed pair-tail NOP fund
+# the selector.  The non-selected path is exactly the old 20-cycle mask/tail
+# budget.  The selected path deliberately lasts 22 cycles: its final JMP to
+# the one shared service body consumes the two idle cycles that body otherwise
+# needs at the start of its first pair.  Thus the first service STA GRP0 still
+# begins at pair cycle 2, without any branch-range assumption or duplicated
+# service body.
 #
-# The branch must run in the P0 tail of the pair immediately before the chosen
-# three-pair service window, so a taken branch can enter that window without a
-# per-pair countdown or a stripe-count-sized dispatch cache.
+# BNE targets only the immediately following non-selected continuation.  The
+# far transfer is an unconditional JMP, so candidate-to-service distance does
+# not constrain the layout.
 
 use strict;
 use warnings;
 
 return {
-   name=>'all_five dual-uniform candidate dispatch tail',
-   description=>'Candidate and non-candidate paths both replace the ordinary 20-cycle mask/tail budget exactly.',
+   name=>'all_five dual-uniform shared-service candidate dispatch tail',
+   description=>'Non-selected path is the old 20-cycle budget; selected path spends the service body initial two idle cycles on a far JMP.',
    line_cycles=>76,
-   horizon=>20,
+   horizon=>22,
    idle_fillers=>[
       {text=>'nop',cycles=>2},
    ],
    operations=>[
       {
-         id=>'candidate_tail', earliest=>0, latest_end=>19,
-         description=>'zero-tax candidate test using direct/absolute M0 shift balance',
+         id=>'candidate_tail', earliest=>0, latest_end=>21,
+         description=>'local conditional plus range-free JMP to one shared service body',
          implementations=>[
             {
                name=>'selected',
@@ -36,8 +38,9 @@ return {
                   ['lsr.z object_masks_service_ball',5],
                   ['lsr.z object_masks_service_m1',5],
                   ['cpx #candidate_start',2],
-                  ['beq.same service_entry',3],
+                  ['bne.same not_selected ; not taken',2],
                   ['lsr.z object_masks_service_m0',5],
+                  ['jmp shared_service',3],
                ],
             },
             {
@@ -46,8 +49,8 @@ return {
                   ['lsr.z object_masks_service_ball',5],
                   ['lsr.z object_masks_service_m1',5],
                   ['cpx #candidate_start',2],
-                  ['beq.same service_entry',2],
-                  ['lsr.a object_masks_service_m0',6],
+                  ['bne.same not_selected ; taken',3],
+                  ['lsr.z object_masks_service_m0',5],
                ],
             },
          ],

@@ -518,10 +518,12 @@ static char *make_file_scoped_name(const char *file, const char *name)
    return xstrdup(buf);
 }
 
-//! @brief Return whether global label name applies in assembler symbol, scope, and segment state.
-static int is_global_label_name(const char *name)
+//! @brief Return whether a label starts a new assembler-local-label scope.
+// Compiler-owned linker-visible ?@ labels deliberately do not: they need real
+// relocatable symbol identity without disturbing surrounding @ raster labels.
+static int is_scope_anchor_label_name(const char *name)
 {
-   return name && !is_local_name(name);
+   return name && !is_local_name(name) && strncmp(name, "?@", 2);
 }
 
 //! @brief Return whether directive expr is ident in assembler symbol, scope, and segment state.
@@ -723,7 +725,7 @@ static void assign_scopes(program_ir_t *prog)
       free(stmt->scope);
       stmt->scope = xstrdup(current_scope);
 
-      if (stmt->kind == STMT_LABEL && stmt->label && is_global_label_name(stmt->label)) {
+      if (stmt->kind == STMT_LABEL && stmt->label && is_scope_anchor_label_name(stmt->label)) {
          char *owned;
          const char *name_key;
 
@@ -736,7 +738,7 @@ static void assign_scopes(program_ir_t *prog)
          continue;
       }
 
-      if (stmt->label && is_global_label_name(stmt->label)) {
+      if (stmt->label && is_scope_anchor_label_name(stmt->label)) {
          char *owned;
          const char *name_key;
 

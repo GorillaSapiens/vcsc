@@ -17,5 +17,7 @@ bad addressing modes, duplicate symbols, unresolved final-output imports, and
 parser errors.
 
 `extended_symbol_namespace.s26` specifically verifies that linker-visible `?@...`
-symbols are linker-visible, while ordinary `@local` labels remain
-local/scoped assembler labels.
+symbols are linker-visible without becoming scope anchors, while ordinary
+`@local` labels remain local/scoped assembler labels.  This lets compiler-owned
+relocation labels sit inside cycle-sensitive inline assembly without changing
+the meaning of surrounding `@` labels.

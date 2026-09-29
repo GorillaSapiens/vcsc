@@ -190,11 +190,10 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. Six PF bytes plus both next colors now fit the
-branchless dual-uniform-pointer six-line service window. Production reclaimed
-four dead/redundant scheduler bytes as the two service pointers (3712-byte ROM,
-103-byte RAM). A common uniform window is guaranteed by starts 1,3,5,9,11 and zero-cost
-candidate dispatch. With pair 32 as origin, a 16-byte low-nibble transition
-alias table safely over-marks conflicts but still leaves a candidate; X can hold
-that start through pointer construction/dispatch. Next emit and schedule this
-producer, then measure the complete pipeline/public minimum. `gameplay`; 10 left.
+Continue `.../stripes.txt`. The single-row P1-uniform/P0-cache service uses
+starts 0,2,4; one emitted ROM now certifies all three dynamic starts/resumes at
+98 RAM bytes while refilling six PF bytes plus both colors. The new fixed-row
+gate proof rebases A-side X/mask operands so ordinary row backedges stay cycle-
+identical and only the $80/$84 service/boundary entrances take the special path.
+Next emit that gate and a compact special-row prefix/dispatch, then promote the
+rolling refill into production. `gameplay`; 10 left.
