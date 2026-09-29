@@ -49,12 +49,10 @@ $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_buffer_b\s+run=\$[0-9A-Fa-f]{4}\s+s
    or die "stripe B buffer is not six bytes\n";
 $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_color\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
    or die "stripe next-color latch is not two bytes\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe generated X seed is not one byte\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe next generated X seed is not one byte\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_tail\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe next tail selector is not one byte\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_service_p1_ptr\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+   or die "stripe P1 service pointer is not two bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_service_p0_ptr\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+   or die "stripe P0 service pointer is not two bytes\n";
 $map !~ /__vcsc_object\$game_playfield\b/
    or die "positive-stripe cartridge retained obsolete packed playfield ROM\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0004\b/m

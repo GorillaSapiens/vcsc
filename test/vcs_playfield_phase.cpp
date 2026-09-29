@@ -194,6 +194,10 @@ int main(int argc, char **argv) {
       std::strcmp(argv[5], "all-five-stripes2-refill6-rollp0-tail7-192") == 0;
    const bool all_five_stripes2_refill6_mixed_tail7_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-refill6-mixed-tail7-192") == 0;
+   const bool all_five_stripes2_refill6_pointer_tail7_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-refill6-pointer-tail7-192") == 0;
+   const bool all_five_stripes2_refill6_dual_pointer_tail7_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-refill6-dual-pointer-tail7-192") == 0;
    const bool all_five_stripes2_refill8_tail7_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-refill8-tail7-192") == 0;
    int all_five_stripes2_all8_tail = -1;
@@ -212,6 +216,8 @@ int main(int argc, char **argv) {
       (all_five_stripes2_tail7_192_profile || all_five_stripes2_refill6_tail7_192_profile ||
        all_five_stripes2_refill6_rollp0_tail7_192_profile ||
        all_five_stripes2_refill6_mixed_tail7_192_profile ||
+       all_five_stripes2_refill6_pointer_tail7_192_profile ||
+       all_five_stripes2_refill6_dual_pointer_tail7_192_profile ||
        all_five_stripes2_refill8_tail7_192_profile) ? 7 : 0;
    const bool all_five_phase_228_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-phase-228") == 0;
@@ -241,6 +247,8 @@ int main(int argc, char **argv) {
        !all_five_stripes2_tail7_192_profile && !all_five_stripes2_refill6_tail7_192_profile &&
        !all_five_stripes2_refill6_rollp0_tail7_192_profile &&
        !all_five_stripes2_refill6_mixed_tail7_192_profile &&
+       !all_five_stripes2_refill6_pointer_tail7_192_profile &&
+       !all_five_stripes2_refill6_dual_pointer_tail7_192_profile &&
        !all_five_stripes2_refill8_tail7_192_profile && all_five_stripes2_all8_tail < 0 &&
        !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
@@ -261,6 +269,8 @@ int main(int argc, char **argv) {
                                       all_five_stripes2_refill6_tail7_192_profile ||
                                       all_five_stripes2_refill6_rollp0_tail7_192_profile ||
                                       all_five_stripes2_refill6_mixed_tail7_192_profile ||
+                                      all_five_stripes2_refill6_pointer_tail7_192_profile ||
+                                      all_five_stripes2_refill6_dual_pointer_tail7_192_profile ||
                                       all_five_stripes2_refill8_tail7_192_profile ||
                                       all_five_stripes2_all8_tail >= 0;
    collect_pf0 = all_five_stripes_192_profile || any_stripes2_profile;
@@ -481,6 +491,33 @@ int main(int argc, char **argv) {
                   for (size_t i = 0; i < expected_count; ++i) expected[i] -= 6;
                }
             }
+            if (all_five_stripes2_refill6_pointer_tail7_192_profile) {
+               if (visible_line >= 97 && visible_line <= 101 && (visible_line & 1)) {
+                  // Direct Ball shifts advance only the right PF half on the
+                  // three P1 pointer-service scanlines.
+                  for (size_t i = 3; i < expected_count; ++i) expected[i] -= 1;
+               }
+               else if (visible_line >= 98 && visible_line <= 102 && !(visible_line & 1)) {
+                  // Exact-P1-pointer service starts left PF eight cycles early;
+                  // live P0 classification plus odd-byte staging pushes the
+                  // right half one cycle relative to the fixed-tail body.
+                  for (size_t i = 0; i < expected_count && i < 3; ++i) expected[i] -= 8;
+                  for (size_t i = 3; i < expected_count; ++i) expected[i] += 1;
+               }
+            }
+            if (all_five_stripes2_refill6_dual_pointer_tail7_192_profile) {
+               if (visible_line >= 97 && visible_line <= 101 && (visible_line & 1)) {
+                  // Left PF timing is unchanged. The direct Ball shift saves
+                  // one cycle before the reflected half, as in the mixed probe.
+                  for (size_t i = 3; i < expected_count; ++i) expected[i] -= 1;
+               }
+               else if (visible_line >= 98 && visible_line <= 102 && !(visible_line & 1)) {
+                  // A local immediate Y replaces the mixed probe's three-cycle
+                  // player-Y load, so the P0 line begins one cycle earlier than
+                  // mixed service. Its 21-cycle tail restores pair cadence.
+                  for (size_t i = 0; i < expected_count; ++i) expected[i] -= 7;
+               }
+            }
             if (all_five_stripes2_refill6_tail7_192_profile ||
                 all_five_stripes2_refill6_rollp0_tail7_192_profile ||
                 all_five_stripes2_refill8_tail7_192_profile) {
@@ -558,6 +595,10 @@ int main(int argc, char **argv) {
             std::printf("vcs_playfield_stripes2_tail2_192 ok: exact 100/92 data+color boundary with stable six-write phases\n");
          else if (all_five_stripes2_refill8_tail7_192_profile)
             std::printf("vcs_playfield_stripes2_refill8_tail7_192 ok: eight-line PF+color refill with stable service phases\n");
+         else if (all_five_stripes2_refill6_dual_pointer_tail7_192_profile)
+            std::printf("vcs_playfield_stripes2_refill6_dual_pointer_tail7_192 ok: dual-uniform-pointer six-line PF+color refill with stable service phases\n");
+         else if (all_five_stripes2_refill6_pointer_tail7_192_profile)
+            std::printf("vcs_playfield_stripes2_refill6_pointer_tail7_192 ok: exact-P1-pointer/live-P0 six-line refill with stable service phases\n");
          else if (all_five_stripes2_refill6_mixed_tail7_192_profile)
             std::printf("vcs_playfield_stripes2_refill6_mixed_tail7_192 ok: mixed-player six-line refill with stable service phases\n");
          else if (all_five_stripes2_refill6_rollp0_tail7_192_profile)

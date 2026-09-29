@@ -48,6 +48,11 @@ unsigned missile1_enabled = 0;
 unsigned ball_enabled = 0;
 bool require_hblank = false;
 bool require_all_five = true;
+bool report_player_values = false;
+uint64_t grp0_value_hash = 1469598103934665603ull;
+uint64_t grp1_value_hash = 1469598103934665603ull;
+unsigned grp0_writes = 0;
+unsigned grp1_writes = 0;
 bool missile0_state = false;
 bool missile1_state = false;
 
@@ -119,7 +124,17 @@ void apply_writes() {
                static_cast<unsigned long long>(virtual_cycles % kCyclesPerScanline));
             std::exit(1);
          }
-         if (event.address == kGrp0 && event.value != 0) ++grp0_nonzero;
+         if (event.address == kGrp0) {
+            grp0_value_hash ^= event.value;
+            grp0_value_hash *= 1099511628211ull;
+            ++grp0_writes;
+            if (event.value != 0) ++grp0_nonzero;
+         }
+         if (event.address == kGrp1) {
+            grp1_value_hash ^= event.value;
+            grp1_value_hash *= 1099511628211ull;
+            ++grp1_writes;
+         }
          if (p1) ++grp1_nonzero;
          if (m0) ++missile0_enabled;
          if (m1) ++missile1_enabled;
@@ -131,17 +146,21 @@ void apply_writes() {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 2 && argc != 3) {
-      std::fprintf(stderr, "usage: %s ROM.bin [--hblank|--players-hblank]\n", argv[0]);
+   if (argc < 2 || argc > 4) {
+      std::fprintf(stderr,
+         "usage: %s ROM.bin [--hblank|--players-hblank] [--player-values]\n", argv[0]);
       return 2;
    }
-   if (argc == 3) {
-      if (std::strcmp(argv[2],"--hblank") == 0) {
+   for (int arg = 2; arg < argc; ++arg) {
+      if (std::strcmp(argv[arg],"--hblank") == 0) {
          require_hblank = true;
       }
-      else if (std::strcmp(argv[2],"--players-hblank") == 0) {
+      else if (std::strcmp(argv[arg],"--players-hblank") == 0) {
          require_hblank = true;
          require_all_five = false;
+      }
+      else if (std::strcmp(argv[arg],"--player-values") == 0) {
+         report_player_values = true;
       }
       else fail("unknown option");
    }
@@ -168,10 +187,15 @@ int main(int argc, char **argv) {
    if (require_all_five && missile1_enabled < 2) fail("M1 was never visibly enabled");
    if (ball_enabled < 2) fail("ball was never visibly enabled");
 
-   if (require_all_five)
+   if (require_all_five) {
       std::printf("vcs_standard_objects ok: P0=%u P1=%u M0=%u M1=%u BL=%u\n",
                   grp0_nonzero, grp1_nonzero, missile0_enabled,
                   missile1_enabled, ball_enabled);
+      if (report_player_values)
+         std::printf("vcs_standard_objects player-values: P0=%u/%016llx P1=%u/%016llx\n",
+                     grp0_writes, static_cast<unsigned long long>(grp0_value_hash),
+                     grp1_writes, static_cast<unsigned long long>(grp1_value_hash));
+   }
    else
       std::printf("vcs_player_extreme_right ok: checkerboard P0/P1 commits remain in HBLANK\n");
    return 0;

@@ -39,7 +39,7 @@ my $bin=File::Spec->catfile($tmp,'all_five_stripes2_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'all_five_stripes2_192.map');
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "stripe build failed\n$out$err";
-$out =~ /^  rom\s+used=3748 bytes .* free=342 bytes/m or die "stripe ROM footprint changed\n$out";
+$out =~ /^  rom\s+used=3712 bytes .* free=378 bytes/m or die "stripe ROM footprint changed\n$out";
 $out =~ /^  ram\s+used=103 bytes .* free=25 bytes/m or die "stripe RAM footprint changed\n$out";
 without_usage($out) eq '' && $err eq '' or die "stripe build wrote output\n$out$err";
 -s $bin == 4096 or die "stripe cartridge is not exactly 4096 bytes\n";
@@ -51,12 +51,12 @@ $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_buffer_b\s+run=\$[0-9A-Fa-f]{4}\s+s
    or die "stripe B buffer is not six bytes\n";
 $map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_color\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
    or die "stripe next-color latch is not two bytes\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe generated X seed is not one byte\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_x_seed\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe next generated X seed is not one byte\n";
-$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_next_tail\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "stripe next tail selector is not one byte\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_service_p1_ptr\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+   or die "stripe P1 service pointer is not two bytes\n";
+$map =~ /^\s+BSS\.__vcsc_object\$game_stripe_service_p0_ptr\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/m
+   or die "stripe P0 service pointer is not two bytes\n";
+$map !~ /^\s+BSS\.__vcsc_object\$game_stripe_(?:x_seed|next_x_seed|tail|next_tail)\s/m
+   or die "obsolete stripe scheduler bytes returned\n";
 $map !~ /__vcsc_object\$game_playfield\b/
    or die "positive-stripe cartridge retained obsolete packed playfield ROM\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield_colors\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0004\b/m

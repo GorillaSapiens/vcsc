@@ -226,11 +226,11 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. The generic cycle solver now proves six PF bytes
-in six scanlines with real fillers and addressing-mode timing choices. A new
-mixed-service model proves all 64 preclassified P0/P1 three-pair activity
-patterns fit the same six-line cadence without a sprite cache; the active/active
-emitted probe is green at the unchanged 98-byte RAM footprint. The remaining
-step is rolling generation/dispatch of those two three-bit activity patterns
-without a stripe-count cache or per-pair activity tax. Then include next colors
-and derive the public minimum. `gameplay`; 10 left.
+Continue `.../stripes.txt`. Six PF bytes plus both next colors now fit the
+branchless dual-uniform-pointer six-line service window. Production reclaimed
+four dead/redundant scheduler bytes as the two service pointers (3712-byte ROM,
+103-byte RAM). A common uniform window is guaranteed by the minimal fixed starts
+1,3,5,9,11, and candidate dispatch can be embedded at zero pair-cadence cost.
+Next build the rolling producer that chooses that start and prepares both
+service pointers before the two-row dispatch region; then measure the complete
+pipeline and derive the public minimum. `gameplay`; 10 left.

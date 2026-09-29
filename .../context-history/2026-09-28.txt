@@ -13,3 +13,17 @@ Next: roll and dispatch activity patterns cheaply.
 A clean tool rebuild emits the unchanged stripe smoke ROM at 3748 bytes.
 The incoming 3750-byte expectation was stale by two bytes.
 Verified against the untouched incoming all_five source before updating it.
+
+2026-09-28 17:06:00 PDT, Dual-uniform rolling dispatch narrowed
+Reclaimed four redundant stripes=2 scheduler bytes as P1/P0 service pointers.
+Normal production ROM fell from 3748 to 3712 bytes; RAM remains 103 bytes.
+Dual-uniform six-line service refills six PF bytes plus both next colors.
+The emitted dual-pointer probe remains green at 98 bytes of RAM.
+Five fixed ordinary starts 1,3,5,9,11 always contain a common uniform window.
+Five starts are minimal across ordinary starts in the first four packed rows.
+Activity mixing is exactly explained by threshold/wrap transition crossings.
+Each transition blocks at most one of the five spaced candidate starts.
+Candidate CPX/BEQ dispatch fits the old 20-cycle mask/tail budget exactly.
+Selected direct-M0 and non-selected absolute-M0 paths remain cycle-balanced.
+Fixed tail certification no longer aliases reclaimed pointer bytes as tail state.
+Next: produce the chosen start and both pointers before the two-row dispatch.

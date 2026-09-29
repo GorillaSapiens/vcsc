@@ -33,16 +33,19 @@ keep their low nibble zero for the hidden enable baseline.
 Remaining:
 
 1. Finish rolling inactive-buffer scheduling. The maintained Perl cycle solver
-   rejects fictitious one-cycle gaps, models real fillers/addressing choices, and
-   searches across pair boundaries. Mixed player activity now has a six-line
-   timing solution when one three-bit P0 pattern and one three-bit P1 pattern are
-   known at service-window entry. All 64 pattern combinations fit: P1 carries PF
-   bytes 0/2/4 in X, P0 stages 1/3/5 in cycles recovered from its height compare,
-   direct Ball/M1/M0 shifts keep X free, and the final tail restores X. The
-   emitted active/active worst-case probe is green for frame, PF phases, objects,
-   and the unchanged 98-byte RAM footprint. Next prove the rolling
-   preclassification/dispatch itself without a stripe-count-sized cache or a
-   per-pair activity tax, then fold it into the production A/B handoff.
+   rejects fictitious one-cycle gaps and models real fillers/addressing choices.
+   Six PF bytes plus both next colors fit a three-pair service window when each
+   player is independently uniform there: two branchless service pointers feed
+   active graphics or a zero run, and the emitted dual-pointer probe is green at
+   98 bytes of RAM. Production now reclaims four redundant scheduler bytes as
+   those two pointers, shrinking the normal stripes=2 ROM from 3748 to 3712
+   bytes with RAM still 103. A common uniform window is guaranteed among the five
+   fixed ordinary starts 1,3,5,9,11; five is minimal. Candidate dispatch itself
+   is zero cadence cost: direct Ball/M1 shifts plus the removed tail NOP pay for
+   CPX/BEQ, while direct-versus-absolute M0 addressing balances selected and
+   non-selected paths exactly. Next build the rolling producer that chooses the
+   candidate and prepares both service pointers before this two-row dispatch
+   region, without a stripe-count cache or a general per-pair feature tax.
 2. Measure the complete rolling service pipeline (including service-sprite and
    next-color preparation) and enforce the resulting minimum even stripe height.
    Six lines is now the proven PF-copy cost, not yet the public minimum.

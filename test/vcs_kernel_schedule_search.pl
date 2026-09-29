@@ -151,6 +151,260 @@ for my $p0pat (0..7) {
    }
 }
 
+# A second construction avoids per-pair player classification altogether when
+# both players share a three-pair window in which each is independently uniform
+# (all active or all inactive).  Two rolling service pointers then make the hot
+# path identical for all four activity-mode combinations.  Immediate local
+# indices 2/1/0 survive across each P0 line, leaving eight tail cycles: the first
+# two tails copy the next stripe colors while all six PF bytes are refilled.
+my $dual_uniform=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_dual_uniform_pointer_service_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$dual_uniform);
+$rc==0 && !$sig or die "dual-uniform pointer service search failed\n$out$err";
+$out =~ /dual-uniform-pointer three-pair service/
+   or die "dual-uniform pointer solution header missing\n$out";
+for my $n (0..5) {
+   $out =~ /inactive_pf\+$n/
+      or die "dual-uniform pointer service lost PF byte $n\n$out";
+}
+for my $n (0..1) {
+   $out =~ /next_stripe_color\+$n/
+      or die "dual-uniform pointer service lost color byte $n\n$out";
+}
+$out =~ /ldy #2/ && $out =~ /ldy #1/ && $out =~ /ldy #0/
+   or die "dual-uniform pointer service lost local 2\/1\/0 indices\n$out";
+$out =~ /event PF0L\s+@\s+90 \(1:14\)/
+   or die "dual-uniform pointer service lost first P0 PF phase\n$out";
+$out =~ /event PF2R\s+@\s+436 \(5:56\)/
+   or die "dual-uniform pointer service lost final P0 PF phase\n$out";
+$out !~ /cpy\.z .*player[01]_height/
+   or die "dual-uniform pointer service reintroduced a hot player height test\n$out";
+$out =~ /stx\.a next_color_slot\+0/ && $out =~ /stx\.a next_color_slot\+1/
+   or die "dual-uniform pointer service no longer fills both eight-cycle color slots\n$out";
+$err =~ /^searched=13 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
+   or die "unexpected dual-uniform pointer solver statistics: $err";
+
+# Exhaust the *pair* of player state spaces without a 2^32 brute-force loop.
+# For one uint8 y/height state, record the nine candidate starts (0..8) whose
+# three rows are not uniform.  There are only a small number of distinct masks;
+# testing every pair of distinct masks is equivalent to testing all P0/P1 state
+# combinations.  No union may cover all nine starts, and the tight worst case
+# must require start 8.
+my @uniform_bad_seen=(0) x 512;
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $bad=0;
+      for my $s (0..8) {
+         my $a0=(($y-$s    ) & 255) < $h ? 1 : 0;
+         my $a1=(($y-$s-1  ) & 255) < $h ? 1 : 0;
+         my $a2=(($y-$s-2  ) & 255) < $h ? 1 : 0;
+         $bad |= 1 << $s unless $a0==$a1 && $a1==$a2;
+      }
+      $uniform_bad_seen[$bad]=1;
+   }
+}
+my @uniform_bad_masks=grep { $uniform_bad_seen[$_] } 0..511;
+@uniform_bad_masks==52
+   or die "single-player uniform-window mask count changed: ".scalar(@uniform_bad_masks)."\n";
+my $dual_worst=-1;
+for my $mask0 (@uniform_bad_masks) {
+   for my $mask1 (@uniform_bad_masks) {
+      my $blocked=$mask0 | $mask1;
+      my $found;
+      for my $s (0..8) {
+         if (!(($blocked >> $s) & 1)) { $found=$s; last; }
+      }
+      defined $found or die "no common P0/P1 uniform service window through start 8\n";
+      $dual_worst=$found if $found>$dual_worst;
+   }
+}
+$dual_worst==8 or die "dual-player uniform-window bound changed: worst=$dual_worst\n";
+
+# More useful to the actual unrolled kernel: avoid packed-row transitions
+# altogether.  Relative to two consecutive eight-pair rows, try ordinary pair
+# starts 1..5 in the first row and 1..3 in the second.  These eight candidates
+# are sufficient for every P0/P1 uint8 state pair; the tight ordering can make
+# the eighth candidate (relative start 11) the first usable one.  A three-pair
+# service therefore always remains wholly inside one ordinary unrolled row.
+my @ordinary_candidates=(1,2,3,4,5,9,10,11);
+my @ordinary_bad_seen=(0) x 256;
+my $ordinary_single_max=0;
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $bad=0;
+      for my $i (0..$#ordinary_candidates) {
+         my $s=$ordinary_candidates[$i];
+         my $a0=(($y-$s    ) & 255) < $h ? 1 : 0;
+         my $a1=(($y-$s-1  ) & 255) < $h ? 1 : 0;
+         my $a2=(($y-$s-2  ) & 255) < $h ? 1 : 0;
+         $bad |= 1 << $i unless $a0==$a1 && $a1==$a2;
+      }
+      $ordinary_bad_seen[$bad]=1;
+      my $bits=unpack('%32b*',pack('L',$bad));
+      $ordinary_single_max=$bits if $bits>$ordinary_single_max;
+   }
+}
+$ordinary_single_max==4
+   or die "single player blocks more than four ordinary service starts: $ordinary_single_max\n";
+my @ordinary_masks=grep { $ordinary_bad_seen[$_] } 0..255;
+my $ordinary_worst=-1;
+for my $mask0 (@ordinary_masks) {
+   for my $mask1 (@ordinary_masks) {
+      my $blocked=$mask0 | $mask1;
+      my $found;
+      for my $i (0..$#ordinary_candidates) {
+         if (!(($blocked >> $i) & 1)) { $found=$i; last; }
+      }
+      defined $found or die "no common uniform service window in ordinary two-row candidate set\n";
+      $ordinary_worst=$found if $found>$ordinary_worst;
+   }
+}
+$ordinary_worst==7
+   or die "ordinary two-row service-window bound changed: candidate=$ordinary_worst\n";
+
+# The ordinary starts can be narrowed further.  Five fixed starts, all odd and
+# separated by at least two pairs, are enough: 1,3,5,9,11.  A player's
+# three-pair activity can change only at the active/inactive threshold and at
+# uint8 wrap.  Each transition blocks at most one of these starts, so the two
+# players' four transitions can block at most four of five candidates.  Prove
+# both the transition formula and that no four-start subset of the ordinary
+# starts through four rows has the same universal property.
+my @dispatch_candidates=(1,3,5,9,11);
+for my $y (0..255) {
+   for my $h (0..255) {
+      for my $s (@dispatch_candidates) {
+         my $a0=(($y-$s    ) & 255) < $h ? 1 : 0;
+         my $a1=(($y-$s-1  ) & 255) < $h ? 1 : 0;
+         my $a2=(($y-$s-2  ) & 255) < $h ? 1 : 0;
+         my $direct=($a0==$a1 && $a1==$a2) ? 0 : 1;
+         my $t0=$y & 255;
+         my $t1=($y-$h) & 255;
+         my $by_transition=$h==0 ? 0 :
+            (($s==$t0 || $s==(($t0-1)&255) ||
+              $s==$t1 || $s==(($t1-1)&255)) ? 1 : 0);
+         $direct==$by_transition
+            or die "uniform transition formula changed y=$y h=$h s=$s direct=$direct transition=$by_transition\n";
+      }
+   }
+}
+my @dispatch_bad_seen=(0) x 32;
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $bad=0;
+      for my $i (0..$#dispatch_candidates) {
+         my $s=$dispatch_candidates[$i];
+         my $a0=(($y-$s    ) & 255) < $h ? 1 : 0;
+         my $a1=(($y-$s-1  ) & 255) < $h ? 1 : 0;
+         my $a2=(($y-$s-2  ) & 255) < $h ? 1 : 0;
+         $bad |= 1 << $i unless $a0==$a1 && $a1==$a2;
+      }
+      $dispatch_bad_seen[$bad]=1;
+   }
+}
+my @dispatch_masks=grep { $dispatch_bad_seen[$_] } 0..31;
+for my $m0 (@dispatch_masks) {
+   for my $m1 (@dispatch_masks) {
+      (($m0 | $m1) & 0x1f) != 0x1f
+         or die "five fixed dual-uniform dispatch candidates can all be blocked\n";
+   }
+}
+
+# Five is minimal even if the planner may choose any ordinary start in the
+# first four packed rows.  Exhaust all four-start subsets against the compact
+# set of distinct single-player bad masks.
+my @minimal_universe=grep { my $r=$_ & 7; $r>=1 && $r<=5 } 1..31;
+my %minimal_masks;
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $bad=0;
+      for my $i (0..$#minimal_universe) {
+         my $s=$minimal_universe[$i];
+         my $a0=(($y-$s    ) & 255) < $h ? 1 : 0;
+         my $a1=(($y-$s-1  ) & 255) < $h ? 1 : 0;
+         my $a2=(($y-$s-2  ) & 255) < $h ? 1 : 0;
+         $bad |= 1 << $i unless $a0==$a1 && $a1==$a2;
+      }
+      $minimal_masks{$bad}=1;
+   }
+}
+my @minimal_masks=keys %minimal_masks;
+my %covered_four;
+for my $m0 (@minimal_masks) {
+   for my $m1 (@minimal_masks) {
+      my $u=(0+$m0) | (0+$m1);
+      my @bit=grep { ($u>>$_)&1 } 0..$#minimal_universe;
+      next if @bit<4;
+      for my $a (0..$#bit-3) {
+         for my $b ($a+1..$#bit-2) {
+            for my $c ($b+1..$#bit-1) {
+               for my $d ($c+1..$#bit) {
+                  my $four=(1<<$bit[$a])|(1<<$bit[$b])|
+                           (1<<$bit[$c])|(1<<$bit[$d]);
+                  $covered_four{$four}=1;
+               }
+            }
+         }
+      }
+   }
+}
+my $want_four=1;
+$want_four=$want_four*(@minimal_universe-$_)/($_+1) for 0..3;
+scalar(keys %covered_four)==$want_four
+   or die "some four ordinary starts unexpectedly guarantee a common uniform window\n";
+
+# The selector itself can be free in the raster cadence.  Three ordinary
+# indexed mask shifts plus the pair-tail NOP cost 20 cycles.  In a candidate
+# pair direct Ball/M1 shifts recover two cycles; CPX/BEQ plus a direct M0 shift
+# costs ten cycles when selected, while the not-selected path balances the
+# one-cycle-shorter branch with a six-cycle absolute M0 shift.  Both paths are
+# exactly the original 20-cycle budget.
+my $dispatch_search=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_dual_uniform_dispatch_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','2',$dispatch_search);
+$rc==0 && !$sig or die "dual-uniform dispatch search failed\n$out$err";
+$out =~ /candidate_tail\[selected\]/
+   or die "selected dual-uniform dispatch path is no longer schedulable\n$out";
+$out =~ /candidate_tail\[not_selected\]/
+   or die "non-selected dual-uniform dispatch path is no longer schedulable\n$out";
+$out =~ /0\.\.\s*19\s+0:00\.\.0:19\s+candidate_tail\[selected\]/
+   or die "selected dispatch path no longer consumes exact 20-cycle budget\n$out";
+$out =~ /0\.\.\s*19\s+0:00\.\.0:19\s+candidate_tail\[not_selected\]/
+   or die "non-selected dispatch path no longer consumes exact 20-cycle budget\n$out";
+
+# Exact-P1-pointer service removes mixed-pattern dispatch entirely.  The
+# inactive PF buffer starts as three exact P1 pointers, and each pair overwrites
+# its consumed pointer with the corresponding two next-stripe PF bytes.  P0 is
+# classified live with CPY; exhaust all eight possible branch-outcome patterns.
+my $pointer=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_pointer_service_search.pl));
+for my $p0pat (0..7) {
+   local $ENV{VCSC_P0_PATTERN}=$p0pat;
+   ($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$pointer);
+   $rc==0 && !$sig or die "pointer service search failed p0=$p0pat\n$out$err";
+   $out =~ /exact-P1-pointer\/live-P0 three-pair service p0=$p0pat/
+      or die "pointer service solution header missing p0=$p0pat\n$out";
+   for my $n (0..5) {
+      $out =~ /inactive_pf\+$n/
+         or die "pointer service lost PF buffer byte $n p0=$p0pat\n$out";
+      $out =~ /next_stripe_pf\+$n/
+         or die "pointer service lost staged PF byte $n p0=$p0pat\n$out";
+   }
+   $out =~ /lda\.ix \(inactive_pf\+\$18\+0,x\)/
+      or die "pointer service lost pair-0 indexed-indirect pointer p0=$p0pat\n$out";
+   $out =~ /cpy\.z player0_height/
+      or die "pointer service lost live P0 height test p0=$p0pat\n$out";
+   $out !~ /bit\.z inactive_pf/
+      or die "pointer service reintroduced P0 pointer metadata p0=$p0pat\n$out";
+   $out =~ /event PF0L\s+@\s+89 \(1:13\)/
+      or die "pointer service lost first P0 PF phase p0=$p0pat\n$out";
+   $out =~ /event PF2R\s+@\s+444 \(5:64\)/
+      or die "pointer service lost final P0 PF phase p0=$p0pat\n$out";
+   $out !~ /cpy\.z player1_height/
+      or die "pointer service reintroduced a P1 height test p0=$p0pat\n$out";
+   $out !~ /ldx #service_resume_x/
+      or die "pointer service reintroduced an X restore p0=$p0pat\n$out";
+   $err =~ /^searched=13 pruned_deadline=0 pruned_horizon=0 solutions=1
+\z/
+      or die "unexpected pointer service solver statistics p0=$p0pat: $err";
+}
+
 # Exercise implementation alternatives explicitly.  The slow implementation
 # cannot meet the event deadline, so the solver must select the cached one.
 my $alt=File::Spec->catfile($tmp,'kernel_schedule_alt.pl');
