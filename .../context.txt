@@ -190,10 +190,13 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. The single-row P1-uniform/P0-cache service uses
-starts 0,2,4; one emitted ROM now certifies all three dynamic starts/resumes at
-98 RAM bytes while refilling six PF bytes plus both colors. The new fixed-row
-gate proof rebases A-side X/mask operands so ordinary row backedges stay cycle-
-identical and only the $80/$84 service/boundary entrances take the special path.
-Next emit that gate and a compact special-row prefix/dispatch, then promote the
-rolling refill into production. `gameplay`; 10 left.
+Continue `.../stripes.txt`. Six-line P1-uniform/P0-cache starts 0,2,4 and
+four-line PF-only starts 4,5,6 both have emitted planner/body coverage; the
+four-line path still owes both next colors, and exact-cache six-line is only a
+prep-cost benchmark. The corrected zero-tax row gate uses X=$ec with indexed
+mask operands -4: ordinary row ends stay negative, service/boundary are $00/$04.
+The emitted probe now includes the $00 service continuation and $04 boundary,
+regenerates both next colors, keeps 262-line timing/object output, and fits 4K
+with 103 RAM bytes. Next add its dedicated playfield-phase profile, then compare
+complete preparation cost before choosing the production rolling service.
+`gameplay`; 10 left.

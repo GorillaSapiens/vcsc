@@ -87,7 +87,19 @@ const uint8_t TEMPLATE_stripe_p1cache_first_free_start[8] := {
    0,2,0,4,0,2,0,0
 };
 #endif
-#if defined(VCS_STRIPES2_ROLLING_PLANNER_PROBE) || defined(VCS_STRIPES2_P1_CACHE_PLANNER_PROBE) || defined(VCS_STRIPES2_P1_CACHE_DISPATCH_PROBE)
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PLANNER_PROBE
+// The four-line PF-only service needs only two adjacent uniform P1 pairs.
+// Starts 4,5,6 are deliberately late in the row. Each uint8 activity
+// transition blocks at most one start, so two transition aliases cannot
+// eliminate all three candidates.
+const uint8_t TEMPLATE_stripe_p1cache4_transition_alias[8] := {
+   0,0,0,0,1,2,4,0
+};
+const uint8_t TEMPLATE_stripe_p1cache4_first_free_start[8] := {
+   4,5,4,6,4,5,4,4
+};
+#endif
+#if defined(VCS_STRIPES2_ROLLING_PLANNER_PROBE) || defined(VCS_STRIPES2_P1_CACHE_PLANNER_PROBE) || defined(VCS_STRIPES2_P1_CACHE_DISPATCH_PROBE) || defined(VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PLANNER_PROBE)
 // The rolling service corridor cannot borrow an already-consumed mask row as
 // its inactive P1 source. Keep one immutable three-byte zero run.
 const uint8_t TEMPLATE_stripe_service_zero[3] := { 0,0,0 };
@@ -681,6 +693,39 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_stripe_next_color;
    asm lda.a TEMPLATE_playfield_colors + 3;
    asm sta.z TEMPLATE_stripe_next_color + 1;
+#ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   // Cache the exact player bytes used by the transition into the row beginning
+   // at pair 40.  +3/+43 are stride-four scratch lanes after mask construction.
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc #40;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_row_entry_probe_p1_zero;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_row_entry_probe_p1_ready;
+   asm @TEMPLATE_row_entry_probe_p1_zero:;
+   asm lda #0;
+   asm @TEMPLATE_row_entry_probe_p1_ready:;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr;
+   asm lda.z TEMPLATE_object_masks + 27;
+   asm sec;
+   asm sbc #41;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs.same @TEMPLATE_row_entry_probe_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_row_entry_probe_p0_ready;
+   asm @TEMPLATE_row_entry_probe_p0_zero:;
+   asm lda #0;
+   asm @TEMPLATE_row_entry_probe_p0_ready:;
+   asm sta.z TEMPLATE_stripe_service_p0_ptr;
+   // Certification requires the visible service-row transition to regenerate
+   // both next colors; do not let the ordinary initial preload mask a miss.
+   asm lda #0;
+   asm sta.z TEMPLATE_stripe_next_color;
+   asm sta.z TEMPLATE_stripe_next_color + 1;
+#endif
 #if defined(VCS_STRIPES2_RUNTIME_ALL8) || (!defined(VCS_STRIPES2_CERT_TAIL0) && !defined(VCS_STRIPES2_CERT_TAIL1) && !defined(VCS_STRIPES2_CERT_TAIL2) && !defined(VCS_STRIPES2_CERT_TAIL3) && !defined(VCS_STRIPES2_CERT_TAIL4) && !defined(VCS_STRIPES2_CERT_TAIL5) && !defined(VCS_STRIPES2_CERT_TAIL6) && !defined(VCS_STRIPES2_CERT_TAIL7))
    // The first two-stripe coarse schedule is always six rows, so visible X
    // starts at compile-time $e8.  Tail*7 already lives in the A-dispatch
@@ -1197,8 +1242,84 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_stripe_p1cache_dispatch_ready:;
 #endif
 #endif
-#ifdef VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE
-   // Fixed emitted-service certification for pairs 49..51. P1 is uniform in
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PLANNER_PROBE
+   // Planner-only certification for a late two-pair service in the complete
+   // row beginning at pair 40.  Low-three-bit aliases choose 4, 5, or 6; P1
+   // gets one branchless pointer and P0 contributes two exact cached bytes.
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm and #7;
+   asm tay;
+   asm lda.ay TEMPLATE_stripe_p1cache4_transition_alias,y;
+   asm sta.z TEMPLATE_object_masks + 35;
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc.z TEMPLATE_object_masks + 15;
+   asm and #7;
+   asm tay;
+   asm lda.ay TEMPLATE_stripe_p1cache4_transition_alias,y;
+   asm ora.z TEMPLATE_object_masks + 35;
+   asm tax;
+   asm lda.ax TEMPLATE_stripe_p1cache4_first_free_start,x;
+   asm sta.z TEMPLATE_object_masks + 7;
+
+   // q is the first P1 source row in the selected window. Active q is at
+   // least 1. The four-line body uses local Y=1,0, so graphics+q-1 never
+   // underflows the graphics page and still yields the exact q,q-1 bytes.
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc #40;
+   asm sec;
+   asm sbc.z TEMPLATE_object_masks + 7;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_stripe_p1cache4_p1_zero;
+   asm tya;
+   asm sec;
+   asm sbc #1;
+   asm clc;
+   asm adc.z TEMPLATE_player1_graphics;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr;
+   asm lda.z TEMPLATE_player1_graphics + 1;
+   asm adc #0;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr + 1;
+   asm jmp @TEMPLATE_stripe_p1cache4_p1_ready;
+   asm @TEMPLATE_stripe_p1cache4_p1_zero:;
+   asm lda #<TEMPLATE_stripe_service_zero;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr;
+   asm lda #>TEMPLATE_stripe_service_zero;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr + 1;
+   asm @TEMPLATE_stripe_p1cache4_p1_ready:;
+
+   // P0 is one raster decrement ahead. Only two exact bytes are required by
+   // the four-line body; keep the same stride-four dead scratch lanes used by
+   // the older three-pair planner.
+   asm lda.z TEMPLATE_object_masks + 27;
+   asm sec;
+   asm sbc #41;
+   asm sec;
+   asm sbc.z TEMPLATE_object_masks + 7;
+   asm sta.z TEMPLATE_object_masks + 3;
+   asm ldx #0;
+   asm @TEMPLATE_stripe_p1cache4_p0_loop:;
+   asm ldy.z TEMPLATE_object_masks + 3;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs.same @TEMPLATE_stripe_p1cache4_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_stripe_p1cache4_p0_store;
+   asm @TEMPLATE_stripe_p1cache4_p0_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_p1cache4_p0_store:;
+   asm sta.zx TEMPLATE_object_masks + 35,x;
+   asm dec.z TEMPLATE_object_masks + 3;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm cpx #8;
+   asm bcc.same @TEMPLATE_stripe_p1cache4_p0_loop;
+#endif
+#if defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE) || defined(VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE)
+   // Fixed emitted-service certification beginning at pair 49. P1 is uniform in
    // the fixture, while P0 is cached exactly so it may cross activity state.
    asm lda.z TEMPLATE_object_masks + 31;
    asm sec;
@@ -1208,7 +1329,11 @@ require inline void TEMPLATE_vblank(void) {
    asm bcs.same @TEMPLATE_stripe_p1cache_probe_p1_zero;
    asm tya;
    asm sec;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   asm sbc #1;
+#else
    asm sbc #2;
+#endif
    asm clc;
    asm adc.z TEMPLATE_player1_graphics;
    asm sta.z TEMPLATE_stripe_service_p1_ptr;
@@ -1246,6 +1371,74 @@ require inline void TEMPLATE_vblank(void) {
    asm inx;
    asm cpx #12;
    asm bcc.same @TEMPLATE_stripe_p1cache_probe_p0_loop;
+#endif
+#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+   // Fixed exact-cache certification for pairs 49..51.  Both players may
+   // cross height or uint8-wrap activity inside the three-pair service; stage
+   // the exact byte for each pair in beam-dead scratch rather than dispatching
+   // around a mixed window.
+   asm lda.z TEMPLATE_object_masks + 27;
+   asm sec;
+   asm sbc #50;
+   asm sta.z TEMPLATE_object_masks + 3;
+   asm ldx #0;
+   asm @TEMPLATE_stripe_exactcache_p0_loop:;
+   asm ldy.z TEMPLATE_object_masks + 3;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs.same @TEMPLATE_stripe_exactcache_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_stripe_exactcache_p0_store;
+   asm @TEMPLATE_stripe_exactcache_p0_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_exactcache_p0_store:;
+   asm sta.zx TEMPLATE_object_masks + 35,x;
+   asm dec.z TEMPLATE_object_masks + 3;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm inx;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   asm cpx #8;
+#else
+   asm cpx #12;
+#endif
+   asm bcc.same @TEMPLATE_stripe_exactcache_p0_loop;
+
+   // P1 exact bytes use +3,+7 and the otherwise-dead high byte of the
+   // reclaimed P1 service pointer.  +27/+31 must retain the caller's original
+   // player Y values for overscan restoration.  The pointer low byte is only
+   // a temporary q counter here; the hot service itself has no sprite pointer.
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc #49;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr;
+   asm ldx #0;
+   asm @TEMPLATE_stripe_exactcache_p1_loop2:;
+   asm ldy.z TEMPLATE_stripe_service_p1_ptr;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_stripe_exactcache_p1_zero2;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_stripe_exactcache_p1_store2;
+   asm @TEMPLATE_stripe_exactcache_p1_zero2:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_exactcache_p1_store2:;
+   asm sta.zx TEMPLATE_object_masks + 3,x;
+   asm dec.z TEMPLATE_stripe_service_p1_ptr;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm cpx #8;
+   asm bcc.same @TEMPLATE_stripe_exactcache_p1_loop2;
+   asm ldy.z TEMPLATE_stripe_service_p1_ptr;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_stripe_exactcache_p1_zero3;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_stripe_exactcache_p1_store3;
+   asm @TEMPLATE_stripe_exactcache_p1_zero3:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_exactcache_p1_store3:;
+   asm sta.z TEMPLATE_stripe_service_p1_ptr + 1;
 #endif
    // Stage the first half of the ordinary two-line pipeline while VBLANK is
    // still asserted.  draw() can therefore begin with the P0 half at exactly
@@ -1353,7 +1546,11 @@ require inline void TEMPLATE_draw(void) {
 #ifdef VCS_STRIPES2_P1_CACHE_DISPATCH_PROBE
    asm lsr.z TEMPLATE_object_masks + 24;
 #else
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
 #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
@@ -1375,7 +1572,11 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
    asm @stripe_transition_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   #endif
 
    // First P0 line of the new mask row.
    asm lda.z TEMPLATE_stripe_cache;
@@ -1402,7 +1603,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_transition_activeP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_transition_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+   #endif
 
    // Pair 1 is deliberately 150 cycles.  The two cycles reclaimed here pay
    // the long row-backedge once per 16-line mask row, so every later row starts
@@ -1419,7 +1624,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1437,7 +1646,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair1_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair1_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1464,7 +1677,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair1_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair1_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+   #endif
 
    // Unrolled positive-stripe pair 2/7. X remains the packed-mask row
    // offset. Indexed mask shifts cost one extra cycle each; deleting the old
@@ -1482,7 +1699,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1500,7 +1721,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair2_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair2_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1527,7 +1752,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair2_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair2_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+   #endif
    asm nop;
 
    // Unrolled positive-stripe pair 3/7. X remains the packed-mask row
@@ -1546,7 +1775,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1564,7 +1797,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair3_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair3_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1591,7 +1828,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair3_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair3_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+   #endif
    asm nop;
 
    // Unrolled positive-stripe pair 4/7. X remains the packed-mask row
@@ -1610,7 +1851,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1628,7 +1873,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair4_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair4_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1655,7 +1904,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair4_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair4_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+   #endif
    asm inx;
 
    // Unrolled positive-stripe pair 5/7. X remains the packed-mask row
@@ -1674,7 +1927,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 43,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 47,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1692,7 +1949,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair5_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair5_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1719,7 +1980,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair5_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair5_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 49,x;
+   #endif
    asm inx;
 
    // Unrolled positive-stripe pair 6/7. X remains the packed-mask row
@@ -1738,7 +2003,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 42,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1756,7 +2025,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair6_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair6_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 43,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 47,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1783,7 +2056,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair6_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair6_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 44,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 48,x;
+   #endif
    asm inx;
 
    // Unrolled positive-stripe pair 7/7. X remains the packed-mask row
@@ -1802,7 +2079,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 41,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 45,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1820,7 +2101,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair7_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair7_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 42,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 46,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -1847,7 +2132,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair7_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair7_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 43,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 47,x;
+   #endif
    asm inx;
    asm beq.same @stripe_terminal;
    asm jmp @stripe_transition;
@@ -1906,7 +2195,11 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
 #endif
+#ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm ldx #$ec;
+#else
    asm ldx #$e8;
+#endif
    asm jmp @stripe_pair1;
 
    asm @stripe_transition:;
@@ -1922,7 +2215,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 2;
    asm sty PF2;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -1943,7 +2240,11 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
    asm @stripe_transition_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 25,x;
+   #endif
 
    // First P0 line of the new mask row.
    asm lda.z TEMPLATE_stripe_cache;
@@ -1970,7 +2271,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_transition_activeP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_transition_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 26,x;
+   #endif
 
    // Pair 1 is deliberately 150 cycles.  The two cycles reclaimed here pay
    // the long row-backedge once per 16-line mask row, so every later row starts
@@ -1987,7 +2292,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2005,7 +2314,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair1_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair1_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 25,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2032,7 +2345,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair1_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair1_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 26,x;
+   #endif
 
    // Unrolled positive-stripe pair 2/7. X remains the packed-mask row
    // offset. Indexed mask shifts cost one extra cycle each; deleting the old
@@ -2050,7 +2367,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2068,7 +2389,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair2_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair2_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 25,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2095,7 +2420,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair2_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair2_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 26,x;
+   #endif
    asm nop;
 
    // Unrolled positive-stripe pair 3/7. X remains the packed-mask row
@@ -2114,7 +2443,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2132,7 +2465,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair3_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair3_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 25,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2159,7 +2496,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair3_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair3_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 26,x;
+   #endif
    asm nop;
 
    // Unrolled positive-stripe pair 4/7. X remains the packed-mask row
@@ -2178,7 +2519,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2196,7 +2541,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair4_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair4_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 25,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2223,7 +2572,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair4_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair4_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 26,x;
+   #endif
    asm inx;
 
    // Unrolled positive-stripe pair 5/7. X remains the packed-mask row
@@ -2242,7 +2595,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 19,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 23,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2260,7 +2617,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair5_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair5_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2287,7 +2648,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair5_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair5_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 25,x;
+   #endif
    asm inx;
 
    // Unrolled positive-stripe pair 6/7. X remains the packed-mask row
@@ -2306,7 +2671,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 18,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2324,7 +2693,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair6_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair6_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 19,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 23,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2351,7 +2724,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair6_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair6_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 24,x;
+   #endif
    asm inx;
 
    // Unrolled positive-stripe pair 7/7. X remains the packed-mask row
@@ -2370,7 +2747,11 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    // Shift Ball before the P1 decrement and commit ENABL immediately; A keeps
    // the encoded right PF0 byte across DEC so the pair length is unchanged.
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 17,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 21,x;
+   #endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm adc #1;
    asm sta ENABL;
@@ -2388,7 +2769,11 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair7_drawP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @stripe_pair7_continueP1:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 18,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 22,x;
+   #endif
    asm sta GRP1;
    asm lda.z TEMPLATE_stripe_cache;
    asm adc #1;
@@ -2415,10 +2800,120 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe_pair7_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe_pair7_continueP0:;
+   #ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm lsr.zx TEMPLATE_object_masks + 19,x;
+   #else
    asm lsr.zx TEMPLATE_object_masks + 23,x;
+   #endif
    asm inx;
+#ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   // Negative row-end X values are ordinary.  X=$00 enters the rolling
+   // service row and X=$04 is the equal-stripe boundary.  The taken BPL path
+   // is two cycles shorter than the ordinary BPL-not-taken/JMP backedge; one
+   // NOP restores the established first-GRP0 phase before the late X test.
+   asm bpl.same @stripe2_row_entry_special;
+   asm jmp @stripe_transition;
+#else
    asm beq.same @stripe2_transition_entry;
    asm jmp @stripe_transition;
+#endif
+
+#ifdef VCS_STRIPES2_ROW_ENTRY_COLOR_PROBE
+   asm @stripe2_row_entry_special:;
+   asm nop;
+   asm sta GRP0;
+   // Service and boundary share every phase-critical playfield write.  Ball
+   // carry is consumed by ENABL before CPX, so the late discriminator may
+   // clobber flags without perturbing object enables.
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #1;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 20,x;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm adc #1;
+   asm sta ENABL;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm cpx #4;
+   asm beq.same @stripe2_row_entry_boundary;
+
+   // X=$00 service-row transition.  Exact transition-player bytes prepared in
+   // VBLANK remove both hot activity tests.  The two seven-cycle ROM->RAM
+   // color copies occupy recovered selection time.  After the final P0 PF2,
+   // a two-cycle NOP plus direct M0 shift replaces the old four-cycle BIT plus
+   // indexed shift, recovering exactly three tail cycles.  The following pair
+   // therefore resumes the ordinary phase with no rolling-row drift.
+   asm dec.z TEMPLATE_player1_y;
+   asm lda.a TEMPLATE_playfield_colors + 2;
+   asm sta.z TEMPLATE_stripe_next_color;
+   asm lda.z TEMPLATE_stripe_service_p1_ptr;
+   asm sta GRP1;
+   asm lsr.zx TEMPLATE_object_masks + 21,x;
+
+   asm lda.z TEMPLATE_stripe_cache;
+   asm adc #1;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_cache + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_cache + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_cache + 5;
+   asm sty PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.a TEMPLATE_playfield_colors + 3;
+   asm sta.z TEMPLATE_stripe_next_color + 1;
+   asm lda.z TEMPLATE_stripe_service_p0_ptr;
+   asm nop;
+   asm lsr.z TEMPLATE_object_masks + 22;
+   asm jmp @stripe_pair1;
+
+   // X=$04 boundary transition.  CPX/taken-BEQ exactly replaces the old
+   // LDY-tail/not-taken-BNE selector, so the precomputed P1, M1 shift, color
+   // handoff, and B-side P0 all retain their established phases.
+   asm @stripe2_row_entry_boundary:;
+   asm dec.z TEMPLATE_player1_y;
+   asm lda.a TEMPLATE_stripe_wrap_grp1;
+   asm sta GRP1;
+   asm lsr.z TEMPLATE_object_masks + 25;
+   asm lda.z TEMPLATE_stripe_next_color;
+   asm sta COLUPF;
+   asm lda.z TEMPLATE_stripe_next_color + 1;
+   asm sta COLUBK;
+   asm lda #0;
+   asm adc #0;
+   asm sta ENAM1;
+   asm lda.z TEMPLATE_stripe_buffer_b;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_boundary_grp0;
+   asm lsr.z TEMPLATE_object_masks + 26;
+   asm ldx #$e8;
+   asm sta GRP0;
+   asm jmp @stripe2_pair1;
+#endif
 
    // X-wrap identifies the coarse mask-row containing the generated
    // boundary.  The first stripe owns one additional two-line pair in that
@@ -3073,8 +3568,14 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF1;
    asm ldy.z TEMPLATE_stripe_cache + 5;
    asm sty PF2;
+#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+   asm lda.z TEMPLATE_object_masks + 3;
+   asm nop;
+   asm nop;
+#else
    asm ldy #2;
    asm lda.iy (TEMPLATE_stripe_service_p1_ptr),y;
+#endif
    asm ldx.a TEMPLATE_playfield_data + 6;
    asm lsr.z TEMPLATE_object_masks + 25;
    asm sta GRP1;
@@ -3101,7 +3602,7 @@ require inline void TEMPLATE_draw(void) {
    asm lsr.z TEMPLATE_object_masks + 26;
    asm ldx.a TEMPLATE_playfield_colors + 2;
    asm stx.a TEMPLATE_stripe_next_color;
-#elif defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE)
+#elif defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE) || defined(VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE) || defined(VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE)
    // P1-uniform/P0-cache service pair 1.  Preserve local Y=2 across the P0
    // line; the three-cycle exact P0 load plus DEY exactly replaces the old
    // five-cycle P0 indirect load, so every emitted phase matches dual-pointer.
@@ -3124,7 +3625,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_cache + 5;
    asm sta PF2;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   asm ldy #1;
+#else
    asm ldy #2;
+#endif
    asm lda.iy (TEMPLATE_stripe_service_p1_ptr),y;
    asm ldx.a TEMPLATE_playfield_data + 6;
    asm lsr.z TEMPLATE_object_masks + 25;
@@ -3149,10 +3654,22 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm stx.z TEMPLATE_stripe_buffer_b + 0;
    asm lda.z TEMPLATE_object_masks + 35;
+#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+   asm nop;
+#else
    asm dey;
+#endif
    asm lsr.z TEMPLATE_object_masks + 26;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   // A four-line PF-only refill uses the color-preparation slot for PF2L.
+   // The forced absolute store keeps this scanline cycle-identical to the
+   // six-line PF+color body while completing three PF bytes per pair.
+   asm ldx.a TEMPLATE_playfield_data + 8;
+   asm stx.a TEMPLATE_stripe_buffer_b + 2;
+#else
    asm ldx.a TEMPLATE_playfield_colors + 2;
    asm stx.a TEMPLATE_stripe_next_color;
+#endif
 #elif defined(VCS_STRIPES2_REFILL_6LINE_POINTER_PROBE)
    // Pointer/control six-line service. X remains $e8; (zp,X) therefore
    // dereferences B+0 through the compile-time +$18 operand.
@@ -3438,7 +3955,7 @@ require inline void TEMPLATE_draw(void) {
    asm lsr.z TEMPLATE_object_masks + 26;
    asm ldx.a TEMPLATE_playfield_colors + 3;
    asm stx.a TEMPLATE_stripe_next_color + 1;
-#elif defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE)
+#elif defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE) || defined(VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE) || defined(VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE)
    // Pair 2 keeps Y=1 from pair 1. NOP replaces the old immediate Y reload so
    // the P1 service phase is identical while the P0 exact byte may be mixed.
    asm sta GRP0;
@@ -3460,9 +3977,19 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_cache + 5;
    asm sta PF2;
+#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+   asm lda.z TEMPLATE_object_masks + 7;
+   asm nop;
+   asm nop;
+#else
    asm nop;
    asm lda.iy (TEMPLATE_stripe_service_p1_ptr),y;
+#endif
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   asm ldx.a TEMPLATE_playfield_data + 9;
+#else
    asm ldx.a TEMPLATE_playfield_data + 8;
+#endif
    asm lsr.z TEMPLATE_object_masks + 25;
    asm sta GRP1;
 
@@ -3475,20 +4002,42 @@ require inline void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_stripe_cache + 2;
    asm sta PF2;
    asm dec.z TEMPLATE_player0_y;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   asm lda.a TEMPLATE_playfield_data + 10;
+   asm sta.z TEMPLATE_stripe_buffer_b + 4;
+#else
    asm lda.a TEMPLATE_playfield_data + 9;
    asm sta.z TEMPLATE_stripe_buffer_b + 3;
+#endif
    asm lda.z TEMPLATE_stripe_cache + 3;
    asm sta PF0;
    asm lda.z TEMPLATE_stripe_cache + 4;
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_cache + 5;
    asm sta PF2;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   asm stx.z TEMPLATE_stripe_buffer_b + 3;
+#else
    asm stx.z TEMPLATE_stripe_buffer_b + 2;
+#endif
    asm lda.z TEMPLATE_object_masks + 39;
+#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+   asm nop;
+#elif !defined(VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE)
    asm dey;
+#endif
    asm lsr.z TEMPLATE_object_masks + 26;
+#ifdef VCS_STRIPES2_REFILL_4LINE_P1_CACHE_PROBE
+   // Replace DEY + next-color copy with PF2R plus X restoration.  The ten
+   // cycles are identical, A still carries the exact P0 byte into pair 3,
+   // and the ordinary fixed-tail body resumes with its original X=$e8.
+   asm ldx.a TEMPLATE_playfield_data + 11;
+   asm stx.a TEMPLATE_stripe_buffer_b + 5;
+   asm ldx #$e8;
+#else
    asm ldx.a TEMPLATE_playfield_colors + 3;
    asm stx.a TEMPLATE_stripe_next_color + 1;
+#endif
 #elif defined(VCS_STRIPES2_REFILL_6LINE_POINTER_PROBE)
    // Pointer/control six-line service. X remains $e8; (zp,X) therefore
    // dereferences B+2 through the compile-time +$1a operand.
@@ -3783,7 +4332,7 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
    asm nop;
-#elif defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE)
+#elif defined(VCS_STRIPES2_REFILL_6LINE_P1_CACHE_PROBE) || defined(VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE)
    // Pair 3 keeps Y=0 from pair 2.  The final NOP after the exact P0 load
    // preserves the dual-pointer five-cycle slot; the fixed probe then restores
    // X with the same eight-cycle padding as the existing certification body.
@@ -3806,8 +4355,14 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_cache + 5;
    asm sta PF2;
+#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+   asm lda.z TEMPLATE_stripe_service_p1_ptr + 1;
+   asm nop;
+   asm nop;
+#else
    asm nop;
    asm lda.iy (TEMPLATE_stripe_service_p1_ptr),y;
+#endif
    asm ldx.a TEMPLATE_playfield_data + 10;
    asm lsr.z TEMPLATE_object_masks + 25;
    asm sta GRP1;

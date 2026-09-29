@@ -30,24 +30,31 @@ baseline. Future public renderer name: `gameplay`; rename waits for stable ABI.
 
 Remaining:
 
-1. Finish rolling inactive-buffer scheduling. The single-row plan no longer
-   needs P0 uniformity. P1 always has a uniform three-pair window at one of
-   starts 0,2,4 in an eight-pair packed row; exhaustive regression proves no two
-   starts suffice. One branchless P1 pointer supplies graphics or a three-byte
-   zero run while three dead scratch-lane bytes hold exact P0 bytes, so P0 may
-   cross either threshold or uint8 wrap inside service. The emitted planner uses
-   two 8-byte low-three-bit tables and the emitted six-line body refills all six
-   PF bytes plus both colors. One ROM now exercises dynamic starts 0/2/4 and
-   their three resume positions at 98 RAM bytes with exact 262-line timing; B's
-   consumed slots carry dispatch vectors until the service overwrites them.
-   Compiler-owned linker-visible `?@` continuation labels do not reset ordinary
-   assembler `@` scope. A production row-gate proof rebases A-side X from $e8
-   to $6c and indexed mask operands by +$7c: ordinary rows keep the old seven-
-   cycle backedge, while $80 identifies the service-row entrance and $84 the
-   following boundary. Absolute `STA GRP0` compensates the one-cycle special-
-   path difference, preserving the first object commit. Next emit that fixed
-   row gate and replace the three candidate sites with a compact special-row
-   prefix/dispatch before promoting the rolling service to production.
+1. Finish rolling inactive-buffer scheduling. The six-line P1-uniform/P0-
+   cache plan uses starts 0,2,4; exhaustive regression proves no two starts
+   suffice. One emitted ROM exercises all three starts/resumes at 98 RAM bytes
+   while refilling six PF bytes plus both colors. A second exact-cache six-line
+   body proves that all six player bytes can remove hot selector/pointer work,
+   but its rolling preparation cost is still unmeasured and therefore it is a
+   benchmark, not the chosen production design.
+
+   A four-line PF-only variant is also executable. It needs only a two-pair P1
+   uniform window; starts 4,5,6 are exhaustive and minimal, P0 uses two exact
+   cached bytes, and emitted planner/body regressions verify the pointer bias and
+   all three starts. It does not prepare the two next colors, so four lines is
+   not yet the complete rolling-service cost.
+
+   The fixed-row gate proof was corrected to match an actually encodable 6502
+   branch. Rebase A-side X from $e8 to $ec and indexed mask operands by -4:
+   ordinary row ends are $f0,$f4,$f8,$fc, service is $00, and the following
+   boundary is $04. `INX/BPL/JMP` leaves ordinary backedges at seven cycles;
+   service/boundary branch only to a nearby NOP-compensated prefix, preserving
+   the first `GRP0` phase. An emitted probe now takes the $00 service path,
+   regenerates both next colors in-row, preserves 262-line frame timing and the
+   exact object sequence, and still fits 4K/103 RAM bytes; the $04 boundary path
+   is emitted beside it. The generic phase checker still needs a dedicated
+   service-row profile. Next certify those phases, then compare complete
+   six-line versus four-line-plus-color preparation before promotion.
 2. Measure the complete rolling service pipeline (including service-sprite and
    next-color preparation) and enforce the resulting minimum even stripe height.
    Six lines is now the proven PF-copy cost, not yet the public minimum.

@@ -42,7 +42,7 @@ service-pointer bias. Next: emit and cadence-schedule the producer.
 2026-09-28 20:44:27 PDT, Emit dual-uniform rolling planner
 Stripes rolling planner: emitted the pair-32 low-nibble alias/first-free selector and both dual-uniform service pointers. Simulator cases cover starts 1,3,5,9,11 plus active/inactive modes with 262-line timing and no RAM increase. Early inactive service now uses a three-byte ROM zero run; row-5 masks are not safely consumed at the earliest candidates. Reworked the dispatch proof so the selected path uses a local branch plus range-free JMP that consumes the shared service two-cycle entry idle, and proved the final eight-cycle service tail can be a 3-cycle X restore plus 5-cycle indirect resume. Remaining integration constraint: normal packed-mask addressing still owns X, so avoid cloning two rows of raster code.
 
-2026-09-28 21:30:26 PDT, P1-only uniform service supersedes dual-uniform planner
+2026-09-28 21:30:26 PDT, P1-only uniform service
 A single packed row needs only starts 0,3,5 for a uniform three-pair P1 window;
 exhaustive regression proves no two candidate starts suffice. P0 uniformity is
 removed entirely by caching its three exact service bytes in dead scratch lanes.
@@ -54,7 +54,7 @@ start 0/3 indirect dispatch and start-5 fallback exactly replace their old
 25/20/20-cycle predecessor envelopes. Next: emit the two dispatch-pointer
 values and splice the fixed service row into production without a per-row tax.
 
-2026-09-28 22:31:10 PDT, Certify dynamic P1-cache dispatch and fixed-row gate
+2026-09-28 22:31:10 PDT, Dynamic dispatch and fixed-row gate
 The single-row P1-uniform selector now uses starts 0,2,4, another minimal
 three-start set that fits the emitted pair layout. Added one emitted-ROM e2e
 probe that forces all three selector results, verifies each dynamic resume X,

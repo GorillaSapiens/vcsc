@@ -1,0 +1,26 @@
+2026-09-29 11:18:17 PDT, Four-line planner and gate cleanup
+Made the four-line PF-only P1-cache body and planner permanent regressions.
+Starts 4,5,6 are exhaustive/minimal; the emitted planner now verifies each
+selected start, exact two-byte P0 cache, and P1 graphics pointer. This caught
+and fixed a real q-2/q-1 pointer-bias carryover from the three-pair design.
+Added the four-line zero-cadence dispatch schedule proof and the independent
+six-line exact-player-cache benchmark. The exact-cache body removes hot sprite
+selection but does not yet account for rolling preparation of those six bytes.
+Removed an interrupted, unresolved row-service probe and restored the default
+stripes=2 transition path/3712-byte ROM footprint instead of accepting an
+untested 3708-byte change. Corrected the fixed-row gate proof to an encodable
+near branch: X=$ec, indexed mask operands -4, ordinary row ends $f0..$fc,
+service $00, boundary $04. INX/BPL/JMP costs the old seven cycles on ordinary
+rows; special rows use a nearby NOP before the first GRP0 commit, with Z still
+identifying the service sentinel. Next: emit the special-row continuation and
+measure complete color/preparation cost before selecting the rolling body.
+
+2026-09-29 12:11:35 PDT, Row-entry color service probe
+Recovered the interrupted row-entry work and kept it as an explicit probe.
+The X=$00 service path regenerates both next colors in the visible row and the
+adjacent X=$04 path emits the equal-stripe boundary transition. Added an e2e
+regression proving 262-line frame timing, final next-color bytes $4e/$24,
+object-sequence identity with the ordinary stripes=2 reference, 103 RAM bytes,
+and <=4K ROM. Generic stripes2 phase checking still rejects the service row
+because its PF phase family is intentionally different; dedicated phase-profile
+certification is the immediate next step before promotion beyond probe status.

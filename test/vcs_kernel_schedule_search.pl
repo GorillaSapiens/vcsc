@@ -514,8 +514,76 @@ for my $variant (qw(old_normal_reference gated_normal gated_service gated_bounda
 my $ten_cycle_paths=()=$out =~ /0\.\.\s*9\s+0:00\.\.0:09\s+row_gate\[/g;
 $ten_cycle_paths==5
    or die "P1-cache row gate no longer keeps every GRP0 commit at cycle 10\n$out";
-$out =~ /inx ; X=\$80/ && $out =~ /inx ; X=\$84/ && $out =~ /sta\.a GRP0/
-   or die "P1-cache row gate lost service/boundary sentinel compensation\n$out";
+$out =~ /inx ; X=\$00 Z=1/ && $out =~ /inx ; X=\$04 Z=0/ &&
+$out =~ /bpl\.same nearby_special/ && $out =~ /nop ; compensate skipped JMP/ &&
+$out =~ /beq\.same service ; taken only for X=\$00/
+   or die "P1-cache row gate lost zero-tax service\/boundary discriminator\n$out";
+
+# The PF-only four-line body needs only two consecutive P1-uniform pairs.
+# Choosing the late starts 4,5,6 keeps every service window at the end of the
+# eight-pair row.  A decrementing uint8 sprite can cross only the height
+# threshold and byte-wrap boundaries, so its activity cannot alternate at all
+# three adjacent boundaries 4->5, 5->6, and 6->7.  Exhaustively verify the
+# actual uint8 semantics.  Also prove that no pair of starts in 0..6 provides
+# the same guarantee, so three late candidates are minimal.
+my @p1_cache_4line_candidates=(4,5,6);
+for my $y (0..255) {
+   for my $h (0..255) {
+      my $found;
+      for my $s (@p1_cache_4line_candidates) {
+         my @a=map { (($y-$s-$_)&255)<$h ? 1:0 } 0..1;
+         if ($a[0]==$a[1]) { $found=$s; last; }
+      }
+      defined $found or die "no two-pair P1-uniform late window in starts 4,5,6 y=$y h=$h\n";
+   }
+}
+for my $a (0..5) {
+   for my $b ($a+1..6) {
+      my $can_fail=0;
+      OUTER4: for my $y (0..255) {
+         for my $h (0..255) {
+            my $aa=((($y-$a)&255)<$h ? 1:0);
+            my $ab=((($y-$a-1)&255)<$h ? 1:0);
+            my $ba=((($y-$b)&255)<$h ? 1:0);
+            my $bb=((($y-$b-1)&255)<$h ? 1:0);
+            if ($aa!=$ab && $ba!=$bb) { $can_fail=1; last OUTER4; }
+         }
+      }
+      $can_fail or die "two starts unexpectedly guarantee two-pair P1 uniformity: $a,$b\n";
+   }
+}
+
+my $p1cache4_dispatch=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_p1_cache_4line_dispatch_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$p1cache4_dispatch);
+$rc==0 && !$sig or die "four-line P1-cache dispatch search failed\n$out$err";
+$out =~ /P1-cache four-line late dispatch/
+   or die "four-line P1-cache dispatch solution header missing\n$out";
+for my $spec ([4,0,19],[5,20,39],[6,40,59]) {
+   my($start,$lo,$hi)=@$spec;
+   $out =~ /\Q$lo\E\.\.\s*\Q$hi\E\s+0:\d\d\.\.0:\d\d\s+candidate${start}_tail/
+      or die "four-line candidate $start no longer consumes its exact 20-cycle predecessor tail\n$out";
+}
+$out =~ /jmp \(candidate4_ptr\)/ && $out =~ /jmp \(candidate5_ptr\)/ &&
+$out =~ /jmp shared_service/
+   or die "four-line late dispatch lost two vectors plus fallback\n$out";
+
+my $p1cache4=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_p1_uniform_p0_cache_4line_service_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$p1cache4);
+$rc==0 && !$sig or die "four-line P1-uniform/P0-cache service search failed\n$out$err";
+$out =~ /P1-uniform\/P0-cache two-pair PF-only service/
+   or die "four-line P1-uniform/P0-cache solution header missing\n$out";
+for my $n (0..5) {
+   $out =~ /inactive_pf\+$n/
+      or die "four-line P1-uniform/P0-cache service lost PF byte $n\n$out";
+}
+for my $n (0..1) {
+   $out =~ /p0_service_byte\+$n/
+      or die "four-line P1-uniform/P0-cache service lost exact P0 byte $n\n$out";
+}
+$out !~ /next_color_slot/
+   or die "four-line PF-only service unexpectedly absorbed color preparation\n$out";
+$out =~ /ldx #normal_x/
+   or die "four-line PF-only service lost normal-X restoration\n$out";
 
 my $p1cache=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_p1_uniform_p0_cache_service_search.pl));
 ($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$p1cache);
@@ -540,6 +608,24 @@ $out =~ /jmp \(service_resume_ptr\)/
    or die "P1-uniform/P0-cache service lost dynamic resume tail\n$out";
 $out !~ /cpy\.z .*height/
    or die "P1-uniform/P0-cache service reintroduced a hot height test\n$out";
+
+my $exact_cache=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_exact_cache_service_search.pl));
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$exact_cache);
+$rc==0 && !$sig or die "exact-cache service search failed\n$out$err";
+$out =~ /exact-cache fixed three-pair service/
+   or die "exact-cache service solution header missing\n$out";
+for my $n (0..5) {
+   $out =~ /inactive_pf\+$n/
+      or die "exact-cache service lost PF byte $n\n$out";
+}
+for my $n (0..2) {
+   $out =~ /p1_service_byte\+$n/ && $out =~ /p0_service_byte\+$n/
+      or die "exact-cache service lost staged player byte $n\n$out";
+}
+$out !~ /service_p1_ptr|candidate|cpy\.z .*height/
+   or die "exact-cache service retained hot selector/pointer machinery\n$out";
+$out =~ /jmp \(service_resume_ptr\)/
+   or die "exact-cache service lost rolling resume tail\n$out";
 
 # Exact-P1-pointer service removes mixed-pattern dispatch entirely.  The
 # inactive PF buffer starts as three exact P1 pointers, and each pair overwrites

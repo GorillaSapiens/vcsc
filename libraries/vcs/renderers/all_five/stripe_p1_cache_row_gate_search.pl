@@ -2,33 +2,31 @@
 # Zero-tax gate for one fixed rolling-service row before the first stripe
 # boundary.
 #
-# The ordinary A-side row-offset seed is $e8 and advances by four per packed
-# row.  Rebase it to $6c and add $7c to every indexed mask operand: modulo 256,
-# every effective mask address is unchanged.  Row-end X values are then
-# $70,$74,$78,$7c,$80,$84.  The first four are positive ordinary rows; $80 is
-# the one service-row entrance and $84 is the following boundary-row entrance.
+# Rebase the A-side row-offset seed from $e8 to $ec and subtract four from each
+# indexed mask operand. Effective zero-page mask addresses are therefore
+# unchanged. Row-end X values become $f0,$f4,$f8,$fc,$00,$04: four ordinary
+# rows remain negative, the service entrance is zero, and the following stripe
+# boundary is small positive.
 #
-# Ordinary rows replace INX/BEQ/JMP with INX/BEQ/BPL for the same seven-cycle
-# tail.  Both negative special entrances fall through one cycle earlier, but
-# an absolute STA GRP0 costs four cycles instead of the ordinary three.  Thus
-# the first object commit remains at the identical ten-cycle offset on normal,
-# service, and boundary paths.  The two special values can be distinguished
-# later with CPX #$84 after the common left-PF writes, where the comparison no
-# longer perturbs their established phases.
+# Pair 7 can replace INX/BEQ/JMP with INX/BPL/JMP. Ordinary negative rows keep
+# the exact old seven-cycle backedge. Service/boundary take BPL to a nearby
+# prefix two cycles earlier than the JMP; one NOP restores those two cycles, so
+# STA GRP0 remains at the old phase. INX supplied Z=1 only for the service
+# sentinel $00. NOP and STA do not alter flags, so the special continuation can
+# distinguish service from boundary after that first phase-critical commit
+# without a CPX.
 
 use strict;
 use warnings;
 
 my $old_seed=0xe8;
-my $new_seed=0x6c;
-my $operand_delta=0x7c;
+my $new_seed=0xec;
+my $operand_delta=-4;
 for my $row (0..5) {
    my $old=($old_seed+4*$row)&255;
    my $new=($new_seed+4*$row)&255;
    (($new+$operand_delta)&255)==$old
       or die "row $row mask rebase mismatch\n";
-   # Verify the identity for every possible zero-page operand, not merely the
-   # current renderer constants.
    for my $op (0..255) {
       (($op+$old)&255)==((($op+$operand_delta)&255)+$new)%256
          or die "row $row operand $op rebase mismatch\n";
@@ -36,17 +34,17 @@ for my $row (0..5) {
 }
 my @ends=map { ($new_seed+4*($_+1))&255 } 0..5;
 for my $row (0..3) {
-   ($ends[$row]&0x80)==0 && $ends[$row]!=0
-      or die "ordinary row $row no longer takes BPL gate\n";
+   ($ends[$row]&0x80)!=0
+      or die "ordinary row $row no longer stays negative\n";
 }
-$ends[4]==0x80 or die "service-row sentinel is not \$80\n";
-$ends[5]==0x84 or die "boundary-row sentinel is not \$84\n";
+$ends[4]==0x00 or die "service-row sentinel is not \$00\n";
+$ends[5]==0x04 or die "boundary-row sentinel is not \$04\n";
 
 return {
    name=>'all_five P1-cache fixed service-row gate',
-   description=>'A-side X rebasing makes ordinary rows branch through unchanged while service and boundary entrances share an absolute GRP0 compensation.',
+   description=>'X=$ec and mask operands -4 preserve ordinary effective addresses; BPL gates only $00/$04 through a nearby NOP-compensated prefix while retaining Z for service-vs-boundary dispatch.',
    line_cycles=>76,
-   horizon=>10,
+   horizon=>12,
    operations=>[
       {
          id=>'row_gate', earliest=>0, latest_end=>9,
@@ -64,27 +62,27 @@ return {
                name=>'gated_normal',
                asm=>[
                   ['inx',2],
-                  ['beq.same boundary ; not taken',2],
-                  ['bpl.same transition ; taken',3],
+                  ['bpl.same nearby_special ; not taken',2],
+                  ['jmp transition',3],
                   ['sta GRP0',3],
                ],
             },
             {
                name=>'gated_service',
                asm=>[
-                  ['inx ; X=$80',2],
-                  ['beq.same boundary ; not taken',2],
-                  ['bpl.same transition ; not taken',2],
-                  ['sta.a GRP0',4],
+                  ['inx ; X=$00 Z=1',2],
+                  ['bpl.same nearby_special ; taken',3],
+                  ['nop ; compensate skipped JMP',2],
+                  ['sta GRP0 ; Z remains 1',3],
                ],
             },
             {
                name=>'gated_boundary',
                asm=>[
-                  ['inx ; X=$84',2],
-                  ['beq.same boundary ; not taken',2],
-                  ['bpl.same transition ; not taken',2],
-                  ['sta.a GRP0',4],
+                  ['inx ; X=$04 Z=0',2],
+                  ['bpl.same nearby_special ; taken',3],
+                  ['nop ; compensate skipped JMP',2],
+                  ['sta GRP0 ; Z remains 0',3],
                ],
             },
             {
@@ -97,6 +95,12 @@ return {
                ],
             },
          ],
+      },
+      {
+         id=>'special_discriminator', earliest=>10, latest_end=>11,
+         after=>['row_gate'],
+         description=>'Z from INX survives NOP/STA, so BEQ can identify only the $00 service sentinel',
+         asm=>[['beq.same service ; taken only for X=$00',2]],
       },
    ],
 };
