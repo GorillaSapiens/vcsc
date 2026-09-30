@@ -190,13 +190,12 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. Six-line P1-uniform/P0-cache starts 0,2,4 and
-four-line PF-only starts 4,5,6 both have emitted planner/body coverage; the
-four-line path still owes both next colors, and exact-cache six-line is only a
-prep-cost benchmark. The corrected zero-tax row gate uses X=$ec with indexed
-mask operands -4: ordinary row ends stay negative, service/boundary are $00/$04.
-The emitted probe now includes the $00 service continuation and $04 boundary,
-regenerates both next colors, keeps 262-line timing/object output, and fits 4K
-with 103 RAM bytes. Next add its dedicated playfield-phase profile, then compare
-complete preparation cost before choosing the production rolling service.
+Continue `.../stripes.txt`. `stripe_pair_machine_search.pl` is now the sole
+authoritative stripes=2 visible cadence: exact 152-cycle epochs beginning at
+physical A:02. Its three-pair refill composition preserves all 51 TIA events
+while moving all six PF bytes and both next colors; pair 2 retains an explicit
+real seven-cycle preparation budget. No separately timed service row is allowed.
+Next fit rolling P0/P1 cache/planner preparation into that budget and/or preceding
+ordinary feed slots, then emit the resulting identical-cadence schedule in the
+renderer.
 `gameplay`; 10 left.

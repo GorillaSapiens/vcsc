@@ -17,6 +17,7 @@
 #   description => 'what is being scheduled and why',
 #   line_cycles => 76,             # defaults to 76
 #   horizon     => 152,            # absolute CPU cycles searched
+#   phase_origin=> 0,              # optional scanline phase of cycle zero
 #   # Optional real CPU fillers.  When present, every scheduler-created idle
 #   # gap must be exactly representable by these instruction blocks; this
 #   # prevents fictitious one-cycle idle time from making a schedule look legal.
@@ -64,6 +65,12 @@
 # caused by otherwise-equivalent addressing modes (for example LDA/STA absolute
 # taking one cycle longer than zero page) should be represented as operation
 # implementations, because they also affect registers/memory semantics.
+#
+# `phase_origin` changes only printed line:cycle coordinates.  It is useful for
+# periodic schedules whose natural epoch starts part-way through a scanline.
+# For example phase_origin=>2 makes absolute scheduler cycle zero print as 0:02;
+# cycle 74 then prints as 1:00.  Event windows and operation limits remain in
+# absolute scheduler cycles and are not shifted.
 #
 # Event windows are absolute within `horizon`.  For a 76-cycle scanline pair,
 # cycle 0..75 is line 0 and 76..151 is line 1.  Thus a write legal at cycles
@@ -129,11 +136,14 @@ if (!defined $problem) {
 ref($problem) eq 'HASH' or die "$input_path must return a hash reference\n";
 
 my $line_cycles = $problem->{line_cycles} // 76;
+my $phase_origin = $problem->{phase_origin} // 0;
 my $horizon = $problem->{horizon};
 my $ops_in = $problem->{operations};
 my $idle_fillers_in = $problem->{idle_fillers};
 $line_cycles =~ /^\d+$/ && $line_cycles > 0
    or die "line_cycles must be a positive integer\n";
+$phase_origin =~ /^\d+$/ && $phase_origin < $line_cycles
+   or die "phase_origin must be an integer in 0..".($line_cycles-1)."\n";
 $horizon =~ /^\d+$/ && $horizon > 0
    or die "horizon must be a positive integer\n";
 ref($ops_in) eq 'ARRAY' && @$ops_in
@@ -293,7 +303,8 @@ my %memo;
 
 sub coord {
    my($c)=@_;
-   return sprintf('%d:%02d', int($c/$line_cycles), $c % $line_cycles);
+   my $p=$c+$phase_origin;
+   return sprintf('%d:%02d', int($p/$line_cycles), $p % $line_cycles);
 }
 
 sub event_fits {
@@ -353,7 +364,7 @@ sub print_solution {
    my($sched)=@_;
    print "solution ",($solutions+1)," for ",($problem->{name}//$input_path),"\n";
    print(($problem->{description}//''), "\n") if length($problem->{description}//'');
-   print "line_cycles=$line_cycles horizon=$horizon\n";
+   print "line_cycles=$line_cycles horizon=$horizon phase_origin=$phase_origin\n";
    my $cursor=0;
    for my $p (@$sched) {
       my($i,$impi,$start)=@$p;
@@ -374,7 +385,8 @@ sub print_solution {
          $start,$end,coord($start),coord($end),$op->{id}.($imp->{name} eq 'default'?'':"[$imp->{name}]"),$op->{description};
       my $c=$start;
       for my $a (@{$imp->{asm}}) {
-         printf "      %s  +%-2d  %s\n",coord($c),$a->{cycles},$a->{text};
+         my $ie=$c+$a->{cycles}-1;
+         printf "      %s..%s  +%-2d  %s\n",coord($c),coord($ie),$a->{cycles},$a->{text};
          $c += $a->{cycles};
       }
       for my $e (@{$imp->{events}}) {

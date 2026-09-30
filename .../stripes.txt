@@ -30,31 +30,25 @@ baseline. Future public renderer name: `gameplay`; rename waits for stable ABI.
 
 Remaining:
 
-1. Finish rolling inactive-buffer scheduling. The six-line P1-uniform/P0-
-   cache plan uses starts 0,2,4; exhaustive regression proves no two starts
-   suffice. One emitted ROM exercises all three starts/resumes at 98 RAM bytes
-   while refilling six PF bytes plus both colors. A second exact-cache six-line
-   body proves that all six player bytes can remove hot selector/pointer work,
-   but its rolling preparation cost is still unmeasured and therefore it is a
-   benchmark, not the chosen production design.
+1. Finish rolling inactive-buffer scheduling around the authoritative
+   visible machine in `stripe_pair_machine_search.pl`. One exact 152-cycle epoch
+   runs from physical A:02 through the following A:01. `ordinary` and `refill`
+   modes share all 17 TIA appointments. The machine composes directly: the
+   three-pair refill form moves all six PF bytes plus both next colors in six
+   scanlines without shifting a TIA event or adding scheduler idle. Pair 2 still
+   exposes a real seven-cycle budget where the first two pairs copy colors.
 
-   A four-line PF-only variant is also executable. It needs only a two-pair P1
-   uniform window; starts 4,5,6 are exhaustive and minimal, P0 uses two exact
-   cached bytes, and emitted planner/body regressions verify the pointer bias and
-   all three starts. It does not prepare the two next colors, so four lines is
-   not yet the complete rolling-service cost.
+   Refill works by replacing soft feed work: P1 uses the fixed 23-cycle feed
+   slot, P0 tails use the fixed 16-cycle feed/carry slot, and preclassified P0
+   bookkeeping plus a zero-page PF0 store makes a seven-cycle color copy fit in
+   the existing B-line PF2L..PF0R interval. `stripe_pair_exact_search.pl` and
+   `stripe_three_pair_exact_search.pl` are compatibility shims only.
 
-   The fixed-row gate proof was corrected to match an actually encodable 6502
-   branch. Rebase A-side X from $e8 to $ec and indexed mask operands by -4:
-   ordinary row ends are $f0,$f4,$f8,$fc, service is $00, and the following
-   boundary is $04. `INX/BPL/JMP` leaves ordinary backedges at seven cycles;
-   service/boundary branch only to a nearby NOP-compensated prefix, preserving
-   the first `GRP0` phase. An emitted probe now takes the $00 service path,
-   regenerates both next colors in-row, preserves 262-line frame timing and the
-   exact object sequence, and still fits 4K/103 RAM bytes; the $04 boundary path
-   is emitted beside it. The generic phase checker still needs a dedicated
-   service-row profile. Next certify those phases, then compare complete
-   six-line versus four-line-plus-color preparation before promotion.
+   All visible pairs must keep this cadence. Do not add or certify a separately
+   timed service row. Next spend the explicit pair-2 seven-cycle budget and/or
+   preceding ordinary feed slots on rolling P0/P1 preparation, and account for
+   the complete planner/dispatch cost in this same machine before production
+   emission.
 2. Measure the complete rolling service pipeline (including service-sprite and
    next-color preparation) and enforce the resulting minimum even stripe height.
    Six lines is now the proven PF-copy cost, not yet the public minimum.

@@ -43,31 +43,97 @@ $out =~ /line_cycles=76 horizon=456/
 $err =~ /^searched=\d+ pruned_deadline=\d+ pruned_horizon=\d+ solutions=1\n\z/
    or die "unexpected solver statistics: $err";
 
-# The exact active-player pair model pins all twelve PF writes to the maintained
-# phases.  Its legal result must use the real self-hosted P1 service sequence.
-my $exact=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_pair_exact_search.pl));
-($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$exact);
-$rc==0 && !$sig or die "exact pair search failed\n$out$err";
-$out =~ /p1_sprite\[self_hosted\]/ or die "exact pair did not choose self-hosted staging\n$out";
-$out =~ /event PF0L\s+@\s+15 \(0:15\)/ or die "exact pair lost first PF0 phase\n$out";
-$out =~ /event PF2R\s+@\s+137 \(1:61\)/ or die "exact pair lost final PF2 phase\n$out";
-$out =~ /line1_pf\[pf0r_absolute_plus1\]/
-   or die "exact pair did not use absolute addressing as the required +1-cycle timing knob\n$out";
-$out =~ /IDLE 2 cycles \(nop\/2\)/
-   or die "exact pair did not materialize its two-cycle entry filler\n$out";
+# The authoritative periodic pair starts at physical scanline-A cycle 2 and
+# ends exactly 152 cycles later at the same phase.  Run it once with ordinary
+# dynamic player production and once with double-buffer feed work replacing those
+# soft slots.  Every TIA appointment must be identical between the two runs.
+my $machine=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_pair_machine_search.pl));
+local $ENV{VCSC_STRIPE_PAIR_MODE}='ordinary';
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$machine);
+$rc==0 && !$sig or die "authoritative ordinary pair search failed\n$out$err";
+$out =~ /^solution 1 for all_five authoritative 152-cycle machine \[ordinary\]$/m
+   or die "authoritative ordinary pair header missing\n$out";
+$out =~ /line_cycles=76 horizon=152 phase_origin=2/
+   or die "authoritative pair epoch changed\n$out";
+$out =~ /0\.\.\s*59\s+0:02\.\.0:61\s+a_visible/
+   or die "scanline-A body moved\n$out";
+$out =~ /60\.\.\s*82\s+0:62\.\.1:08\s+p1_feed\[ordinary_dynamic\]/
+   or die "ordinary P1 feed slot moved\n$out";
+$out =~ /83\.\.105\s+1:09\.\.1:31\s+b_left/ &&
+$out =~ /106\.\.123\s+1:32\.\.1:49\s+p0_mid\[ordinary_dynamic\]/ &&
+$out =~ /124\.\.135\s+1:50\.\.1:61\s+b_right/
+   or die "scanline-B cadence/feed split moved\n$out";
+$out =~ /136\.\.151\s+1:62\.\.2:01\s+p0_feed\[ordinary_dynamic\]/
+   or die "ordinary P0 feed slot moved\n$out";
+$out =~ /0:13\.\.0:15\s+\+3\s+sta PF0/
+   or die "instruction-level PF0 span missing\n$out";
+$out =~ /1:06\.\.1:08\s+\+3\s+sta GRP1/
+   or die "instruction-level GRP1 span missing\n$out";
+$out =~ /1:46\.\.1:49\s+\+4\s+sta\.a PF0/
+   or die "instruction-level absolute PF0 timing knob missing\n$out";
+$out =~ /2:00\.\.2:01\s+\+2\s+nop/
+   or die "pair carry tail no longer ends at next A cycle 1\n$out";
+$out !~ /\bIDLE\b/ or die "authoritative ordinary pair contains fictitious idle time\n$out";
+my @ordinary_events=($out =~ /^\s+event\s+.*$/mg);
+@ordinary_events==17 or die "ordinary pair TIA event count changed: ".scalar(@ordinary_events)."\n$out";
 
-# The three-pair exact model uses pair tails as part of the following pair and
-# must move all six PF bytes in six scanlines.  Its odd-numbered copies happen
-# in the P0 tail before loading the already-precomputed P0 byte for the next
-# pair, so A enters the next pair with the correct GRP0 value.
-my $three=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_three_pair_exact_search.pl));
-($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$three);
-$rc==0 && !$sig or die "three-pair exact search failed\n$out$err";
+local $ENV{VCSC_STRIPE_PAIR_MODE}='refill';
+my($rrc,$rsig,$rout,$rerr)=capture($^X,$solver,'--max-solutions','1',$machine);
+$rrc==0 && !$rsig or die "authoritative refill pair search failed\n$rout$rerr";
+$rout =~ /p1_feed\[refill_pf0\]/ && $rout =~ /p0_mid\[refill_color0\]/ &&
+$rout =~ /p0_feed\[refill_pf1\]/
+   or die "refill work did not replace all three soft feed slots\n$rout";
+$rout =~ /next_stripe_pf\+0/ && $rout =~ /next_stripe_pf\+1/ &&
+$rout =~ /next_stripe_color\+0/
+   or die "refill pair lost staged PF/color feed work\n$rout";
+$rout !~ /\bIDLE\b/ or die "authoritative refill pair contains fictitious idle time\n$rout";
+my @refill_events=($rout =~ /^\s+event\s+.*$/mg);
+join("\n",@refill_events) eq join("\n",@ordinary_events)
+   or die "refill work moved a TIA appointment\nordinary:\n".join("\n",@ordinary_events)."\nrefill:\n".join("\n",@refill_events)."\n";
+$err =~ /^searched=7 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
+   or die "unexpected ordinary machine solver statistics: $err";
+$rerr =~ /^searched=7 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
+   or die "unexpected refill machine solver statistics: $rerr";
+
+# Compose the same authoritative machine three times.  This is the complete
+# six-scanline refill body: all six PF bytes plus both next colors fit without
+# moving any of the 51 TIA appointments.  Pair 2 retains a real seven-cycle
+# spare slot for rolling planner/preparation work.
+local $ENV{VCSC_STRIPE_PAIR_MODE}='refill';
+local $ENV{VCSC_STRIPE_PAIR_COUNT}=3;
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$machine);
+$rc==0 && !$sig or die "authoritative three-pair refill search failed\n$out$err";
+$out =~ /^solution 1 for all_five authoritative 456-cycle machine \[refill\]$/m
+   or die "three-pair authoritative header missing\n$out";
+$out =~ /line_cycles=76 horizon=456 phase_origin=2/
+   or die "three-pair authoritative horizon changed\n$out";
 for my $n (0..5) {
-   $out =~ /next_stripe_pf\+$n/ or die "three-pair exact search lost staged PF byte $n\n$out";
+   $out =~ /next_stripe_pf\+$n/ or die "three-pair machine lost staged PF byte $n\n$out";
 }
-$out =~ /p2_p0_tail_stage/ or die "three-pair exact search did not use final pair tail\n$out";
-$out =~ /line_cycles=76 horizon=458/ or die "three-pair exact horizon changed\n$out";
+for my $n (0..1) {
+   $out =~ /next_stripe_color\+$n/ or die "three-pair machine lost staged color $n\n$out";
+}
+$out =~ /p2_p0_mid\[refill_spare7\]/ &&
+$out =~ /bit\.a timing_scratch/ && $out =~ /nop\.z timing_scratch/
+   or die "three-pair machine lost explicit seven-cycle rolling-prep budget\n$out";
+$out !~ /\bIDLE\b/ or die "three-pair machine contains fictitious idle time\n$out";
+my @three_events=($out =~ /^\s+event\s+.*$/mg);
+@three_events==51 or die "three-pair TIA event count changed: ".scalar(@three_events)."\n$out";
+$out =~ /event PF0L\s+\@\s+13 \(0:15\)/ &&
+$out =~ /event PF2R\s+\@\s+439 \(5:61\)/
+   or die "three-pair fixed PF phase family moved\n$out";
+$err =~ /^searched=19 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
+   or die "unexpected three-pair machine solver statistics: $err";
+
+# Historical developer commands using the old one-pair filename must delegate
+# to the authoritative machine rather than maintaining another cadence copy.
+my $exact=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_pair_exact_search.pl));
+local $ENV{VCSC_STRIPE_PAIR_MODE}='ordinary';
+local $ENV{VCSC_STRIPE_PAIR_COUNT}=1;
+($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$exact);
+$rc==0 && !$sig or die "one-pair compatibility shim failed\n$out$err";
+$out =~ /^solution 1 for all_five authoritative 152-cycle machine \[refill\]$/m
+   or die "one-pair compatibility shim no longer selects authoritative refill mode\n$out";
 
 # The remaining fully-dynamic P0 producer is deliberately over budget.  The
 # lower-bound fixture must end at cycle 158, five cycles after the maintained

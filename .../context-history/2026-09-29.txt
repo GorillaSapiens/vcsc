@@ -24,3 +24,27 @@ object-sequence identity with the ordinary stripes=2 reference, 103 RAM bytes,
 and <=4K ROM. Generic stripes2 phase checking still rejects the service row
 because its PF phase family is intentionally different; dedicated phase-profile
 certification is the immediate next step before promotion beyond probe status.
+
+2026-09-29 17:11:56 PDT, Canonical 152-cycle stripe pair
+Replaced the fragmented one-pair timing authority with
+stripe_pair_machine_search.pl. Its epoch begins at physical A:02 and ends at
+next-A:01 exactly 152 CPU cycles later. The schedule solver now supports an
+optional phase_origin for periodic epochs and prints complete instruction cycle
+spans. Ordinary and refill modes share all 17 TIA appointment coordinates;
+refill replaces the fixed 23-cycle P1 and 16-cycle P0 feed slots and stages two
+PF bytes without an alternate row cadence or scheduler idle time.
+The former stripe_pair_exact_search.pl is only a compatibility shim. The
+separately timed row-entry/service-row direction is rejected: future rolling
+work must compose the same authoritative pair cadence and fit work into its
+feed slots rather than certify shifted PF phases.
+
+2026-09-29 17:15:57 PDT, Six-line refill on one cadence
+Refined the authoritative pair into fixed A/B TIA segments plus replaceable
+feed slots. A preclassified/cached P0 path uses DEC, a seven-cycle color copy,
+and a zero-page PF0 store in exactly the same 18-cycle PF2L-to-PF0R interval as
+the ordinary Y/height compare plus absolute PF0 store. Composing three canonical
+pairs now stages PF bytes 0..5 and both next colors in exactly 456 cycles while
+all 51 TIA event coordinates remain on the ordinary phase family. The third
+seven-cycle color slot is retained as explicit real-instruction headroom for
+rolling preparation. stripe_three_pair_exact_search.pl now delegates to this
+same machine instead of maintaining another cadence transcription.
