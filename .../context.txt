@@ -180,25 +180,19 @@ RAM/bank randomization, and passes an absolute ROM path.
 Focused `stella-*` Make targets are reruns of normal-suite coverage, not separate
 acceptance gates.
 
-Last validation state
----------------------
-Renderer-stripes S2-S10 and S11 normalization are complete; maintained all-five
-170/181/192/228, pairwise/banked composition, and pinned-palette Stella coverage
-own the retired-renderer behavior. Broad e2e validation is still limited by the
-very long mapper diagnostics; focused renderer/hygiene gates are the practical
-checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
-
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. The authoritative 152-cycle machine has an emitted
-combined tail-0 certification: three refill pairs move all six inactive PF bytes
-plus both next colors, and compact row edges preserve the same PF/object cadence
-at 98 RAM bytes. Generic service-window geometry is now bounded by executable
-proof: raw copy cost is six scanlines, while the current ordinary-entry
-zero-tax dual-uniform dispatch requires at most 14 pairs / 28 scanlines; a
-row-boundary-capable start-8 dispatch could reduce that to 26. For 192 lines,
-the current safe geometry admits equal stripes=1..6. Next keep the 28-line bound
-and emit the service-pointer preparation/loading path needed for N>2; separately
-promote the combined identical-cadence path into normal stripes=2. No separately
-timed service row.
+Continue `.../stripes.txt` toward zero-slack `stripes:=32` (32*6=192).
+Before more scheduler work, evaluate/prefer the new contiguous 8-byte stripe
+record described in stripes.txt; it may remove the remaining dual-array source
+coordination from the six-line refill.
+The exact six-line scheduler preserves all TIA phases while copying six PF bytes
+and two colors.  `stripe32_common_index_search.pl` now keeps one player Y index
+for all 96 pairs, eliminating per-stripe pointer motion; its exhaustive bound
+checks every uint8 public Y.  Player pointers therefore change only at sparse
+wrap/activity transitions (<=2 mixed stripes/player, <=4 union, <=12 mixed
+payload bytes).  Next emit this common-index feed behind a stripes32 probe and
+solve sparse pointer handoff within its 17 cycles/stripe of prep work.  The old
+28/26-line result is only a discarded-strategy bound.  Rainbow/complement data
+is already under `examples/_common/`.
 `gameplay`; 10 left.

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 #
-# Geometry bound for the dual-uniform three-pair stripes service.
+# Historical geometry bound for the dual-uniform window-selection strategy.
 #
 # The hot service itself costs three pairs (six scanlines).  For a generic
 # stripe boundary, both P0 and P1 must have a common three-pair window in which
@@ -15,9 +15,9 @@
 #   * if row-boundary entry (start 8) is eventually made zero-tax, then
 #     1,3,5,8,10 works in 13 pairs => 26 scanlines.
 #
-# Thus 28 scanlines is the current implementation-safe service-window geometry
-# bound.  Six scanlines remains only the raw PF/color copy cost; 26 is a
-# concrete optimization target, not yet a maintained dispatch contract.
+# This is no longer the generic stripe-height plan.  It remains an executable
+# bound on the discarded strategy that searched ahead for a convenient uniform
+# three-pair window.  The active stripes=32 design services every three pairs.
 
 use strict;
 use warnings;
@@ -132,4 +132,4 @@ $edge_max==7 or die "26-line equal-stripe maximum changed: $edge_max\n";
 min_equal_pairs(6)==16 or die "stripes=6 no longer has 16-pair equal stripes\n";
 min_equal_pairs(7)==13 or die "stripes=7 no longer demonstrates the 13-pair boundary\n";
 
-print "stripe_min_height_bound ok: copy=6 safe=28 edge-target=26 scanlines equal-max=6/7\n";
+print "stripe_dual_uniform_window_bound ok: old-safe=28 old-edge=26 scanlines\n";

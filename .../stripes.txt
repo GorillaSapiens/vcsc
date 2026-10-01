@@ -15,6 +15,15 @@ then left/right PF0/PF1/PF2; stripe i owns
 `floor(i*L/N)..floor((i+1)*L/N)-1`. Preserve raster/timing/handoffs/resources/write
 phases; no runtime division or per-line feature test.
 
+Strong candidate for the generic positive-stripe ABI: make each stripe one
+contiguous 8-byte record rather than maintaining separate color and PF arrays.
+Use record order `[COLUPF, COLUBK, PF0L, PF1L, PF2L, PF0R, PF1R, PF2R]`
+(or swap the first two only if the emitted cadence proves that cheaper). For the
+zero-slack six-scanline machine this makes next-stripe refill one sequential
+record walk plus one record-pointer advance, eliminating coordination between
+`playfield_colors` and `playfield_data`. Evaluate this before locking the public
+ABI; compatibility sugar can still accept separate arrays later if worthwhile.
+
 Positive stripes preserve the maintained frame, handoff, resource, branch,
 object, phase, composition, zero-path, and pinned-palette Stella contracts.
 192/228 remain terminal-WSYNC; 170/181 retain score-composable handoffs.
@@ -30,55 +39,60 @@ baseline. Future public renderer name: `gameplay`; rename waits for stable ABI.
 
 Remaining:
 
-1. Promote the now-emitted combined refill/row-edge cadence into the normal
-   stripes=2 path. `stripe_pair_machine_search.pl` remains the sole visible
-   cadence authority: one 152-cycle epoch runs from physical A:02 through the
-   following A:01 and all modes share the same 17 TIA appointments.
+1. Make the six-scanline rolling machine the production positive-stripe
+   architecture, with `stripes:=32` as the zero-slack design point.
+   `stripe32_sixline_machine_search.pl` is now the timing proof: three exact
+   152-cycle pairs copy all six inactive PF bytes plus both arbitrary next
+   colors, feed both players through three-byte service pointers, leave the
+   public player Y values untouched, and preserve all 51 ordinary TIA
+   appointments.  There is no service row and no alternate PF phase family.
+   The emitted stripes=2 refill/compact-rowedge probes remain useful source
+   material but must converge onto this one cadence rather than grow another
+   scheduler.
 
-   The emitted tail-0 certification now performs the real three-pair inactive-PF
-   refill (all six PF bytes plus both next colors), then later crosses packed-row
-   edges without changing PF phases or the P0/P1/M0/M1/Ball value sequence. Row
-   edges precompute one exact next-row P0 byte into each of six otherwise-dead
-   stride-four mask bytes. The pair-7 B side carries that byte in Y across the
-   right-PF writes, then `TYA + LSR M0 + INX + backedge` fits the existing
-   16-cycle P0 tail; the M0 shift stays last among flag-changing data operations
-   so its carry reaches the following ENAM0 write.
+2. Use one frame-wide player index, not per-stripe pointer motion.
+   `stripe32_common_index_search.pl` preserves the same 51 TIA appointments
+   while Y runs 96..0 across all 96 pairs.  VBLANK biases P1/P0 pointers against
+   Y=96/95, so active pointers remain fixed between real transitions;
+   `stripe32_common_index_bound.pl` exhaustively proves the address algebra.
+   `stripe32_transition_bound.pl` limits mixed stripes to <=2/player and <=4 in
+   the union (<=12 bytes of exact mixed payload).  The common-index machine has
+   17 cycles/stripe of explicit prep/store work for sparse transition state.
+   Do not restore per-pair height tests or per-stripe -3 pointer updates.  A
+   97-byte constant zero source covers inactive Y=0..96, but keep that as an
+   option until its emitted 4K ROM cost is measured.
 
-   The three exact refill P0 bytes are moved out of +35/+39/+43 before the
-   row-edge cache overwrites that lane: two use the reclaimed P0 service-pointer
-   bytes and the third uses the reclaimed low P1 service-pointer byte after the
-   exact-P1 builder is finished. Thus the combined path is back to the normal
-   98-byte RAM footprint with no temporary player/refill array. Next remove the
-   probe-only switches and make this identical-cadence path production. Do not
-   restore the older 20-byte row-entry table, a six-byte player cache, or a
-   separately timed service row. `stripe_pair_exact_search.pl` and
-   `stripe_three_pair_exact_search.pl` remain compatibility shims only.
-2. The generic service geometry now has an executable bound.  The raw
-   PF/color copy is three pairs / six scanlines, but the existing zero-tax
-   dual-uniform dispatch needs five ordinary-entry candidates.  Exhaustive
-   uint8 player-state search proves no legal ordinary-entry candidate set fits
-   inside 13 pairs; starts 1,3,5,9,11 always fit inside 14 pairs.  Therefore
-   28 scanlines is the current implementation-safe generic stripe-height
-   target.  A row-boundary-capable start-8 dispatch would tighten this to
-   13 pairs / 26 scanlines (starts 1,3,5,8,10), but that dispatch is not yet
-   implemented.  For 192 lines the 28-line bound permits equal stripes=1..6;
-   stripes=7 first becomes geometrically possible at the 26-line target.
-   `stripe_min_height_bound.pl` owns these bounds.  Do not expose 28 as the
-   public ABI minimum until the service-pointer preparation/loading path is
-   emitted; six lines remains only the copy lower bound.
-3. Generalize the double-buffer scheduler to N > 2, beginning with the
-   28-line/at-most-six-stripe geometry above, and add asymmetric N=3 and N=5
-   fixtures.  The first implementation may keep the stricter 28-line bound;
-   optimize row-boundary entry toward 26 only after generic handoff works.
-4. Add programmer-supplied height tables; reject odd heights, incorrect sums,
-   and heights below the measured minimum. Never silently round.
-5. Certify every maintained line mode, including non-divisible 228 and the
-   181/170 score-composable handoffs.
-6. Exercise all supported missile/player-color combinations.
-7. Add a public example and documentation for geometry, storage, costs,
-   composition, even-height rules, minimum-height rules, and the chosen
+3. The old 28/26-scanline result is not a stripe-height limit.  It bounds only
+   the discarded strategy that searched ahead for a convenient common uniform
+   window; its executable proof is retained as
+   `stripe_dual_uniform_window_bound.pl`.  The active design target is six
+   scanlines.  Do not describe 28 or 26 as a public minimum again.
+
+4. Emit the rolling machine in `all_five.c26`, first behind a focused probe,
+   then remove the stripes=2-only production machinery.  Preserve the 4K ROM,
+   <=128-byte RAM, frame, PF phase, complete object-sequence, handoff, and
+   pinned-palette Stella contracts.  Saving/restoring SP around visible drawing
+   is allowed if the emitted form uses TSX as the packed-row-X shadow; there are
+   no stack accesses inside the raster.
+
+5. Promote the public 192-line example to `stripes:=32`.  The intended data is
+   already checked in as `examples/_common/all_five_stripes32_rainbow_data.c26`:
+   32 six-line bands, dark rainbow COLUBK values, and bright COLUPF values eight
+   Atari hue steps away (complementary hue), over a visible alternating PF
+   pattern.  Keep the current two-stripe example runnable until the renderer
+   itself accepts 32; do not ship a deliberately non-building public target.
+
+6. After 32 works, generalize compile-time storage/geometry to every supported
+   `stripes:=N` with minimum height six scanlines.  Equal 192-line stripes then
+   support N=1..32; non-divisible counts use explicit/programmer-supplied even
+   height tables whose sum is 192.  Reject odd heights, incorrect sums, and
+   heights below the measured minimum; never silently round.
+
+7. Certify every maintained line mode, including non-divisible 228 and the
+   181/170 score-composable handoffs; exercise all supported missile/player-color
+   combinations; document storage, costs, composition, and the eventual
    `gameplay` name/API migration.
-8. Add and certify stripes in `multisprite`.
-9. Add and certify stripes in `enhanced_multisprite_asymmetric` for 192/228.
-10. Close roadmap item 57 once obsolete renderers are gone and the normal suite
-    is clean.
+
+8. Add and certify stripes in `multisprite`, then
+   `enhanced_multisprite_asymmetric`; close roadmap item 57 only when obsolete
+   renderer paths are gone and the normal suite is clean.

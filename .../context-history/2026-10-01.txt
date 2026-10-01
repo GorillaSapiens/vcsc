@@ -9,3 +9,27 @@ reduces the bound to 13 pairs / 26 scanlines.  For the 96-pair 192-line mode,
 28 scanlines admits equal stripes 1..6; 26 would admit stripe count 7.  Added
 stripe_min_height_bound.pl and its e2e wrapper.  Do not publish 28 as the ABI
 minimum until rolling service-pointer preparation/loading is emitted.
+
+2026-10-01 09:40:03 PDT, stripes32 six-line machine
+Reframed the generic target around the exact 32*6=192 zero-slack case. Added
+stripe32_sixline_machine_search.pl: three ordinary 152-cycle epochs copy six PF
+bytes and two arbitrary colors while pointer-fed P0/P1 leave public Y untouched;
+all 51 TIA events match three ordinary pairs and 23 real cycles remain for
+rolling preparation. Exhaustive stripe32_transition_bound.pl proves <=2 mixed
+three-pair stripes per player and <=4 in the two-player union. Renamed the old
+28/26-scanline proof to stripe_dual_uniform_window_bound.pl because it bounds
+only the discarded uniform-window-search strategy, not stripe height. Added the
+future public rainbow/complement 32-stripe data fragment and a regression that
+checks all 32 complementary hue pairs and 192 PF bytes.
+
+2026-10-01 16:50:00 PDT, stripes32 persistent player index
+Added stripe32_common_index_search.pl and its regression.  The six-line machine
+now has a second exact realization in which one Y index runs 96..0 across all
+96 visible pairs and survives the PF/color writes.  VBLANK can bias P1/P0
+service pointers against Y=96/95, so active pointers no longer need a -3 update
+at every stripe.  stripe32_common_index_bound.pl exhaustively checks every
+uint8 public Y over all 96 pairs and proves only the actual source-wrap changes
+the active pointer base.  Combined with the existing <=2 mixed stripes/player
+bound, player-pointer work is now sparse transition handling rather than 32
+updates/player.  A 97-byte constant zero source would cover the full inactive
+Y range, but its ROM cost remains optional until the emitted 4K budget is known.
