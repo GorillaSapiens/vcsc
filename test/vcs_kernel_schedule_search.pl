@@ -97,20 +97,27 @@ $rerr =~ /^searched=7 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
    or die "unexpected refill machine solver statistics: $rerr";
 
 # A packed-row backedge can use the very same 152-cycle appointment grid when
-# the next row's first P0 byte was prepared before visible time.  The 16-cycle
-# P0 tail pays for the cached byte, M0 shift, INX and taken cross-page branch.
-# This is the intended replacement for the separately timed transition pair.
+# its P0 middle loads one exact cached next-row byte.  That byte rides in Y
+# through PF1R/PF2R, then TYA plus M0 shift and INX/backedge consume exactly
+# the ordinary 16-cycle P0 tail.
 local $ENV{VCSC_STRIPE_PAIR_MODE}='rowedge';
 my($erc,$esig,$eout,$eerr)=capture($^X,$solver,'--max-solutions','1',$machine);
 $erc==0 && !$esig or die "authoritative row-edge pair search failed\n$eout$eerr";
 $eout =~ /^solution 1 for all_five authoritative 152-cycle machine \[rowedge\]$/m
    or die "authoritative row-edge pair header missing\n$eout";
+$eout =~ /p1_feed\[ordinary_dynamic\]/ &&
+$eout =~ /p0_mid\[rowedge_cache_next_p0_in_y\]/ &&
 $eout =~ /p0_feed\[rowedge_cached_p0_backedge\]/
-   or die "row-edge machine lost cached-P0 backedge implementation\n$eout";
-$eout =~ /lda\.zx next_row_p0_cache,x/ &&
+   or die "row-edge machine lost compact row-entry/backedge implementations\n$eout";
+$eout =~ /ldy\.zx rowedge_p0_cache\+44,x/ &&
+$eout =~ /ldy\.z player0_y/ &&
+$eout =~ /sty\.z player0_y/ &&
+$eout =~ /\btya\b/ &&
+$eout =~ /lsr\.zx object_masks\+26,x/ &&
 $eout =~ /\binx\b/ &&
-$eout =~ /bne\.cross pair0/
-   or die "row-edge machine lost cached P0\/INX\/branch sequence\n$eout";
+$eout =~ /bne\.same rowedge_trampoline/ &&
+$eout =~ /jmp pair0/
+   or die "row-edge machine lost compact cached-P0 sequence\n$eout";
 $eout !~ /\bIDLE\b/ or die "authoritative row-edge pair contains fictitious idle time\n$eout";
 my @rowedge_events=($eout =~ /^\s+event\s+.*$/mg);
 @rowedge_events==17 or die "row-edge pair TIA event count changed: ".scalar(@rowedge_events)."\n$eout";

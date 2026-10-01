@@ -1,0 +1,13 @@
+2026-09-30 22:43:47 PDT, combine refill and compact row edges
+- Added an emitted stripes=2 tail-0 regression that runs the three-pair inactive
+  PF/color refill and the later compact packed-row edges in the same renderer.
+- Corrected the row-edge cadence so exact next-row P0 is carried in Y across the
+  right-PF writes; `TYA`, the M0 shift, `INX`, and the backedge fit the existing
+  16-cycle P0 tail. Keeping the M0 shift after the Y/P0 work preserves its carry
+  for the following ENAM0 update.
+- Six exact next-row P0 bytes live in otherwise-dead stride-four mask storage.
+  Before that lane is overwritten, the three exact refill P0 bytes move into
+  reclaimed service-state bytes, so refill and row-edge data do not alias.
+- The combined path preserves the tail-0 reference PF phases and exact
+  P0/P1/M0/M1/Ball value sequence at the normal 98-byte RAM footprint. The
+  authoritative pair scheduler models the corrected row-edge instruction shape.

@@ -30,25 +30,29 @@ baseline. Future public renderer name: `gameplay`; rename waits for stable ABI.
 
 Remaining:
 
-1. Finish rolling inactive-buffer scheduling around the authoritative
-   visible machine in `stripe_pair_machine_search.pl`. One exact 152-cycle epoch
-   runs from physical A:02 through the following A:01. `ordinary` and `refill`
-   modes share all 17 TIA appointments. The machine composes directly: the
-   three-pair refill form moves all six PF bytes plus both next colors in six
-   scanlines without shifting a TIA event or adding scheduler idle. Pair 2 still
-   exposes a real seven-cycle budget where the first two pairs copy colors.
+1. Promote the now-emitted combined refill/row-edge cadence into the normal
+   stripes=2 path. `stripe_pair_machine_search.pl` remains the sole visible
+   cadence authority: one 152-cycle epoch runs from physical A:02 through the
+   following A:01 and all modes share the same 17 TIA appointments.
 
-   Refill works by replacing soft feed work: P1 uses the fixed 23-cycle feed
-   slot, P0 tails use the fixed 16-cycle feed/carry slot, and preclassified P0
-   bookkeeping plus a zero-page PF0 store makes a seven-cycle color copy fit in
-   the existing B-line PF2L..PF0R interval. `stripe_pair_exact_search.pl` and
-   `stripe_three_pair_exact_search.pl` are compatibility shims only.
+   The emitted tail-0 certification now performs the real three-pair inactive-PF
+   refill (all six PF bytes plus both next colors), then later crosses packed-row
+   edges without changing PF phases or the P0/P1/M0/M1/Ball value sequence. Row
+   edges precompute one exact next-row P0 byte into each of six otherwise-dead
+   stride-four mask bytes. The pair-7 B side carries that byte in Y across the
+   right-PF writes, then `TYA + LSR M0 + INX + backedge` fits the existing
+   16-cycle P0 tail; the M0 shift stays last among flag-changing data operations
+   so its carry reaches the following ENAM0 write.
 
-   All visible pairs must keep this cadence. Do not add or certify a separately
-   timed service row. Next spend the explicit pair-2 seven-cycle budget and/or
-   preceding ordinary feed slots on rolling P0/P1 preparation, and account for
-   the complete planner/dispatch cost in this same machine before production
-   emission.
+   The three exact refill P0 bytes are moved out of +35/+39/+43 before the
+   row-edge cache overwrites that lane: two use the reclaimed P0 service-pointer
+   bytes and the third uses the reclaimed low P1 service-pointer byte after the
+   exact-P1 builder is finished. Thus the combined path is back to the normal
+   98-byte RAM footprint with no temporary player/refill array. Next remove the
+   probe-only switches and make this identical-cadence path production. Do not
+   restore the older 20-byte row-entry table, a six-byte player cache, or a
+   separately timed service row. `stripe_pair_exact_search.pl` and
+   `stripe_three_pair_exact_search.pl` remain compatibility shims only.
 2. Measure the complete rolling service pipeline (including service-sprite and
    next-color preparation) and enforce the resulting minimum even stripe height.
    Six lines is now the proven PF-copy cost, not yet the public minimum.

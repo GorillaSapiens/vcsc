@@ -115,11 +115,27 @@ for my $p (0..$count-1) {
       asm=>\@p1_refill_asm,
       events=>[{name=>'GRP1',offset=>22,windows=>[[$b+82,$b+82]]}],
    };
+   my $p1_rowedge={
+      name=>'rowedge_exact_p1_commit_p0y',
+      asm=>[
+         # Exact P1 buys the eight cycles needed to pre-decrement and commit
+         # P0 Y.  Y then survives B-left and is ready for the P0 selector.
+         ['lda.zx object_masks+43,x',4],
+         ['ldy.z player0_y',3],
+         ['dey',2],
+         ['sty.z player0_y',3],
+         ['nop',2],
+         ['lsr.zx object_masks+25,x',6],
+         ['sta GRP1',3],
+      ],
+      events=>[{name=>'GRP1',offset=>22,windows=>[[$b+82,$b+82]]}],
+   };
+   my $p1_impls = $mode eq 'rowedge' ? [$p1_ordinary] : selected_impls($p1_ordinary,$p1_refill);
    push @ops, {
       id=>$tag.'p1_feed',
       description=>"pair $p fixed 23-cycle P1 feed slot",
       after=>[$tag.'a_visible'], earliest=>$b+60, latest_end=>$b+82,
-      implementations=>selected_impls($p1_ordinary,$p1_refill),
+      implementations=>$p1_impls,
    };
 
    push @ops, {
@@ -157,11 +173,24 @@ for my $p (0..$count-1) {
       ],
       events=>[{name=>'PF0R',offset=>17,windows=>[[$b+123,$b+123]]}],
    };
+   my $p0_mid_rowedge={
+      name=>'rowedge_cache_next_p0_in_y',
+      asm=>[
+         # Exact next-row P0 replaces CPY without changing the 18-cycle slot.
+         # Y carries the byte across PF1R/PF2R; the zero-page PF0 store pays
+         # the four-cycle indexed cache load and keeps PF0R fixed.
+         ['ldy.z player0_y',3], ['dey',2], ['sty.z player0_y',3],
+         ['ldy.zx rowedge_p0_cache+44,x',4],
+         ['lda.z stripe_cache+3',3], ['sta.z PF0',3],
+      ],
+      events=>[{name=>'PF0R',offset=>17,windows=>[[$b+123,$b+123]]}],
+   };
+   my $p0_mid_impls = $mode eq 'rowedge' ? [$p0_mid_rowedge] : selected_impls($p0_mid_ordinary,$p0_mid_refill);
    push @ops, {
       id=>$tag.'p0_mid',
       description=>"pair $p fixed 18-cycle P0 bookkeeping/feed slot ending at PF0R",
       after=>[$tag.'b_left'], earliest=>$b+106, latest_end=>$b+123,
-      implementations=>selected_impls($p0_mid_ordinary,$p0_mid_refill),
+      implementations=>$p0_mid_impls,
    };
 
    push @ops, {
@@ -198,14 +227,16 @@ for my $p (0..$count-1) {
    my $p0_rowedge={
       name=>'rowedge_cached_p0_backedge',
       asm=>[
-         # X still selects the final packed-mask pair.  The row-entry P0 byte
-         # for the following row was prepared during VBLANK.  A deliberate
-         # taken page-cross branch is four cycles, making load+M0+INX+backedge
-         # exactly the ordinary 16-cycle tail with A holding next GRP0.
-         ['lda.zx next_row_p0_cache,x',4],
+         # p0_mid leaves exact next-row P0 in Y.  TYA plus M0's indexed shift
+         # consumes the old eight-cycle select budget; INX, a local taken
+         # branch and its absolute trampoline close the same 16-cycle tail.
+         # M0 is the last flag-changing data instruction so carry reaches the
+         # following pair's ENAM0 calculation unchanged.
+         ['tya',2],
          ['lsr.zx object_masks+26,x',6],
          ['inx',2],
-         ['bne.cross pair0',4],
+         ['bne.same rowedge_trampoline',3],
+         ['jmp pair0',3],
       ],
    };
    my $p0_impls = $mode eq 'rowedge' ? [$p0_rowedge] : selected_impls($p0_ordinary,$p0_refill);

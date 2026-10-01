@@ -190,12 +190,13 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. `stripe_pair_machine_search.pl` is now the sole
-authoritative stripes=2 visible cadence: exact 152-cycle epochs beginning at
-physical A:02. Its three-pair refill composition preserves all 51 TIA events
-while moving all six PF bytes and both next colors; pair 2 retains an explicit
-real seven-cycle preparation budget. No separately timed service row is allowed.
-Next fit rolling P0/P1 cache/planner preparation into that budget and/or preceding
-ordinary feed slots, then emit the resulting identical-cadence schedule in the
-renderer.
+Continue `.../stripes.txt`. The authoritative 152-cycle machine now has an
+emitted combined tail-0 certification: three refill pairs move all six inactive
+PF bytes plus both next colors, and later packed-row edges use exact next-row P0
+bytes precomputed into six dead stride-four mask bytes. PF phases and the full
+P0/P1/M0/M1/Ball value sequence match the tail-0 reference. Exact refill P0
+bytes reuse three reclaimed service-state bytes before the dead mask lane becomes
+the row-edge cache, so the combined path remains at the normal 98-byte RAM
+footprint. Next remove the probe-only switches and promote this identical-cadence
+path into normal stripes=2; no separately timed service row.
 `gameplay`; 10 left.
