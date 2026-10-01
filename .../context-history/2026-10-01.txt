@@ -33,3 +33,18 @@ the active pointer base.  Combined with the existing <=2 mixed stripes/player
 bound, player-pointer work is now sparse transition handling rather than 32
 updates/player.  A 97-byte constant zero source would cover the full inactive
 Y range, but its ROM cost remains optional until the emitted 4K budget is known.
+
+2026-10-01 12:55:22 PDT, common-Y stripe feed layout
+
+Rejected direct 8-byte records as the hot common-index raster source.  Added
+the 3x96 phase-feed mapping and rewrote the six-line common-index proof to use
+fixed four-cycle abs,Y feed reads while preserving all 51 TIA appointments.
+Focused record-bound, feed-layout, and common-index tests pass.
+
+2026-10-01 12:55:23 PDT, sparse transition handoff bound
+
+Added an exhaustive inactive/pre-wrap/post-wrap transition-cache bound.  Each
+player has at most two special six-line stripes and the two-player union at
+most four.  Exact-cache reads recover 12 cycles on a special stripe, giving a
+29-cycle aggregate budget: 24 for both 16-bit pointer replacements plus five
+for event/control state.  Exact fragmented-slot packing remains unsolved.

@@ -107,6 +107,7 @@
 
 use strict;
 use warnings;
+$|=1; # Keep merged stdout/stderr schedule diagnostics from interleaving.
 use Getopt::Long qw(GetOptions);
 use File::Basename qw(dirname);
 use File::Spec;

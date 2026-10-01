@@ -1,18 +1,27 @@
 # This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 # Six-scanline stripes=32 service using one persistent player index.
 #
-# Y starts at 96 for visible pair zero and is decremented once per pair, after
-# P1 has consumed it and before P0 does.  VBLANK biases P1's service pointer
-# against Y=96 and P0's against Y=95, so both effective graphics addresses are
-# the historical public_y-1-pair source byte.  Y therefore runs monotonically
-# 96..0 through the 96-pair frame and neither service pointer needs a per-stripe
-# -3 adjustment.  Pointer changes are needed only at the real activity/wrap
-# transitions bounded separately by stripe32_transition_bound.pl.
+# Y starts at 95 for visible pair zero.  P1 and P0 deliberately consume the
+# same Y value, then the pair tail decrements it once.  The two service pointers
+# are independent, so VBLANK may bias both against Y=95 while still mapping the
+# effective address to the historical public_y-1-pair source byte.  Y therefore
+# runs 95..0 through the 96 visible pairs; the final tail DEY may wrap only
+# after the last P0 feed, when visible code no longer consumes it.  Neither service pointer needs a per-stripe -3 adjustment; pointer
+# changes are needed only at the real activity/wrap transitions bounded by
+# stripe32_transition_bound.pl.
 #
-# X remains the packed object-mask row index in SP, exactly as in the existing
-# renderer.  On pairs 0/1 X temporarily carries the next color through the
-# right-PF writes; TSX restores the mask-row X before M1.  X then carries the
-# even PF refill byte until P0 tail, where TSX restores the row again.
+# The runtime stripe source no longer needs X for indexing, so the ordinary
+# packed BL/M1/M0 row state may stay in X/SP.  P0-mid commits the already
+# staged even PF byte and then TSX restores the packed-mask row before the
+# right-half tail.  That lets P1 and P0 share one Y value while preserving the
+# proven packed-mask machinery and still leaves seventeen real preparation
+# cycles per stripe.
+#
+# The runtime stripe source is three page-contained 96-byte tables indexed by
+# that same Y.  Pair phase is Y mod 3, so one table location is consumed per
+# pair and no separate stripe index exists.  feed0 interleaves C0/C1/PF4,
+# feed1 interleaves PF0/PF2/PF5, and feed2 interleaves PF1/PF3/unused.  All
+# timing-critical loads remain fixed four-cycle absolute,Y reads.
 
 use strict;
 use warnings;
@@ -20,6 +29,9 @@ use warnings;
 my @ops;
 my @even=(0,2,4);
 my @odd =(1,3,5);
+my @color_src=('stripe_feed0','stripe_feed0');
+my @even_src =('stripe_feed1','stripe_feed1','stripe_feed0');
+my @odd_src  =('stripe_feed2','stripe_feed2','stripe_feed1');
 
 for my $p (0..2) {
    my $b=$p*152;
@@ -39,7 +51,7 @@ for my $p (0..2) {
       # X may carry the color because Ball has already consumed row X.  The
       # absolute PF0 store preserves the historical PF0R write phase.
       push @a,
-         ["ldx.a next_stripe_color+$p",4], ['sta.a PF0',4],
+         ["ldx.ay $color_src[$p],y",4], ['sta.a PF0',4],
          ['lda.z stripe_cache+4',3], ['sta PF1',3],
          ['lda.z stripe_cache+5',3], ['sta PF2',3];
    } else {
@@ -69,17 +81,18 @@ for my $p (0..2) {
    my @p1;
    push @p1,["stx.z next_color_slot+$p",3] if $p < 2;
    push @p1,['lda.iy (p1_service_ptr),y',5];
+   # Pair 2 has no color store, so its otherwise-identical feed owns one
+   # genuine three-cycle preparation slot.  TSX restores the packed-mask row
+   # before M1 is shifted; the even-PF source then reuses X as staging data.
    push @p1,['sta.z rolling_prepare_p1',3] if $p==2;
-   # X no longer holds the mask row on color pairs, so restore it from SP
-   # before M1.  On pair 2 TSX is harmless and keeps one exact feed shape.
    push @p1,
       ['tsx',2],
       ['lsr.zx object_masks+25,x',6],
-      ["ldx.a next_stripe_pf+$even[$p]",4],
+      ["ldx.ay $even_src[$p],y",4],
       ['sta GRP1',3];
    push @ops, {
       id=>$tag.'p1_feed',
-      description=>"pair $p persistent-Y P1 feed plus even-PF/color staging",
+      description=>"pair $p same-index P1 feed, packed-M1 shift, and even-PF/color staging",
       after=>[$tag.'a_visible'], earliest=>$b+60, latest_end=>$b+82,
       asm=>\@p1,
       events=>[{name=>'GRP1',offset=>22,windows=>[[$b+82,$b+82]]}],
@@ -104,12 +117,13 @@ for my $p (0..2) {
 
    push @ops, {
       id=>$tag.'p0_mid',
-      description=>"pair $p odd-PF copy; DEY advances the one frame-wide player index",
+      description=>"pair $p odd/even PF commit plus packed-row TSX restore",
       after=>[$tag.'b_left'], earliest=>$b+106, latest_end=>$b+123,
       asm=>[
-         ["lda.a next_stripe_pf+$odd[$p]",4],
+         ["lda.ay $odd_src[$p],y",4],
          ["sta.z inactive_pf+$odd[$p]",3],
-         ['dey',2], ['sty.z rolling_index_snapshot',3],
+         ["stx.z inactive_pf+$even[$p]",3],
+         ['tsx',2],
          ['lda.z stripe_cache+3',3], ['sta PF0',3],
       ],
       events=>[{name=>'PF0R',offset=>17,windows=>[[$b+123,$b+123]]}],
@@ -131,20 +145,20 @@ for my $p (0..2) {
 
    push @ops, {
       id=>$tag.'p0_feed',
-      description=>"pair $p persistent-Y P0 feed; even PF committed and packed-row X restored",
+      description=>"pair $p same-index P0 feed; pair-tail DEY advances the frame-wide index",
       after=>[$tag.'b_right'], earliest=>$b+136, latest_end=>$b+151,
       asm=>[
-         ["stx.z inactive_pf+$even[$p]",3],
          ['lda.iy (p0_service_ptr),y',5],
-         ['tsx',2],
+         ["sta.z rolling_prepare_p0_$p",3],
          ['lsr.zx object_masks+26,x',6],
+         ['dey',2],
       ],
    };
 }
 
 return {
-   name=>'all_five stripes32 persistent-index six-line machine',
-   description=>'Three exact pairs preserve one player Y index across PF work, copy six PF bytes/two colors, and require no per-stripe -3 service-pointer motion.',
+   name=>'all_five stripes32 same-index Y-feed six-line machine',
+   description=>'Three exact pairs use one shared P1/P0/source Y per pair, copy six PF bytes/two colors from three 96-byte page tables, preserve packed BL/M1/M0 row masks in X/SP, and leave 17 cycles/stripe of real preparation work.',
    line_cycles=>76,
    phase_origin=>2,
    horizon=>456,

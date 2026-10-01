@@ -183,16 +183,12 @@ acceptance gates.
 Immediate TODO
 --------------
 Continue `.../stripes.txt` toward zero-slack `stripes:=32` (32*6=192).
-Before more scheduler work, evaluate/prefer the new contiguous 8-byte stripe
-record described in stripes.txt; it may remove the remaining dual-array source
-coordination from the six-line refill.
-The exact six-line scheduler preserves all TIA phases while copying six PF bytes
-and two colors.  `stripe32_common_index_search.pl` now keeps one player Y index
-for all 96 pairs, eliminating per-stripe pointer motion; its exhaustive bound
-checks every uint8 public Y.  Player pointers therefore change only at sparse
-wrap/activity transitions (<=2 mixed stripes/player, <=4 union, <=12 mixed
-payload bytes).  Next emit this common-index feed behind a stripes32 probe and
-solve sparse pointer handoff within its 17 cycles/stripe of prep work.  The old
-28/26-line result is only a discarded-strategy bound.  Rainbow/complement data
-is already under `examples/_common/`.
+Direct 8-byte records are rejected as the hot common-index source; the proven
+raster uses three 96-byte phase feeds indexed with player Y=95..0 and preserves
+all 51 TIA appointments.  Transition state has <=2 special stripes/player and
+<=4 union.  Exact-cache player reads give a special stripe 29 prep cycles:
+24 for both 16-bit pointer replacements plus 5 for control.  Next solve that
+fragmented-slot/event-selection packing and emit the common-index stripes32
+probe.  Rainbow/complement data is already under `examples/_common/`.
+
 `gameplay`; 10 left.

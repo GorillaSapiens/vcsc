@@ -43,12 +43,29 @@ my $p1=()=$s =~ /lda\.iy \(p1_service_ptr\),y/gi;
 my $p0=()=$s =~ /lda\.iy \(p0_service_ptr\),y/gi;
 $p1==3 && $p0==3 or die "service-pointer loads changed p1=$p1 p0=$p0\n";
 for my $i (0..5) {
-   $s =~ /next_stripe_pf\+$i/ or die "missing PF source $i\n";
    $s =~ /inactive_pf\+$i/ or die "missing PF destination $i\n";
 }
 for my $i (0..1) {
-   $s =~ /next_stripe_color\+$i/ or die "missing color source $i\n";
    $s =~ /next_color_slot\+$i/ or die "missing color destination $i\n";
 }
+my $f0=()=$s =~ /(?:ldx|lda)\.ay stripe_feed0,y/gi;
+my $f1=()=$s =~ /(?:ldx|lda)\.ay stripe_feed1,y/gi;
+my $f2=()=$s =~ /(?:ldx|lda)\.ay stripe_feed2,y/gi;
+$f0==3 && $f1==3 && $f2==2
+   or die "runtime Y-feed loads changed feed0=$f0 feed1=$f1 feed2=$f2\n";
+$s !~ /next_stripe_(?:pf|color)/ or die "abstract unindexed stripe source survived\n";
+my $tsx=()=$s =~ /\+2\s+tsx\b/gi;
+$tsx==6 or die "expected packed-row TSX twice per pair, got $tsx\n";
+for my $off (24..26) {
+   $s =~ /object_masks\+$off,x/
+      or die "missing packed object-mask lane $off\n";
+}
+$s !~ /current_(?:ball|m[01])_mask/
+   or die "obsolete scalar current-mask source survived\n";
+my $prep=0;
+$prep += 5 * (()=$s =~ /dec\.z rolling_prepare_a/gi);
+$prep += 3 * (()=$s =~ /sta\.z rolling_prepare_p1/gi);
+$prep += 3 * (()=$s =~ /sta\.z rolling_prepare_p0_[0-2]/gi);
+$prep==17 or die "expected 17 cycles of real per-stripe prep, got $prep\n";
 $s !~ /\bIDLE\b/ or die "scheduler introduced fictitious IDLE cycles\n";
 print "vcs_all_five_stripes32_common_index ok\n";

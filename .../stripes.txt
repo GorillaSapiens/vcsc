@@ -15,14 +15,15 @@ then left/right PF0/PF1/PF2; stripe i owns
 `floor(i*L/N)..floor((i+1)*L/N)-1`. Preserve raster/timing/handoffs/resources/write
 phases; no runtime division or per-line feature test.
 
-Strong candidate for the generic positive-stripe ABI: make each stripe one
-contiguous 8-byte record rather than maintaining separate color and PF arrays.
-Use record order `[COLUPF, COLUBK, PF0L, PF1L, PF2L, PF0R, PF1R, PF2R]`
-(or swap the first two only if the emitted cadence proves that cheaper). For the
-zero-slack six-scanline machine this makes next-stripe refill one sequential
-record walk plus one record-pointer advance, eliminating coordination between
-`playfield_colors` and `playfield_data`. Evaluate this before locking the public
-ABI; compatibility sugar can still accept separate arrays later if worthwhile.
+Do not lock the positive-stripe storage ABI yet.  An 8-byte row-major record
+`[COLUPF,COLUBK,PF0L,PF1L,PF2L,PF0R,PF1R,PF2R]` remains a good authoring form,
+but `stripe32_record_common_index_bound.pl` rejects it as the hot common-index
+source: the two legal >=7-cycle copy windows/pair are already consumed by PF.
+The raster instead uses three 96-byte phase feeds proved by
+`stripe32_feed_layout.pl`: feed0=C0/C1/PF4, feed1=PF0/PF2/PF5,
+feed2=PF1/PF3/unused.  Y=95..0 indexes players and all feeds with fixed 4-cycle
+abs,Y loads; the hot representation is 288 bytes and needs no stripe index.
+If records become public ABI, derive the feeds at build time.
 
 Positive stripes preserve the maintained frame, handoff, resource, branch,
 object, phase, composition, zero-path, and pinned-palette Stella contracts.
@@ -51,16 +52,15 @@ Remaining:
    scheduler.
 
 2. Use one frame-wide player index, not per-stripe pointer motion.
-   `stripe32_common_index_search.pl` preserves the same 51 TIA appointments
-   while Y runs 96..0 across all 96 pairs.  VBLANK biases P1/P0 pointers against
-   Y=96/95, so active pointers remain fixed between real transitions;
-   `stripe32_common_index_bound.pl` exhaustively proves the address algebra.
-   `stripe32_transition_bound.pl` limits mixed stripes to <=2/player and <=4 in
-   the union (<=12 bytes of exact mixed payload).  The common-index machine has
-   17 cycles/stripe of explicit prep/store work for sparse transition state.
-   Do not restore per-pair height tests or per-stripe -3 pointer updates.  A
-   97-byte constant zero source covers inactive Y=0..96, but keep that as an
-   option until its emitted 4K ROM cost is measured.
+   `stripe32_common_index_search.pl` keeps all 51 TIA appointments with Y=95..0;
+   active pointers change only at real activity/wrap transitions.
+   `stripe32_transition_cache_bound.pl` proves <=2 special stripes/player, <=4
+   union, <=12 exact player bytes.  Exact-cache reads raise a special stripe's
+   prep budget from 17 to 29 cycles: exactly 24 for both 16-bit pointer copies
+   plus 5 for control.  Aggregate cost closes; fragmented-slot packing/event
+   selection is the remaining handoff problem.  Do not restore per-pair height
+   tests or per-stripe -3 pointer updates.  Keep the 97-byte zero source optional
+   until emitted 4K ROM cost is measured.
 
 3. The old 28/26-scanline result is not a stripe-height limit.  It bounds only
    the discarded strategy that searched ahead for a convenient common uniform
