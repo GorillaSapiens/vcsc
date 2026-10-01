@@ -14,22 +14,23 @@
 # Environment:
 #   VCSC_STRIPE_PAIR_MODE=ordinary  dynamic player production (default)
 #   VCSC_STRIPE_PAIR_MODE=refill    cached players + double-buffer refill
-#   VCSC_STRIPE_PAIR_MODE=either    solver may choose either form (one pair only)
+#   VCSC_STRIPE_PAIR_MODE=rowedge   cached next-row P0 pays the row backedge
+#   VCSC_STRIPE_PAIR_MODE=either    solver may choose ordinary/refill (one pair only)
 #   VCSC_STRIPE_PAIR_COUNT=N        compose N exact 152-cycle pairs (default 1)
 #
-# Refill mode is currently defined for one or three pairs.  The three-pair form
-# is the complete six-scanline service body: P1 slots stage PF bytes 0,3,4; P0
-# tails stage 1,2,5; the first two P0 middle slots also copy both next colors.
-# Pair 2 deliberately leaves the corresponding seven-cycle color-copy budget as
-# real inert instructions so later rolling-planner work has an explicit budget
-# instead of being hidden as fictitious scheduler idle time.
+# Refill mode is currently defined for one or three pairs.  It models the
+# production-oriented exact-cache service: VBLANK prepares the three P1/P0
+# graphics bytes, so the visible service spends no cycles on activity tests.
+# P1 carries PF bytes 0/2/4 in X while copying colors 0/1; P0 stages bytes
+# 1/3/5, commits X, loads its exact cached sprite byte, restores the row X,
+# and closes on the same pair boundary.
 
 use strict;
 use warnings;
 
 my $mode=$ENV{VCSC_STRIPE_PAIR_MODE} // 'ordinary';
-$mode =~ /^(?:ordinary|refill|either)$/
-   or die "VCSC_STRIPE_PAIR_MODE must be ordinary, refill, or either\n";
+$mode =~ /^(?:ordinary|refill|rowedge|either)$/
+   or die "VCSC_STRIPE_PAIR_MODE must be ordinary, refill, rowedge, or either\n";
 my $count=$ENV{VCSC_STRIPE_PAIR_COUNT} // 1;
 $count =~ /^\d+$/ && $count >= 1 && $count <= 16
    or die "VCSC_STRIPE_PAIR_COUNT must be 1..16\n";
@@ -40,13 +41,13 @@ $mode ne 'refill' || $count==1 || $count==3
 
 sub selected_impls {
    my($ordinary,$refill)=@_;
-   return [$ordinary] if $mode eq 'ordinary';
+   return [$ordinary] if $mode eq 'ordinary' || $mode eq 'rowedge';
    return [$refill] if $mode eq 'refill';
    return [$ordinary,$refill];
 }
 
-my @refill_p1_pf=(0,3,4);
-my @refill_p0_pf=(1,2,5);
+my @refill_even_pf=(0,2,4);
+my @refill_odd_pf=(1,3,5);
 my @refill_color=(0,1,undef);
 my @ops;
 
@@ -92,19 +93,25 @@ for my $p (0..$count-1) {
       ],
       events=>[{name=>'GRP1',offset=>22,windows=>[[$b+82,$b+82]]}],
    };
-   my $p1_pf=$count==1 ? 0 : $refill_p1_pf[$p];
+   my $even_pf=$count==1 ? 0 : $refill_even_pf[$p];
+   my $color=$count==1 ? 0 : $refill_color[$p];
    my @p1_refill_asm=(
-      ["ldy.z inactive_pf+$p1_pf ; saved P1 byte",3],
-      ["lda.a next_stripe_pf+$p1_pf",4],
+      ["lda.z p1_service_byte+$p",3],
+      ["ldx.a next_stripe_pf+$even_pf",4],
    );
-   push @p1_refill_asm,['ora #1',2] if $p1_pf==0 || $p1_pf==3;
+   if (defined $color) {
+      push @p1_refill_asm,
+         ["ldy.a next_stripe_color+$color",4],
+         ["sty.z next_color_slot+$color",3];
+   } else {
+      push @p1_refill_asm,
+         ['bit.a timing_scratch',4],
+         ['bit.z timing_scratch',3];
+   }
    push @p1_refill_asm,
-      ["sta.z inactive_pf+$p1_pf",3], ['tya',2];
-   push @p1_refill_asm,['nop',2] if $p1_pf!=0 && $p1_pf!=3;
-   push @p1_refill_asm,
-      ['lsr.zx object_masks+25,x',6], ['sta GRP1',3];
+      ['lsr.a object_masks_service_m1',6], ['sta GRP1',3];
    my $p1_refill={
-      name=>"refill_pf$p1_pf",
+      name=>defined($color) ? "refill_exact_pf${even_pf}_color$color" : "refill_exact_pf$even_pf",
       asm=>\@p1_refill_asm,
       events=>[{name=>'GRP1',offset=>22,windows=>[[$b+82,$b+82]]}],
    };
@@ -140,17 +147,12 @@ for my $p (0..$count-1) {
       ],
       events=>[{name=>'PF0R',offset=>17,windows=>[[$b+123,$b+123]]}],
    };
-   my @service7;
-   my $color=$count==1 ? 0 : $refill_color[$p];
-   if (defined $color) {
-      @service7=(["ldy.a next_stripe_color+$color",4],["sty.z next_color_slot+$color",3]);
-   } else {
-      @service7=(['bit.a timing_scratch',4],['nop.z timing_scratch',3]);
-   }
+   my $odd_pf=$count==1 ? 1 : $refill_odd_pf[$p];
    my $p0_mid_refill={
-      name=>defined($color) ? "refill_color$color" : 'refill_spare7',
+      name=>"refill_exact_pf$odd_pf",
       asm=>[
-         ['dec.z player0_y',5], @service7,
+         ['dec.z player0_y',5],
+         ["lda.a next_stripe_pf+$odd_pf",4], ["sta.z inactive_pf+$odd_pf",3],
          ['lda.z stripe_cache+3',3], ['sta.z PF0',3],
       ],
       events=>[{name=>'PF0R',offset=>17,windows=>[[$b+123,$b+123]]}],
@@ -183,19 +185,35 @@ for my $p (0..$count-1) {
          ['lsr.zx object_masks+26,x',6], ['nop',2],
       ],
    };
-   my $p0_pf=$count==1 ? 1 : $refill_p0_pf[$p];
    my $p0_refill={
-      name=>"refill_pf$p0_pf",
+      name=>"refill_exact_commit_pf$even_pf",
       asm=>[
-         ["lda.a next_stripe_pf+$p0_pf",4], ["sta.z inactive_pf+$p0_pf",3],
-         ["lda.z p0_service_byte+$p",3], ['lsr.zx object_masks+26,x',6],
+         ["stx.z inactive_pf+$even_pf",3],
+         ["lda.z p0_service_byte+$p",3],
+         ['lsr.z object_masks_service_m0',5],
+         ['ldx #service_row_x',2],
+         ['bit.z timing_scratch',3],
       ],
    };
+   my $p0_rowedge={
+      name=>'rowedge_cached_p0_backedge',
+      asm=>[
+         # X still selects the final packed-mask pair.  The row-entry P0 byte
+         # for the following row was prepared during VBLANK.  A deliberate
+         # taken page-cross branch is four cycles, making load+M0+INX+backedge
+         # exactly the ordinary 16-cycle tail with A holding next GRP0.
+         ['lda.zx next_row_p0_cache,x',4],
+         ['lsr.zx object_masks+26,x',6],
+         ['inx',2],
+         ['bne.cross pair0',4],
+      ],
+   };
+   my $p0_impls = $mode eq 'rowedge' ? [$p0_rowedge] : selected_impls($p0_ordinary,$p0_refill);
    push @ops, {
       id=>$tag.'p0_feed',
       description=>"pair $p fixed 16-cycle P0 feed/carry slot ending at next A cycle 1",
       after=>[$tag.'b_right'], earliest=>$b+136, latest_end=>$b+151,
-      implementations=>selected_impls($p0_ordinary,$p0_refill),
+      implementations=>$p0_impls,
    };
 }
 
@@ -207,7 +225,7 @@ return {
    horizon=>$count*152,
    idle_fillers=>[
       {text=>'nop',cycles=>2},
-      {text=>'nop.z timing_scratch',cycles=>3},
+      {text=>'bit.z timing_scratch',cycles=>3},
    ],
    operations=>\@ops,
 };

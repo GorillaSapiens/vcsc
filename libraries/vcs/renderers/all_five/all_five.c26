@@ -295,6 +295,14 @@ uint8_t TEMPLATE_stripe_tail_b_ptr[2];
 // already encoded by stripe_tail_a_ptr low == 0.
 uint8_t TEMPLATE_stripe_service_p1_ptr[2];
 uint8_t TEMPLATE_stripe_service_p0_ptr[2];
+#ifdef VCS_STRIPES2_UNIFORM_ROWEDGE_PROBE
+// Five sparse four-byte records, indexed by packed-row X after INX.  Each
+// record stores [following-row P0, current-row P1, -, -].  +20/+21 operands
+// intentionally wrap zero-page X=$ec,$f0,$f4,$f8,$fc back onto offsets
+// 0/1,4/5,8/9,12/13,16/17.  This is a probe layout; the final integration
+// can reclaim the beam-dead mask lane once the cadence is proven in silicon.
+uint8_t TEMPLATE_stripe_row_entry_cache[20];
+#endif
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -1372,7 +1380,7 @@ require inline void TEMPLATE_vblank(void) {
    asm cpx #12;
    asm bcc.same @TEMPLATE_stripe_p1cache_probe_p0_loop;
 #endif
-#ifdef VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE
+#if defined(VCS_STRIPES2_REFILL_6LINE_EXACT_CACHE_PROBE) || defined(VCS_STRIPES2_POST_BOUNDARY_EXACT_REFILL_PROBE)
    // Fixed exact-cache certification for pairs 49..51.  Both players may
    // cross height or uint8-wrap activity inside the three-pair service; stage
    // the exact byte for each pair in beam-dead scratch rather than dispatching
@@ -1439,6 +1447,76 @@ require inline void TEMPLATE_vblank(void) {
    asm lda #0;
    asm @TEMPLATE_stripe_exactcache_p1_store3:;
    asm sta.z TEMPLATE_stripe_service_p1_ptr + 1;
+#endif
+#ifdef VCS_STRIPES2_UNIFORM_ROWEDGE_PROBE
+   // Seed the first B-row backedge (pair 55 -> 56) in the fixed zero-page
+   // byte used by the 16-cycle row tail.  P0 is one pipeline position ahead,
+   // so GRP0 at pair 56 consumes original_y-56 directly.
+   asm lda.z TEMPLATE_object_masks + 27;
+   asm sec;
+   asm sbc #56;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs.same @TEMPLATE_stripe_rowedge_seed_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_stripe_rowedge_seed_p0_ready;
+   asm @TEMPLATE_stripe_rowedge_seed_p0_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_rowedge_seed_p0_ready:;
+   asm sta.z TEMPLATE_stripe_service_p0_ptr;
+
+   // Build five four-byte row records for X=$ec,$f0,$f4,$f8,$fc.  Record r
+   // contains P0 for the *following* row (64+8r) and P1 for the current row
+   // (56+8r).  The other two bytes are deliberately unused.  Visible pair0
+   // loads both values in eight cycles, stores next P0 with a forced-absolute
+   // four-cycle STA, and still closes the ordinary 23-cycle P1 slot exactly.
+   asm lda #64;
+   asm sta.z TEMPLATE_stripe_row_entry_cache + 18;
+   asm lda #56;
+   asm sta.z TEMPLATE_stripe_row_entry_cache + 19;
+   asm ldx #0;
+   asm @TEMPLATE_stripe_rowedge_cache_loop:;
+
+   asm lda.z TEMPLATE_object_masks + 27;
+   asm sec;
+   asm sbc.z TEMPLATE_stripe_row_entry_cache + 18;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs.same @TEMPLATE_stripe_rowedge_cache_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_stripe_rowedge_cache_p0_store;
+   asm @TEMPLATE_stripe_rowedge_cache_p0_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_rowedge_cache_p0_store:;
+   asm sta.zx TEMPLATE_stripe_row_entry_cache,x;
+
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sec;
+   asm sbc.z TEMPLATE_stripe_row_entry_cache + 19;
+   asm tay;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs.same @TEMPLATE_stripe_rowedge_cache_p1_zero;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_stripe_rowedge_cache_p1_store;
+   asm @TEMPLATE_stripe_rowedge_cache_p1_zero:;
+   asm lda #0;
+   asm @TEMPLATE_stripe_rowedge_cache_p1_store:;
+   asm sta.zx TEMPLATE_stripe_row_entry_cache + 1,x;
+
+   asm lda.z TEMPLATE_stripe_row_entry_cache + 18;
+   asm clc;
+   asm adc #8;
+   asm sta.z TEMPLATE_stripe_row_entry_cache + 18;
+   asm lda.z TEMPLATE_stripe_row_entry_cache + 19;
+   asm clc;
+   asm adc #8;
+   asm sta.z TEMPLATE_stripe_row_entry_cache + 19;
+   asm txa;
+   asm clc;
+   asm adc #4;
+   asm tax;
+   asm cpx #20;
+   asm bcc.same @TEMPLATE_stripe_rowedge_cache_loop;
 #endif
    // Stage the first half of the ordinary two-line pipeline while VBLANK is
    // still asserted.  draw() can therefore begin with the P0 half at exactly
@@ -5212,7 +5290,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.z TEMPLATE_stripe_boundary_grp0;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+#ifdef VCS_STRIPES2_POST_BOUNDARY_EXACT_REFILL_PROBE
+   asm jmp @stripe2_exact_refill_pair1;
+#else
    asm jmp @stripe2_pair1;
+#endif
 #else
    // Fixed tail-1/2 certification has no runtime selector. Preserve the exact
    // old selector cost with padding so the reclaimed service-pointer bytes are
@@ -5473,7 +5555,233 @@ require inline void TEMPLATE_draw(void) {
 #endif
 #endif
 
+#ifdef VCS_STRIPES2_POST_BOUNDARY_EXACT_REFILL_PROBE
+   // Exact-cache double-buffer refill immediately after the tail-0 A->B handoff.
+   // B remains the visible buffer for all three pairs.  VBLANK staged the
+   // exact P1 bytes in +3/+7/service_p1_ptr+1 and exact P0 bytes in
+   // +35/+39/+43, so the normal activity tests disappear from visible time.
+   // X carries even inactive-A PF bytes across each B scanline, then is
+   // restored to the packed-mask row offset before the following A line.
+   // The body is the emitted counterpart of stripe_pair_machine_search.pl
+   // refill mode: every TIA appointment is identical to an ordinary pair.
+   asm @stripe2_exact_refill_pair1:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm adc #1;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+   asm lda.z TEMPLATE_object_masks + 3;
+   asm ldx.a TEMPLATE_playfield_data + 0;
+   asm ldy.a TEMPLATE_playfield_colors + 0;
+   asm sty.z TEMPLATE_stripe_next_color + 0;
+   asm lsr.a TEMPLATE_object_masks + 25;
+   asm sta GRP1;
+
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
+   asm sta PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.a TEMPLATE_playfield_data + 1;
+   asm sta.z TEMPLATE_stripe_cache + 1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
+   asm sta PF2;
+   asm stx.z TEMPLATE_stripe_cache + 0;
+   asm lda.z TEMPLATE_object_masks + 35;
+   // Pair 1 is the ordinary 150-cycle row-entry body: the two cycles omitted
+   // here pay the already-incurred row/handoff overhead exactly as they do in
+   // @stripe2_pair1.  Absolute LSR supplies the one cycle needed after removing
+   // the three-cycle BIT filler, for a 14-cycle P0 tail.
+   asm lsr.a TEMPLATE_object_masks + 26;
+   asm ldx #$e8;
+
+   asm @stripe2_exact_refill_pair2:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm adc #1;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+   asm lda.z TEMPLATE_object_masks + 7;
+   asm ldx.a TEMPLATE_playfield_data + 2;
+   asm ldy.a TEMPLATE_playfield_colors + 1;
+   asm sty.z TEMPLATE_stripe_next_color + 1;
+   asm lsr.a TEMPLATE_object_masks + 25;
+   asm sta GRP1;
+
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
+   asm sta PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.a TEMPLATE_playfield_data + 3;
+   asm sta.z TEMPLATE_stripe_cache + 3;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
+   asm sta PF2;
+   asm stx.z TEMPLATE_stripe_cache + 2;
+   asm lda.z TEMPLATE_object_masks + 39;
+   asm lsr.z TEMPLATE_object_masks + 26;
+   asm ldx #$e8;
+   asm bit.z $00;
+
+   asm @stripe2_exact_refill_pair3:;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm adc #1;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+   asm lda.z TEMPLATE_stripe_service_p1_ptr + 1;
+   asm ldx.a TEMPLATE_playfield_data + 4;
+   asm bit.a $00;
+   asm bit.z $00;
+   asm lsr.a TEMPLATE_object_masks + 25;
+   asm sta GRP1;
+
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
+   asm sta PF2;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.a TEMPLATE_playfield_data + 5;
+   asm sta.z TEMPLATE_stripe_cache + 5;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
+   asm sta PF2;
+   asm stx.z TEMPLATE_stripe_cache + 4;
+   asm lda.z TEMPLATE_object_masks + 43;
+   asm lsr.z TEMPLATE_object_masks + 26;
+   asm ldx #$e8;
+   // The ordinary sequential path must never fall through the service.  The
+   // three-cycle jump consumes the exact slot previously occupied by BIT.z.
+   asm jmp @stripe2_pair4;
+#endif
+
    asm @stripe2_transition:;
+#ifdef VCS_STRIPES2_UNIFORM_ROWEDGE_PROBE
+   // Canonical pair0 for every packed row after the first B-side rowedge.
+   // Entry is the same physical epoch as every other pair: A cycle 2, with A
+   // already holding the exact P0 byte staged by the preceding 16-cycle tail.
+   asm sta GRP0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM0;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 1;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 2;
+   asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks + 48,x;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm adc #1;
+   asm sta ENABL;
+   asm dec.z TEMPLATE_player1_y;
+   asm sta PF0;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 4;
+   asm sty PF1;
+   asm ldy.z TEMPLATE_stripe_buffer_b + 5;
+   asm sty PF2;
+
+   // Exact row-entry P1 replaces the 14-cycle dynamic selector.  In those
+   // recovered cycles, refresh the fixed P0 byte for the *following* row.
+   // 4+4+4+2+6+3 = 23 cycles, exactly the ordinary P1 feed slot.
+   asm ldy.zx TEMPLATE_stripe_row_entry_cache + 21,x;
+   asm lda.zx TEMPLATE_stripe_row_entry_cache + 20,x;
+   asm sta.a TEMPLATE_stripe_service_p0_ptr;
+   asm tya;
+   asm lsr.zx TEMPLATE_object_masks + 49,x;
+   asm sta GRP1;
+
+   asm lda.z TEMPLATE_stripe_buffer_b + 0;
+   asm adc #1;
+   asm sta ENAM1;
+   asm sta PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 1;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 2;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm sty.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_stripe_buffer_b + 3;
+   asm sta.a PF0;
+   asm lda.z TEMPLATE_stripe_buffer_b + 4;
+   asm sta PF1;
+   asm lda.z TEMPLATE_stripe_buffer_b + 5;
+   asm sta PF2;
+   asm bcc.same @stripe2_rowedge_pair0_drawP0;
+   asm lda.z TEMPLATE_object_masks + 19;
+   asm jmp @stripe2_rowedge_pair0_continueP0;
+   asm @stripe2_rowedge_pair0_drawP0:;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @stripe2_rowedge_pair0_continueP0:;
+   asm lsr.zx TEMPLATE_object_masks + 50,x;
+   asm nop;
+#else
    // Sixteenth line of each packed mask row. Finish the old row, stage the
    // first Ball bit of the next row, then advance X once. The playfield itself
    // does not change for stripes=1.
@@ -5536,8 +5844,10 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe2_transition_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+#endif
 
-   // Pair 1 is deliberately 150 cycles.  The two cycles reclaimed here pay
+   // Pair 1 is deliberately 150 cycles in the legacy transition path.  The
+   // uniform-rowedge probe instead restores the ordinary 152-cycle pair.
    // the long row-backedge once per 16-line mask row, so every later row starts
    // at the same beam phase instead of drifting by two cycles.
    asm @stripe2_pair1:;
@@ -5598,6 +5908,11 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe2_pair1_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
+#ifdef VCS_STRIPES2_UNIFORM_ROWEDGE_PROBE
+   // The legacy transition pair was two cycles long; the canonical pair0 is
+   // not.  Restore pair1 to the same full 152-cycle cadence as pairs 2..7.
+   asm nop;
+#endif
 
    // Unrolled positive-stripe pair 2/7. X remains the packed-mask row
    // offset. Indexed mask shifts cost one extra cycle each; deleting the old
@@ -5726,6 +6041,8 @@ require inline void TEMPLATE_draw(void) {
    asm @stripe2_pair3_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 50,x;
    asm nop;
+
+
 
    // Unrolled positive-stripe pair 4/7. X remains the packed-mask row
    // offset. Indexed mask shifts cost one extra cycle each; deleting the old
@@ -5974,16 +6291,35 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_stripe_buffer_b + 5;
    asm sta PF2;
+#ifndef VCS_STRIPES2_UNIFORM_ROWEDGE_PROBE
    asm bcc.same @stripe2_pair7_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @stripe2_pair7_continueP0;
    asm @stripe2_pair7_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @stripe2_pair7_continueP0:;
+#endif
+#ifdef VCS_STRIPES2_UNIFORM_ROWEDGE_PROBE
+   // Cached next-row P0 buys exactly the five cycles consumed by INX plus the
+   // ordinary BEQ/JMP row control: 3+6+2+2+3 = 16 cycles.  The terminal path
+   // deliberately restores the legacy 19-cycle exit so the final-line epilogue
+   // retains its established entry phase.
+   asm lda.z TEMPLATE_stripe_service_p0_ptr;
+   asm lsr.zx TEMPLATE_object_masks + 47,x;
+   asm inx;
+   asm beq.same @stripe2_rowedge_terminal;
+   asm jmp @stripe2_transition;
+   asm @stripe2_rowedge_terminal:;
+   asm nop;
+   asm jmp @stripe2_terminal;
+#else
    asm lsr.zx TEMPLATE_object_masks + 47,x;
    asm inx;
    asm beq.same @stripe2_terminal;
    asm jmp @stripe2_transition;
+#endif
+
+
 
    // The last visible line needs no following object setup. Complete its right
    // playfield half and WSYNC so draw() returns at cycle zero of line 193.

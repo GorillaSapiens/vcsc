@@ -44,9 +44,9 @@ $err =~ /^searched=\d+ pruned_deadline=\d+ pruned_horizon=\d+ solutions=1\n\z/
    or die "unexpected solver statistics: $err";
 
 # The authoritative periodic pair starts at physical scanline-A cycle 2 and
-# ends exactly 152 cycles later at the same phase.  Run it once with ordinary
-# dynamic player production and once with double-buffer feed work replacing those
-# soft slots.  Every TIA appointment must be identical between the two runs.
+# ends exactly 152 cycles later at the same phase. Run it once with ordinary
+# dynamic player production and once with exact cached player bytes plus refill
+# work replacing those soft slots. Every TIA appointment must be identical.
 my $machine=File::Spec->catfile($repo,qw(libraries vcs renderers all_five stripe_pair_machine_search.pl));
 local $ENV{VCSC_STRIPE_PAIR_MODE}='ordinary';
 ($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$machine);
@@ -80,8 +80,9 @@ my @ordinary_events=($out =~ /^\s+event\s+.*$/mg);
 local $ENV{VCSC_STRIPE_PAIR_MODE}='refill';
 my($rrc,$rsig,$rout,$rerr)=capture($^X,$solver,'--max-solutions','1',$machine);
 $rrc==0 && !$rsig or die "authoritative refill pair search failed\n$rout$rerr";
-$rout =~ /p1_feed\[refill_pf0\]/ && $rout =~ /p0_mid\[refill_color0\]/ &&
-$rout =~ /p0_feed\[refill_pf1\]/
+$rout =~ /p1_feed\[refill_exact_pf0_color0\]/ &&
+$rout =~ /p0_mid\[refill_exact_pf1\]/ &&
+$rout =~ /p0_feed\[refill_exact_commit_pf0\]/
    or die "refill work did not replace all three soft feed slots\n$rout";
 $rout =~ /next_stripe_pf\+0/ && $rout =~ /next_stripe_pf\+1/ &&
 $rout =~ /next_stripe_color\+0/
@@ -95,10 +96,33 @@ $err =~ /^searched=7 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
 $rerr =~ /^searched=7 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
    or die "unexpected refill machine solver statistics: $rerr";
 
+# A packed-row backedge can use the very same 152-cycle appointment grid when
+# the next row's first P0 byte was prepared before visible time.  The 16-cycle
+# P0 tail pays for the cached byte, M0 shift, INX and taken cross-page branch.
+# This is the intended replacement for the separately timed transition pair.
+local $ENV{VCSC_STRIPE_PAIR_MODE}='rowedge';
+my($erc,$esig,$eout,$eerr)=capture($^X,$solver,'--max-solutions','1',$machine);
+$erc==0 && !$esig or die "authoritative row-edge pair search failed\n$eout$eerr";
+$eout =~ /^solution 1 for all_five authoritative 152-cycle machine \[rowedge\]$/m
+   or die "authoritative row-edge pair header missing\n$eout";
+$eout =~ /p0_feed\[rowedge_cached_p0_backedge\]/
+   or die "row-edge machine lost cached-P0 backedge implementation\n$eout";
+$eout =~ /lda\.zx next_row_p0_cache,x/ &&
+$eout =~ /\binx\b/ &&
+$eout =~ /bne\.cross pair0/
+   or die "row-edge machine lost cached P0\/INX\/branch sequence\n$eout";
+$eout !~ /\bIDLE\b/ or die "authoritative row-edge pair contains fictitious idle time\n$eout";
+my @rowedge_events=($eout =~ /^\s+event\s+.*$/mg);
+@rowedge_events==17 or die "row-edge pair TIA event count changed: ".scalar(@rowedge_events)."\n$eout";
+join("\n",@rowedge_events) eq join("\n",@ordinary_events)
+   or die "row-edge work moved a TIA appointment\nordinary:\n".join("\n",@ordinary_events)."\nrowedge:\n".join("\n",@rowedge_events)."\n";
+$eerr =~ /^searched=7 pruned_deadline=0 pruned_horizon=0 solutions=1\n\z/
+   or die "unexpected row-edge machine solver statistics: $eerr";
+
 # Compose the same authoritative machine three times.  This is the complete
-# six-scanline refill body: all six PF bytes plus both next colors fit without
-# moving any of the 51 TIA appointments.  Pair 2 retains a real seven-cycle
-# spare slot for rolling planner/preparation work.
+# six-scanline exact-cache refill body: all six PF bytes plus both next colors
+# fit without moving any of the 51 TIA appointments. VBLANK owns the six exact
+# player bytes, so visible time pays no activity-test or window-planner cost.
 local $ENV{VCSC_STRIPE_PAIR_MODE}='refill';
 local $ENV{VCSC_STRIPE_PAIR_COUNT}=3;
 ($rc,$sig,$out,$err)=capture($^X,$solver,'--max-solutions','1',$machine);
@@ -113,9 +137,11 @@ for my $n (0..5) {
 for my $n (0..1) {
    $out =~ /next_stripe_color\+$n/ or die "three-pair machine lost staged color $n\n$out";
 }
-$out =~ /p2_p0_mid\[refill_spare7\]/ &&
-$out =~ /bit\.a timing_scratch/ && $out =~ /nop\.z timing_scratch/
-   or die "three-pair machine lost explicit seven-cycle rolling-prep budget\n$out";
+$out =~ /p2_p1_feed\[refill_exact_pf4\]/ &&
+$out =~ /p2_p0_mid\[refill_exact_pf5\]/ &&
+$out =~ /p2_p0_feed\[refill_exact_commit_pf4\]/ &&
+$out =~ /p1_service_byte\+2/ && $out =~ /p0_service_byte\+2/
+   or die "three-pair machine lost exact-cache final pair\n$out";
 $out !~ /\bIDLE\b/ or die "three-pair machine contains fictitious idle time\n$out";
 my @three_events=($out =~ /^\s+event\s+.*$/mg);
 @three_events==51 or die "three-pair TIA event count changed: ".scalar(@three_events)."\n$out";

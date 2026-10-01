@@ -176,6 +176,8 @@ int main(int argc, char **argv) {
       std::strcmp(argv[5], "all-five-stripes2-192") == 0;
    const bool all_five_stripes2_tail0_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-tail0-192") == 0;
+   const bool all_five_stripes2_rowedge_tail0_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-stripes2-rowedge-tail0-192") == 0;
    const bool all_five_stripes2_tail2_192_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-stripes2-tail2-192") == 0;
    const bool all_five_stripes2_tail3_192_profile = argc == 6 &&
@@ -244,7 +246,8 @@ int main(int argc, char **argv) {
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
        !all_five_stripes_192_profile && !all_five_stripes2_192_profile &&
-       !all_five_stripes2_tail0_192_profile && !all_five_stripes2_tail2_192_profile &&
+       !all_five_stripes2_tail0_192_profile && !all_five_stripes2_rowedge_tail0_192_profile &&
+       !all_five_stripes2_tail2_192_profile &&
        !all_five_stripes2_tail3_192_profile && !all_five_stripes2_tail4_192_profile &&
        !all_five_stripes2_tail5_192_profile && !all_five_stripes2_tail6_192_profile &&
        !all_five_stripes2_tail7_192_profile && !all_five_stripes2_refill6_tail7_192_profile &&
@@ -264,6 +267,7 @@ int main(int argc, char **argv) {
       fail("source row count must equal checked rows or be 12 when checking 11");
    const bool any_stripes2_profile = all_five_stripes2_192_profile ||
                                       all_five_stripes2_tail0_192_profile ||
+                                      all_five_stripes2_rowedge_tail0_192_profile ||
                                       all_five_stripes2_tail2_192_profile ||
                                       all_five_stripes2_tail3_192_profile ||
                                       all_five_stripes2_tail4_192_profile ||
@@ -442,12 +446,25 @@ int main(int argc, char **argv) {
                   }
                }
             }
-            else if (all_five_stripes2_tail0_192_profile && visible_line == 96) {
+            else if ((all_five_stripes2_tail0_192_profile ||
+                      all_five_stripes2_rowedge_tail0_192_profile) && visible_line == 96) {
                const uint64_t e[] = {32,38,44,59,65,71};
                std::copy(e,e+6,expected);
             }
-            else if (all_five_stripes2_tail0_192_profile && visible_line > 96) {
+            else if ((all_five_stripes2_tail0_192_profile ||
+                      all_five_stripes2_rowedge_tail0_192_profile) && visible_line > 96) {
                for (size_t i = 0; i < expected_count; ++i) expected[i] += 4;
+            }
+            // Once the emitted row-edge cache takes over at the pair-55 tail,
+            // packed-row boundaries are no longer special timing paths.  The
+            // B half remains globally +4 cycles from the earlier tail-0 handoff,
+            // but every nonterminal scanline uses the ordinary parity cadence.
+            if (all_five_stripes2_rowedge_tail0_192_profile &&
+                visible_line >= 111 && !final_line) {
+               const uint64_t odd[]  = {19,25,31,53,59,65};
+               const uint64_t even[] = {23,29,35,53,59,65};
+               const uint64_t *e = (visible_line & 1) ? odd : even;
+               std::copy(e,e+6,expected);
             }
             else if (all_five_stripes2_192_profile && visible_line == 98) {
                for (size_t i = 0; i < expected_count; ++i) expected[i] += 2;
@@ -553,7 +570,8 @@ int main(int argc, char **argv) {
             if (all_five_stripes2_all8_tail >= 0 &&
                 row * 16 + subline >= 96 + all_five_stripes2_all8_tail * 2)
                expected_values = stripe1_values;
-            if (all_five_stripes2_tail0_192_profile && row * 16 + subline >= 96) expected_values = stripe1_values;
+            if ((all_five_stripes2_tail0_192_profile || all_five_stripes2_rowedge_tail0_192_profile) &&
+                row * 16 + subline >= 96) expected_values = stripe1_values;
             if (all_five_stripes2_192_profile && row * 16 + subline >= 98) expected_values = stripe1_values;
             if (all_five_stripes2_tail2_192_profile && row * 16 + subline >= 100) expected_values = stripe1_values;
             if (fixed_tail_3_7 && row * 16 + subline >= 96 + fixed_tail_3_7 * 2)
@@ -581,7 +599,7 @@ int main(int argc, char **argv) {
       if (any_stripes2_profile) {
          const uint64_t boundary_offset = all_five_stripes2_all8_tail >= 0 ?
                                              96 + all_five_stripes2_all8_tail * 2 :
-                                             (all_five_stripes2_tail0_192_profile ? 96 :
+                                             ((all_five_stripes2_tail0_192_profile || all_five_stripes2_rowedge_tail0_192_profile) ? 96 :
                                               (all_five_stripes2_tail2_192_profile ? 100 :
                                                (fixed_tail_3_7 ? 96 + fixed_tail_3_7 * 2 : 98)));
          const uint64_t boundary_line = first_row_line + boundary_offset;
@@ -591,10 +609,10 @@ int main(int argc, char **argv) {
             if (event.line != boundary_line) continue;
             const bool all8_tail0 = all_five_stripes2_all8_tail == 0;
             const uint64_t fg_cycle = all8_tail0 ? 13 :
-                                      (all_five_stripes2_tail0_192_profile ? 15 :
+                                      ((all_five_stripes2_tail0_192_profile || all_five_stripes2_rowedge_tail0_192_profile) ? 15 :
                                        (all_five_stripes2_all8_tail >= 0 ? 7 : 6));
             const uint64_t bg_cycle = all8_tail0 ? 19 :
-                                      (all_five_stripes2_tail0_192_profile ? 21 :
+                                      ((all_five_stripes2_tail0_192_profile || all_five_stripes2_rowedge_tail0_192_profile) ? 21 :
                                        (all_five_stripes2_all8_tail >= 0 ? 13 : 12));
             if (event.address == kColupf && event.value == 0x4e && event.cycle == fg_cycle) saw_fg = true;
             if (event.address == kColubk && event.value == 0x24 && event.cycle == bg_cycle) saw_bg = true;
@@ -606,6 +624,8 @@ int main(int argc, char **argv) {
                         all_five_stripes2_all8_tail,
                         static_cast<unsigned long long>(boundary_offset),
                         static_cast<unsigned long long>(192 - boundary_offset));
+         else if (all_five_stripes2_rowedge_tail0_192_profile)
+            std::printf("vcs_playfield_stripes2_rowedge_tail0_192 ok: row edges use one steady two-line cadence after the 96/96 handoff\n");
          else if (all_five_stripes2_tail0_192_profile)
             std::printf("vcs_playfield_stripes2_tail0_192 ok: exact 96/96 data+color boundary with stable six-write phases\n");
          else if (all_five_stripes2_tail2_192_profile)
