@@ -190,13 +190,15 @@ checkpoint meanwhile. Mapper/startup fixes remain as previously recorded.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`. The authoritative 152-cycle machine now has an
-emitted combined tail-0 certification: three refill pairs move all six inactive
-PF bytes plus both next colors, and later packed-row edges use exact next-row P0
-bytes precomputed into six dead stride-four mask bytes. PF phases and the full
-P0/P1/M0/M1/Ball value sequence match the tail-0 reference. Exact refill P0
-bytes reuse three reclaimed service-state bytes before the dead mask lane becomes
-the row-edge cache, so the combined path remains at the normal 98-byte RAM
-footprint. Next remove the probe-only switches and promote this identical-cadence
-path into normal stripes=2; no separately timed service row.
+Continue `.../stripes.txt`. The authoritative 152-cycle machine has an emitted
+combined tail-0 certification: three refill pairs move all six inactive PF bytes
+plus both next colors, and compact row edges preserve the same PF/object cadence
+at 98 RAM bytes. Generic service-window geometry is now bounded by executable
+proof: raw copy cost is six scanlines, while the current ordinary-entry
+zero-tax dual-uniform dispatch requires at most 14 pairs / 28 scanlines; a
+row-boundary-capable start-8 dispatch could reduce that to 26. For 192 lines,
+the current safe geometry admits equal stripes=1..6. Next keep the 28-line bound
+and emit the service-pointer preparation/loading path needed for N>2; separately
+promote the combined identical-cadence path into normal stripes=2. No separately
+timed service row.
 `gameplay`; 10 left.

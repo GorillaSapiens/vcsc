@@ -1,0 +1,11 @@
+2026-10-01 05:42:53 PDT, bound generic stripe height
+Added an exhaustive generic service-window geometry proof.  The six-scanline
+three-pair body remains only the raw PF/color copy cost.  With the maintained
+zero-tax dispatch restricted to ordinary starts that do not cross packed-row
+edges, no candidate subset fits in 13 pairs and 1,3,5,9,11 always fits in 14:
+current implementation-safe geometry is therefore 28 scanlines.  If a future
+row-boundary service entry can use start 8 at zero cadence cost, 1,3,5,8,10
+reduces the bound to 13 pairs / 26 scanlines.  For the 96-pair 192-line mode,
+28 scanlines admits equal stripes 1..6; 26 would admit stripe count 7.  Added
+stripe_min_height_bound.pl and its e2e wrapper.  Do not publish 28 as the ABI
+minimum until rolling service-pointer preparation/loading is emitted.

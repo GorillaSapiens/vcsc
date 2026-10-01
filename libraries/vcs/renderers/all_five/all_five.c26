@@ -32,6 +32,8 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 #elif TEMPLATE_stripes == 2
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
+#endif
+#if TEMPLATE_stripes == 2
 // Pair-height descriptors split each stripe into coarse eight-pair rows plus
 // a 0..7-pair tail.  The public two-stripe default is the equal 48/48-pair
 // split.  Certification defines retain every neighboring tail value so the

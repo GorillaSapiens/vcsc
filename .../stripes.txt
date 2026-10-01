@@ -53,11 +53,23 @@ Remaining:
    restore the older 20-byte row-entry table, a six-byte player cache, or a
    separately timed service row. `stripe_pair_exact_search.pl` and
    `stripe_three_pair_exact_search.pl` remain compatibility shims only.
-2. Measure the complete rolling service pipeline (including service-sprite and
-   next-color preparation) and enforce the resulting minimum even stripe height.
-   Six lines is now the proven PF-copy cost, not yet the public minimum.
-3. Generalize the double-buffer scheduler to N > 2 and add asymmetric N=3 and
-   N=5 fixtures.
+2. The generic service geometry now has an executable bound.  The raw
+   PF/color copy is three pairs / six scanlines, but the existing zero-tax
+   dual-uniform dispatch needs five ordinary-entry candidates.  Exhaustive
+   uint8 player-state search proves no legal ordinary-entry candidate set fits
+   inside 13 pairs; starts 1,3,5,9,11 always fit inside 14 pairs.  Therefore
+   28 scanlines is the current implementation-safe generic stripe-height
+   target.  A row-boundary-capable start-8 dispatch would tighten this to
+   13 pairs / 26 scanlines (starts 1,3,5,8,10), but that dispatch is not yet
+   implemented.  For 192 lines the 28-line bound permits equal stripes=1..6;
+   stripes=7 first becomes geometrically possible at the 26-line target.
+   `stripe_min_height_bound.pl` owns these bounds.  Do not expose 28 as the
+   public ABI minimum until the service-pointer preparation/loading path is
+   emitted; six lines remains only the copy lower bound.
+3. Generalize the double-buffer scheduler to N > 2, beginning with the
+   28-line/at-most-six-stripe geometry above, and add asymmetric N=3 and N=5
+   fixtures.  The first implementation may keep the stricter 28-line bound;
+   optimize row-boundary entry toward 26 only after generic handoff works.
 4. Add programmer-supplied height tables; reject odd heights, incorrect sums,
    and heights below the measured minimum. Never silently round.
 5. Certify every maintained line mode, including non-divisible 228 and the
