@@ -20,3 +20,28 @@ two live event-control bytes, the RIOT bound is exactly 128 bytes.  All focused
 vcs_all_five_stripes32_*.pl tests pass.  The remaining problem is sequencing
 those descriptors/handlers with only the two live control bytes while retaining
 three-cycle exact-cache accesses; no RAM slack remains for a third control byte.
+
+2026-10-02 20:51:33 PDT, shrink stripes32 transition state
+Proved that each player's common-Y service pointer keeps one low byte for the
+entire frame: active pre-wrap, active post-wrap, and inactive zero service all
+share it.  A page-aligned 351-byte zero slab covers every low-byte origin plus
+Y=0..95, so visible service transitions install only the high byte.
+
+Added exhaustive service-event accounting that includes stripe-boundary changes
+as well as mixed stripes.  Each player still changes service at most twice and
+the two-player union has at most four event stripes.  The rainbow fixture has
+P0 events at stripes 3 mixed / 6 boundary and P1 at 16 boundary / 18 mixed.
+Added high-only timing proofs for isolated mixed and boundary transitions.
+
+Reduced event-layout storage from physical 127/128 to 123/128 RIOT bytes:
+16 exact-cache bytes + 4 queued pointer-high bytes + 12 mixed-event composite
+bytes + 3 queued thresholds, plus the existing fixed/hot state, live threshold,
+saved caller S, and six hardware-stack bytes.  Five bytes of integration slack
+now remain.
+
+Also proved the 3-pair stripe / 8-pair object-mask cadence repeats every 24
+pairs (8 stripes), so one generated supercycle can run four times across the
+96-pair raster.  Its BPL tail is cycle-neutral for the first three iterations;
+the final one-cycle-short fallthrough terminates through WSYNC.  A 35-move,
+temp-free VBLANK transpose packs BL/M1/M0 into three 12-byte mask lanes in 210
+cycles / 140 ROM bytes while preserving the public byte-47 alias.

@@ -61,14 +61,16 @@ Remaining:
    consecutive special run (reachable run length <=4), then the final handoff
    installs both service pointers and resumes ordinary service.
 
-   `stripe32_event_layout_bound.pl` fixes event RAM at 48 bytes: two 4-byte
-   event slots/player, two 2-byte pointer slots/player, four 4-byte union
-   composite slots, and four 2-byte descriptors.  With the existing 78-byte
-   base/stripe footprint plus two live control bytes, RIOT is exactly 128.
-   Next solve descriptor/handler sequencing in those two control bytes while
-   retaining three-cycle exact-cache reads; then emit the production probe.
-   Do not restore per-pair height tests or per-stripe -3 pointer updates.  Keep
-   the 97-byte zero source optional until emitted 4K ROM cost is measured.
+   Service-pointer lows are frame-invariant: A0/A1/inactive Z share one low
+   byte/player via a page-aligned 351-byte zero slab, so transitions install only
+   the high byte.  Exhaustive accounting gives <=2 events/player and <=4 union,
+   including boundary-only changes; mixed and boundary one-player handoffs are
+   timing-proved.  Fixed RIOT use is now 123/128, leaving five bytes slack.
+   Stripe/mask cadence is one 24-pair (8-stripe) supercycle repeated four times;
+   its loop and temp-free mask repack are proved.  Next compose event/high-byte
+   handlers into that supercycle, emit the production `stripes:=32` probe, then
+   promote/Stella-certify the rainbow example.  Do not restore per-pair height
+   tests or per-stripe -3 pointer updates.
 
 3. The old 28/26-scanline result is not a stripe-height limit.  It bounds only
    the discarded strategy that searched ahead for a convenient common uniform

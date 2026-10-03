@@ -182,16 +182,12 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` toward zero-slack `stripes:=32` (32*6=192).
-Direct 8-byte records are rejected as the hot common-index source; the proven
-raster uses three 96-byte phase feeds indexed with player Y=95..0 and preserves
-all 51 TIA appointments.  Transition state has <=2 special stripes/player and
-<=4 union.  Pair-2 CPY/BCS event pretrigger, dual and one-player fragmented
-pointer handoffs, and repeatable cached transition runs are timing-proved.
-Fixed event storage is now bounded exactly: 48 event bytes + the existing
-78-byte base/stripe footprint + two live control bytes = 128-byte RIOT.  Next
-solve descriptor/handler sequencing with only those two live bytes, then emit
-and measure the common-index stripes32 probe.  Rainbow/complement data is
-already under `examples/_common/`.
+Continue `.../stripes.txt` toward production `stripes:=32` (32*6=192).  The
+proven common-Y raster uses three 96-byte feeds; service transitions change only
+pointer high bytes, with <=2 events/player and <=4 union.  Mixed/boundary
+one-player handoffs are timing-proved.  RIOT is now 123/128.  One 24-pair /
+8-stripe supercycle repeats four times with proved loop and mask compaction.
+Next compose event/high-byte handlers into it, emit the real stripes32 probe,
+then promote and Stella-certify the checked-in rainbow example.
 
 `gameplay`; 10 left.
