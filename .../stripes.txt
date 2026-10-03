@@ -52,15 +52,23 @@ Remaining:
    scheduler.
 
 2. Use one frame-wide player index, not per-stripe pointer motion.
-   `stripe32_common_index_search.pl` keeps all 51 TIA appointments with Y=95..0;
-   active pointers change only at real activity/wrap transitions.
-   `stripe32_transition_cache_bound.pl` proves <=2 special stripes/player, <=4
-   union, <=12 exact player bytes.  Exact-cache reads raise a special stripe's
-   prep budget from 17 to 29 cycles: exactly 24 for both 16-bit pointer copies
-   plus 5 for control.  Aggregate cost closes; fragmented-slot packing/event
-   selection is the remaining handoff problem.  Do not restore per-pair height
-   tests or per-stripe -3 pointer updates.  Keep the 97-byte zero source optional
-   until emitted 4K ROM cost is measured.
+   `stripe32_common_index_search.pl` preserves all 51 TIA appointments with
+   Y=95..0; pair-2 CPY/BCS event selection pretriggers one stripe ahead.  Each
+   player has <=2 special stripes and the two-player union <=4.
+
+   Fragmented handoffs are now timing-proved for P1-only, P0-only, and dual
+   events.  A boundary-neutral both-player cached stripe may repeat through a
+   consecutive special run (reachable run length <=4), then the final handoff
+   installs both service pointers and resumes ordinary service.
+
+   `stripe32_event_layout_bound.pl` fixes event RAM at 48 bytes: two 4-byte
+   event slots/player, two 2-byte pointer slots/player, four 4-byte union
+   composite slots, and four 2-byte descriptors.  With the existing 78-byte
+   base/stripe footprint plus two live control bytes, RIOT is exactly 128.
+   Next solve descriptor/handler sequencing in those two control bytes while
+   retaining three-cycle exact-cache reads; then emit the production probe.
+   Do not restore per-pair height tests or per-stripe -3 pointer updates.  Keep
+   the 97-byte zero source optional until emitted 4K ROM cost is measured.
 
 3. The old 28/26-scanline result is not a stripe-height limit.  It bounds only
    the discarded strategy that searched ahead for a convenient common uniform

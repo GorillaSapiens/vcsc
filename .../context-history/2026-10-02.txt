@@ -1,0 +1,22 @@
+2026-10-02 16:40:29 PDT, prove stripes32 transition handoffs
+Added executable P1-only and P0-only five-pair transition handoff schedules.
+Each one-player event uses only three special pixels for the changing player
+plus one exact P0 handoff pixel, commits both bytes of the changed service
+pointer without moving any TIA appointment, restores the packed-row shadow,
+and resumes ordinary indirect service.  The existing dual-player handoff proof
+remains the two-pointer case.
+
+Added a boundary-neutral both-player cached continuation stripe and regression;
+it preserves all 51 ordinary TIA appointments, performs three DEYs, touches no
+service pointer, and composes with the final dual handoff.  This supplies the
+timing primitive for reachable consecutive transition runs (run length <=4).
+
+Added exhaustive hybrid-run and fixed-address event-layout bounds.  The useful
+production bound is the fixed layout: two four-byte event slots per player,
+two two-byte pointer slots per player, four four-byte union composite slots,
+and four two-byte event descriptors total 48 bytes.  With the existing
+71-byte module base, 18 stripe-hot bytes, 11 bytes of beam-dead overlap, and
+two live event-control bytes, the RIOT bound is exactly 128 bytes.  All focused
+vcs_all_five_stripes32_*.pl tests pass.  The remaining problem is sequencing
+those descriptors/handlers with only the two live control bytes while retaining
+three-cycle exact-cache accesses; no RAM slack remains for a third control byte.
