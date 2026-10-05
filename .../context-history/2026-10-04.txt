@@ -1,93 +1,158 @@
-2026-10-04 18:33:52 PDT, generic stripe geometry authority
+2026-10-04 20:41:56 PDT, fix zero-length array and reserved -D names
 
-Added `stripe_generic_geometry_bound.pl` plus regression
-`vcs_all_five_stripe_generic_geometry_bound.pl`.  It is the compile-time
-geometry and legality authority for the positive-stripe renderer and encodes the
-two architecture corrections from this session:
+Fixed two real toolchain defects, each with a regression, and established that
+the third report of mine was not a bug at all.
 
-* One generic implementation serves stripes 2..32, parameterised only by
-  TEMPLATE_stripes.  There is no per-count branch, scheduler, or renderer, and
-  the stripes:=2 prototype is explicitly a prototype rather than a contract.
+Zero-length arrays (fixed).  `extern const uint8_t x[0]` was accepted silently
+and produced a zero-sized object.  That made the idiom look like a compile-time
+guard while doing nothing: never diagnosed, never allocated, never taking effect.
+declarator_array_multiplier_from did `mult *= atoi(...)` with no validation, so
+extent 0 flowed straight through to a zero size.  It now rejects a non-positive
+extent at the declaration with a located diagnostic.  A negative extent was
+already refused, but by the parser rather than on purpose: a negative literal is
+not an integer expression.
 
-* The implementation is generic in BOTH stripe count and line count.
-  TEMPLATE_lines is the scanlines the renderer was allocated, not a fixed 192.
-  There is no `stripes > 0 => lines == 192` rule, so a score/status or
-  user-written component may own part of the raster above or below the stripe
-  region.
+Regression: test/zero_length_array_error_test.c26, using the existing expectfail
+convention so it is picked up by `make unit` with no runner changes.
 
-Geometry rules it derives and pins:
+Because the old guards were decorative, this fix exposed three more of them in
+libraries/vcs/components: paddle_samples_must_be_0_2_or_4,
+paddle_samples_must_be_0_or_2, and line_markers_must_be_0_or_1.  All three were
+inactive.  Converted to the negative-size idiom so they actually reject.  No
+`[0]` guard remains anywhere in the tree.
 
-* Minimum stripe height stays six scanlines (P=H/2 >= 3).  This is the measured
-  zero-slack minimum; taller stripes only add slack.  Nothing is rounded.
-* The packed BL/M1/M0 row is eight pairs, so the supercycle is lcm(P,8) and the
-  body may loop only when that divides the region, which is what keeps the
-  runtime free of any stripe or row modulus.
-* The stripe region only has to FIT inside TEMPLATE_lines.  Because every height
-  is even the region sum is even, so odd modes such as 181 are striped by
-  leaving the odd scanline to a composing component.
-* A whole-multiple region loops.  A 0..7-pair remainder reuses the already
-  maintained VCS_STRIPES2_CERT_TAIL0..7 certification rather than growing a
-  second scheduler.  Anything larger is reported, not silently accepted.
+-D names colliding with an assembler register (fixed).  My earlier report said
+"any single-character -D name fails".  That was wrong: it is specifically A, X
+and Y, which are the three register tokens the assembler lexer hardcodes.
+-DB=5 and -DZ=5 are fine; only the register names break.
 
-Published equal-split families: 170 -> 1,5,17; 181 -> none (odd); 192 ->
-1,2,3,4,6,8,12,16,24,32; 228 -> 1,2,3,6,19.  Note N=38 for 228 is out of range
-even though 228/38 is six scanlines, and N=12 is out because 228/12 is odd.  The
-stress case (192,32) is h=6, P=3, 24-pair supercycle, 8 stripes per supercycle,
-4 repetitions, no tail.
+The mechanism is a genuine layering mistake, not a parser quirk.  The assembler
+lexer hardcodes [Aa], [Xx] and [Yy] as REG_A/REG_X/REG_Y, so a define named A is
+turned into the source line "A = 5", which lexes as REG_A '=' 5 and fails.  The
+driver forwards every -D to the assembler as well as to the compiler
+(add_define_flags in run_as), so this was reachable from any -D regardless of
+which stage needed it, and the only diagnostic was a bare
+"<command-line>:1: parse error" naming neither the define nor the reason.
+define_name_is_valid checked identifier characters but not reserved words, so it
+happily accepted A.
 
-Rejections are by name: odd height, sub-minimum height, oversized region, mixed
-stripe/row period.  A supplied table may mix heights as long as every height
-shares one supercycle, so 16x6 + 8x12 over 192 lines is legal and is certified.
+Fixed in the assembler, which is where the name is validated and where vcsc-as
+enforces it for direct invocation.  The diagnostic now names the collision.
 
-2026-10-04 18:34:10 PDT, supercycle event composition resolved
+Regression: test/vcs_define_reserved_register_name.pl.  Asserts A, X and Y in
+either case, with and without a value, are rejected by name; that names merely
+beginning with those letters (AB, AVX, ALPHA, XRAY, YOURS) stay valid, which is
+what would regress if the check were written as a prefix test; and that vcsc-as
+enforces the same rule directly.
 
-Composed the supercycle loop tail with the event/high-byte install, which no
-existing proof showed together.  Added:
+Unresolved symbols (not a bug; my report was wrong).  I claimed unsatisfied
+externs produce no diagnostic.  Re-tested properly: a *used* unsatisfied extern
+does error, with `vcsc-ld: unresolved symbol 'name'` and a non-zero exit, from
+both the C side and the assembly side (an `.import` referenced by a real
+instruction).  An extern or `.import` that is declared but never referenced is
+silent in both languages, which is correct and is what a forward declaration
+should do.  So there is no missing diagnostic to add.
 
-* `stripe_supercycle_event_compose_search.pl` -- solver input for the composed
-  supercycle-final pair, with the install hoisted into p0_mid.
-* `stripe_supercycle_event_compose_bound.pl` -- the composition ledger and proof.
-* `vcs_all_five_stripe_supercycle_event_compose_bound.pl` -- regression.
+The genuine defect here was narrower and is now fixed: the zero-length array made
+it *look* as though unsatisfied externs were tolerated, because the intended
+guard shape produced no error.  With that fixed, unsatisfied symbols are diagnosed
+whenever they are actually used.
 
-The measured problem: every event obligation competed for the single 16-cycle
-pair-2 tail and needed 21 cycles (5-cycle indirect next-P0 load, 3-cycle install,
-2-cycle row restore, M0 shift, DEY, loop branch).  The ledger derives the ordinary
-obligations directly from stripe32_event_select_search.pl rather than restating
-them, so it cannot drift from the emitted schedule, and it re-checks the full
-51-appointment trace.
+Verified: make unit 582/582, source tree hygiene ok, and the stripe suites
+unchanged (geometry compile, stripes2_192, stripes_192, stripes Stella,
+generic geometry bound, supercycle event compose).Follow-up to the zero-length array fix.  Three component guards were found
+inactive and corrected, but the tree-wide sweep was only for the exact
+`extern const uint8_t NAME[0]` spelling.
 
-The resolution: p0_mid's ordinary form spends three cycles committing an inactive
-PF byte the event path already has plus a three-cycle zero-page PF0R store.  The
-hoisted form spends those cycles on `ldx.z next_p0_hi`, the three-cycle
-exact-cache `lda.z special_p0+2`, and `stx.z p0_service_ptr+1`, using `sta.a PF0`
-with a two-cycle NOP so PF0R stays on its ordinary cycle.  That fits p0_mid's own
-18-cycle span at 13 cycles.  The tail then holds only the ordinary M0 shift, the
-frame-wide DEY, `bpl supercycle_start`, and a real three-cycle exact-cache colour
-re-bank: 16 cycles.  Split as 16 in the tail plus 13 in p0_mid.
+Still worth auditing when there is budget, because the same class of defect can
+hide behind other shapes:
 
-Nothing is dropped and no extra cycle budget or third control byte is needed, so
-RIOT stays 123/128.  All 51 TIA appointments land on their ordinary cycles and
-the schedule contains no idle time.  The ordinary loop tail remains
-cycle-neutral at 16 with a 15-cycle terminal fall-through absorbed by WSYNC.
+* Guards spelled with a different type, element size, or pointer form rather than
+  `const uint8_t`, which this grep did not cover.
+* Guards that are active but whose *condition* was mis-authored, which produce no
+  error at all and so cannot be found by testing whether a build fails.  These
+  need a positive test: prove the guarded configuration is refused AND prove a
+  neighbouring permitted configuration still builds.
+* Guards relying on a symbol being referenced where the reference can be dropped
+  before resolution.  An asm operand to an undeclared symbol is resolved late and
+  an inlined asm block can disappear first, so it is not dependable; a plain
+  undefined-identifier read is a compile error in every case.
 
-Recorded negative result: stripe32_transition_high_only_search.pl is a
-known-incomplete skeleton.  It installs the service high byte but carries zero
-pair-2 PF copies, so the following stripe's PF1R/PF2R are unsupplied.  It may not
-be emitted as-is; the ledger keeps this visible rather than letting the success
-elsewhere imply it is complete.
+The stripe guards in libraries/vcs/renderers/all_five/all_five.c26 now follow the
+last rule and are proved to fire by vcs_all_five_stripe_geometry_compile.pl,
+which discriminates by behaviour rather than by matching error text because a
+negative array size produces a diagnostic with no symbol name in it.
+2026-10-04 21:02:11 PDT, reject opcode mnemonics as defines
 
-2026-10-04 18:35:02 PDT, stripes hot record compacted, hygiene overage
+Extended the -D reserved-name check from A/X/Y to everything the assembler
+actually reserves.  Hardcoding A/X/Y was the wrong shape: -Dsta=1, -Dlda=1 and
+-Dclc=1 all still failed with a bare "<command-line>:1: parse error".
 
-Rewrote .../stripes.txt to record the two settled architecture rules, the generic
-geometry authority, and the resolved composition, replacing the superseded
-prototype narrative.  Also compacted .../context.txt (S10/S11 closeout prose, the
-bankswitching summary, and the startup sweep are now tighter) and replaced its
-Immediate TODO.
+Two things fixed:
 
-source_tree_hygiene.pl still reports "developer hot records exceed 64 KiB total:
-65790".  This is PRE-EXISTING: the identical failure reproduces on clean HEAD at
-65853 before any of this session's edits.  The aggregate overage is 254 bytes and
-comes from workstream files this session does not own (disassembler.txt 16062 of
-its 16384 budget and bankswitching.txt 15007).  Not fixed here rather than
-truncating another workstream's hot state; it needs a deliberate pass with that
-owner.  No test was weakened.
+* Every opcode mnemonic, driven by the loaded opcode table rather than a
+  hand-written list, so a user --opcode-cfg's mnemonics are covered too.
+* The generic opXX form.  opcode_parse_raw_byte already implements it canonically
+  (op plus exactly two hex digits, either case) and is broader than the configured
+  set: op00 parses as a raw opcode though no config lists it, which is why a
+  table-only check missed it.  The check now calls that recogniser.
+
+The opcode check runs after the tables load, immediately before the defines are
+consumed, because a user config may contribute opcodes that do not exist at
+option-parse time.
+
+One of the five proposed classes was rejected on evidence: abs, same, cross and
+flex are not reserved words.  The lexer's MODE_SUFFIX pattern is
+\.(z|zx|zy|a|ax|ay|i|ix|iy|flex|same|cross), so they are only ever matched
+dot-suffixed, and abs is an addressing-mode name used in dotted and
+size-expression contexts.  Measured: each of abs, same, cross and flex assembles
+cleanly when defined and read back as an operand, exit 0.  Rejecting them would
+forbid four legal assembly symbols, so the regression now asserts they stay
+usable and a future tightening cannot happen silently.
+
+Periods in define names were already disallowed by define_name_is_valid, so
+-Djsr.abs=1 was refused before any of this; that also means dotted forms such as
+NOP.abs and bcs.same cannot collide with a define.  jsr was in the agreed set and
+is now rejected as a mnemonic.
+
+Regression extended to cover registers in both cases, real mnemonics, the generic
+opXX form including op00, a user-config mnemonic, the dot-in-name rejection,
+prefix-sharing names staying valid, and the bare mode/branch words staying usable.
+
+Verified: make unit 582/582, hygiene ok, assembler_opcode_override and the stripe
+suites including Stella unchanged.
+
+2026-10-04 22:09:12 PDT, fix hash-pin regression and history header
+
+Full make test surfaced two failures caused by this session's own changes, plus
+one that predates the session.
+
+vcs_six_glyph_wide.pl pinned sha256 of six_glyph_component.c26, and the
+zero-length-array fix changed that file: the paddle_samples guard went from [0]
+to [-1] so it actually rejects.  The pin exists to stop the centered component
+drifting while the wide profile is added; this was an intended one-line change, so
+the pin was bumped rather than the fix reverted.  Verified before bumping: git
+diff shows exactly one changed line, the test's other assertions all pass ahead
+of the hash check, the fixture still builds to 4096 bytes, and neither
+heart_score_component nor three_plus_three_score_component is hash-pinned, so the
+other two guard fixes could not have had the same effect.  The bump carries a
+comment saying what moved and why.
+
+context_history_format.pl rejected a 76-character entry header against a 72
+character limit.  Shortened.
+
+vcsc_branding.pl is pre-existing and NOT fixed: it scans every *.md and requires
+the FIGlet banner, and AI.md has none.  AI.md is untracked, dated 2026-10-03, and
+was present before this session started, so it is not a consequence of any change
+here, and it does not ship because make tar uses git ls-files.  Adding the banner
+or removing AI.md clears it; both are the owner's call.
+
+Also added the no-substitution regression asked for in review: defining abs, same,
+cross or flex must not rewrite a dot-suffixed form.  Asserted by comparing the hex
+code image before and after, which is the instruction stream and excludes the
+o26 bookkeeping that legitimately grows when a symbol is defined, plus a positive
+control that a bare symbol reference still takes the defined value so the check
+cannot be vacuous.
+
+Final state: make unit 582/582; make test 438/439 with vcsc_branding.pl the only
+failure, being the pre-existing one above.

@@ -18,9 +18,11 @@ The purpose of this directory is to *save* chat context, not consume it.
 
 - `context.txt` is the only automatic new-chat bootstrap and has a hard **16 KiB**
   ceiling.
-- Focused active documents have small limits enforced by
-  `test/source_tree_hygiene.pl`; completed focused documents should normally be
-  only a few KiB.
+- Focused active documents have their own per-file limits enforced by
+  `test/source_tree_hygiene.pl`, and the set has a 128 KiB aggregate budget;
+  completed focused documents should normally be only a few KiB. The per-file
+  limits are the real anti-bloat guard; the aggregate is only a backstop against
+  several records each sitting just under their own cap.
 - Hot files contain durable invariants, current authoritative state, unfinished
   acceptance criteria, and immediate next work only.
 - Completed implementation narratives, dated experiments, old test totals,

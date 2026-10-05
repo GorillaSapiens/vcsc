@@ -28,6 +28,7 @@ void opcode_registry_free(void);
 int opcode_load_config_file(const char *path);
 int opcode_mnemonic_known(const char *mnemonic);
 int opcode_token_is_mnemonic(const char *token);
+int opcode_name_is_reserved(const char *name);
 int opcode_has_mode(const char *mnemonic, emit_mode_t mode);
 int opcode_lookup(const char *mnemonic, emit_mode_t mode, unsigned char *opcode_out);
 int opcode_raw_expected_mode(unsigned char opcode, emit_mode_t *mode_out);

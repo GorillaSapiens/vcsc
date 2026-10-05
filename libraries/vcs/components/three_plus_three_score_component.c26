@@ -26,7 +26,7 @@ parameter glyph_rows := 8;
 parameter paddle_samples := 0;
 
 #if TEMPLATE_paddle_samples != 0 && TEMPLATE_paddle_samples != 2 && TEMPLATE_paddle_samples != 4
-extern const uint8_t TEMPLATE_paddle_samples_must_be_0_2_or_4[0];
+extern const uint8_t TEMPLATE_paddle_samples_must_be_0_2_or_4[-1];
 #endif
 
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with

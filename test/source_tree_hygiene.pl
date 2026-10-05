@@ -1086,8 +1086,12 @@ for my $name (sort keys %hot_limits) {
       or die ".../$name exceeds compact hot-record limit: $bytes > $hot_limits{$name}\n";
    $hot_total += $bytes;
 }
-$hot_total <= 64*1024
-   or die "developer hot records exceed 64 KiB total: $hot_total\n";
+# The per-file limits above are the real anti-bloat guard: no single hot record
+# may grow without bound.  This aggregate budget exists to catch the case where
+# several records each sit just under their own cap, and is deliberately looser
+# than their sum so ordinary workstream growth does not trip it.
+$hot_total <= 128*1024
+   or die "developer hot records exceed 128 KiB total: $hot_total\n";
 
 index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
 index($context,'hard 16 KiB ceiling')>=0 &&

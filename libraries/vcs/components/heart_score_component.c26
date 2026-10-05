@@ -35,7 +35,7 @@
 parameter line_markers := 0;
 
 #if TEMPLATE_line_markers != 0 && TEMPLATE_line_markers != 1
-extern const uint8_t TEMPLATE_line_markers_must_be_0_or_1[0];
+extern const uint8_t TEMPLATE_line_markers_must_be_0_or_1[-1];
 #endif
 
 #if TEMPLATE_line_markers

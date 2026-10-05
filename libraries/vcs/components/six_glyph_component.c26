@@ -52,7 +52,7 @@ parameter mutable_color := 0;
 parameter paddle_samples := 0;
 
 #if TEMPLATE_paddle_samples != 0 && TEMPLATE_paddle_samples != 2
-extern const uint8_t TEMPLATE_paddle_samples_must_be_0_or_2[0];
+extern const uint8_t TEMPLATE_paddle_samples_must_be_0_or_2[-1];
 #endif
 
 // The machine-readable visible handoff fields below are defined in

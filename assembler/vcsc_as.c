@@ -215,11 +215,36 @@ static void add_include_dir(options_t *opt, const char *dir)
    opt->include_dirs[opt->include_dir_count++] = xstrdup(dir);
 }
 
+//! @brief Return whether a -D name collides with a name the assembler lexer reserves.
+//!
+//! The lexer hardcodes A, X and Y as register tokens, so a define named A becomes
+//! the line "A = 5", which lexes as REG_A '=' 5 and fails to parse.  That surfaced
+//! as a bare "<command-line>: parse error" with no mention of the define.  The
+//! driver forwards every -D to the assembler as well as to the compiler, so this is
+//! reachable from any -D no matter which stage actually needed it.
+static int define_name_is_register_reserved(const char *name)
+{
+   if (!name)
+      return 0;
+
+   if ((name[0] == 'A' || name[0] == 'a') && name[1] == '\0')
+      return 1;
+   if ((name[0] == 'X' || name[0] == 'x') && name[1] == '\0')
+      return 1;
+   if ((name[0] == 'Y' || name[0] == 'y') && name[1] == '\0')
+      return 1;
+
+   return 0;
+}
+
 static int define_name_is_valid(const char *name)
 {
    const unsigned char *p;
 
    if (!name || !*name)
+      return 0;
+
+   if (define_name_is_register_reserved(name))
       return 0;
 
    p = (const unsigned char *)name;
@@ -280,7 +305,10 @@ static char *make_define_line(const char *spec)
    name[name_len] = '\0';
 
    if (!define_name_is_valid(name)) {
-      fprintf(stderr, "error: invalid -D name '%s'\n", spec);
+      if (define_name_is_register_reserved(name))
+         fprintf(stderr, "error: -D name '%s' is an assembler register and cannot be redefined\n", name);
+      else
+         fprintf(stderr, "error: invalid -D name '%s'\n", spec);
       free(name);
       return NULL;
    }
@@ -316,6 +344,52 @@ static int add_define(options_t *opt, const char *spec)
 
    opt->defines = new_defines;
    opt->defines[opt->define_count++] = line;
+   return 1;
+}
+
+//! @brief Return the name portion of a stored define line, or NULL if it has none.
+//!
+//! make_define_line stores each define as "NAME = value". Only the name can
+//! collide with a reserved word, so that is all this needs to recover.
+static char *define_line_name(const char *line)
+{
+   static char name[256];
+   const char *eq;
+   size_t len;
+
+   if (!line)
+      return NULL;
+
+   eq = strstr(line, " = ");
+   len = eq ? (size_t)(eq - line) : strlen(line);
+   if (len == 0 || len >= sizeof(name))
+      return NULL;
+
+   memcpy(name, line, len);
+   name[len] = '\0';
+   return name;
+}
+
+//! @brief Reject any -D whose name is a loaded opcode mnemonic.
+//!
+//! Without this the failure surfaced much later and unhelpfully: the define line
+//! "sta = 1" lexed as the mnemonic `sta`, and the parser reported a bare
+//! "<command-line>:1: parse error" that named neither the define nor the reason.
+static int validate_defines_against_opcodes(const options_t *opt)
+{
+   int i;
+
+   for (i = 0; i < opt->define_count; ++i) {
+      char *name = define_line_name(opt->defines[i]);
+
+      if (!name)
+         continue;
+      if (opcode_name_is_reserved(name)) {
+         fprintf(stderr, "error: -D name '%s' is an opcode mnemonic and cannot be redefined\n", name);
+         return 0;
+      }
+   }
+
    return 1;
 }
 
@@ -717,6 +791,17 @@ int main(int argc, char **argv)
       return 1;
 
    if (!load_opcode_configs(argv[0], &opt)) {
+      free_options(&opt);
+      opcode_registry_free();
+      return 1;
+   }
+
+   // Now that the opcode tables are loaded, reject any -D whose name collides
+   // with a mnemonic. This has to happen here rather than while parsing options:
+   // a user-supplied -f config can contribute opcodes that no built-in list would
+   // know about, and the generic opXX mnemonics are far better derived from the
+   // loaded table than hand-written as a pattern.
+   if (!validate_defines_against_opcodes(&opt)) {
       free_options(&opt);
       opcode_registry_free();
       return 1;

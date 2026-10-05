@@ -71,7 +71,13 @@ $source =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
    or die "wide component lost mutable color support\n";
 $source =~ /VDELP0 := 1;.*VDELP1 := 1;/s
    or die "wide component lost the delayed-player pipeline\n";
-sha256_hex(read_file($centered)) eq '376edca688aab74d8342b6ba566662b68bc5017f5b4fcb769275f2dcfb9338af'
+# Pinned so the centered component cannot drift silently while the wide profile is
+# being added.  Bumped once, deliberately: the paddle_samples guard changed from a
+# zero-length extern to a negative-size one.  A zero-length extern is accepted
+# silently by this toolchain, so that guard was decorative and never rejected
+# anything; the negative size is what makes it fire.  No other line of the
+# component changed, which `git diff` on the single line confirms.
+sha256_hex(read_file($centered)) eq '01f2dadcb685807d5ab9777d004954801a56d914146c2acd6fece69fb14dc53c'
    or die "centered six-glyph component changed while adding the wide profile\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$fixture,'-o',$bin);

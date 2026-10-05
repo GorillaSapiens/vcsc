@@ -20,11 +20,41 @@ parameter player_colors := 0;
 parameter stripes := 0;
 
 
-#if TEMPLATE_stripes > 0 && (TEMPLATE_lines != 192 || TEMPLATE_missiles != 1 || TEMPLATE_player_colors != 0)
-extern const uint8_t TEMPLATE_stripes_currently_require_192_solid_all_five[0];
+// Positive-stripe legality guards.
+//
+// A zero-length extern array does NOT reject anything in this toolchain: it is
+// accepted silently, and so is an unsatisfied extern of any size.  A NEGATIVE
+// array size is a compile error, which is why the pre-existing guards further
+// down use [-1] and these must too.  The older [0] guards here were decorative:
+// stripes>0 at lines:=170 linked cleanly and drew an un-striped frame, and
+// stripes>2 was rejected only by accident, because the stripes=2 RAM
+// declarations happened not to cover the code.
+//
+// The conditional expression grammar is fully general: arbitrary &&/|| chains,
+// parenthesised groups, and nested combinations all evaluate correctly
+// (vcs_preprocessor_conditions.pl covers that tree).  What it does NOT support is
+// arithmetic, so geometry is stated per case rather than computed.  Conditions
+// are nested one term per #if purely to keep each line short and readable.
+//
+// The stripe region only has to FIT inside the scanlines this renderer was
+// allocated.  TEMPLATE_lines is a supported property of positive stripes in its
+// own right, not a fixed 192, so a score/status or user component may own the
+// scanlines above or below the region.  What a line mode must not be is merely
+// "not 192": the stripe raster body is emitted only for the admitted modes, so
+// admitting a mode whose body is absent would link and draw an un-striped frame.
+// stripe_generic_geometry_bound.pl owns the geometry rules and
+// vcs_all_five_stripe_geometry_compile.pl proves these guards actually fire.
+#if TEMPLATE_stripes > 0 && TEMPLATE_lines != 192 && TEMPLATE_lines != 228
+extern const uint8_t vcsc_stripes_raster_not_yet_emitted_for_this_line_mode[-1];
+#endif
+#if TEMPLATE_stripes > 0 && TEMPLATE_missiles != 1
+extern const uint8_t vcsc_stripes_currently_require_solid_all_five_object_profile[-1];
+#endif
+#if TEMPLATE_stripes > 0 && TEMPLATE_player_colors != 0
+extern const uint8_t vcsc_stripes_currently_require_solid_all_five_object_profile[-1];
 #endif
 #if TEMPLATE_stripes > 2
-extern const uint8_t TEMPLATE_stripes_s13_prototype_currently_supports_two_stripes[0];
+extern const uint8_t vcsc_stripes_generic_machine_not_yet_emitted[-1];
 #endif
 #if TEMPLATE_stripes == 1
 extern const uint8_t TEMPLATE_playfield_colors[2];
