@@ -3,106 +3,101 @@ VCSC RENDERER / STRIPES ROADMAP
 
 Goal
 ----
-Add compile-time PF/color stripes to `all_five`, then the remaining maintained
-renderers, zero path.
+One generic positive-stripe renderer: `all_five`, then the remaining maintained
+renderers, then the zero path.
 
-Stripe ABI
-----------
-Add `parameter stripes := 0;`; zero preserves the old path with no arrays.
+Architecture (settled; no per-count specialisation)
+---------------------------------------------------
+* `stripes:=0` stays a special no-stripe path with no arrays; `stripes:=1` may
+  stay a special case.
+* `stripes:=N`, N=2..32, is ONE implementation parameterised only by
+  `TEMPLATE_stripes`. Never add a per-count branch, scheduler, or renderer for
+  2/8/16/32. The existing `stripes:=2` code is a prototype, not a contract.
+* It is generic in BOTH axes. `TEMPLATE_lines` is the scanlines the renderer was
+  allocated, not a fixed 192. No `stripes > 0 => lines == 192` requirement may
+  exist, so a score/status or user component may own part of the raster.
+* `(192, 32)` is the current worst case and proof target, not an architectural
+  requirement: build a generic `(lines, stripes)` architecture whose hardest
+  required case is currently `(192, 32)`.
+* Invalid configurations are rejected at compile time, never rounded.
+
+ABI
+---
+`parameter stripes := 0;` zero preserves the old path with no arrays.
 `stripes:=N` requires `game_playfield_colors[N*2]` and
-`game_playfield_data[N*6]` (`TEMPLATE_playfield_colors/data`). Store COLUPF/COLUBK
-then left/right PF0/PF1/PF2; stripe i owns
-`floor(i*L/N)..floor((i+1)*L/N)-1`. Preserve raster/timing/handoffs/resources/write
-phases; no runtime division or per-line feature test.
+`game_playfield_data[N*6]`: COLUPF/COLUBK then PF0/PF1/PF2 per stripe. Preserve
+raster/timing/handoffs/resources/write phases; no runtime division or per-line
+feature test. Do not lock this ABI yet. The 8-byte row-major record is a fine
+authoring form but is rejected as the hot common-index source: the two legal
+>=7-cycle copy windows/pair are already consumed by PF
+(`stripe32_record_common_index_bound.pl`). The raster uses three 96-byte feeds
+(`stripe32_feed_layout.pl`): feed0=C0/C1/PF4, feed1=PF0/PF2/PF5,
+feed2=PF1/PF3/unused; Y=95..0 indexes players and feeds with fixed 4-cycle abs,Y
+loads, 288 bytes, no stripe index. Derive the feeds at build time if records ever
+become public.
 
-Do not lock the positive-stripe storage ABI yet.  An 8-byte row-major record
-`[COLUPF,COLUBK,PF0L,PF1L,PF2L,PF0R,PF1R,PF2R]` remains a good authoring form,
-but `stripe32_record_common_index_bound.pl` rejects it as the hot common-index
-source: the two legal >=7-cycle copy windows/pair are already consumed by PF.
-The raster instead uses three 96-byte phase feeds proved by
-`stripe32_feed_layout.pl`: feed0=C0/C1/PF4, feed1=PF0/PF2/PF5,
-feed2=PF1/PF3/unused.  Y=95..0 indexes players and all feeds with fixed 4-cycle
-abs,Y loads; the hot representation is 288 bytes and needs no stripe index.
-If records become public ABI, derive the feeds at build time.
+Positive stripes preserve the frame, handoff, resource, branch, object, phase,
+composition, zero-path, and pinned-palette Stella contracts. 192/228 stay
+terminal-WSYNC; 170/181 retain score-composable handoffs.
 
-Positive stripes preserve the maintained frame, handoff, resource, branch,
-object, phase, composition, zero-path, and pinned-palette Stella contracts.
-192/228 remain terminal-WSYNC; 170/181 retain score-composable handoffs.
-Measurements and discarded prototypes belong in tests or daily history.
+Geometry
+--------
+`stripe_generic_geometry_bound.pl` is the compile-time geometry and legality
+authority. Height H is even with P=H/2 >= 3 (the measured six-scanline minimum);
+the packed BL/M1/M0 row is eight pairs, so the supercycle is lcm(P,8). The region
+only has to FIT inside `TEMPLATE_lines`, so an odd mode such as 181 is striped by
+leaving the odd scanline to a composing component. A whole-multiple region loops;
+a 0..7-pair remainder reuses the maintained `VCS_STRIPES2_CERT_TAIL0..7`
+certification, not a second scheduler. Equal splits: 170 -> 1,5,17; 181 -> none
+odd; 192 -> 1,2,3,4,6,8,12,16,24,32; 228 -> 1,2,3,6,19. `(192,32)` is h=6, P=3,
+supercycle 24 pairs, 8 stripes/supercycle, 4 repetitions.
 
-Steps
------
-Completed: 192-line `stripes:=1/2`, A/B buffers, all tail handlers, runtime
-dispatch, six-line PF refill, zero-path/resource/height/branch/handoff/motion
-contracts, and Stella RGB are green. No third cache or stripe-count RAM is used;
-canonical PF0 source bytes keep their low nibble zero for the hidden enable
-baseline. Future public renderer name: `gameplay`; rename waits for stable ABI.
+Scheduling invariants
+---------------------
+`stripe32_sixline_machine_search.pl` is the zero-slack design point: three exact
+152-cycle pairs copy all six inactive PF bytes plus both next colours, feed both
+players through three-byte service pointers, leave public player Y untouched, and
+preserve all 51 ordinary TIA appointments. One frame-wide player index, not
+per-stripe pointer motion; Y=95..0, pair-2 CPY/BCS pretriggers one stripe ahead.
+<=2 special stripes per player, union <=4. Service-pointer lows are
+frame-invariant (page-aligned 351-byte zero slab), so transitions install only the
+high byte. Fixed RIOT 123/128. Cadence is one 24-pair (8-stripe) supercycle
+repeated four times; taller stripes only add slack.
 
-Remaining:
+Event/high-byte handlers compose into that supercycle. Before composing, every
+event obligation competed for the single 16-cycle pair-2 tail and needed 21
+cycles. Hoisting the install into `p0_mid`'s own 18-cycle span (fits at 13) splits
+them into 16 in the tail plus 13 in `p0_mid`; the tail then holds only the
+ordinary M0 shift, the frame-wide DEY, `bpl supercycle_start`, and a real
+three-cycle exact-cache colour re-bank. Nothing is dropped and no extra cycle
+budget or third control byte is needed, so RIOT stays 123/128. The ordinary loop
+tail is cycle-neutral at 16, its 15-cycle terminal fall-through absorbed by WSYNC.
+`stripe32_transition_high_only_search.pl` is a known-incomplete skeleton: it
+installs the service high byte but supplies no pair-2 PF copies, so the next
+stripe's PF1R/PF2R are unsupplied and it may not be emitted as-is.
+`stripe_supercycle_event_compose_bound.pl` owns the executable proof.
 
-1. Make the six-scanline rolling machine the production positive-stripe
-   architecture, with `stripes:=32` as the zero-slack design point.
-   `stripe32_sixline_machine_search.pl` is now the timing proof: three exact
-   152-cycle pairs copy all six inactive PF bytes plus both arbitrary next
-   colors, feed both players through three-byte service pointers, leave the
-   public player Y values untouched, and preserve all 51 ordinary TIA
-   appointments.  There is no service row and no alternate PF phase family.
-   The emitted stripes=2 refill/compact-rowedge probes remain useful source
-   material but must converge onto this one cadence rather than grow another
-   scheduler.
+Remaining
+---------
+1. Emit the generic rolling machine in `all_five.c26` behind a focused probe, then
+   remove the `stripes:=2`-only production machinery. Preserve the 4K ROM,
+   <=128-byte RAM, frame, PF phase, object-sequence, handoff, and pinned-palette
+   Stella contracts. SP save/restore around visible drawing is allowed if the
+   emitted form uses TSX as the packed-row-X shadow; no stack accesses in raster.
+2. Supply the pair-2 PF copies the hoisted path omits, keeping PF0R on its
+   ordinary cycle.
+3. Relieve the `stripes > 2` guard only once the probe and its regressions are
+   green AND the generic path serves 2..32 rather than one count.
+4. Promote the public example to `stripes:=32` with the checked-in
+   `examples/_common/all_five_stripes32_rainbow_data.c26`. Keep the two-stripe
+   example runnable until the renderer accepts 32; never ship a deliberately
+   non-building public target.
+5. Certify every maintained line mode, including non-divisible 228 and the
+   181/170 score-composable handoffs, plus all missile/player-color combinations.
+   Document storage, costs, composition, and the `gameplay` name/API migration.
+6. Certify stripes in `multisprite`, then `enhanced_multisprite_asymmetric`. Close
+   roadmap item 57 only when obsolete paths are gone and the suite is clean.
 
-2. Use one frame-wide player index, not per-stripe pointer motion.
-   `stripe32_common_index_search.pl` preserves all 51 TIA appointments with
-   Y=95..0; pair-2 CPY/BCS event selection pretriggers one stripe ahead.  Each
-   player has <=2 special stripes and the two-player union <=4.
-
-   Fragmented handoffs are now timing-proved for P1-only, P0-only, and dual
-   events.  A boundary-neutral both-player cached stripe may repeat through a
-   consecutive special run (reachable run length <=4), then the final handoff
-   installs both service pointers and resumes ordinary service.
-
-   Service-pointer lows are frame-invariant: A0/A1/inactive Z share one low
-   byte/player via a page-aligned 351-byte zero slab, so transitions install only
-   the high byte.  Exhaustive accounting gives <=2 events/player and <=4 union,
-   including boundary-only changes; mixed and boundary one-player handoffs are
-   timing-proved.  Fixed RIOT use is now 123/128, leaving five bytes slack.
-   Stripe/mask cadence is one 24-pair (8-stripe) supercycle repeated four times;
-   its loop and temp-free mask repack are proved.  Next compose event/high-byte
-   handlers into that supercycle, emit the production `stripes:=32` probe, then
-   promote/Stella-certify the rainbow example.  Do not restore per-pair height
-   tests or per-stripe -3 pointer updates.
-
-3. The old 28/26-scanline result is not a stripe-height limit.  It bounds only
-   the discarded strategy that searched ahead for a convenient common uniform
-   window; its executable proof is retained as
-   `stripe_dual_uniform_window_bound.pl`.  The active design target is six
-   scanlines.  Do not describe 28 or 26 as a public minimum again.
-
-4. Emit the rolling machine in `all_five.c26`, first behind a focused probe,
-   then remove the stripes=2-only production machinery.  Preserve the 4K ROM,
-   <=128-byte RAM, frame, PF phase, complete object-sequence, handoff, and
-   pinned-palette Stella contracts.  Saving/restoring SP around visible drawing
-   is allowed if the emitted form uses TSX as the packed-row-X shadow; there are
-   no stack accesses inside the raster.
-
-5. Promote the public 192-line example to `stripes:=32`.  The intended data is
-   already checked in as `examples/_common/all_five_stripes32_rainbow_data.c26`:
-   32 six-line bands, dark rainbow COLUBK values, and bright COLUPF values eight
-   Atari hue steps away (complementary hue), over a visible alternating PF
-   pattern.  Keep the current two-stripe example runnable until the renderer
-   itself accepts 32; do not ship a deliberately non-building public target.
-
-6. After 32 works, generalize compile-time storage/geometry to every supported
-   `stripes:=N` with minimum height six scanlines.  Equal 192-line stripes then
-   support N=1..32; non-divisible counts use explicit/programmer-supplied even
-   height tables whose sum is 192.  Reject odd heights, incorrect sums, and
-   heights below the measured minimum; never silently round.
-
-7. Certify every maintained line mode, including non-divisible 228 and the
-   181/170 score-composable handoffs; exercise all supported missile/player-color
-   combinations; document storage, costs, composition, and the eventual
-   `gameplay` name/API migration.
-
-8. Add and certify stripes in `multisprite`, then
-   `enhanced_multisprite_asymmetric`; close roadmap item 57 only when obsolete
-   renderer paths are gone and the normal suite is clean.
+The old 28/26-scanline result is not a stripe-height limit; it bounds only the
+discarded search-ahead strategy (`stripe_dual_uniform_window_bound.pl`). The
+design target is six scanlines. Never describe 28 or 26 as a public minimum.

@@ -90,12 +90,10 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S10 is complete:
-   useful `standard_4k_ntsc*` behavior is carried by maintained all-five,
-   exhaustive pairwise-position, banked-composition, and Stella regressions, and
-   both legacy profiles plus compatibility-only support are gone. S11 normalization is
-   complete; finish the broad regression before stripes.
-   Item 58 follows after stripes.
+   `.../stripes.txt` owns renderer consolidation and stripes. S10/S11 are
+   complete; the maintained all-five, pairwise-position, banked-composition and
+   Stella regressions carry the useful `standard_4k_ntsc*` behavior. Item 58
+   follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -103,15 +101,14 @@ Open workstreams
    `.../bankswitching.txt` owns mapper facts and unfinished work. C26 topology is
    authoritative; VCS mapper/linker cfg profiles are gone. The descriptor call
    ABI is complete through FC, F0, and constrained-state E0; each migrated mapper
-   owns `bankcall.s26` plus variable-length `entry.s26` reset normalization.
-   Entry may be empty when hardware already supplies the canonical startup state.
-   Ordinary direct `JMP` is a hard same-bank constraint: VCSC no longer synthesizes
-   mapper-changing application JMP trampolines. The sole mapper-changing one-way
-   JMP mechanism is reset/startup: replicated vector bridges run mapper `entry.s26`
-   as needed, then perform the ordinary absolute jump to the reset handler.
-   Cross-bank application control flow is by bankcall/return; FE remains special.
-   Linker ROM storage uses independent physical planes and bank-aware relocation;
-   the 256-bank 3F/3E/3EX/FC regressions own the large-mapper boundary contracts.
+   owns `bankcall.s26` plus variable-length `entry.s26` reset normalization, which
+   may be empty when hardware already supplies the canonical startup state.
+   Ordinary direct `JMP` is a hard same-bank constraint; the sole mapper-changing
+   one-way JMP mechanism is reset/startup, where replicated vector bridges run
+   `entry.s26` then jump to the reset handler. Cross-bank control flow is by
+   bankcall/return; FE remains special. Linker ROM storage uses independent
+   physical planes and bank-aware relocation; the 256-bank 3F/3E/3EX/FC
+   regressions own the large-mapper boundary contracts.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together
@@ -130,13 +127,14 @@ Open workstreams
 Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. All three stock paths establish the
-same deterministic TIA baseline first by clearing the non-beam `$04-$2C` write-register
-window through its `$40` mirror (`$44-$6C`), leaving
+same deterministic TIA baseline first by clearing the non-beam `$04-$2C`
+write-register window through its `$40` mirror (`$44-$6C`), leaving
 `VSYNC`/`VBLANK`/`WSYNC`/`RSYNC` untouched and avoiding mapper-owned low-page
-addresses used by 3E/3F/WD. The descending sweep reaches `HMCLR` immediately before
-`HMOVE`, so the strobe applies zero motion; it also clears VDEL, graphics/audio,
-position, color, and collision state. Real TIA power-on contents are unspecified and Stella developer-mode TIA
-randomization must not leak graphics/audio into compiled programs.
+addresses used by 3E/3F/WD. The descending sweep reaches `HMCLR` immediately
+before `HMOVE`, so the strobe applies zero motion; it also clears VDEL,
+graphics/audio, position, color, and collision state. Real TIA power-on contents
+are unspecified and Stella developer-mode TIA randomization must not leak
+graphics/audio into compiled programs.
 `vcsc-rt1-simple.s26` is the smallest path for ordinary RIOT BSS with no
 DATA/runtime initializer work. `vcsc-rt1-data.s26` is selected for initialized
 DATA and/or runtime initializers when every startup-zeroed object can be satisfied
@@ -182,12 +180,15 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` toward production `stripes:=32` (32*6=192).  The
-proven common-Y raster uses three 96-byte feeds; service transitions change only
-pointer high bytes, with <=2 events/player and <=4 union.  Mixed/boundary
-one-player handoffs are timing-proved.  RIOT is now 123/128.  One 24-pair /
-8-stripe supercycle repeats four times with proved loop and mask compaction.
-Next compose event/high-byte handlers into it, emit the real stripes32 probe,
-then promote and Stella-certify the checked-in rainbow example.
+Continue `.../stripes.txt` toward the generic positive-stripe renderer: ONE
+implementation for stripes 2..32 parameterised only by TEMPLATE_stripes, generic
+in BOTH stripes and lines, no `stripes>0 => lines==192` rule, no per-count
+branch.  (192,32) is the worst case, not an architectural requirement.
+`stripe_generic_geometry_bound.pl` owns compile-time geometry/legality.
+Event/high-byte composition is resolved and proved (hoist the install into
+p0_mid's 18-cycle span; 16+13 cycles; RIOT still 123/128).  Next: emit the
+rolling machine in all_five.c26 behind a focused probe, then remove the
+stripes:=2-only machinery and supply the pair-2 PF copies the hoisted path
+omits.  Relax the `stripes > 2` guard only once the generic path serves 2..32.
 
 `gameplay`; 10 left.

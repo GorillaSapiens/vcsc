@@ -1,0 +1,93 @@
+2026-10-04 18:33:52 PDT, generic stripe geometry authority
+
+Added `stripe_generic_geometry_bound.pl` plus regression
+`vcs_all_five_stripe_generic_geometry_bound.pl`.  It is the compile-time
+geometry and legality authority for the positive-stripe renderer and encodes the
+two architecture corrections from this session:
+
+* One generic implementation serves stripes 2..32, parameterised only by
+  TEMPLATE_stripes.  There is no per-count branch, scheduler, or renderer, and
+  the stripes:=2 prototype is explicitly a prototype rather than a contract.
+
+* The implementation is generic in BOTH stripe count and line count.
+  TEMPLATE_lines is the scanlines the renderer was allocated, not a fixed 192.
+  There is no `stripes > 0 => lines == 192` rule, so a score/status or
+  user-written component may own part of the raster above or below the stripe
+  region.
+
+Geometry rules it derives and pins:
+
+* Minimum stripe height stays six scanlines (P=H/2 >= 3).  This is the measured
+  zero-slack minimum; taller stripes only add slack.  Nothing is rounded.
+* The packed BL/M1/M0 row is eight pairs, so the supercycle is lcm(P,8) and the
+  body may loop only when that divides the region, which is what keeps the
+  runtime free of any stripe or row modulus.
+* The stripe region only has to FIT inside TEMPLATE_lines.  Because every height
+  is even the region sum is even, so odd modes such as 181 are striped by
+  leaving the odd scanline to a composing component.
+* A whole-multiple region loops.  A 0..7-pair remainder reuses the already
+  maintained VCS_STRIPES2_CERT_TAIL0..7 certification rather than growing a
+  second scheduler.  Anything larger is reported, not silently accepted.
+
+Published equal-split families: 170 -> 1,5,17; 181 -> none (odd); 192 ->
+1,2,3,4,6,8,12,16,24,32; 228 -> 1,2,3,6,19.  Note N=38 for 228 is out of range
+even though 228/38 is six scanlines, and N=12 is out because 228/12 is odd.  The
+stress case (192,32) is h=6, P=3, 24-pair supercycle, 8 stripes per supercycle,
+4 repetitions, no tail.
+
+Rejections are by name: odd height, sub-minimum height, oversized region, mixed
+stripe/row period.  A supplied table may mix heights as long as every height
+shares one supercycle, so 16x6 + 8x12 over 192 lines is legal and is certified.
+
+2026-10-04 18:34:10 PDT, supercycle event composition resolved
+
+Composed the supercycle loop tail with the event/high-byte install, which no
+existing proof showed together.  Added:
+
+* `stripe_supercycle_event_compose_search.pl` -- solver input for the composed
+  supercycle-final pair, with the install hoisted into p0_mid.
+* `stripe_supercycle_event_compose_bound.pl` -- the composition ledger and proof.
+* `vcs_all_five_stripe_supercycle_event_compose_bound.pl` -- regression.
+
+The measured problem: every event obligation competed for the single 16-cycle
+pair-2 tail and needed 21 cycles (5-cycle indirect next-P0 load, 3-cycle install,
+2-cycle row restore, M0 shift, DEY, loop branch).  The ledger derives the ordinary
+obligations directly from stripe32_event_select_search.pl rather than restating
+them, so it cannot drift from the emitted schedule, and it re-checks the full
+51-appointment trace.
+
+The resolution: p0_mid's ordinary form spends three cycles committing an inactive
+PF byte the event path already has plus a three-cycle zero-page PF0R store.  The
+hoisted form spends those cycles on `ldx.z next_p0_hi`, the three-cycle
+exact-cache `lda.z special_p0+2`, and `stx.z p0_service_ptr+1`, using `sta.a PF0`
+with a two-cycle NOP so PF0R stays on its ordinary cycle.  That fits p0_mid's own
+18-cycle span at 13 cycles.  The tail then holds only the ordinary M0 shift, the
+frame-wide DEY, `bpl supercycle_start`, and a real three-cycle exact-cache colour
+re-bank: 16 cycles.  Split as 16 in the tail plus 13 in p0_mid.
+
+Nothing is dropped and no extra cycle budget or third control byte is needed, so
+RIOT stays 123/128.  All 51 TIA appointments land on their ordinary cycles and
+the schedule contains no idle time.  The ordinary loop tail remains
+cycle-neutral at 16 with a 15-cycle terminal fall-through absorbed by WSYNC.
+
+Recorded negative result: stripe32_transition_high_only_search.pl is a
+known-incomplete skeleton.  It installs the service high byte but carries zero
+pair-2 PF copies, so the following stripe's PF1R/PF2R are unsupplied.  It may not
+be emitted as-is; the ledger keeps this visible rather than letting the success
+elsewhere imply it is complete.
+
+2026-10-04 18:35:02 PDT, stripes hot record compacted, hygiene overage
+
+Rewrote .../stripes.txt to record the two settled architecture rules, the generic
+geometry authority, and the resolved composition, replacing the superseded
+prototype narrative.  Also compacted .../context.txt (S10/S11 closeout prose, the
+bankswitching summary, and the startup sweep are now tighter) and replaced its
+Immediate TODO.
+
+source_tree_hygiene.pl still reports "developer hot records exceed 64 KiB total:
+65790".  This is PRE-EXISTING: the identical failure reproduces on clean HEAD at
+65853 before any of this session's edits.  The aggregate overage is 254 bytes and
+comes from workstream files this session does not own (disassembler.txt 16062 of
+its 16384 budget and bankswitching.txt 15007).  Not fixed here rather than
+truncating another workstream's hot state; it needs a deliberate pass with that
+owner.  No test was weakened.
