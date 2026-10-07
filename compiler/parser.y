@@ -253,9 +253,18 @@ static ASTNode *make_array_extent_leaf(ASTNode *extent) {
                     extent->file, extent->line, extent->column, shown);
       }
       if (array_extent_contains_sizeof(extent)) {
-         error_user("[%s:%d.%d] array size '%s' is not a compile-time constant: sizeof "
-                    "needs a type or typedef here; the size of a struct, union or object "
-                    "is not yet known while this declaration is parsed",
+         /* Say what is actually true.  An extent is folded while its declaration is
+          * parsed, and two things a sizeof can ask about are not available then: a
+          * struct or union size, because those are laid out after parsing from the
+          * whole program, and an object's size, because that needs a scope.  Both ARE
+          * known to the language elsewhere -- `sizeof(S)` works in any expression --
+          * so the old wording, which implied they were not known at all, sent a reader
+          * looking for a missing feature instead of at the one real restriction. */
+         error_user("[%s:%d.%d] array size '%s' is not a compile-time constant: an "
+                    "extent is resolved while this declaration is parsed, and a struct "
+                    "or union size is laid out only after parsing, while an object's "
+                    "size needs a scope. Give the size a name -- an enum constant, or "
+                    "a `type` -- and use that",
                     extent->file, extent->line, extent->column, shown);
       }
       error_user("[%s:%d.%d] array size '%s' must be a compile-time integer constant",

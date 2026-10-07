@@ -180,7 +180,16 @@ my @refused_by_folder = (
    # does not exist while a declaration is being parsed.  It parses -- sizeof is a
    # literal-shaped primary -- so the folder is what refuses it, by name.
    ['sizeof of an object',       "uint16_t g;\npage const uint8_t p[sizeof(g)] := { 1 };",
-    qr/array size 'sizeof\(g\)' is not a compile-time constant: sizeof needs a type or typedef here/],
+    qr/array size 'sizeof\(g\)' is not a compile-time constant:.*an object's\s+size needs a scope/s],
+   # A struct or union is named directly by `struct S { ... }`, which registers S as a
+   # type, and sizeof(S) folds in any ordinary expression.  It is only in an EXTENT
+   # that it cannot: extents are folded while the declaration is parsed, and struct
+   # sizes are laid out afterwards from the whole program.  The refusal must not imply
+   # the language cannot size a struct, because it can.
+   ['sizeof of a struct',       "struct blob { uint8_t a; uint8_t b; };\npage const uint8_t p[sizeof(blob)] := { 1 };",
+    qr/array size 'sizeof\(blob\)' is not a compile-time constant:.*a struct\s+or union size is laid out only after parsing/s],
+   ['sizeof of a union',        "union ub { uint8_t x; uint16_t y; };\npage const uint8_t p[sizeof(ub)] := { 1 };",
+    qr/array size 'sizeof\(ub\)' is not a compile-time constant/],
    ['sizeof of void',            'page const uint8_t p[sizeof(void)] := { 1 };',
     qr/invalid application of sizeof to void type/],
    ['sizeof of an undefined name', 'page const uint8_t p[sizeof(nosuchtype)] := { 1 };',
@@ -289,6 +298,42 @@ CASE
    # LOW is 2, HIGH - LOW is 3, and sizeof(uint16_t) is 2.
    $code =~ /cmp\s+#\$02\b/ or die "a case label of LOW or sizeof(uint16_t) is not compared as 2\n";
    $code =~ /cmp\s+#\$03\b/ or die "a case label of HIGH - LOW is not compared as 3\n";
+}
+
+# --- and a struct or union IS sizeable outside an extent -----------------------
+# `struct S { ... }` registers S as a type directly, so S is declared without the
+# `struct` keyword and sizeof(S) is the spelling.  That is the language's deliberate
+# design, not an accident.  The extent limitation above must not be mistaken for the
+# language being unable to size a struct.
+#
+# Note what this asserts: that the sizeof is ACCEPTED and resolves, not that it folds
+# to a link-time constant.  A struct size is laid out by calculate_struct_union_sizes
+# during compilation, so the emitter resolves it and the value reaches storage through
+# a runtime initializer.  Claiming a fold here would be asserting something the
+# compiler does not do.
+{
+   my ($rc, $err, $asm) = compile_cc1(<<'STRUCT', 'structsz');
+include "machine_6502.c26"
+struct blob { uint8_t a; uint8_t b; };
+union ub { uint8_t x; uint16_t y; };
+page const uint8_t s := sizeof(blob);
+page const uint8_t u := sizeof(ub);
+STRUCT
+   $rc == 0 or die "sizeof of a struct or union is not accepted outside an extent\n$err\n";
+   my $code = do {
+      open(my $r, '<', $asm) or die "could not read $asm: $!\n";
+      local $/;
+      <$r>;
+   };
+   # blob is two bytes; a union takes the larger of its members, so ub is two too.
+   # The resolved size reaches storage through the initializer, via scratch, so this
+   # checks the immediate is produced and that both objects are stored.
+   my ($init) = $code =~ /\.proc __init_[0-9a-f]+\n(.*?)\.endproc/s;
+   defined $init or die "no initializer was emitted for the two sizes\n";
+   $init =~ /lda\s+#\$02\b/
+      or die "neither struct nor union resolved to 2 bytes\n";
+   $init =~ /sta\s+s\b/ or die "sizeof(struct blob) was not stored\n";
+   $init =~ /sta\s+u\b/ or die "sizeof(union ub) was not stored\n";
 }
 
 print "vcs_array_extent_constant_expression ok\n";
