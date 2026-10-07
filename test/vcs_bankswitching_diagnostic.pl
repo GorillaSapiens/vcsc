@@ -222,15 +222,13 @@ sub run_stella_certification {
    my $snap_root=File::Spec->catdir($stella_tmp,'snapshots');
    my $user_root=File::Spec->catdir($stella_tmp,'user');
    make_path($snap_root,$user_root);
-   my $display_num=90+($$%100);
    my $selected=sub {
       my($label)=@_; return !$ENV{VCSC_STELLA_FILTER} || $label =~ /$ENV{VCSC_STELLA_FILTER}/;
    };
 
    my $run_one=sub {
       my(%arg)=@_; my $label=$arg{label}; return unless $selected->($label);
-      $display_num++ while -e "/tmp/.X11-unix/X$display_num";
-      my $display=':'.$display_num++;
+      my(undef,$display)=vcsc_reserve_x_display(90,100);
       my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
       if ($xpid==0) {
          open(STDOUT,'>:raw',File::Spec->catfile($stella_tmp,"$label.xvfb.log")) or die $!;
@@ -238,6 +236,8 @@ sub run_stella_certification {
          exec($xvfb,$display,'-ac','-screen','0','1024x768x24'); die "exec Xvfb: $!\n";
       }
       select(undef,undef,undef,0.20);
+      # Fail here, not later inside Stella, if the X server did not come up.
+      vcsc_xvfb_assert_ready($display,$xpid);
       local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null';
       local $ENV{HOME}=$stella_tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
       my $snapdir=File::Spec->catdir($snap_root,$label); make_path($snapdir);

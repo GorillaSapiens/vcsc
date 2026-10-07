@@ -168,7 +168,9 @@ absolute paths or command names through PATH, use explicit deterministic Stella
 power-on settings unless randomization is the behavior under test, and prefer
 completed-frame capture over asynchronous single snapshots. Every maintained
 Stella certification also uses `test/stella_test_lib.pl` with a private basedir,
-private HOME/XDG roots, and the checked-in 792-byte `test/fixtures/stella/stella.pal`;
+private HOME/XDG roots, an `O_CREAT|O_EXCL` display reservation from
+`vcsc_reserve_x_display`, a `vcsc_xvfb_assert_ready` check that the server came up,
+and the checked-in 792-byte `test/fixtures/stella/stella.pal`;
 that one file pins the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`,
 neutralizes palette adjustments/effects, and makes reviewed raster references
 exact-RGB contracts independent of Stella's host-version built-in palette. Example
@@ -180,15 +182,23 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt` toward the generic positive-stripe renderer: ONE
-implementation for stripes 2..32 parameterised only by TEMPLATE_stripes, generic
-in BOTH stripes and lines, no `stripes>0 => lines==192` rule, no per-count
-branch.  (192,32) is the worst case, not an architectural requirement.
-`stripe_generic_geometry_bound.pl` owns compile-time geometry/legality.
-Event/high-byte composition is resolved and proved (hoist the install into
-p0_mid's 18-cycle span; 16+13 cycles; RIOT still 123/128).  Next: emit the
-rolling machine in all_five.c26 behind a focused probe, then remove the
-stripes:=2-only machinery and supply the pair-2 PF copies the hoisted path
-omits.  Relax the `stripes > 2` guard only once the generic path serves 2..32.
+Continue `.../stripes.txt`.  The feed's origin is settled and the emit is unblocked:
+a file-scope `const` object folded at link time has readable constant bytes, so the
+renderer's three `page const` feed tables are a link-time ROM derivation of the
+public eight-byte record (0 RAM, no startup copy, no per-count public data).
+`vcs_const_link_time_table.pl` owns the fold (plain default-ROM data only; a
+NAMED region is excluded because folding a data-only read erases the relocation the
+linker must reject) and `vcs_all_five_stripe_feed_tables.pl` builds the real
+(192,32) tables and checks every emitted byte.  Both record-based sources are dead
+and RAM cannot hold the feed, so `stripe_generic_feed_source_bound.pl` reports the
+emit unblocked.  The renderer will need PER-CONFIGURATION feed tables: the content
+depends on the data layout (q=P*s+p picks the stripe), so all 19 legal
+configurations need their own (5625 source entries; ROM stays 288 per build).  The
+grammar takes only a literal in an array extent; relaxing that is a readability win
+and would NOT reduce the table count.  Next:
+emit the rolling machine in all_five.c26 behind a focused probe, reading the feeds at
+Y = region-1-q; then remove the stripes:=2-only machinery and supply the pair-2 PF
+copies the hoisted path omits.  Relax the `stripes > 2` guard only once the generic
+path serves 2..32.
 
 `gameplay`; 10 left.

@@ -1,0 +1,241 @@
+2026-10-06 13:28:21 PDT, fold const element reads into link-time tables
+
+Landed stripes item 0.  The generic positive-stripe emit was blocked on the
+pair-indexed feed's ORIGIN, and this removes that block.  A file-scope `const`
+object whose initializer is entirely constant is now folded at link time, and its
+bytes are then readable as a constant expression, so a table DERIVED from another
+table's element reads is itself link-time data.  That is exactly the shape the
+renderer needs: its three pair-indexed feed tables are the logical eight-byte
+stripe record transposed, so the public eight-byte authoring form is now the only
+thing a program has to supply.  No RAM, no startup copy, no per-count data.
+
+The change is small and localized.  emit_global_initializer optionally hands back
+the bytes it built, compile_toplevel records them for a file-scope `const` object,
+and eval_constant_initializer_expr_resolved folds a single-subscript read of such a
+table.  Folding inside the evaluator rather than as a special case in the
+initializer walk is what makes `record[2]+1` and `2*record[4]` fold too, which is
+how a transposition is written rather than raw bytes.
+
+Deliberately byte-granular.  A wider element type would need its own decode and
+sign handling to yield a value rather than a byte, and nothing needs that yet, so
+such a table is simply not recorded and keeps today's runtime-read behaviour.
+An out-of-range read is refused with a located diagnostic instead of folding to an
+adjacent byte, because a constant expression has no runtime bounds check left to
+defer to; the regression pins both that refusal and its in-range neighbour so the
+bound cannot be satisfied by refusing everything.
+
+Regressions: test/vcs_const_link_time_table.pl (placement AND emitted bytes for
+pure reads, reads through arithmetic, writable derived data, second-generation
+derivations, the wider-element exclusion, page containment, the fold inside an
+INSTANTIATED TEMPLATE, the named-region exclusion, declaration order in both
+directions, and the out-of-range refusal), with
+test/const_link_time_table_codegen_test.c26,
+test/const_link_time_table_template_codegen_test.c26 (plus
+test/fixtures/templates/const_link_time_table.c26) and
+test/const_link_time_table_fold_test.c26 as the fixtures.
+
+Two mistakes of my own worth recording, because both were caught by running things
+rather than by reasoning.  First, the template case was originally a .c26 fixture in
+test/ that included "vcs.c26"; the compile-only tier runs vcsc-cc1 with only `-I .`,
+so it could not find the VCS headers and failed there, not for the reason it existed.
+The fixture now uses machine_6502.c26 and its own template and builds standalone,
+which is what let it be discovered as a unit test at all.  Second, an earlier
+assertion on that fixture would have passed vacuously, so it was checked by breaking
+the template's index: the compile-only tier rejects it with the expected diagnostic,
+and restoring the file makes it pass again.
+
+A regression the fold caused, and its fix.  The full suite caught it, not review:
+test/vcs_dpc.pl asserts that a CPU reference to a DATA-ONLY bank object is rejected,
+because such a bank has no 6507 address.  `bank2 const uint8_t hidden[1]` with a
+read of `hidden[0]` stopped being rejected.  Cause: the fold turned that read into an
+immediate, so the relocation the linker exists to diagnose simply vanished and an
+illegal program became a legal one.
+
+That is a correctness boundary, not an oversight, and it says something the fold's
+first version got wrong.  For a `const` object in a NAMED memory region the byte's
+addressability IS the contract, not merely its value; split regions, absolute
+bindings and swapram are the same for the same reason.  So the fold now records
+plain read-only objects in DEFAULT ROM only (region_count == 0, not zero page, not
+an absolute binding, not noinit).  The stripe feed tables are ordinary ROM, so they
+are unaffected.  The regression now asserts that a table derived from a named-region
+source keeps its runtime-read form, with the DPC failure named as the reason.
+
+This is worth recording as a general lesson about the fold: a transformation that
+turns a memory reference into a constant also removes whatever the reference was
+being used to prove.  Constant folding is only sound where the reference carried no
+meaning beyond its value.
+
+Then went one step further than the blocker required and built the thing the emit
+is waiting on, because "the fold exists" is weaker than "the feed tables compile".
+test/fixtures/all_five_stripe_feed/feed_transposition_probe.c26 declares the real
+(192,32) three `page const` feed tables, derived from the public record exactly as
+the renderer will, and test/vcs_all_five_stripe_feed_tables.pl builds it and checks
+every emitted byte against the layout the bound derives, checks each logical record
+byte is delivered exactly once across the three tables, checks all three tables are
+page-contained, and checks the whole thing costs 0 bytes of RAM.  The assertions
+were checked against deliberate damage rather than only against a passing run:
+swapping two feed0 slots, dropping `page` from a feed, and making a feed writable
+are each caught.
+
+stripe_generic_feed_source_bound.pl and its regression now report the feed origin
+as settled and the emit as unblocked, which is the signal its own comments said to
+expect.  Its Part 4 is no longer a negative measurement, so it was rewritten to
+verify the derived bytes positively instead of asserting the old failure.
+
+Verified: make unit 585/585 with the template fixture included; the focused stripe
+and fold suites pass, including vcs_dpc.pl after the named-region fix; source tree
+hygiene ok.  The full suite result is reported separately.
+
+Next, per stripes item 1: emit the rolling machine in all_five.c26 behind a focused
+probe, reading the feeds at Y = region-1-q.  The tables and their bytes are done;
+
+A second correction to my own reasoning, found by being challenged on it rather than
+by a test.  I had attributed the per-configuration cost to the compiler accepting
+only a literal in an array extent (`direct_declarator '[' INTEGER ']'` in the
+grammar).  That limitation is real -- `const uint8_t b[2*4]` is a syntax error -- but
+it is not the cause.  A size expression cannot change WHICH byte lands in which slot;
+it only changes how the extent is spelled.  The cause is the layout: q=P*s+p selects
+the stripe, so 192/2 fills 48 pairs from stripe 0 while 192/32 fills 3 and moves on.
+Relaxing the grammar would let a renderer write `[3*(TEMPLATE_lines/2)]` instead of
+enumerating extents, which is a genuine readability win at a handful of sites, and it
+would reduce the table count not at all.
+
+The bound now checks the layout dependence directly: it finds the one pair of
+configurations that share a pairs-per-stripe value (192/16 and 228/19, both P=6),
+confirms their feeds still differ because the region length differs, and fails if
+they ever match.  So the claim is derived rather than asserted, and the two distinct
+causes stay distinct in the bound, its regression, and this record.
+
+The general lesson: I reached for a nearby explanation that was mechanically true
+rather than the one that was actually load-bearing, and I put it in writing where the
+next session would have taken it as settled.
+
+2026-10-06 17:20:00 PDT, two test-harness defects the user found
+
+A concurrent run in a different checkout failed with "could not read the reference
+RAM footprint" from stripe_generic_feed_source_bound.pl.  Both defects were mine,
+in one file, and both are now regressions.
+
+Discarded exit code.  The bound called the driver as `my(undef,$refout)=capture(...)`
+and never checked the result, then parsed $refout for the MEMORY USAGE block.  So
+ANY driver failure -- missing binary, stale build, link error, a collision-induced
+failure -- surfaced as a complaint about the RAM footprint, which names a symptom
+rather than a cause.  Reproduced exactly by pointing the bound at a tree whose driver
+exits 3 with a message on stderr: it printed the RAM complaint, not "exit 3" and not
+the driver's own text.  That misdiagnosis is worse than the failure it was hiding,
+because it points the next person at the wrong file.  Both driver invocations now
+check the exit code and carry stderr into every diagnostic.
+
+Shared scratch paths.  The bound wrote to FIXED names in the shared system temporary
+directory -- feed_source_stripes2.{bin,map} and feed_source_derived.{bin,map} -- so
+two people running the suite in separate directories overwrote each other's outputs
+mid-build.  The three test runners all correctly use the caller-supplied $tmp; the
+bound ignored it and invented its own.  It now takes VCSC_ALL_FIVE_TMP and falls back
+to a private mkdtemp directory when run standalone.
+
+The collision was wider than I first thought and worth recording: the driver derives
+sidecars from the output path, so each build leaves .bin, .map, .cfg, .lst and .sym,
+ten files in all, and the .lst runs to about 350KB.  My first version of the
+regression named only .map and .bin and would have missed all of the others, so it now
+checks the whole feed_source_* family.  Both regressions were proved by reintroducing
+each defect and confirming the runner fails.
+
+Worth noting how this was found: the user was running tests at the same time in
+another directory and asked whether that could interfere.  I had answered "no, and
+here is why" -- correctly about the three collision-proof mechanisms -- and then
+committed a shared-path bug in the very code I had just written.  The generalisation I
+gave was right; applying it to my own new code was not.
+
+SEPARATE, PRE-EXISTING, NOT FIXED HERE.  22 Stella runners choose an X display by
+`my$display=250+($$%20); $display++ while -e "/tmp/.X11-unix/X$display";` which is
+check-then-create and therefore a real race between concurrent runs.  PIDs differing
+by a multiple of 20 start probing at the same display, so two suites can pick the same
+one.  That is a plausible source of intermittent Stella failures when two people run
+at once, and it is unrelated to this session's changes, so it is recorded rather than
+fixed here -- 22 files late in a session is not the place to refactor display
+allocation.  It deserves its own change, ideally an atomic reservation.
+
+Next, per stripes item 1: emit the rolling machine in all_five.c26 behind a focused
+probe, reading the feeds at Y = region-1-q.  The tables and their bytes are done;
+what is left is the raster body.  The renderer needs per-configuration feed tables
+because the content depends on the data layout, not because of any array-size limit.
+
+2026-10-06 19:33:12 PDT, X display allocation made atomic
+The user asked for the 22-runner display race to be fixed so they could run tests
+while this tree was being worked on, and added that the two of us are different
+accounts in different directories sharing /tmp and the same X server and display.
+
+The pattern was `my$display=250+($$%20); $display++ while -e "/tmp/.X11-unix/X$display";`
+in all 22 runners, across six different base ranges and four spans.  Check-then-create,
+so two processes can both see a number free and both start a server on it.  Measured:
+with the pid bucket forced to collide, two of three Xvfb instances died with exit 1.
+The modulo is a second, independent defect: any two pids a multiple of the span apart
+start probing at the same number.
+
+I first assumed a stale `/tmp/.X<N>-lock` was the likely real-world cause, because it
+would be a deterministic failure rather than a race.  That was wrong: after SIGKILL
+the socket file survives, so the allocator skips that display and Xvfb cleans the stale
+lock itself.  Both self-heal.  Recorded because I asserted it before testing it.
+
+It stayed invisible because nothing verified that Xvfb came up, so a run continued
+against a dead display and failed later as an unrelated Stella error.  That
+indirection is the reason it survived in the tree.
+
+The fix is an O_CREAT|O_EXCL reservation file per display in /tmp, the one atomic
+primitive available there.  Displays already carrying a X socket are skipped outright,
+which is what covers the other account's server and an interactive session -- those
+are not addressed through a reservation at all.  Display base and span are preserved
+exactly in all 22 files; the four runners that start one server per case now claim per
+iteration instead of carrying a counter across.
+
+Ownership had to be recorded, because a reservation cannot be reclaimed blindly.  Two
+subtleties, both of which I got wrong first:
+
+- I wrote the cross-account case as "different account means dead", which makes
+  kill(0) decide, and kill(0) answers only for our own processes -- so the first
+  version STOLE a live foreign reservation.  A foreign claim is un-testable and is
+  retired by age instead; VCSC_X_RESERVATION_TTL bounds how long a killed run in
+  another account can hide a display.
+
+- The second was found by the new regression, not by reading.  sysopen creates the
+  file and Perl flushes the owner record at close, so a peer can read the claim while
+  it is still empty.  My liveness check read that as "owner gone", unlinked a live
+  claim and took the same display: five concurrent claims landing on one display, in
+  five runs out of five.  The fix is that a claim which exists but does not parse is
+  not evidence of a dead owner, only its age can retire it.  This is the same race the
+  mechanism exists to remove, reintroduced one layer down.
+
+Each runner now also asserts the server is accepting connections before pointing
+itself at the display.  It connects rather than testing for the socket file, because
+Xvfb creates the file slightly before it listens.  A reservation makes a display
+unique; it cannot make a server start.
+
+TWO TRAPS IN THE END BLOCK, both live bugs that shipped in my first working version:
+
+- An END block reaping registered servers poisoned the exit status of all 22 runners.
+  waitpid on an already-reaped child returns -1 and sets $? to -1, and a $? assigned
+  inside END becomes the process exit status, overriding even an explicit exit 0.  Every
+  converted runner printed its success line and exited 255.  $? is now saved and
+  restored.
+
+- The suite did not catch it.  make test aborts on the first failing phase, the failure
+  was in the compile phase, and the e2e phase that actually runs these 22 tests never
+  started.  My per-test verification had also been reading only the last line of
+  stdout and never the exit code, so it reported 22/22 green while all 22 exited 255.
+  Checking exit codes is now part of how I validate a converted runner.
+
+`test/vcs_stella_x_display_allocation.pl` owns the behaviour without needing Xvfb or
+Stella, so it stays in the compile phase: socketed displays refused, exhaustion names
+the range, the four ownership cases distinguished, twelve simultaneous claims in a
+twelve-wide range all distinct and leaving nothing behind, a server that exits or never
+listens reported with its display and status, plus a contract scan that fails if any
+runner reintroduces the old probe or starts Xvfb without asserting it came up.  Both
+halves of the scan were confirmed to fire, and the contention check was confirmed to
+fire against a deliberately de-atomicised allocator.  The contention check itself was
+wrong twice before it was right: a fixed hold let early claims release before late ones
+arrived, so reuse read as a collision, and the parent's poll could read a torn append
+and satisfy the barrier early.
+
+Full suite green at 4f4ec9e5: 586 compile, 443 e2e.  Eight concurrent runs across
+different tests and eight concurrent copies of one test all exit 0 with no leftover
+reservations or servers.  Commit 4f4ec9e5; handoff /tmp/vcsc.20261007_023245.tar.gz.

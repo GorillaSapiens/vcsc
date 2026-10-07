@@ -243,17 +243,17 @@ if ($stella_mode) {
    my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "3F/3E Stella certification requires Xvfb\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
-   my $display_num=220+($$%20);
    for my $c (@cases) {
       my $m=$c->{mapper}; my $lc=lc($m);
-      $display_num++ while -e "/tmp/.X11-unix/X$display_num";
-      my $display=':'.$display_num++;
+      my(undef,$display)=vcsc_reserve_x_display(220,20);
       my $root=File::Spec->catdir($tmp,"stella-$lc");
       my $snap=File::Spec->catdir($root,'snap'); my $user=File::Spec->catdir($root,'user'); my $xdg=File::Spec->catdir($root,'xdg');
       make_path($snap,$user,$xdg); unlink glob(File::Spec->catfile($snap,'*.png'));
       my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
       if ($xpid==0) { open(STDOUT,'>',File::Spec->catfile($root,'xvfb.log')) or die $!; open(STDERR,'>&STDOUT') or die $!; exec($xvfb,$display,'-ac','-screen','0','1024x768x24'); die "exec Xvfb: $!\n"; }
       select undef,undef,undef,0.20;
+      # Fail here, not later inside Stella, if the X server did not come up.
+      vcsc_xvfb_assert_ready($display,$xpid);
       local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$root;
       local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
       my $pid=fork(); defined($pid) or die "fork Stella: $!\n";

@@ -23,7 +23,9 @@ bool encode_integer_literal_text(const char *text, unsigned char *buf, int size,
 bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf, int size, const ASTNode *type);
 void emit_initializer_bytes_line(EmitSink *sink, const unsigned char *bytes, int size);
 bool global_initializer_is_all_zero(const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size);
-bool emit_global_initializer(EmitSink *sink, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size);
+bool emit_global_initializer(EmitSink *sink, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size, unsigned char **link_time_bytes);
+void const_link_time_table_record(const char *name, const unsigned char *bytes, int size, int elem_size);
+bool const_link_time_table_byte(const ASTNode *at, const char *name, long long index, long long *out);
 void emit_sink_append(EmitSink *dst, const EmitSink *src);
 void remember_pending_global_init(const char *name, const char *symbol, const ASTNode *type, const ASTNode *declarator,
                                   ASTNode *expression, int size, bool is_zeropage, bool is_absolute_ref,

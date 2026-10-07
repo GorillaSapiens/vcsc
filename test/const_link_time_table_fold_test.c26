@@ -1,0 +1,23 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: must be less than the size of
+
+// A file-scope `const` object whose initializer is a constant expression is
+// folded at link time, and its bytes are then readable as a constant expression
+// by a later declaration.  That makes a table derived from another table link-time
+// ROM data.
+//
+// This test pins the one case that must NOT fold: an element read past the end of
+// the source table.  A constant expression has no runtime bounds check to defer
+// to, so an out-of-range read has to be refused rather than silently reading
+// whatever byte follows the table in link-time data.
+include "machine_6502.c26"
+
+const uint8_t source_table[8] := { 1,2,3,4,5,6,7,8 };
+
+// Source size 8, so index 8 is one past the end.
+const uint8_t out_of_range[2] := { source_table[8], source_table[0] };
+
+void main(void) { }
+
+const uint8_t never_reached[1] := { 0 };

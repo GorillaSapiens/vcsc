@@ -156,3 +156,184 @@ cannot be vacuous.
 
 Final state: make unit 582/582; make test 438/439 with vcsc_branding.pl the only
 failure, being the pre-existing one above.
+
+2026-10-04 22:21:34 PDT, pin the feed ROM cost, reframe the blocker
+
+Corrected a claim made in review: I said the feeds were disproportionate at
+small N as if the feed scaled with the stripe count.  It does not.  The feed is
+3*(lines/2) bytes, one byte from each of three feeds per renderer pair, so it is
+identical for every N at a given line count: 288 bytes at 192 lines whether N is 2
+or 32.  Logical data is 8*N.  So a smaller stripe count carries less data but the
+same feed, which is the opposite of the intuitive direction.  At N=32 the feed is
+nearly free (only 32 spare feed2 pair-2 slots); at N=2 it carries 16 bytes of data
+in 288 bytes of ROM.
+
+Measured the real budget rather than guessing: the maintained two-stripe 192-line
+example uses 3704 of 4090 bytes, 386 free.  A 288-byte feed fits and leaves 98,
+which cannot hold a machine body.
+
+This makes the addressing choice, not the six-scanline timing, the binding
+constraint on the emit.  stripe_generic_rom_bound.pl and its regression record the
+arithmetic and pin both the scaling rule and the headroom figure.
+
+Open question the emit now depends on: always use pair-indexed feeds, or derive
+addressing from (lines, stripes) and skip the feed when stripes are tall?  A
+stripe-major index needs no division, because the supercycle body is unrolled to
+lcm(P,8) pairs so the stripe advance sits at a fixed offset with no runtime
+modulus; the price is a longer body at small N, not a slower one.  At N=32 the
+feed is affordable and nothing needs to change.
+
+Also: AI.md removed at the owner's direction, clearing the last branding failure,
+so the tree is clean.  abs/same/cross/flex confirmed to stay legal defines on the
+condition that they are never rewritten in a dot-suffixed context such as jmp.abs
+or bne.same; that is current behaviour and is now regression-covered by the
+unchanged hex code image plus a positive control.
+
+2026-10-04 22:58:42 PDT, resolve source addressing by the right budget
+
+The open question was whether the generic machine always uses pair-indexed feeds or
+derives addressing from (lines, stripes) and skips the feed when stripes are tall.
+Resolved by measurement: pair-indexed feeds are correct and uniform, and the
+reasoning that made this look like a blocker was wrong.
+
+The mistake was measuring the 288-byte feed against the 386 free bytes in the
+existing two-stripe build.  Wrong denominator: the generic machine replaces that
+build's stripe machinery rather than being added to it.  Measured properly by
+differencing the two maintained builds of examples/04_renderers/all_five/stripes:
+
+  stripes:=0   1287 bytes
+  stripes:=2   3704 bytes
+  prototype    2417 bytes
+
+The stripes=2 prototype alone occupies 2417 bytes, so a 288-byte feed fits inside
+what it replaces and leaves 2129 bytes for the generic body at the tightest stripe
+count.  There was never a small-N ROM problem.
+
+Consequences: pair-indexed feeds stay, so the architecture keeps ONE implementation
+with no geometry-based branch, no per-stripe pointer, no wrap test, and none of the
+register pressure a stripe-data pointer would have introduced against the live
+player Y.  The feed is still 3*(lines/2) and still independent of N, now recorded
+as a property rather than a problem.  The six-scanline timing is the binding
+constraint on the emit again, which is where the roadmap always said it was.
+
+Corrected stripe_generic_rom_bound.pl, which had encoded the wrong conclusion as a
+checked invariant, and its regression, which had pinned the false claim.  Both ROM
+figures are pinned so the arithmetic cannot drift silently, and the bound keeps the
+correction visible in its own output because the wrong reasoning is exactly what
+gets re-derived by the next reader.
+
+Emit is unblocked and not started.  First step is the three feed tables, derived at
+runtime in init() from playfield_colors and playfield_data: the compiler supports
+no arithmetic in array sizes and no #define, so the transposition cannot be a
+compile-time initialiser.  The write index is pairs-1-3s and decreases by three per
+stripe, so the builder needs no division.
+
+2026-10-04 23:14:02 PDT, array bounds take a bare literal
+
+Re-verified the "no arithmetic in array sizes" claim after it was challenged, and
+located the authority.  compiler/parser.y:519 is the only array-bound production:
+
+  | direct_declarator '[' INTEGER ']'
+
+A single bare INTEGER token with no alternative rule, so [2+2], [N*6], [k] and
+[sizeof(uint8_t)] are all parse errors.  Measured: [4] accepted; [2 + 2], [2 * 2],
+[8 / 2], [1 << 3], [sizeof(uint8_t)] and [6 - 2] all rejected; a named constant is
+rejected too.
+
+This is consistent across every compile-time integer slot in the language, which
+all take a bare INTEGER: parameter defaults (317), xform items (344), identifier
+assignment (385), bitfield width (470), the @ form (475) and array bounds (519).
+So "compile-time integer positions take a literal" is a language-wide property
+rather than an oversight in the array case.
+
+Important nuance that corrects my own earlier wording.  Runtime subscripting with a
+computed value IS supported, at parser.y:753:
+
+  | postfix_lvalue_core '[' expr ']'
+
+So a[i] with a runtime index is fine.  Only the declared BOUND must be a literal.
+That distinction matters for the feed: the bound is 3*(lines/2), a compile-time
+function of TEMPLATE_lines, and the renderer already handles exactly this by
+declaring per-mode literal bounds, as with TEMPLATE_playfield[48] / [60] / [44] /
+[40].  The feed follows the existing convention and needs no new mechanism for its
+size.
+
+What genuinely cannot be done at compile time is the CONTENTS: the feed is a
+transposition of user-supplied playfield_data, so it must be built at runtime in
+init(), which is not beam-sensitive.  The earlier phrasing conflated the bound with
+the initialiser; only the initialiser is the real constraint.  Whether array bounds
+should accept constant expressions is a reasonable language question, but it would
+touch every compile-time integer slot and belongs in its own change rather than in
+the stripes work.
+
+2026-10-04 23:41:37 PDT, settle the feed source and the real blocker
+
+Continued the stripes emit.  The recorded first step was "the three feed tables,
+derived at runtime in init() from playfield_colors and playfield_data".  That cannot
+be executed, and finding out why turned out to be the useful part of the session,
+because the blocker it exposes is real and the rest of the emit plan is sound.
+
+Added libraries/vcs/renderers/all_five/stripe_generic_feed_source_bound.pl plus
+test/vcs_all_five_stripe_generic_feed_source.pl and the fixture it builds
+(test/fixtures/all_five_stripe_feed/derived_ro_probe.c26).  Five parts, all
+executable:
+
+* The layout generalises.  The maintained proof only covered (192,32); it now holds
+  for any region R = N*P with P >= 3.  Pair q reads one index Y = R-1-q from each of
+  three tables, pair 0 and pair 1 carry a colour plus two PF bytes and pair 2 carries
+  two, and pairs p >= 3 carry nothing.  So 3*P >= 8 forces P >= 3, which is the same
+  constraint stripe_generic_geometry_bound.pl reaches from six scanlines; the two
+  derivations are written so they cannot disagree.  All 18 legal equal splits across
+  170/181/192/228 are covered, plus the 181 partial region, and (192,32) still
+  reproduces stripe32_feed_layout.pl at 288 bytes with 32 spare slots.
+
+* The tables are load-bearing, not a convenience.  stripe32_record_common_index_bound.pl
+  had rejected the form where X permanently holds the record offset.  The other
+  obvious form -- a zero-page record pointer with a compile-time field offset, so no X
+  pressure and no division -- had never been searched.  Searched now, one read at a
+  time (libraries/vcs/renderers/all_five/stripe_feed_pointer_source_search.pl), and all
+  three fail in their own window: the colour read in p0_a_visible, the even PF read in
+  p0_p1_feed, the odd PF read in p0_p0_mid.  The 152-cycle pair has no slack where a
+  record read would have to sit, so the raster cannot read the record in any form.
+
+* They cannot be RAM.  Measured, not assumed: 3*96 = 288 bytes against 103 used and
+  25 free in the reference stripes=2 build, 26 bytes of stripe scratch in 11 objects
+  to free, and 128 bytes of cartridge RAM in total.  Even the best case is 77.
+
+* They cannot be derived into ROM.  A file-scope `const` object whose initializer is
+  nothing but element reads of another `const` object is placed in BSS and copied by
+  startup, not in RODATA.  Confirmed both in a plain file and inside an instantiated
+  template reading an extern const record, so declaration order is not the obstacle;
+  the missing fold is.  A related trap found on the way: `page const` only helps a
+  table whose initializer is a link-time constant.  A 96-byte `page const` table
+  initialized from another array lands in BSS and overflows the cartridge RAM.
+
+* Containment for the fixed-cost reads is already available.  Three 96-byte
+  `page const` tables are placed page-contained ($F100, $F160, $F200 in the probe) and
+  the linker enforces it via .pagecontain, so that is not a second blocker.
+
+So the blocker is the feed's ORIGIN, not the six-scanline timing and not the ROM
+budget, both of which stay where the roadmap always put them.  Two ways out: fold
+`const` element reads into link-time ROM initializers, which keeps the eight-byte
+authoring ABI and costs no cycles and no RAM, or change the authoring form to
+something already pair-indexed, which removes the derivation but makes the public
+data unreadable.  Took the first and recorded it as stripes item 0, scoped and
+non-breaking: the change can only move a table from RAM to ROM, the sole risk is
+source-before-derived ordering, and the existing example-then-instantiate order
+already satisfies it.  The new bound FAILS when that change lands, which is the
+intended signal to re-derive the renderer side.
+
+Not attempted: implementing the compiler change itself.  It touches the constant
+initializer folder and the startup path selection, so it wants its own session with
+`make unit` and the full suite behind it rather than being slipped into a renderer
+workstream.  Scoped for that session: no program in the tree initializes a `const`
+object from another `const` object's element reads, so the fold moves nothing that
+exists today and its blast radius is zero; the fold point is
+eval_constant_initializer_expr_resolved in compiler/compile_init.c, reached from
+build_initializer_bytes, and the AST shape to match is an `lvalue` whose second child
+is a `[` node, which direct_single_subscript_expr already extracts.
+
+Verified: the new runner passes through test.pl; stripe geometry compile, generic
+geometry, generic ROM bound, feed layout, supercycle event compose, six-line machine
+and stripes2_192 all still pass; source tree hygiene ok; and the full suite is clean
+at 441/441.

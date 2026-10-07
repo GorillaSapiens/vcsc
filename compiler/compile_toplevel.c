@@ -1306,6 +1306,7 @@ void compile_global_decl_item(ASTNode *node) {
    validate_global_object_region_modifiers(node, modifiers, declarator, name);
    ASTNode *uexpr;
    EmitSink init_es = EMIT_INIT;
+   unsigned char *link_time_bytes = NULL;
 
    if (has_modifier(modifiers, "inline")) {
       error_user("[%s:%d.%d] 'inline' applies only to function declarations and definitions",
@@ -1534,7 +1535,23 @@ void compile_global_decl_item(ASTNode *node) {
          return;
       }
 
-      if (emit_global_initializer(&init_es, type, declarator, uexpr ? uexpr : expression, size)) {
+      if (emit_global_initializer(&init_es, type, declarator, uexpr ? uexpr : expression, size,
+                                  &link_time_bytes)) {
+         /* Record ONLY an ordinary read-only object in default ROM.  A `const`
+          * object in a NAMED memory region is excluded on purpose: there the byte's
+          * addressability is itself the contract, not just its value.  Folding a
+          * read of a data-only object would erase the very reference the linker
+          * diagnoses (a data-only bank has no 6507 address), turning an illegal
+          * program into a legal one.  Split regions, absolute bindings and swapram
+          * are excluded for the same reason: their reads carry address meaning that
+          * a constant cannot.  So the fold applies to plain ROM data only, which is
+          * what the stripe feed tables are. */
+         if (link_time_bytes && is_const && !is_zeropage && region_count == 0 &&
+             !is_absolute_binding && !is_noinit) {
+            const_link_time_table_record(name, link_time_bytes, size,
+                                         declarator_first_element_size(type, declarator));
+         }
+         free(link_time_bytes);
          if (is_zeropage) {
             char segbuf[256];
             build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");

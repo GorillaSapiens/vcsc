@@ -57,9 +57,11 @@ void main(void) {
 }
 SRC
    ok("build $standard frame",$driver,'-I',$vcs,$src,'-o',$rom);
-   my$display=320+($$%40); $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display";
+   my(undef,$d)=vcsc_reserve_x_display(320,40);
    my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/$standard.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
    select undef,undef,undef,.2;
+   # Fail here, not later inside Stella, if the X server did not come up.
+   vcsc_xvfb_assert_ready($d,$xpid);
    local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}="$tmp/home-$standard"; local$ENV{SDL_AUDIODRIVER}='dummy'; make_path($ENV{HOME});
    my$snap="$tmp/snap-$standard"; my$user="$tmp/user-$standard"; make_path($snap,$user); unlink glob("$snap/*.png");
    my$format=$standard eq 'pal' ? 'PAL' : 'SECAM';

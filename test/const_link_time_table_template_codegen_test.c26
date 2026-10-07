@@ -1,0 +1,27 @@
+// vcsc-cc1 -I .
+// The link-time table fold has to work INSIDE an instantiated template, because
+// that is the only place the stripe renderer declares its feed tables: the record
+// is authored by the program under the instantiated name, and the derived tables
+// are declared by the renderer body under the template name.
+//
+// This is a separate fixture from const_link_time_table_codegen_test.c26 for that
+// reason.  A fold that only worked in a flat translation unit would pass that one
+// and fail the real renderer.
+//
+// The fold itself is asserted by test/vcs_const_link_time_table.pl, which builds
+// this through a real link and checks the emitted cartridge bytes, the page
+// containment, and the RAM cost.  This file exists so the case is compiled by the
+// ordinary suite as well, and so the shape stays documented next to the template.
+
+include "machine_6502.c26"
+
+// The public record, in the instantiated name a program authors.
+const uint8_t game_record[8] := { 0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88 };
+
+extern uint8_t game_draw(void);
+
+instantiate "fixtures/templates/const_link_time_table.c26" as game
+
+void main(void) {
+   game_draw();
+}

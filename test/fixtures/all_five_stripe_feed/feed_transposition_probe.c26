@@ -1,0 +1,142 @@
+// This file is covered under CC0-1.0. See test/LICENSE.txt.
+
+// The (192,32) pair-indexed feed tables, written exactly as the generic renderer
+// will declare them: derived from the public eight-byte stripe record, page
+// contained, one index per renderer pair.
+//
+// This is a PROBE fixture, not a renderer.  It exists so the feed's origin can be
+// proved by building the real thing and reading the emitted ROM bytes, rather than
+// by reasoning about a table nobody has compiled:
+//
+//   * stripe_generic_feed_source_bound.pl owns the layout these tables encode and
+//     checks that the bytes below match it.
+//   * test/vcs_all_five_stripe_feed_tables.pl builds the file, checks the ROM
+//     bytes, the page containment, and the index coverage.
+//
+// Y = region-1-q indexes pair q of the region, and region is 96 pairs at 192 lines
+// with 32 stripes of three pairs each.  So Y counts 95..0 and the read at pair q is
+// feedN[Y].  There is no stripe index and no division anywhere: which record field
+// lands in which slot is decided here, at build time.
+//
+// The three tables are 288 bytes and cost nothing at run time.  feed2's
+// pair-2 slots are unused, which is why it is 96 bytes rather than 64.
+include "vcs.c26"
+
+// Logical record per stripe: C0, C1, PF0, PF1, PF2, PF3, PF4, PF5.
+const uint8_t game_playfield_colors[64] := {
+   0x9e, 0x14, 0xae, 0x24, 0xbe, 0x34, 0xce, 0x44,
+   0xde, 0x54, 0xee, 0x64, 0xfe, 0x74, 0x0e, 0x84,
+   0x1e, 0x94, 0x2e, 0xa4, 0x3e, 0xb4, 0x4e, 0xc4,
+   0x5e, 0xd4, 0x6e, 0xe4, 0x7e, 0xf4, 0x9e, 0x14,
+   0xae, 0x24, 0xbe, 0x34, 0xce, 0x44, 0xde, 0x54,
+   0xee, 0x64, 0xfe, 0x74, 0x0e, 0x84, 0x1e, 0x94,
+   0x2e, 0xa4, 0x3e, 0xb4, 0x4e, 0xc4, 0x5e, 0xd4,
+   0x6e, 0xe4, 0x7e, 0xf4, 0x9e, 0x14, 0xae, 0x24
+};
+
+const uint8_t game_playfield_data[192] := {
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa,
+   0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa, 0xf0, 0xaa, 0x55, 0xf0, 0x55, 0xaa
+};
+
+// Y = R-1-q: colour C0 (p==0), C1 (p==1), or PF4 (p==2) of stripe s+1
+page const uint8_t feed0[96] := {
+   game_playfield_data[   4]   , game_playfield_colors[  1]  , game_playfield_colors[  0]  , game_playfield_data[ 190],
+   game_playfield_colors[ 63]  , game_playfield_colors[ 62]  , game_playfield_data[ 184]   , game_playfield_colors[ 61],
+   game_playfield_colors[ 60]  , game_playfield_data[ 178]   , game_playfield_colors[ 59]  , game_playfield_colors[ 58],
+   game_playfield_data[ 172]   , game_playfield_colors[ 57]  , game_playfield_colors[ 56]  , game_playfield_data[ 166],
+   game_playfield_colors[ 55]  , game_playfield_colors[ 54]  , game_playfield_data[ 160]   , game_playfield_colors[ 53],
+   game_playfield_colors[ 52]  , game_playfield_data[ 154]   , game_playfield_colors[ 51]  , game_playfield_colors[ 50],
+   game_playfield_data[ 148]   , game_playfield_colors[ 49]  , game_playfield_colors[ 48]  , game_playfield_data[ 142],
+   game_playfield_colors[ 47]  , game_playfield_colors[ 46]  , game_playfield_data[ 136]   , game_playfield_colors[ 45],
+   game_playfield_colors[ 44]  , game_playfield_data[ 130]   , game_playfield_colors[ 43]  , game_playfield_colors[ 42],
+   game_playfield_data[ 124]   , game_playfield_colors[ 41]  , game_playfield_colors[ 40]  , game_playfield_data[ 118],
+   game_playfield_colors[ 39]  , game_playfield_colors[ 38]  , game_playfield_data[ 112]   , game_playfield_colors[ 37],
+   game_playfield_colors[ 36]  , game_playfield_data[ 106]   , game_playfield_colors[ 35]  , game_playfield_colors[ 34],
+   game_playfield_data[ 100]   , game_playfield_colors[ 33]  , game_playfield_colors[ 32]  , game_playfield_data[  94],
+   game_playfield_colors[ 31]  , game_playfield_colors[ 30]  , game_playfield_data[  88]   , game_playfield_colors[ 29],
+   game_playfield_colors[ 28]  , game_playfield_data[  82]   , game_playfield_colors[ 27]  , game_playfield_colors[ 26],
+   game_playfield_data[  76]   , game_playfield_colors[ 25]  , game_playfield_colors[ 24]  , game_playfield_data[  70],
+   game_playfield_colors[ 23]  , game_playfield_colors[ 22]  , game_playfield_data[  64]   , game_playfield_colors[ 21],
+   game_playfield_colors[ 20]  , game_playfield_data[  58]   , game_playfield_colors[ 19]  , game_playfield_colors[ 18],
+   game_playfield_data[  52]   , game_playfield_colors[ 17]  , game_playfield_colors[ 16]  , game_playfield_data[  46],
+   game_playfield_colors[ 15]  , game_playfield_colors[ 14]  , game_playfield_data[  40]   , game_playfield_colors[ 13],
+   game_playfield_colors[ 12]  , game_playfield_data[  34]   , game_playfield_colors[ 11]  , game_playfield_colors[ 10],
+   game_playfield_data[  28]   , game_playfield_colors[  9]  , game_playfield_colors[  8]  , game_playfield_data[  22],
+   game_playfield_colors[  7]  , game_playfield_colors[  6]  , game_playfield_data[  16]   , game_playfield_colors[  5],
+   game_playfield_colors[  4]  , game_playfield_data[  10]   , game_playfield_colors[  3]  , game_playfield_colors[  2]
+};
+// Y = R-1-q: PF0 (p==0), PF2 (p==1), or PF5 (p==2) of stripe s+1
+page const uint8_t feed1[96] := {
+   game_playfield_data[   5]   , game_playfield_data[   2]   , game_playfield_data[   0]   , game_playfield_data[ 191],
+   game_playfield_data[ 188]   , game_playfield_data[ 186]   , game_playfield_data[ 185]   , game_playfield_data[ 182],
+   game_playfield_data[ 180]   , game_playfield_data[ 179]   , game_playfield_data[ 176]   , game_playfield_data[ 174],
+   game_playfield_data[ 173]   , game_playfield_data[ 170]   , game_playfield_data[ 168]   , game_playfield_data[ 167],
+   game_playfield_data[ 164]   , game_playfield_data[ 162]   , game_playfield_data[ 161]   , game_playfield_data[ 158],
+   game_playfield_data[ 156]   , game_playfield_data[ 155]   , game_playfield_data[ 152]   , game_playfield_data[ 150],
+   game_playfield_data[ 149]   , game_playfield_data[ 146]   , game_playfield_data[ 144]   , game_playfield_data[ 143],
+   game_playfield_data[ 140]   , game_playfield_data[ 138]   , game_playfield_data[ 137]   , game_playfield_data[ 134],
+   game_playfield_data[ 132]   , game_playfield_data[ 131]   , game_playfield_data[ 128]   , game_playfield_data[ 126],
+   game_playfield_data[ 125]   , game_playfield_data[ 122]   , game_playfield_data[ 120]   , game_playfield_data[ 119],
+   game_playfield_data[ 116]   , game_playfield_data[ 114]   , game_playfield_data[ 113]   , game_playfield_data[ 110],
+   game_playfield_data[ 108]   , game_playfield_data[ 107]   , game_playfield_data[ 104]   , game_playfield_data[ 102],
+   game_playfield_data[ 101]   , game_playfield_data[  98]   , game_playfield_data[  96]   , game_playfield_data[  95],
+   game_playfield_data[  92]   , game_playfield_data[  90]   , game_playfield_data[  89]   , game_playfield_data[  86],
+   game_playfield_data[  84]   , game_playfield_data[  83]   , game_playfield_data[  80]   , game_playfield_data[  78],
+   game_playfield_data[  77]   , game_playfield_data[  74]   , game_playfield_data[  72]   , game_playfield_data[  71],
+   game_playfield_data[  68]   , game_playfield_data[  66]   , game_playfield_data[  65]   , game_playfield_data[  62],
+   game_playfield_data[  60]   , game_playfield_data[  59]   , game_playfield_data[  56]   , game_playfield_data[  54],
+   game_playfield_data[  53]   , game_playfield_data[  50]   , game_playfield_data[  48]   , game_playfield_data[  47],
+   game_playfield_data[  44]   , game_playfield_data[  42]   , game_playfield_data[  41]   , game_playfield_data[  38],
+   game_playfield_data[  36]   , game_playfield_data[  35]   , game_playfield_data[  32]   , game_playfield_data[  30],
+   game_playfield_data[  29]   , game_playfield_data[  26]   , game_playfield_data[  24]   , game_playfield_data[  23],
+   game_playfield_data[  20]   , game_playfield_data[  18]   , game_playfield_data[  17]   , game_playfield_data[  14],
+   game_playfield_data[  12]   , game_playfield_data[  11]   , game_playfield_data[   8]   , game_playfield_data[   6]
+};
+// Y = R-1-q: PF1 (p==0) or PF3 (p==1) of stripe s+1; pair 2 has no third byte
+page const uint8_t feed2[96] := {
+   0                           , game_playfield_data[   3]   , game_playfield_data[   1]   , 0,
+   game_playfield_data[ 189]   , game_playfield_data[ 187]   , 0                           , game_playfield_data[ 183],
+   game_playfield_data[ 181]   , 0                           , game_playfield_data[ 177]   , game_playfield_data[ 175],
+   0                           , game_playfield_data[ 171]   , game_playfield_data[ 169]   , 0,
+   game_playfield_data[ 165]   , game_playfield_data[ 163]   , 0                           , game_playfield_data[ 159],
+   game_playfield_data[ 157]   , 0                           , game_playfield_data[ 153]   , game_playfield_data[ 151],
+   0                           , game_playfield_data[ 147]   , game_playfield_data[ 145]   , 0,
+   game_playfield_data[ 141]   , game_playfield_data[ 139]   , 0                           , game_playfield_data[ 135],
+   game_playfield_data[ 133]   , 0                           , game_playfield_data[ 129]   , game_playfield_data[ 127],
+   0                           , game_playfield_data[ 123]   , game_playfield_data[ 121]   , 0,
+   game_playfield_data[ 117]   , game_playfield_data[ 115]   , 0                           , game_playfield_data[ 111],
+   game_playfield_data[ 109]   , 0                           , game_playfield_data[ 105]   , game_playfield_data[ 103],
+   0                           , game_playfield_data[  99]   , game_playfield_data[  97]   , 0,
+   game_playfield_data[  93]   , game_playfield_data[  91]   , 0                           , game_playfield_data[  87],
+   game_playfield_data[  85]   , 0                           , game_playfield_data[  81]   , game_playfield_data[  79],
+   0                           , game_playfield_data[  75]   , game_playfield_data[  73]   , 0,
+   game_playfield_data[  69]   , game_playfield_data[  67]   , 0                           , game_playfield_data[  63],
+   game_playfield_data[  61]   , 0                           , game_playfield_data[  57]   , game_playfield_data[  55],
+   0                           , game_playfield_data[  51]   , game_playfield_data[  49]   , 0,
+   game_playfield_data[  45]   , game_playfield_data[  43]   , 0                           , game_playfield_data[  39],
+   game_playfield_data[  37]   , 0                           , game_playfield_data[  33]   , game_playfield_data[  31],
+   0                           , game_playfield_data[  27]   , game_playfield_data[  25]   , 0,
+   game_playfield_data[  21]   , game_playfield_data[  19]   , 0                           , game_playfield_data[  15],
+   game_playfield_data[  13]   , 0                           , game_playfield_data[   9]   , game_playfield_data[   7]
+};
+
+void main(void) {
+   VBLANK := 2;
+   while (1) {
+   }
+}

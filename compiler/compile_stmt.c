@@ -3421,7 +3421,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
             return;
          }
 
-         if (emit_global_initializer(&init_es, type, declarator, expression, size)) {
+         if (emit_global_initializer(&init_es, type, declarator, expression, size, NULL)) {
             if (entry->is_zeropage) {
                char segbuf[256];
                sink = &es_zpdata;

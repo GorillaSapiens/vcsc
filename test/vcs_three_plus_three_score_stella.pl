@@ -36,11 +36,13 @@ my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 my $rom=File::Spec->catfile($tmp,'three_plus_three_score.bin');
 ok('build three-plus-three score',$driver,'-I',$vcs,$source,'-o',$rom);
 
-my $display=180+($$%50); $display++ while -e "/tmp/.X11-unix/X$display";
+my($display)=vcsc_reserve_x_display(180,50);
 my $d=":$display";
 my $xpid=fork(); defined$xpid or die "fork Xvfb\n";
 if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
 select undef,undef,undef,.2;
+# Fail here, not later inside Stella, if the X server did not come up.
+vcsc_xvfb_assert_ready($d,$xpid);
 local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user); unlink glob("$snap/*.png");
 my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',

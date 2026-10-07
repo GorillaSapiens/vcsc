@@ -42,12 +42,99 @@ typedef struct PendingGlobalInit {
 
 static PendingGlobalInit *pending_global_inits = NULL;
 
+/* A file-scope `const` object whose initializer was folded entirely at link time
+ * is a compile-time constant, not merely a read-only runtime table.  Recording its
+ * link-time bytes lets a later declaration read one of those bytes as a constant
+ * expression, so a table DERIVED from another table is itself link-time data
+ * instead of a RAM object plus a startup copy.
+ *
+ * Only byte-granular objects are recorded.  A wider element type would need its
+ * own decode and sign handling to yield a value rather than a byte, and nothing
+ * needs that yet; an unrecorded object simply keeps today's behaviour, which is a
+ * runtime read. */
+typedef struct {
+   char *name;
+   unsigned char *bytes;
+   int size;
+} ConstLinkTimeTable;
+
+static ConstLinkTimeTable *const_link_time_tables = NULL;
+static int const_link_time_table_count = 0;
+
 /* Keep generated .byte directives comfortably below assembler/source-reader
  * line-buffer limits.  This is an output-format detail; C26 source objects do
  * not need to be split merely to constrain generated S26 line length. */
 #define INITIALIZER_BYTES_PER_ASM_LINE 128
 
 static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_offset, const ASTNode *init, const ASTNode *type, const ASTNode *declarator, int total_size);
+
+//! @brief Record a file-scope `const` object's link-time bytes as a compile-time constant table.
+void const_link_time_table_record(const char *name, const unsigned char *bytes, int size, int elem_size) {
+   ConstLinkTimeTable *items;
+   int i;
+
+   if (!name || !*name || !bytes || size <= 0) {
+      return;
+   }
+   /* Only byte-granular tables are readable as constants here; see the type
+    * comment.  An object of any other element size keeps its runtime-read
+    * behaviour rather than being recorded with a width this code cannot honour. */
+   if (elem_size != 1) {
+      return;
+   }
+   for (i = 0; i < const_link_time_table_count; i++) {
+      if (!strcmp(const_link_time_tables[i].name, name)) {
+         /* A later declaration of the same name supersedes the earlier one, which
+          * is what a redeclaration inside a second instantiation of one template
+          * must see. */
+         free(const_link_time_tables[i].bytes);
+         memcpy(const_link_time_tables[i].bytes, bytes, (size_t) size);
+         const_link_time_tables[i].size = size;
+         return;
+      }
+   }
+   items = (ConstLinkTimeTable *) realloc(const_link_time_tables,
+                                          sizeof(*items) * (size_t) (const_link_time_table_count + 1));
+   if (!items) {
+      error_unreachable("out of memory");
+   }
+   const_link_time_tables = items;
+   items = &const_link_time_tables[const_link_time_table_count++];
+   items->name = strdup(name);
+   items->bytes = (unsigned char *) malloc((size_t) size);
+   if (!items->name || !items->bytes) {
+      error_unreachable("out of memory");
+   }
+   memcpy(items->bytes, bytes, (size_t) size);
+   items->size = size;
+}
+
+//! @brief Read one recorded link-time table byte as a constant value.
+bool const_link_time_table_byte(const ASTNode *at, const char *name, long long index, long long *out) {
+   int i;
+
+   if (!name || !*name || !out || index < 0) {
+      return false;
+   }
+   for (i = 0; i < const_link_time_table_count; i++) {
+      if (strcmp(const_link_time_tables[i].name, name)) {
+         continue;
+      }
+      if (index >= (long long) const_link_time_tables[i].size) {
+         /* Out of range.  A constant expression has no runtime bounds check left
+          * to defer to, so this is refused rather than folded to whatever byte
+          * would follow the table in link-time data. */
+         error_user("[%s:%d.%d] constant read index %lld must be less than the size of link-time table '%s' (%d)",
+                    at && at->file ? at->file : "<unknown>",
+                    at ? at->line : 0, at ? at->column : 0,
+                    index, name, const_link_time_tables[i].size);
+         return false;
+      }
+      *out = (long long) const_link_time_tables[i].bytes[(size_t) index];
+      return true;
+   }
+   return false;
+}
 
 //! @brief Return whether a constant initializer explicitly names a packed-BCD type.
 static bool initializer_expr_mentions_bcd_type(const ASTNode *expr) {
@@ -427,6 +514,33 @@ bool eval_constant_initializer_expr_resolved(ASTNode *expr, InitConstValue *out,
 
    if (!strcmp(expr->name, "()") && builtin_call_result_type_name(expr)) {
       return builtin_eval_constant_call(expr, out);
+   }
+
+   /* A single-subscript read of a file-scope `const` object that was itself
+    * folded at link time is a compile-time constant.  Folding it here rather than
+    * in the caller's initializer walk is what lets the result compose with the
+    * surrounding constant arithmetic, so `src[2]+1` and `src[7]` both fold. */
+   if (!strcmp(expr->name, "lvalue") && expr->count >= 2) {
+      ASTNode *base = expr->children[0];
+      ASTNode *suffix = expr->children[1];
+      const char *table = (base && !strcmp(base->name, "lvalue_base") && base->count > 0 &&
+                           base->children[0] && base->children[0]->kind == AST_IDENTIFIER)
+                             ? base->children[0]->strval : NULL;
+
+      if (table && suffix && !strcmp(suffix->name, "[") && suffix->count >= 2 &&
+          is_empty(suffix->children[0])) {
+         InitConstValue index = {0};
+         long long byte = 0;
+
+         if (eval_constant_initializer_expr_resolved((ASTNode *) unwrap_expr_node(suffix->children[1]),
+                                                     &index, resolver, resolver_opaque) &&
+             index.kind == INIT_CONST_INT &&
+             const_link_time_table_byte(expr, table, index.i, &byte)) {
+            out->kind = INIT_CONST_INT;
+            out->i = byte;
+            return true;
+         }
+      }
    }
 
    {
@@ -885,13 +999,18 @@ bool global_initializer_is_all_zero(const ASTNode *type, const ASTNode *declarat
 }
 
 //! @brief Emit global initializer for compiler initializer lowering diagnostics or output files.
-bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size) {
+bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size,
+                             unsigned char **link_time_bytes) {
    ASTNode *uexpr = (ASTNode *) unwrap_expr_node(expression);
    unsigned char *bytes;
    InitConstValue value = {0};
 
    if (!es || !type || size < 0) {
       return false;
+   }
+
+   if (link_time_bytes) {
+      *link_time_bytes = NULL;
    }
 
    if (uexpr) {
@@ -911,6 +1030,13 @@ bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *d
 
    if (build_initializer_bytes(bytes, size, 0, uexpr ? uexpr : expression, type, declarator, size)) {
       emit_initializer_bytes_line(es, bytes, size);
+      if (link_time_bytes) {
+         /* Hand the bytes to the caller rather than only emitting them: a caller
+          * that owns a file-scope `const` object records them as a compile-time
+          * constant, which is what makes a derived table link-time data too. */
+         *link_time_bytes = bytes;
+         return true;
+      }
       free(bytes);
       return true;
    }

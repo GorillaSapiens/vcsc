@@ -28,10 +28,12 @@ my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my $sequen
 my $driver=File::Spec->catfile($repo,qw(driver vcsc)); my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching all_five banked_all_five.c26));
 my @runs=(['4k','4K',['-DUNBANKED_REFERENCE'],undef],['f8','F8',['-DMAPPER_BANKS=2'],1],['f8sc','F8SC',['-DMAPPER_BANKS=2','-DSUPERCHIP_TEST'],1]);
-my %dig; my $display=130+($$%50);
+my %dig;
 for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,$source,'-o',$rom);
-   $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display"; $display++;
+   my(undef,$d)=vcsc_reserve_x_display(130,50);
    my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/$name.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
+   # Fail here, not later inside Stella, if the X server did not come up.
+   vcsc_xvfb_assert_ready($d,$xpid);
    select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
    my$snap=File::Spec->catdir($tmp,"snap_$name"); my$user=File::Spec->catdir($tmp,"user_$name"); make_path($snap,$user); unlink glob("$snap/*.png");
    my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','0','-speed','1','-uimessages','0','-audio.enabled','0','-bs',$mapper,'-snapsavedir',$snap,'-snapname','rom','-sssingle','0','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user); push@cmd,('-startbank',$start)if defined$start; push@cmd,$rom;
