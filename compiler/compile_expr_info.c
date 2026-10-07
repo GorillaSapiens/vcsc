@@ -2,6 +2,7 @@
 //! @brief Implements expression type and value-size queries for the VCSC compiler.
 //! @ingroup compiler
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
@@ -22,50 +23,51 @@ bool expr_is_ternary_node(const ASTNode *expr) {
       return false;
    }
 
-   if ((!strcmp(expr->name, "conditional_expr") || !strcmp(expr->name, "case_conditional_expr")) &&
-       expr->count == 4 && expr->children[0] && expr->children[0]->kind == AST_IDENTIFIER &&
-       !strcmp(expr->children[0]->strval, "?:")) {
-      return true;
-   }
-
-   if (!strcmp(expr->name, "?:") && expr->count >= 3) {
-      return true;
-   }
-
-   return false;
+   /* Exactly what the grammar builds, and nothing else.  The ternary rule is
+    *
+    *   logical_or_expr '?' expr ':' conditional_expr
+    *       { MAKE_NODE(make_identifier_leaf("?:"), $1, $3, $5) }
+    *
+    * so the node is named for the rule's left-hand nonterminal -- conditional_expr, or
+    * case_conditional_expr for a case term -- and carries four children: the "?:"
+    * marker, the test, the true branch and the false branch.  The marker is what
+    * distinguishes a ternary from the bare `conditional_expr: logical_or_expr` rule,
+    * which has a single child.
+    *
+    * This used to also accept a node literally named "?:" with three children, an
+    * encoding this lineage's grammar has never produced -- "?:" is not a nonterminal,
+    * so MAKE_NODE can never give a node that name, and nothing calls
+    * MAKE_NAMED_NODE("?:", ...).  That branch was inherited tolerance for a shape the
+    * parser cannot emit, and tolerating it meant the accessors below had to branch on
+    * the node name to pick child indices, so the dead shape cost a branch on every
+    * ternary in the tree. */
+   return (!strcmp(expr->name, "conditional_expr") ||
+           !strcmp(expr->name, "case_conditional_expr")) &&
+          expr->count == 4 &&
+          expr->children[0] &&
+          expr->children[0]->kind == AST_IDENTIFIER &&
+          !strcmp(expr->children[0]->strval, "?:");
 }
 
 //! @brief Return expr ternary test data used by compile expr info; returned pointers alias existing storage unless explicitly allocated by the function name.
 ASTNode *expr_ternary_test(ASTNode *expr) {
    expr = (ASTNode *) unwrap_expr_node(expr);
 
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-
-   return (!strcmp(expr->name, "?:")) ? expr->children[0] : expr->children[1];
+   return expr_is_ternary_node(expr) ? expr->children[1] : NULL;
 }
 
 //! @brief Return expr ternary true data used by compile expr info; returned pointers alias existing storage unless explicitly allocated by the function name.
 ASTNode *expr_ternary_true(ASTNode *expr) {
    expr = (ASTNode *) unwrap_expr_node(expr);
 
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-
-   return (!strcmp(expr->name, "?:")) ? expr->children[1] : expr->children[2];
+   return expr_is_ternary_node(expr) ? expr->children[2] : NULL;
 }
 
 //! @brief Return expr ternary false data used by compile expr info; returned pointers alias existing storage unless explicitly allocated by the function name.
 ASTNode *expr_ternary_false(ASTNode *expr) {
    expr = (ASTNode *) unwrap_expr_node(expr);
 
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-
-   return (!strcmp(expr->name, "?:")) ? expr->children[2] : expr->children[3];
+   return expr_is_ternary_node(expr) ? expr->children[3] : NULL;
 }
 
 //! @brief Return cast expression target type data used by compile expr info; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -129,6 +131,103 @@ const ASTNode *cast_expr_target_modifiers(const ASTNode *expr) {
 }
 
 //! @brief Return whether identifier spelling applies in compile expr info.
+/* Size of a named type from its own declaration, without the compile-phase
+ * registries.  get_size() cannot be used here: it consults `typesizes`, which is
+ * populated long after parsing, and a miss inside it is an internal error rather
+ * than a user-facing refusal.  A `type X { $size:N }` declaration carries its size
+ * in the node the grammar attached, and a `typedef X Y` alias is resolved to its
+ * target.
+ *
+ * A struct or union returns 0 on purpose.  Its size is computed from the whole
+ * program, which does not exist yet while this runs, so a caller reports
+ * "not a compile-time constant" -- the honest answer -- instead of guessing. */
+/* Returns -1 when the name cannot be resolved at this point, and otherwise the
+ * declared size, which may legitimately be 0 for `type void { $size:0 }`.  The
+ * distinction matters: "not resolvable yet" is a caller problem to report as
+ * not-constant, while a resolved size of 0 is a real error about the operand. */
+static int parse_time_type_size(const char *name, int depth) {
+   const ASTNode *decl;
+   const ASTNode *flags;
+
+   if (!name || !name[0] || depth > 8) {
+      return -1;
+   }
+   decl = get_typename_node(name);
+   if (!decl) {
+      return -1;
+   }
+   if (decl->kind == AST_TYPENAME) {
+      return parse_time_type_size(decl->strval, depth + 1);
+   }
+   if (strcmp(decl->name, "type_decl_stmt") || decl->count < 2 || is_empty(decl->children[1])) {
+      return -1;
+   }
+   flags = decl->children[1];
+   for (int i = 0; i < flags->count; i++) {
+      if (flags->children[i] && flags->children[i]->strval &&
+          !strncmp(flags->children[i]->strval, "$size:", 6)) {
+         return atoi(flags->children[i]->strval + 6);
+      }
+   }
+   return -1;
+}
+
+//! @brief Return the size of a sizeof operand when that operand is a type; returns 0 when it is not a type or the type is not resolvable without a scope.
+int expr_sizeof_type_size(const ASTNode *operand) {
+   const ASTNode *cast_type;
+   const ASTNode *specifiers;
+   const ASTNode *type;
+   const ASTNode *declarator;
+   const char *type_name;
+   int size;
+   int is_pointer;
+
+   if (!operand || strcmp(operand->name, "sizeof_type") || operand->count < 1) {
+      return 0;
+   }
+   cast_type = operand->children[0];
+   if (!cast_type || strcmp(cast_type->name, "cast_type") || cast_type->count < 2) {
+      return 0;
+   }
+   specifiers = cast_type->children[0];
+   if (!specifiers || specifiers->count < 2) {
+      return 0;
+   }
+   type = specifiers->children[1];
+   declarator = cast_type->children[1];
+   type_name = type_name_from_node(type);
+   is_pointer = declarator_pointer_depth(declarator) > 0;
+
+   /* A pointer's size is the size of the pointer type, not of what it points at. */
+   size = is_pointer ? parse_time_type_size("*", 0) : parse_time_type_size(type_name, 0);
+   if (size < 0) {
+      return 0;
+   }
+   /* A resolved size of zero is the operand's own error, not this function's: `void`
+    * and an incomplete type have no size, and saying "not a compile-time constant"
+    * for that would name the wrong problem.  These are the diagnostics the emitter
+    * already produces when it reaches the same sizeof. */
+   if (size == 0) {
+      /* Position the error at the type, not at the sizeof operand, so that the same
+       * mistake reports the same line and column whether it is caught while folding a
+       * constant or when the emitter reaches it. */
+      const ASTNode *at = type ? type : operand;
+      if (!is_pointer && type_name && !strcmp(type_name, "void")) {
+         error_user("[%s:%d.%d] invalid application of sizeof to void type",
+                    at->file ? at->file : "<unknown>", at->line, at->column);
+      }
+      error_user("[%s:%d.%d] invalid application of sizeof to incomplete type '%s'",
+                 at->file ? at->file : "<unknown>", at->line, at->column,
+                 type_name ? type_name : "<unknown>");
+   }
+   /* Any array extents in the operand's own declarator multiply the element size.
+    * declarator_array_multiplier is used rather than a loop over the children: a
+    * declarator's first child is the POINTER DEPTH, which is itself an integer leaf
+    * holding 0 for a non-pointer, so iterating every integer child multiplies by
+    * zero and reports every sizeof as 0. */
+   return size * declarator_array_multiplier(declarator);
+}
+
 bool is_identifier_spelling(const char *s) {
    int i;
 

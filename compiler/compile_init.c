@@ -486,6 +486,23 @@ bool eval_constant_initializer_expr_resolved(ASTNode *expr, InitConstValue *out,
       return builtin_eval_constant_call(expr, out);
    }
 
+   /* `sizeof(type)` is a compile-time constant, so it folds here and then composes
+    * with the surrounding arithmetic: `sizeof(glyph) * 3` is one value, not two
+    * nested special cases.  This is what lets an array extent be written in terms of
+    * the thing it is sizing.  Only the type form folds here; `sizeof(expression)`
+    * needs the expression's type, which is a function of scope, and a constant
+    * expression is evaluated before any scope exists.  That form remains valid where
+    * it always was, and reports as not-constant where a constant is required. */
+   if (!strcmp(expr->name, "sizeof")) {
+      int size = expr->count > 0 ? expr_sizeof_type_size(expr->children[0]) : 0;
+      if (size <= 0) {
+         return false;
+      }
+      out->kind = INIT_CONST_INT;
+      out->i = size;
+      return true;
+   }
+
    /* A single-subscript read of a file-scope `const` object that was itself
     * folded at link time is a compile-time constant.  Folding it here rather than
     * in the caller's initializer walk is what lets the result compose with the

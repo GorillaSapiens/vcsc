@@ -173,7 +173,23 @@ static void array_extent_render(char *buf, size_t cap, size_t *len, const ASTNod
       return;
    }
    if (!strcmp(node->name, "sizeof")) {
-      array_extent_append(buf, cap, len, "sizeof(...)");
+      /* Name the operand rather than eliding it: `sizeof(...)` in a refusal tells a
+       * reader nothing about which operand the compiler could not size. */
+      array_extent_append(buf, cap, len, "sizeof(");
+      if (node->count > 0 && !strcmp(node->children[0]->name, "sizeof_type") &&
+          node->children[0]->count > 0) {
+         const ASTNode *cast_type = node->children[0]->children[0];
+         if (cast_type && !strcmp(cast_type->name, "cast_type") && cast_type->count > 1) {
+            const ASTNode *specifiers = cast_type->children[0];
+            if (specifiers && specifiers->count > 1) {
+               array_extent_render(buf, cap, len, specifiers->children[1], depth + 1);
+            }
+         }
+      }
+      else if (node->count > 0) {
+         array_extent_render(buf, cap, len, node->children[0]->children[0], depth + 1);
+      }
+      array_extent_append(buf, cap, len, ")");
       return;
    }
    if (node->count == 2 && array_extent_is_operator(node->name)) {
@@ -200,6 +216,26 @@ static void array_extent_render(char *buf, size_t cap, size_t *len, const ASTNod
    array_extent_append(buf, cap, len, node->name);
 }
 
+/* An extent that folds except for a sizeof says nothing useful if it is reported as
+ * simply not constant.  A sizeof of a type or typedef IS constant and folds; what
+ * does not fold is a struct or union, whose size is computed from the whole program,
+ * or an object, whose size needs a scope.  Neither exists yet while a declaration is
+ * being parsed, so the refusal names the reason instead of the symptom. */
+static bool array_extent_contains_sizeof(const ASTNode *expr) {
+   if (!expr) {
+      return false;
+   }
+   if (!strcmp(expr->name, "sizeof")) {
+      return true;
+   }
+   for (int i = 0; i < expr->count; i++) {
+      if (array_extent_contains_sizeof(expr->children[i])) {
+         return true;
+      }
+   }
+   return false;
+}
+
 static ASTNode *make_array_extent_leaf(ASTNode *extent) {
    InitConstValue value = {0};
    char text[32];
@@ -214,6 +250,12 @@ static ASTNode *make_array_extent_leaf(ASTNode *extent) {
        value.kind != INIT_CONST_INT) {
       if (array_extent_divides_by_constant_zero(extent)) {
          error_user("[%s:%d.%d] array size '%s' divides by zero",
+                    extent->file, extent->line, extent->column, shown);
+      }
+      if (array_extent_contains_sizeof(extent)) {
+         error_user("[%s:%d.%d] array size '%s' is not a compile-time constant: sizeof "
+                    "needs a type or typedef here; the size of a struct, union or object "
+                    "is not yet known while this declaration is parsed",
                     extent->file, extent->line, extent->column, shown);
       }
       error_user("[%s:%d.%d] array size '%s' must be a compile-time integer constant",
@@ -554,12 +596,12 @@ bank_decl_stmt:
   ;
 
 type_decl_stmt:
-    TYPE IDENTIFIER '{' opt_flags '}' ';'    { COVER; if (register_typename($2) < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf($2), $4); }
-  | TYPE '*' '{' opt_flags '}' ';'           { COVER; if (register_typename("*") < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf("*"), $4); }
+    TYPE IDENTIFIER '{' opt_flags '}' ';'    { COVER; if (register_typename($2) < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf($2), $4); attach_typename($2, $$); }
+  | TYPE '*' '{' opt_flags '}' ';'           { COVER; if (register_typename("*") < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf("*"), $4); attach_typename("*", $$); }
   ;
 
 typedef_decl_stmt:
-    TYPEDEF TYPENAME IDENTIFIER ';'          { COVER; if (register_typename($3) < 0) YYABORT; $$ = MAKE_NODE(make_typename_leaf($2), make_identifier_leaf($3)); }
+    TYPEDEF TYPENAME IDENTIFIER ';'          { COVER; if (register_typename($3) < 0) YYABORT; $$ = MAKE_NODE(make_typename_leaf($2), make_identifier_leaf($3)); attach_typename($3, make_typename_leaf($2)); }
   ;
 
 enum_decl_stmt:

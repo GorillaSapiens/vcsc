@@ -12,6 +12,7 @@
 #include <limits.h>
 
 #include "ast.h"
+#include "compile_expr_info.h"
 #include "compile_internal.h"
 #include "compile_type.h"
 #include "integer.h"
@@ -23,34 +24,20 @@
 #include "xray.h"
 #include "lextern.h"
 
-//! @brief Return whether expr is ternary node in compiler type system.
-static bool expr_is_ternary_node(const ASTNode *expr) {
-   expr = unwrap_expr_node(expr);
-
-   if (!expr) {
-      return false;
-   }
-
-   return !strcmp(expr->name, "?:") && expr->count == 3;
-}
-
-//! @brief Return expr ternary true data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_true(ASTNode *expr) {
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   return expr->children[1];
-}
-
-//! @brief Return expr ternary false data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_false(ASTNode *expr) {
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   return expr->children[2];
-}
+/* These used to be file-local copies here that recognised a node named "?:" with
+ * three children.  The grammar builds a ternary as a `conditional_expr` node with
+ * four children, the first an identifier "?:", so the copies could never match: the
+ * ternary arm of expr_value_size below was unreachable, and a ternary that reached
+ * the function fell through to "largest of the first two children" -- which reads
+ * the "?:" marker and the condition and ignores both branches.  That was latent
+ * rather than observable, because expr_value_type answers for a ternary first and
+ * has not returned nothing for one yet.  The shared accessors in compile_expr_info.c
+ * accept both shapes.
+ *
+ * Separate and still open: expr_value_type gives a ternary the type of its TRUE
+ * branch rather than the promoted common type, so `sizeof(1 ? uint8 : uint16)`
+ * reports 1.  That predates this change and is not caused by it; fixing it changes
+ * the type of every conditional in the tree and is its own decision. */
 
 //! @brief Extract type name from node for compiler type system.
 static const char *raw_type_name_from_node(const ASTNode *type) {

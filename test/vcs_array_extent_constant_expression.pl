@@ -92,6 +92,14 @@ my @accepted = (
    ['shift',                                   'page const uint8_t p[1 << 3] := { 1 };',          8],
    ['division truncates toward zero',         'page const uint8_t p[9 / 2] := { 1 };',           4],
    ['comparison',                              'page const uint8_t p[3 > 2] := { 1 };',           1],
+   ['sizeof of a type',                        'page const uint8_t p[sizeof(uint8_t) * 3] := { 1 };', 3],
+   ['sizeof of a two-byte type',               'page const uint8_t p[sizeof(uint16_t)] := { 1 };', 2],
+   ['sizeof of a typedef alias',               "typedef uint8_t byte_t;\npage const uint8_t p[sizeof(byte_t) + 1] := { 1 };", 2],
+   ['sizeof of a chained alias',               "typedef uint8_t byte_t;\ntypedef byte_t alias_t;\npage const uint8_t p[sizeof(alias_t) * 4] := { 1 };", 4],
+   ['sizeof of a pointer type',                'page const uint8_t p[sizeof(uint8_t *) * 2] := { 1 };', 4],
+   ['sizeof composing with other arithmetic',  'page const uint8_t p[sizeof(uint8_t) + sizeof(uint16_t) - 1] := { 1 };', 2],
+   ['sizeof inside a conditional',             'page const uint8_t p[1 ? sizeof(uint16_t) : 1] := { 1 };', 2],
+   ['a user-declared type',                    "type mybyte { \$size:1 \$integer:unsigned };\npage const uint8_t p[sizeof(mybyte) * 3] := { 1 };", 3],
    ['conditional',                             'page const uint8_t p[1 ? 5 : 6] := { 1 };',      5],
    ['conditional on a comparison',             'page const uint8_t p[2 > 1 ? 7 : 8] := { 1 };', 7],
    ['untaken conditional arm is not evaluated',
@@ -150,9 +158,15 @@ my @rejected = (
     qr/array size 'n' must be a compile-time integer constant/],
    ['a global variable',           "page const uint8_t p[g] := { 1 };\nuint8_t g;",
     qr/array size 'g' must be a compile-time integer constant/],
-   ['sizeof, which the constant evaluator does not fold',
-    'page const uint8_t p[sizeof(uint8_t) * 4] := { 1 };',
-    qr/array size 'sizeof\(\.\.\.\) \* 4' must be a compile-time integer constant/],
+   # sizeof of an OBJECT is a genuine constant in C, but its size needs a scope that
+   # does not exist while a declaration is being parsed, so it is refused here and the
+   # refusal must say so rather than blaming the extent as a whole.
+   ['sizeof of an object',       "uint16_t g;\npage const uint8_t p[sizeof(g)] := { 1 };",
+    qr/array size 'sizeof\(g\)' is not a compile-time constant: sizeof needs a type or typedef here/],
+   ['sizeof of void',            'page const uint8_t p[sizeof(void)] := { 1 };',
+    qr/invalid application of sizeof to void type/],
+   ['sizeof of an undefined name', 'page const uint8_t p[sizeof(nosuchtype)] := { 1 };',
+    qr/array size 'sizeof\(nosuchtype\)' is not a compile-time constant/],
 );
 
 for my $i (0 .. $#rejected) {
@@ -173,6 +187,16 @@ for my $i (0 .. $#rejected) {
       or die "the refusal did not name the offending identifier\n$err\n";
 }
 
+# sizeof must fold as a constant, not only in an extent: a `page const` initializer
+# uses the same evaluator, and that is the cheaper spelling.
+{
+   my ($rc, $err, $asm) = compile_cc1('page const uint16_t n := sizeof(uint16_t) * 2;', 'szconst');
+   $rc == 0 or die "sizeof does not fold in a constant initializer\n$err\n";
+   my $got = emitted_bytes($asm, 'n');
+   defined $got && $got == 2
+      or die "a folded sizeof produced " . (defined $got ? $got : 'no') . " bytes, expected 2\n";
+}
+
 # ------------------------------------------------------------------ contract
 # The behaviour above is worth nothing if the grammar narrows again, and the
 # capability is a one-line rule, so the rule itself is pinned.
@@ -185,6 +209,24 @@ for my $i (0 .. $#rejected) {
       or die "the array extent rule no longer takes a constant expression\n";
    $grammar =~ /direct_declarator\s+'\['\s+INTEGER\s+'\]'/
       and die "an integer-only array extent rule is present again\n";
+
+   # sizeof folds through the constant evaluator, and only because a type or typedef
+   # declaration attaches its node while parsing.  Both halves are load-bearing: drop
+   # either and every sizeof in the tree reports as not constant.
+   open($fh, '<', File::Spec->catfile($repo, 'compiler', 'compile_init.c'))
+      or die "could not read compile_init.c: $!\n";
+   my $init = do { local $/; <$fh> };
+   close($fh);
+   $init =~ /expr_sizeof_type_size/
+      or die "the constant evaluator no longer folds sizeof\n";
+   # A `type X { ... }` declaration must attach its node while parsing, otherwise the
+   # size is not reachable until the compile phase and no sizeof can fold.
+   $grammar =~ /TYPE\s+IDENTIFIER\s+'\{'\s*opt_flags\s*'\}'
+                  \s*';'\s*\{[^}]*attach_typename/x
+      or die "a type declaration no longer attaches its node while parsing\n";
+   $grammar =~ /TYPEDEF\s+TYPENAME\s+IDENTIFIER\s*';'
+                  \s*\{[^}]*attach_typename/x
+      or die "a typedef no longer attaches its target while parsing\n";
 }
 
 print "vcs_array_extent_constant_expression ok\n";
