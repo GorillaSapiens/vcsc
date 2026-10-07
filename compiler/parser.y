@@ -392,7 +392,6 @@ static ASTNode *make_array_extent_leaf(ASTNode *extent) {
 %type <node> case_block
 %type <node> case_choice
 %type <node> case_additive_expr
-%type <node> case_enum_primary_expr
 %type <node> case_bitwise_and_expr
 %type <node> case_bitwise_or_expr
 %type <node> case_bitwise_xor_expr
@@ -750,7 +749,7 @@ direct_declarator:
   | DOLLAR_DOLLAR                            { COVER; $$ = MAKE_NODE(make_identifier_leaf(strdup("$$"))); }
   | dra_pseudo                               { COVER; $$ = MAKE_NODE($1); }
   | '(' declarator ')'                       { COVER; $$ = MAKE_NODE($2); }
-  | direct_declarator '[' conditional_expr ']' { COVER; $$ = append_child($1, make_array_extent_leaf($3)); }
+  | direct_declarator '[' case_term ']' { COVER; $$ = append_child($1, make_array_extent_leaf($3)); }
   | direct_declarator '(' parameter_list ')' { COVER; $$ = append_child($1, $3); }
   | direct_declarator '(' ')'                { COVER; $$ = append_child($1, MAKE_NAMED_NODE("parameter_list", NULL)); }
   ;
@@ -1083,12 +1082,6 @@ case_choice:
 
 case_term:
     case_conditional_expr                    { COVER; $$ = $1; }
-  | case_enum_primary_expr                   { COVER; $$ = $1; }
-  ;
-
-case_enum_primary_expr:
-    ENUMNAME                                 { COVER; $$ = make_enumname_expr($1); }
-  | ENUMNAME '`' TYPENAME                    { COVER; $$ = make_enumname_expr_with_type($1, make_typename_leaf($3)); }
   ;
 
 case_conditional_expr:
@@ -1173,6 +1166,9 @@ case_num_primary_expr:
   | INTEGER '`' TYPENAME                                   { COVER; $$ = make_integer_leaf_with_type($1, make_typename_leaf($3)); }
   | CHAR                                                   { COVER; $$ = do_xform(make_string_leaf($1), NULL); }
   | CHAR '`' XFORMNAME                                     { COVER; $$ = do_xform(make_string_leaf($1), $3); }
+  | ENUMNAME                                               { COVER; $$ = make_enumname_expr($1); }
+  | ENUMNAME '`' TYPENAME                                  { COVER; $$ = make_enumname_expr_with_type($1, make_typename_leaf($3)); }
+  | SIZEOF sizeof_operand                                  { COVER; $$ = MAKE_NAMED_NODE("sizeof", $2); }
   ;
 
 opt_flags:

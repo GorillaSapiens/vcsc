@@ -144,5 +144,43 @@ sub slurp {
    };
 }
 
+# --- a case label with a ternary still folds to a constant --------------------
+# The detector UNWRAPS, and `case_choice` is one of the wrappers unwrap_expr_node
+# peels, so a `case 1 ? 2 : 3:` label matches it through the wrapper.  The optimizer
+# collapses a ternary by replacing the node it was handed, and if that replacement
+# lands on the wrapper the switch emitter no longer sees a node named "case_choice",
+# abandons its direct dispatch, and emits a runtime comparison instead.  The label
+# stays CORRECT -- the test folded to 2 either way -- which is why this went unnoticed:
+# a codegen regression, not a wrong answer, and one the suite did not cover.
+{
+   my $cc1 = File::Spec->catfile($compdir, 'vcsc-cc1');
+   my $runtime = File::Spec->catdir($repo, 'test');
+   my $src = File::Spec->catfile($tmp, 'caselabel.c26');
+   my $asm = File::Spec->catfile($tmp, 'caselabel.s26');
+   unlink $asm;
+   open(my $fh, '>', $src) or die "could not write $src: $!\n";
+   print {$fh} <<'CASE';
+include "machine_6502.c26"
+void main(void) {
+   uint8_t v := 1;
+   switch (v) {
+      case 1 ? 2 : 3: v := 7; break;
+      default: v := 0;
+   }
+}
+CASE
+   close($fh);
+   my $rc = system("'$cc1' -I '$runtime' -o '$asm' '$src' >/dev/null 2>&1");
+   $rc == 0 or die "the case-label fixture did not compile\n";
+   -f $asm or die "no assembly was produced for the case-label fixture\n";
+   my $code = slurp($asm);
+   $code =~ /cmp\s+#\$02\b/
+      or die "a case label of '1 ? 2 : 3' is no longer compared as the constant 2;"
+           . " it was replaced through its case_choice wrapper and demoted to a"
+           . " runtime comparison\n";
+   $code =~ /__vcsc_scratch_\d+\s*\+\s*1/
+      and die "the case label fell back to a scratch-based runtime comparison\n";
+}
+
 print "vcs_ternary_node_detection ok\n";
 exit 0;

@@ -61,8 +61,14 @@ sub compile_cc1 {
    print {$fh} qq{include "machine_6502.c26"\n$source\n};
    close($fh);
    my ($rc, $sig, $so, $se) = capture($cc1, '-I', $runtime, '-o', $out, $src);
-   my ($err) = ($se . $so) =~ /^(Error.*)$/m;
-   return ($rc, defined($err) ? $err : '', (($rc == 0 && -f $out) ? $out : undef));
+   # A diagnostic is more than one line -- a syntax error prints the position and then
+   # what it expected -- so keep everything from the first "Error" rather than just
+   # that line, or a refusal cannot be matched against its own explanation.
+   my $log = $se . $so;
+   my $at = index($log, 'Error');
+   my $err = $at >= 0 ? substr($log, $at) : '';
+   $err =~ s/\s+\z//;
+   return ($rc, $err, (($rc == 0 && -f $out) ? $out : undef));
 }
 
 # Bytes emitted for SYMBOL in an assembly file.  This is the allocation the resolved
@@ -139,7 +145,23 @@ for my $i (0 .. $#accepted) {
 }
 
 # ------------------------------------------------------------------ rejected
-my @rejected = (
+# Two kinds of refusal, and the split is the point of the design.
+#
+# An extent is `case_term`, the grammar's existing notion of a constant whose value is
+# known here -- the same one a case label uses.  Its primaries are literals only, so
+# an identifier cannot appear at all and the parser refuses it: no scope is needed at
+# any point, and nothing downstream has to re-check that the expression was constant.
+#
+# What still reaches the folder is what IS constant-shaped but not yet known: the
+# value of a sizeof, and the value of the folded result.  Those are refused by name.
+my @refused_by_parser = (
+   ['a local variable',  'void main(void) { uint8_t n; n := 3; uint8_t p[n]; p[0] := 1; }',
+    qr/syntax error/],
+   ['a global variable', "page const uint8_t p[g] := { 1 };\nuint8_t g;",
+    qr/syntax error/],
+);
+
+my @refused_by_folder = (
    ['a zero literal',              'page const uint8_t p[0] := { 1 };',
     qr/array size must be greater than zero, not 0/],
    ['a zero-valued enum',          "enum s { Z := 0 };\npage const uint8_t p[Z] := { 1 };",
@@ -154,13 +176,9 @@ my @rejected = (
     qr/array size '4 \/ 0' divides by zero/],
    ['a zero remainder divisor',    'page const uint8_t p[4 % 0] := { 1 };',
     qr/array size '4 % 0' divides by zero/],
-   ['a local variable',            'void main(void) { uint8_t n; n := 3; uint8_t p[n]; p[0] := 1; }',
-    qr/array size 'n' must be a compile-time integer constant/],
-   ['a global variable',           "page const uint8_t p[g] := { 1 };\nuint8_t g;",
-    qr/array size 'g' must be a compile-time integer constant/],
    # sizeof of an OBJECT is a genuine constant in C, but its size needs a scope that
-   # does not exist while a declaration is being parsed, so it is refused here and the
-   # refusal must say so rather than blaming the extent as a whole.
+   # does not exist while a declaration is being parsed.  It parses -- sizeof is a
+   # literal-shaped primary -- so the folder is what refuses it, by name.
    ['sizeof of an object',       "uint16_t g;\npage const uint8_t p[sizeof(g)] := { 1 };",
     qr/array size 'sizeof\(g\)' is not a compile-time constant: sizeof needs a type or typedef here/],
    ['sizeof of void',            'page const uint8_t p[sizeof(void)] := { 1 };',
@@ -169,12 +187,14 @@ my @rejected = (
     qr/array size 'sizeof\(nosuchtype\)' is not a compile-time constant/],
 );
 
-for my $i (0 .. $#rejected) {
-   my ($what, $source, $want) = @{$rejected[$i]};
-   my ($rc, $err) = compile_cc1($source, "rej$i");
-   $rc != 0 or die "an extent that must be refused was accepted: $what\n";
-   $err =~ $want
-      or die "the refusal for $what did not match $want\n$err\n";
+for my $set ([\@refused_by_parser], [\@refused_by_folder]) {
+   for my $i (0 .. $#{$set->[0]}) {
+      my ($what, $source, $want) = @{$set->[0][$i]};
+      my ($rc, $err) = compile_cc1($source, "rej$what");
+      $rc != 0 or die "an extent that must be refused was accepted: $what\n";
+      $err =~ $want
+         or die "the refusal for $what did not match $want\n$err\n";
+   }
 }
 
 # A diagnostic has to locate the problem.  The renderer profile guards depend on
@@ -205,10 +225,19 @@ for my $i (0 .. $#rejected) {
       or die "could not read parser.y: $!\n";
    my $grammar = do { local $/; <$fh> };
    close($fh);
-   $grammar =~ /direct_declarator\s+'\['\s+conditional_expr\s+'\]'/
-      or die "the array extent rule no longer takes a constant expression\n";
+   $grammar =~ /direct_declarator\s+'\['\s+case_term\s+'\]'/
+      or die "the array extent rule no longer takes case_term, the grammar's existing"
+            . " notion of a constant whose value is known here\n";
    $grammar =~ /direct_declarator\s+'\['\s+INTEGER\s+'\]'/
       and die "an integer-only array extent rule is present again\n";
+   # case_term is only usable as an extent once its primaries cover what an extent
+   # must accept.  ENUMNAME moved into case_num_primary_expr so an enum constant works
+   # in arithmetic and not only as a whole case term; SIZEOF sits beside it so a type
+   # size is available too.  Both also widen what a case LABEL accepts, which is legal
+   # C and folds, but is a language change and is therefore pinned deliberately.
+   $grammar =~ /case_num_primary_expr:.*?ENUMNAME.*?SIZEOF\s+sizeof_operand/s
+      or die "case_num_primary_expr no longer carries both ENUMNAME and SIZEOF;"
+            . " an enum constant in arithmetic, or sizeof in an extent, stops parsing\n";
 
    # sizeof folds through the constant evaluator, and only because a type or typedef
    # declaration attaches its node while parsing.  Both halves are load-bearing: drop
@@ -227,6 +256,39 @@ for my $i (0 .. $#rejected) {
    $grammar =~ /TYPEDEF\s+TYPENAME\s+IDENTIFIER\s*';'
                   \s*\{[^}]*attach_typename/x
       or die "a typedef no longer attaches its target while parsing\n";
+}
+
+# --- the same constants are legal where a case label is ------------------------
+# case_primary_expr now feeds both an array extent and a case label, so widening it
+# for extents widens case labels too: `case B - A:` and `case sizeof(uint16_t):` become
+# legal.  Both are legal C and both fold, so this is a widening rather than a hole --
+# but it is a language change, and it is only safe if the folded value is what actually
+# reaches the compare.
+{
+   my $asm = File::Spec->catfile($tmp, 'caselabel.s26');
+   unlink $asm;
+   my ($rc, $err) = compile_cc1(<<'CASE', 'caselabel');
+include "machine_6502.c26"
+enum sizes { LOW := 2, HIGH := 5 };
+void main(void) {
+   uint8_t v := 1;
+   switch (v) {
+      case LOW: v := 1; break;
+      case HIGH - LOW: v := 2; break;
+      case sizeof(uint16_t): v := 3; break;
+      default: v := 0;
+   }
+}
+CASE
+   $rc == 0 or die "the case-label fixture no longer compiles\n$err\n";
+   my $code = do {
+      open(my $r, '<', $asm) or die "could not read $asm: $!\n";
+      local $/;
+      <$r>;
+   };
+   # LOW is 2, HIGH - LOW is 3, and sizeof(uint16_t) is 2.
+   $code =~ /cmp\s+#\$02\b/ or die "a case label of LOW or sizeof(uint16_t) is not compared as 2\n";
+   $code =~ /cmp\s+#\$03\b/ or die "a case label of HIGH - LOW is not compared as 3\n";
 }
 
 print "vcs_array_extent_constant_expression ok\n";

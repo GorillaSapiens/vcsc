@@ -256,6 +256,8 @@ int16_t function2(int16_t i @ 12, int16_t j @ 13) {
          break;
       case 8 >> 1 to 2 * 3:
          break;
+      case sizeof(uint8_t) + 41:
+         break;
       default:
          break;
    }

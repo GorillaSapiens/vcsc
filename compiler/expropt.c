@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "ast.h"
+#include "compile_declarator.h"
 #include "compile_expr_info.h"
 #include "expropt.h"
 #include "integer.h"
@@ -217,7 +218,17 @@ static void expropt(ASTNode **noderef) {
    /* The shared detector and accessors own this shape.  This used to be a fourth
     * inline copy of the same test, including tolerance for a node named "?:" that
     * this grammar cannot produce. */
-   if (expr_is_ternary_node(node)) {
+   /* The shared detector owns the shape, but collapsing a ternary is only valid when
+    * the ternary IS this node.  The detector unwraps, and `case_choice` is one of the
+    * wrappers unwrap_expr_node peels, so a `case choice' wrapper around a case-term
+    * ternary also matches.  Replacing through that wrapper would put the selected
+    * branch where the wrapper was, and the switch emitter identifies a case by
+    * `strcmp(case_expr->name, "case_choice")' -- so the wrapper would stop looking like
+    * a case choice and the direct dispatch path would be abandoned in favour of
+    * runtime comparison.  That is a codegen regression, not a fold: the label was
+    * still correct, just no longer constant.  The inline test this replaced did not
+    * unwrap, which is why it never collapsed a wrapped ternary in the first place. */
+   if (expr_is_ternary_node(node) && (ASTNode *) unwrap_expr_node(node) == node) {
       bool truthy;
       ASTNode *test = expr_ternary_test(node);
       ASTNode *iftrue = expr_ternary_true(node);

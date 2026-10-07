@@ -319,6 +319,7 @@ void blanket_case_expr_coverage(int16_t f) {
       case 1`int16_t:
       case '\0':
       case '\0' `nulxform:
+      case sizeof(uint8_t) + 40:
          break;
       default:
          break;
