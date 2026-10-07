@@ -1884,6 +1884,17 @@ int get_size(const char *type) {
 }
 
 
+//! @brief Return the size of a named type if it is already known, or 0 if it is not.
+int known_type_size(const char *name) {
+   if (!name) {
+      return 0;
+   }
+   if (typesizes && pair_exists(typesizes, name)) {
+      return (int) (intptr_t) pair_get(typesizes, name);
+   }
+   return 0;
+}
+
 //! @brief Extract type size from node for compiler type system.
 int type_size_from_node(const ASTNode *type) {
    const char *name = type_name_from_node(type);

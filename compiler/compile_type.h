@@ -131,6 +131,11 @@ void validate_declaration_access_qualifiers(const ASTNode *origin,
                                             const char *what);
 int get_size(const char *type);
 int type_size_from_node(const ASTNode *type);
+// Size of a named type if it is already known, or 0 if it is not.  Never diagnoses.
+// get_size() errors when a name is unknown, which is right for a place that needs an
+// answer and wrong for one that is merely asking whether an answer exists yet: a
+// struct or union has no size until the layout pass has run.
+int known_type_size(const char *name);
 int declarator_value_size(const ASTNode *type, const ASTNode *declarator);
 int expr_value_size(ASTNode *expr, Context *ctx);
 bool expr_is_integer_constant_expr(const ASTNode *expr, long long *value_out);

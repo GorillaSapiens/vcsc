@@ -201,7 +201,15 @@ int expr_sizeof_type_size(const ASTNode *operand) {
    /* A pointer's size is the size of the pointer type, not of what it points at. */
    size = is_pointer ? parse_time_type_size("*", 0) : parse_time_type_size(type_name, 0);
    if (size < 0) {
-      return 0;
+      /* Not resolvable from the declaration itself, which is the normal answer while
+       * a declaration is being parsed: a struct or union has no size until the layout
+       * pass has run.  Once it has, the size is a compile-time constant like any other,
+       * and must fold -- a `const` object whose initializer the compiler already knows
+       * belongs in link-time data, not behind a runtime initializer. */
+      size = known_type_size(is_pointer ? "*" : type_name);
+      if (size <= 0) {
+         return 0;
+      }
    }
    /* A resolved size of zero is the operand's own error, not this function's: `void`
     * and an incomplete type have no size, and saying "not a compile-time constant"
