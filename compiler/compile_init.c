@@ -14,6 +14,7 @@
 #include "ast.h"
 #include "builtin.h"
 #include "compile.h"
+#include "compile_expr_info.h"
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_support.h"
@@ -194,46 +195,15 @@ static int pending_global_init_max_size = 0;
 static char runtime_global_init_symbol_buf[64];
 static bool runtime_global_init_symbol_ready = false;
 
-//! @brief Return whether expr is ternary node in compiler initializer lowering.
-static bool expr_is_ternary_node(const ASTNode *expr) {
-   if (!expr || strcmp(expr->name, "expr")) {
-      return false;
-   }
-   if (expr->count <= 0) {
-      return false;
-   }
-   return !strcmp(expr->children[0]->name, "question_expr");
-}
+/* The ternary accessors below used to be file-local copies here that recognised an
+ * "expr" node with a "question_expr" child.  The grammar builds a ternary as a
+ * `conditional_expr` node with four children, the first being an identifier "?:",
+ * so those copies could never match anything and the ternary arm of the constant
+ * evaluator was unreachable: `page const uint8_t t := 1 ? 5 : 6;` folded only
+ * because expropt.c happens to fold the same shape later, and the same expression
+ * in any other constant context did not fold at all.  The shared accessors in
+ * compile_expr_info.c accept both the current and the legacy shape. */
 
-//! @brief Return expr ternary test data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_test(ASTNode *expr) {
-   ASTNode *question;
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   question = expr->children[0];
-   return question->count > 0 ? question->children[0] : NULL;
-}
-
-//! @brief Return expr ternary true data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_true(ASTNode *expr) {
-   ASTNode *question;
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   question = expr->children[0];
-   return question->count > 1 ? question->children[1] : NULL;
-}
-
-//! @brief Return expr ternary false data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_false(ASTNode *expr) {
-   ASTNode *question;
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   question = expr->children[0];
-   return question->count > 2 ? question->children[2] : NULL;
-}
 //! @brief Return whether type is aggregate in compiler initializer lowering.
 bool type_is_aggregate(const ASTNode *type) {
    const ASTNode *node;

@@ -997,6 +997,16 @@ regions therefore remain shared and never trigger a selector transition.
 
 ### Pointers and arrays
 
+An array extent is a compile-time integer constant, not merely an integer
+literal, so `uint8_t row[WIDTH * 2]`, `uint8_t table[BASE + COUNT - 1]` and an
+`enum` constant are all valid extents. The arithmetic is ordinary integer
+arithmetic evaluated in `long long`: division truncates toward zero, a remainder
+takes the sign of its dividend, and a shift count outside the width of its left
+operand is an error. The resolved value must be strictly positive; zero and
+negative extents are refused. `sizeof` is not folded and so cannot be used as an
+extent. A declaration whose extent is not constant, and one that divides by a
+constant zero, are both refused with a diagnostic naming the offending extent.
+
 Pointers are 16-bit addresses. `const` and `writeonly` restrict access through
 that address without changing its width. Unary `&<lvalue` forms a readable
 `const T *` from the lvalue's read address, while `&>lvalue` forms a writable

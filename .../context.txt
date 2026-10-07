@@ -193,9 +193,10 @@ linker must reject) and `vcs_all_five_stripe_feed_tables.pl` builds the real
 and RAM cannot hold the feed, so `stripe_generic_feed_source_bound.pl` reports the
 emit unblocked.  The renderer will need PER-CONFIGURATION feed tables: the content
 depends on the data layout (q=P*s+p picks the stripe), so all 19 legal
-configurations need their own (5625 source entries; ROM stays 288 per build).  The
-grammar takes only a literal in an array extent; relaxing that is a readability win
-and would NOT reduce the table count.  Next:
+configurations need their own (5625 source entries; ROM stays 288 per build).
+Array extents are now constant expressions, so the readability half of that old
+limitation is closed; the table count never depended on it, because a size
+expression cannot change WHICH byte goes in which slot.  Next:
 emit the rolling machine in all_five.c26 behind a focused probe, reading the feeds at
 Y = region-1-q; then remove the stripes:=2-only machinery and supply the pair-2 PF
 copies the hoisted path omits.  Relax the `stripes > 2` guard only once the generic

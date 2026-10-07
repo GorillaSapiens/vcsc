@@ -205,13 +205,15 @@ for my $P (1,2) {
 # 2..32 range".  That is true of the ROM cost and false of the SOURCE cost.
 #
 # A note on WHY, because the first explanation offered here was wrong.  It was
-# attributed to the compiler having no arithmetic in array sizes, which is a real
-# limitation (`direct_declarator '[' INTEGER ']'` in the grammar accepts only a
-# literal) but is not the cause.  A size expression cannot change WHICH byte goes in
-# which slot, only how the extent is spelled.  The cause is that the feed content
-# depends on P = pairs-per-stripe: q = P*s + p decides the stripe, so 192/2 fills 48
-# pairs from stripe 0 while 192/32 fills 3 and moves on.  The tables differ because
-# the DATA LAYOUT differs, which is inherent to being generic in stripes.
+# attributed to the compiler having no arithmetic in array sizes.  That WAS a real
+# limitation -- the grammar accepted only a literal -- but it was not the cause, and
+# the grammar no longer has it: `direct_declarator '[' conditional_expr ']'` now
+# folds a compile-time integer constant extent.  Even when the limitation was real it
+# could not have been the cause, because a size expression cannot change WHICH byte
+# goes in which slot, only how the extent is spelled.  The cause is that the feed
+# content depends on P = pairs-per-stripe: q = P*s + p decides the stripe, so 192/2
+# fills 48 pairs from stripe 0 while 192/32 fills 3 and moves on.  The tables differ
+# because the DATA LAYOUT differs, which is inherent to being generic in stripes.
 #
 # So relaxing the grammar would let a renderer write `[3*(TEMPLATE_lines/2)]` instead
 # of enumerating extents.  That is a readability win at a handful of sites and it
@@ -465,7 +467,7 @@ $probe_src =~ /page const uint8_t page1\[96\] := \{/s
 $probe_src !~ /page const uint8_t \w+\[\d+\] := \w+;/s
    or die "the probe reintroduced a non-constant page-table initializer\n";
 
-printf "stripe_generic_feed_source_bound ok: the pair-indexed layout generalises -- three page-contained tables with one index each, pair q read at Y=region-1-q, pairs 0 and 1 carrying a colour plus two PF bytes and pair 2 carrying two, so three pairs are needed for eight bytes and P<3 is exactly what the geometry authority rejects; (192,32) reproduces the maintained proof at %d bytes with %d spare slots, and %d legal equal splits across the maintained line modes are covered plus the 181 partial region; the tables are load-bearing, since a zero-page record pointer is rejected separately for %s; and they fit ROM as a derivation of the public record, verified by building a transposed table from another const table's element reads and checking the emitted ROM bytes, with the containment their fixed-cost reads need already available as three %d-byte page const tables at %s; the only remaining placement bar is RAM, where they do not come close (%d bytes against %d used and %d free in the reference build, only %d bytes of stripe scratch in %d objects to free, and %d bytes of cartridge RAM in total); one correction to an earlier claim: the feeds are uniform in ROM cost (%d bytes per build regardless of the stripe count) but NOT in source, because the content depends on the DATA LAYOUT -- q=P*s+p picks the stripe, so 192/2 fills 48 pairs from one stripe while 192/32 fills 3 and moves on -- which is inherent to being generic in stripes and would NOT be fixed by allowing arithmetic in array sizes (a real but separate limitation: the grammar accepts only a literal there, and relaxing it would buy readability, not a smaller table count); so all %d legal configurations need their own tables, %d source entries in total, which is a source-size cost and not a runtime one; so the feed origin is settled and the emit is unblocked\n",
+printf "stripe_generic_feed_source_bound ok: the pair-indexed layout generalises -- three page-contained tables with one index each, pair q read at Y=region-1-q, pairs 0 and 1 carrying a colour plus two PF bytes and pair 2 carrying two, so three pairs are needed for eight bytes and P<3 is exactly what the geometry authority rejects; (192,32) reproduces the maintained proof at %d bytes with %d spare slots, and %d legal equal splits across the maintained line modes are covered plus the 181 partial region; the tables are load-bearing, since a zero-page record pointer is rejected separately for %s; and they fit ROM as a derivation of the public record, verified by building a transposed table from another const table's element reads and checking the emitted ROM bytes, with the containment their fixed-cost reads need already available as three %d-byte page const tables at %s; the only remaining placement bar is RAM, where they do not come close (%d bytes against %d used and %d free in the reference build, only %d bytes of stripe scratch in %d objects to free, and %d bytes of cartridge RAM in total); one correction to an earlier claim: the feeds are uniform in ROM cost (%d bytes per build regardless of the stripe count) but NOT in source, because the content depends on the DATA LAYOUT -- q=P*s+p picks the stripe, so 192/2 fills 48 pairs from one stripe while 192/32 fills 3 and moves on -- which is inherent to being generic in stripes and would NOT be fixed by allowing arithmetic in array sizes (the grammar now folds a constant expression there, and it never reduced the table count: a size expression cannot change WHICH byte goes in which slot, only how the extent is spelled, so that change bought readability alone); so all %d legal configurations need their own tables, %d source entries in total, which is a source-size cost and not a runtime one; so the feed origin is settled and the emit is unblocked\n",
    $feed_bytes,$spare32,scalar(@legal),join(', ',@rejected),
    $page_size,join(', ',@contained),
    $feed_bytes,$ram_used,$ram_free,$scratch,$scratch_objects,$ram_total,

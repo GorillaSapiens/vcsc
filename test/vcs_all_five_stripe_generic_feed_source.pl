@@ -72,13 +72,15 @@ $out =~ /the only remaining placement bar is RAM, where they do not come close \
    or die "the RAM arithmetic changed\n$out";
 # The earlier "uniform for the whole 2..32 range" claim is true of ROM cost and false
 # of source cost.  The CAUSE is the data layout, and the bound must keep saying so:
-# an earlier version blamed the lack of arithmetic in array sizes, which is a real
-# separate limitation that would buy readability and not a smaller table count.
+# an earlier version blamed the lack of arithmetic in array sizes.  That limitation
+# was real but was never the cause, and the grammar has since been widened to fold a
+# constant expression extent; the bound still has to keep the two apart, because the
+# reasoning that survives is the one that was never wrong.
 $out =~ /the feeds are uniform in ROM cost \(288 bytes per build regardless of the stripe count\) but NOT in source/
    or die "the ROM-uniform-versus-source-uniform distinction is no longer reported\n$out";
 $out =~ /the content depends on the DATA LAYOUT -- q=P\*s\+p picks the stripe/
    or die "the per-configuration cause is no longer attributed to the data layout\n$out";
-$out =~ /would NOT be fixed by allowing arithmetic in array sizes \(a real but separate limitation: the grammar accepts only a literal there, and relaxing it would buy readability, not a smaller table count\)/
+$out =~ /would NOT be fixed by allowing arithmetic in array sizes \(the grammar now folds a constant expression there, and it never reduced the table count: a size expression cannot change WHICH byte goes in which slot, only how the extent is spelled, so that change bought readability alone\)/
    or die "the array-size limitation is no longer kept distinct from the layout cause\n$out";
 $out =~ /so all 19 legal configurations need their own tables, 5625 source entries in total, which is a source-size cost and not a runtime one/
    or die "the per-configuration source cost changed\n$out";

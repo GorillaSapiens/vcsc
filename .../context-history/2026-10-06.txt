@@ -239,3 +239,89 @@ and satisfy the barrier early.
 Full suite green at 4f4ec9e5: 586 compile, 443 e2e.  Eight concurrent runs across
 different tests and eight concurrent copies of one test all exit 0 with no leftover
 reservations or servers.  Commit 4f4ec9e5; handoff /tmp/vcsc.20261007_023245.tar.gz.
+
+2026-10-06 21:04:37 PDT, array extents take constant expressions
+`direct_declarator '[' INTEGER ']'` is now `direct_declarator '['
+conditional_expr ']'`, so an array extent is a compile-time integer constant
+rather than a bare token: `WIDTH * 2`, `BASE + COUNT - 1`, an enum constant, a
+shift, a conditional and a character difference are all extents.  This closes the
+grammar-limitation sentence that stripes.txt and the feed bound had both been
+carrying as a separate known limitation.
+
+The extent is folded in the grammar action rather than stored as an expression, so
+it stays an ordinary integer leaf in the AST.  That is why nothing downstream
+changed: declarator_array_count, the size multiplier and abi_meta's bound text all
+count AST_INTEGER children and now just read the resolved value.  Folding at parse
+time also means the declared extent is known before any later pass needs it.
+
+Integer rules are the ordinary ones, inherited from the shared constant evaluator:
+long long, division truncating toward zero, remainder taking the dividend's sign,
+and an out-of-range shift already diagnosed.  `-7 % 3` is -1 and is refused as a
+negative size, and the diagnostic reports -1 rather than an absolute value.
+
+Zero and negative are refused at the declaration.  declarator_array_multiplier_from
+kept the identical check, which I confirmed by removing each layer in turn: either
+one alone still refuses, and only removing both changes behaviour.  Worth knowing
+that the guard is duplicated rather than single.
+
+TWO THINGS THE CHANGE BROKE, both found by the existing suite rather than by me.
+
+First, refusals stopped locating themselves.  A syntax error had named the offending
+extent for free, because the parser rejected anything but an integer token; once the
+fold-or-refuse decision moved after parsing, "must be a compile-time integer
+constant" said only that something was wrong.  The multisprite renderer guard caught
+it: its unsupported-line branch is a poison declaration whose only purpose is to
+fail with TEMPLATE_lines_must_be_181_192_or_228 in the message, and the regression
+greps for that name.  So refusals now render the extent back to text.  That in turn
+had to quote source_spelling rather than strval, because an instantiated renderer
+has its TEMPLATE_ names rewritten to the instance prefix: strval named
+game_lines_must_be_181_192_or_228 for a line that reads
+TEMPLATE_lines_must_be_181_192_or_228, which a reader grepping the source they were
+given would not find.
+
+Second, and larger than the first: compile_init.c carried file-local copies of
+expr_is_ternary_node and its three accessors that recognised an "expr" node with a
+"question_expr" child.  The grammar builds a ternary as a conditional_expr with four
+children, the first an identifier "?:", so those copies could never match anything
+and the ternary arm of the constant evaluator was UNREACHABLE.  A pre-existing
+latent bug, dead since some earlier grammar change, which this work happened to
+depend on.  The shared accessors in compile_expr_info.c accept both shapes, so the
+copies are deleted.  What made it deceptive is that a ternary in a page-const
+initializer did fold, which sent me looking for a difference in my own path; it
+folded because expropt.c folds the same shape later, not because the evaluator
+could.  compile_type.c has a THIRD stale copy of the same detector, still in place
+and not on this path; it should be looked at separately.
+
+What I got wrong on the way, for the record: I asserted early that a ternary folds
+in constant initializers and used that to conclude my extent path was at fault.
+The initializer case really did fold and really did not go through this evaluator.
+Then I chased the stale local copies for a while by printing shapes that all looked
+correct, because the real detector was shadowed by a static one in another
+translation unit that I had not thought to look for.  The lesson is that
+instrumenting one copy of a function teaches you nothing when three exist.
+
+`sizeof` is still refused, and that is a real gap rather than an oversight: it is a
+compile-time constant in C but the shared evaluator does not fold it, and resolving
+a type needs context the parser does not have.  Worth doing deliberately if it
+matters.
+
+vcs_array_extent_constant_expression checks the resolved VALUE, not that the source
+parses: each accepted case counts the bytes actually emitted, so `9 / 2` is proved to
+be 4 by allocation rather than by reading the expression.  Four mutations were
+confirmed to fail it -- narrowing the grammar back to INTEGER, removing both
+positivity checks, rounding division up instead of truncating, and making the
+ternary arm unreachable again.  A fifth (shadowing the detector with a static copy)
+was not a valid mutation because it no longer compiled, and I say so rather than
+counting it.
+
+One correction to the stripes record, which had this backwards by omission.
+stripe_generic_feed_source_bound.pl and its regression both asserted verbatim that
+the grammar accepts only a literal in an array extent, and that this was a separate
+limitation which would buy readability and not a smaller table count.  The second
+half was right and the first half is now false, so both were corrected.  The part
+that was never wrong is the actual argument: a size expression cannot change WHICH
+byte goes in which slot, only how the extent is spelled, so the per-configuration
+table count is caused by the DATA LAYOUT and never by array-size arithmetic.  Note
+that the old wording made the grammar limitation sound like it was doing work.
+
+Full suite green at 3217d584: 587 compile, 443 e2e.
