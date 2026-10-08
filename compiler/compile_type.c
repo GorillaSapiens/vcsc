@@ -13,6 +13,7 @@
 
 #include "ast.h"
 #include "compile_expr_info.h"
+#include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_type.h"
 #include "integer.h"
@@ -1149,6 +1150,30 @@ bool expr_is_integer_constant_expr(const ASTNode *expr, long long *value_out) {
    return true;
 }
 
+bool expr_is_integer_constant_expr_in_scope(const ASTNode *expr, Context *ctx,
+                                           long long *value_out) {
+   InitConstValue value = {0};
+
+   expr = unwrap_expr_node(expr);
+   if (!expr) {
+      return false;
+   }
+   if (expr->kind == AST_INTEGER) {
+      if (value_out) {
+         *value_out = parse_int(expr->strval);
+      }
+      return true;
+   }
+   if (!eval_constant_initializer_expr_in_scope((ASTNode *) expr, ctx, &value) ||
+       value.kind != INIT_CONST_INT) {
+      return false;
+   }
+   if (value_out) {
+      *value_out = value.i;
+   }
+   return true;
+}
+
 //! @brief Return whether expr is untyped integer literal in compiler type system.
 bool expr_is_untyped_integer_literal(const ASTNode *expr) {
    expr = unwrap_expr_node(expr);
@@ -1884,15 +1909,21 @@ int get_size(const char *type) {
 }
 
 
-//! @brief Return the size of a named type if it is already known, or 0 if it is not.
-int known_type_size(const char *name) {
-   if (!name) {
-      return 0;
+//! @brief Return a named type's size, or -1 if no size is available yet.
+int available_type_size(const char *name) {
+   if (!name || !*name) {
+      return -1;
    }
+   /* The recorded size first: that is a struct or union the layout pass has already
+    * done, and it is also the authoritative answer for a `type X { ... }` by the time
+    * compilation proper begins. */
    if (typesizes && pair_exists(typesizes, name)) {
       return (int) (intptr_t) pair_get(typesizes, name);
    }
-   return 0;
+   /* Otherwise the declaration's own $size: flag.  This is what answers BEFORE the
+    * layout pass has run, which is why an array extent -- folded while its declaration
+    * is parsed -- can size a `type X { ... }` and a typedef alias to one. */
+   return declared_type_size(name);
 }
 
 //! @brief Extract type size from node for compiler type system.

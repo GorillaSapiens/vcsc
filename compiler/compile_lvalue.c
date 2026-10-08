@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -1953,6 +1954,17 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
       const ASTNode *idx = unwrap_expr_node(suffixes->children[1]);
       int elem_size = declarator_first_element_size(out->type, out->declarator);
       const ASTNode *next_decl = declarator_after_subscript(out->declarator);
+      /* A subscript index is a compile-time constant whenever it can be folded, not
+       * only when it is spelled as a literal.  `a[K]` with K a `const` scalar has a
+       * known index exactly as much as `a[7]` does, and treating it as unknown forced
+       * a runtime-computed address and a load of K for a value already in hand -- so
+       * the whole point of the constant is lost by its use as a subscript.  Scoped, so
+       * a local shadowing a file-scope constant still wins. */
+      InitConstValue idx_value = {0};
+      bool folded_index =
+         eval_constant_initializer_expr_in_scope((ASTNode *) idx, ctx, &idx_value) &&
+         idx_value.kind == INIT_CONST_INT && idx_value.i >= 0 &&
+         idx_value.i <= INT_MAX;
 
       if (!idx || elem_size <= 0) {
          return false;
@@ -1960,8 +1972,8 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
       if (declarator_pointer_depth(out->declarator) > 0) {
          out->indirect = true;
          lvalue_note_pointer_dereference(out);
-         if (idx->kind == AST_INTEGER && !out->needs_runtime_address) {
-            out->ptr_adjust += atoi(idx->strval) * elem_size;
+         if (folded_index && !out->needs_runtime_address) {
+            out->ptr_adjust += (int) (idx_value.i * elem_size);
          }
          else if (ctx) {
             out->needs_runtime_address = true;
@@ -1971,12 +1983,12 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
          }
       }
       else if (declarator_array_count(out->declarator) > 0) {
-         if (idx->kind == AST_INTEGER && !out->needs_runtime_address) {
+         if (folded_index && !out->needs_runtime_address) {
             if (out->indirect) {
-               out->ptr_adjust += atoi(idx->strval) * elem_size;
+               out->ptr_adjust += (int) (idx_value.i * elem_size);
             }
             else {
-               out->offset += atoi(idx->strval) * elem_size;
+               out->offset += (int) (idx_value.i * elem_size);
             }
          }
          else if (ctx) {

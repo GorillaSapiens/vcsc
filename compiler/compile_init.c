@@ -62,6 +62,122 @@ typedef struct {
 static ConstLinkTimeTable *const_link_time_tables = NULL;
 static int const_link_time_table_count = 0;
 
+/** @brief A file-scope `const` scalar whose value is known when compilation finishes.
+ *
+ * This is the SCALAR counterpart of ConstLinkTimeTable, and it exists for a different
+ * reason.  A recorded table lets a later declaration read one of its BYTES as a
+ * constant; this lets the expression compiler read the object ITSELF as a constant, so
+ * that an expression using it folds instead of being computed byte by byte at runtime.
+ *
+ * The two pay off differently, which is worth being precise about.  A bare read is
+ * already cheap -- `v := W` compiles to the same four instructions as `v := 300` --
+ * so replacing a load with an immediate saves nothing there.  What is expensive is
+ * arithmetic ON the constant: `v := W & 255` costs 26 instructions against 4 for
+ * `v := 300 & 255`, because the expression cannot fold and runs through scratch a byte
+ * at a time.  Folding the value fixes that; it does not depend on eliding storage. */
+typedef struct ConstScalarValue {
+   char *name;
+   long long value;
+} ConstScalarValue;
+
+static ConstScalarValue *const_scalar_values = NULL;
+static int const_scalar_value_count = 0;
+
+/** @brief Record a file-scope `const` scalar's folded bytes as a compile-time value.
+ *
+ * Only a genuine scalar is recorded -- an array is left to ConstLinkTimeTable, and a
+ * value wider than an InitConstValue's long long is left alone rather than truncated.
+ * Little-endian is the encoding the emitter itself writes (see compile_type.c), so the
+ * bytes are decoded exactly as they would be read back at runtime. */
+void const_scalar_value_record(const char *name, const unsigned char *bytes, int size) {
+   long long value = 0;
+   int i;
+
+   if (!name || !*name || !bytes || size < 1 || size > (int) sizeof(value)) {
+      return;
+   }
+   for (i = size - 1; i >= 0; i--) {
+      value = (value << 8) | (long long) bytes[i];
+   }
+   for (i = 0; i < const_scalar_value_count; i++) {
+      if (!strcmp(const_scalar_values[i].name, name)) {
+         const_scalar_values[i].value = value;
+         return;
+      }
+   }
+   const_scalar_values = (ConstScalarValue *) realloc(const_scalar_values,
+                                                      sizeof(ConstScalarValue) *
+                                                      (size_t) (const_scalar_value_count + 1));
+   if (!const_scalar_values) {
+      error_unreachable("out of memory recording const scalar '%s'", name);
+   }
+   const_scalar_values[const_scalar_value_count].name = strdup(name);
+   const_scalar_values[const_scalar_value_count].value = value;
+   const_scalar_value_count++;
+}
+
+/** @brief Read back a recorded const scalar, or false if the name has no recorded value. */
+bool const_scalar_value_lookup(const char *name, long long *out) {
+   int i;
+
+   if (!name || !*name || !out) {
+      return false;
+   }
+   for (i = 0; i < const_scalar_value_count; i++) {
+      if (!strcmp(const_scalar_values[i].name, name)) {
+         *out = const_scalar_values[i].value;
+         return true;
+      }
+   }
+   return false;
+}
+
+/** @brief Resolve a name to a recorded const scalar, honouring local shadowing.
+ *
+ * A local declaration of the same name shadows the file-scope object, so consulting the
+ * table first would substitute the WRONG value -- `page const uint8_t K := 7;` together
+ * with `uint8_t K;` in a function body is legal today.  The Context is therefore asked
+ * first, and the table is only consulted when the name resolves to nothing local. */
+static bool const_scope_constant_resolver(const char *name, InitConstValue *out, void *opaque) {
+   Context *ctx = (Context *) opaque;
+   long long value;
+
+   if (!name || !out) {
+      return false;
+   }
+   if (ctx && ctx_lookup(ctx, name)) {
+      /* Shadowed by a local.  If the inliner has already proven that local constant,
+       * its own value is the right answer; otherwise there is nothing to fold and the
+       * expression must be compiled as written. */
+      ContextEntry *entry = ctx_lookup(ctx, name);
+      if (!entry->has_const_value) {
+         return false;
+      }
+      memset(out, 0, sizeof(*out));
+      out->kind = INIT_CONST_INT;
+      out->i = entry->const_value;
+      return true;
+   }
+   if (!const_scalar_value_lookup(name, &value)) {
+      return false;
+   }
+   memset(out, 0, sizeof(*out));
+   out->kind = INIT_CONST_INT;
+   out->i = value;
+   return true;
+}
+
+/** @brief Evaluate a constant expression that may name a const scalar, in this scope.
+ *
+ * This is eval_constant_initializer_expr with the const-scalar resolver installed.  It
+ * is a separate entry point rather than a change to the existing one because a constant
+ * expression is also evaluated while PARSING -- to fold an array extent -- where no
+ * scope has been built and no const scalar has been recorded.  Leaving the no-context
+ * entry point alone keeps that path exactly as it was. */
+bool eval_constant_initializer_expr_in_scope(ASTNode *expr, Context *ctx, InitConstValue *out) {
+   return eval_constant_initializer_expr_resolved(expr, out, const_scope_constant_resolver, ctx);
+}
+
 /* Keep generated .byte directives comfortably below assembler/source-reader
  * line-buffer limits.  This is an output-format detail; C26 source objects do
  * not need to be split merely to constrain generated S26 line length. */

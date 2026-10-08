@@ -1,0 +1,185 @@
+
+2026-10-08 02:40:00 PDT, item 59 closed; const-scalar folding
+The user asked for a roadmap item to pick the remainder up later, and to move on to
+stripes.  Item 59 is complete; the three residual positions are renumbered 60, 61
+and 62 in the main roadmap, which carries only unfinished work.
+
+WHAT IT DOES.  A `const` scalar's value is known when its initializer folds, so an
+expression that uses it is now computed by the compiler rather than the processor.
+Verified across fourteen positions -- assign, add/sub/xor/multiply, 16-bit add,
+shift, ternary, nested arithmetic, subscript store and load, function argument,
+return value, and a two-function call chain -- none of which reads the object by
+name any more.
+
+TWO CORRECTIONS TO WHAT I ASSUMED GOING IN, both from measuring rather than
+reasoning.
+
+The premise was wrong about the mechanism.  The obvious framing -- "a use should be
+an immediate instead of a load" -- is worth almost nothing: a bare read is already
+as cheap as it can be, and `v := W` compiles to the same four instructions as
+`v := 300`.  What is expensive is ARITHMETIC ON the constant, which cannot fold and
+runs through scratch a byte at a time.  The numbers, each now matching the identical
+literal form:
+
+    v := W & 255;   26 -> 4      1 << K;         20 -> 2
+    v := v + K;     adc K -> adc #$07             v := K + 1;  5 -> 2
+
+I also reported "eight instructions" for the 16-bit mask early on.  That was wrong:
+it counted the lines of a truncated excerpt rather than the emitted instructions.
+The real figure was 26.
+
+The second correction was the user's, and it was sharp.  Global and function-local
+constants fold, but passing one loses it.  Checking that found three different
+causes behind one symptom: passing BY VALUE was a real gap and is fixed; a `ref`
+parameter refuses a const outright, which is CORRECT because a ref is a writable
+alias and there is no value to fold; and a read through a POINTER cannot fold at
+all, because the value has to exist at an address.  Only the first was a defect,
+and conflating them would have meant implementing the other two wrongly.
+
+Folding a name turns out to mean answering the same question in SEVERAL unrelated
+places, which is why this took several commits rather than one: the constant
+evaluator (3 of its ~10 call sites), the byte-operand classifier, the subscript
+resolver, the argument-slot path, and the return fast path.  There is no single
+choke point for a read -- instrumenting the call sites showed the whole win comes
+from three of the ten evaluator sites, which is what kept the change small.
+
+TWO PROPERTIES ARE LOAD-BEARING.
+
+Resolution is SCOPE-AWARE, because a local can shadow a file-scope object:
+`page const uint8_t K := 7;` beside `uint8_t K;` in a body compiles today, so a
+name-keyed table consulted first would fold that use to 7 and be silently wrong.
+The Context is consulted before the recorded table everywhere.  Verified by breaking
+the ordering and watching the regression catch it.
+
+Only the READ is folded.  The object keeps its storage, its label, its `.export`,
+its ABI and use-contract metadata, and stays nameable by inline assembly -- none of
+which can see an expression-level fold.  That is why elision is separate work (60).
+
+Also recorded, because both look like missing folds and are not: `sizeof` of a
+STRUCT in an array extent now works, which needed the layout walk extracted from
+the authoritative pass and shared with a new parse-time recording rather than
+copied; and the same change had to be made SILENT at parse time, because under
+`-X coverage` the compile phase never runs at all and a diagnostic emitted there
+fires on a run that is only supposed to parse.
+
+MY OWN ERRORS WORTH KEEPING.  A named Perl sub declared inside a loop binds to the
+FIRST iteration's lexicals, so the new all-configuration feed test silently read the
+first configuration's map for every later one.  Two negative controls also had to be
+redone: the first edited a variable that was computed and never used, and the
+second changed the record's CONTENT, which is not a layout error and correctly
+still passed.  A third caught a `sprintf` in my own die message with eight format
+specifiers and seven arguments.
+
+THE STRIPES BASELINE was verified before touching it, because item 1 ends by
+removing the `stripes:=2` machinery and it is worth knowing that is sound:
+`stripes=2` builds, is Stella-equivalent, and the feed fixture passes.  The
+all-configuration feed test closes a real gap -- the bound proves the LAYOUT for
+all nineteen legal configurations in Perl, and the fixture proved the COMPILER for
+exactly one -- and it is the next step toward the generic machine.
+
+COMPLETED ROADMAP ITEM 59, as recorded before renumbering:
+
+[x] 59. Let a const scalar's known value fold into the expression that uses it.
+
+        DONE: the value now folds.  Verified across fourteen positions -- assign,
+        add/sub/xor/multiply, 16-bit add, shift, ternary, nested arithmetic,
+        subscript store and load, function argument, return value, and a
+        two-function call chain -- none of which reads the object by name any
+        more.  Representative wins, each matching the identical literal form:
+
+            v := W & 255;   26 -> 4      1 << K;    20 -> 2
+            v := v + K;     adc K -> adc #$07      v := K + 1;   5 -> 2
+
+        Landed as several separate changes, because folding a name turns out to
+        mean answering the same question in several unrelated places: the constant
+        evaluator (3 of its ~10 call sites), the byte-operand classifier, the
+        subscript resolver, the argument-slot path, and the return fast path.  There
+        is no single choke point for a read.
+
+        Two properties are load-bearing and are pinned as such:
+
+            * Resolution is SCOPE-AWARE.  A local can shadow a page const, so the
+              Context is consulted before the recorded table; reversing that order
+              substitutes the wrong value silently.  Verified by breaking it.
+            * Only the READ is folded.  The object keeps its storage, its label, its
+              `.export`, its ABI and use-contract metadata, and stays nameable by
+              inline assembly -- none of which can see an expression-level fold.
+
+        REMAINING, in the order I would take it:
+
+        [ ] 59a. Elide the storage of a const scalar nothing takes the address of.
+                 Worth 1-2 bytes per scalar.  Before starting, MEASURE whether that
+                 justifies the audit, because the fold work kept finding larger wins
+                 and this ceiling is small.  Blocked by, per the survey:
+                   - `.export` plus ABI metadata (compile_toplevel.c) -- an
+                     exported-but-undefined symbol.
+                   - `emit_lvalue_semantic_use`, which records a use per access.
+                   - inline assembly, which names the linker symbol directly and is
+                     invisible to any expression-level fold.
+                   - ~40 read sites with no single choke point.
+                 The gate: a `static`, non-exported const whose address is never taken
+                 and which no inline assembly names.
+
+        [ ] 59b. A const scalar as an array EXTENT, e.g. `uint8_t a[K]`.  Refused,
+                 and correctly so: extents fold while the declaration is parsed,
+                 where no scope exists and no const scalar has been recorded.  Needs
+                 the extent to defer, or the constant to be recorded at parse time --
+                 the latter is only sound for a `page const` declared earlier in the
+                 same file, which is a weaker guarantee than it looks.
+
+        [ ] 59c. `p[K]` where the base pointer is a runtime value.  The index folds,
+                 but it would need to become a displacement on a computed address
+                 rather than an offset on a known base.  Low value: the pattern is
+                 rare, and the index is a byte.
+
+        * Measured, for `page const uint16_t W := 300;` with `uint16_t v;`:
+
+              v := W & 255;        26 instructions      (today)
+              v := 300 & 255;       4 instructions      (same value, literal)
+              uint8_t w; w := 1 << K;   20 instructions   (K is a const uint8_t)
+              uint8_t w; w := 1 << 7;    2 instructions
+
+          The saving is NOT "one load per use".  A bare copy is already four
+          instructions (`v := W` costs the same as `v := 300`), because a
+          16-bit load/store pair is efficient.  The loss appears when the
+          const feeds ARITHMETIC: the expression cannot fold, so it runs
+          through `__vcsc_scratch_1` a byte at a time and then copies the
+          result out again.  The win is expression folding, and load elision
+          is a separate and much smaller part of it.
+        * So this is two changes of very different size, and they should not be
+          made as one:
+
+            (a) Resolve a const scalar to its folded value in the constant
+                evaluator, so the surrounding expression folds.  Large win,
+                low risk, storage stays.
+
+            (b) Elide the storage of a const scalar nothing takes the address
+                of.  Worth 1-2 bytes per scalar, and only safe once every
+                path that needs a real address has been found.  Do (a) first
+                and measure whether (b) is worth anything.
+
+        * The mechanism already exists and is unpopulated.  `ContextEntry` has
+          `has_const_value` / `const_value`, and
+          `eval_constant_initializer_expr_resolved` takes an
+          `InitConstIdentifierResolver` that is consulted first for any bare
+          identifier.  Only the inliner ever sets those fields, and only for
+          function formals it has proven constant.  Nothing sets them for a
+          declared const object.
+        * Resolution must be SCOPE-AWARE.  A local can shadow a page const --
+          `page const uint8_t K := 7;` plus `uint8_t K;` inside a function
+          compiles today -- so a program-wide name table would substitute the
+          wrong value.  Look the name up through the Context, then through
+          `globals`, which maps name to the declaration node.
+        * A function-local `const uint8_t L := 9;` already folds its
+          INITIALIZER to `lda #$09` and still loads at the use, so the local
+          case has the same defect and the same fix.
+        * Two constraints worth knowing before changing anything:
+            - `if` takes a constant-shaped condition, not an expression:
+              `if K == 3` is a syntax error today and folding would not
+              change that.  It is a grammar question, not this one.
+            - `&K` is legal and works, so address-taking must keep resolving to
+              real storage.  Storing the value is therefore what makes this
+              safe, and eliding storage is what would need the audit.
+        * A compiler capability, not a library one, and 22 instructions per
+          16-bit mask is a lot of a 4K cartridge to pay for arithmetic the
+          compiler already knows the answer to.

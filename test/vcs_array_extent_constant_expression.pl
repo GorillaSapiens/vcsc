@@ -106,6 +106,21 @@ my @accepted = (
    ['sizeof composing with other arithmetic',  'page const uint8_t p[sizeof(uint8_t) + sizeof(uint16_t) - 1] := { 1 };', 2],
    ['sizeof inside a conditional',             'page const uint8_t p[1 ? sizeof(uint16_t) : 1] := { 1 };', 2],
    ['a user-declared type',                    "type mybyte { \$size:1 \$integer:unsigned };\npage const uint8_t p[sizeof(mybyte) * 3] := { 1 };", 3],
+   # A struct or union carries no `$size:` flag -- its size is laid out from its fields --
+   # so sizeof(S) in an extent works only because the size is recorded the moment the
+   # declaration closes.  There are no forward references between structs, so that is
+   # always early enough, and `calculate_struct_union_sizes` then finds the entry already
+   # present and agrees with it.
+   ['sizeof of a struct',                      "struct blob { uint8_t a; uint8_t b; };\npage const uint8_t p[sizeof(blob)] := { 1 };", 2],
+   ['sizeof of a struct in arithmetic',        "struct blob { uint8_t a; uint8_t b; };\npage const uint8_t p[sizeof(blob) * 3] := { 1 };", 6],
+   ['sizeof of a struct laid out from another struct',
+    "struct small { uint8_t a; uint8_t b; };\nstruct nest { small inner; uint8_t t; };\npage const uint8_t p[sizeof(nest)] := { 1 };", 3],
+   ['sizeof of a struct with an array field',  "struct arr { uint8_t a; uint8_t b[4]; };\npage const uint8_t p[sizeof(arr) + 1] := { 1 };", 6],
+   ['sizeof of a struct with a pointer field', "struct ps { uint8_t *p; uint8_t t; };\npage const uint8_t p[sizeof(ps)] := { 1 };", 3],
+   ['sizeof of a struct with bitfields',       "struct bits { uint8_t a : 3; uint8_t b : 5; uint8_t c; };\npage const uint8_t p[sizeof(bits) * 2] := { 1 };", 4],
+   ['sizeof of a union',                       "union ub { uint8_t x; uint16_t y; };\npage const uint8_t p[sizeof(ub) * 2] := { 1 };", 4],
+   ['sizeof of a struct used as a later field extent',
+    "struct small { uint8_t a; uint8_t b; };\nstruct nest { uint8_t pad[sizeof(small) * 2]; };", 0],
    ['conditional',                             'page const uint8_t p[1 ? 5 : 6] := { 1 };',      5],
    ['conditional on a comparison',             'page const uint8_t p[2 > 1 ? 7 : 8] := { 1 };', 7],
    ['untaken conditional arm is not evaluated',
@@ -152,8 +167,9 @@ for my $i (0 .. $#accepted) {
 # an identifier cannot appear at all and the parser refuses it: no scope is needed at
 # any point, and nothing downstream has to re-check that the expression was constant.
 #
-# What still reaches the folder is what IS constant-shaped but not yet known: the
-# value of a sizeof, and the value of the folded result.  Those are refused by name.
+# What still reaches the folder is what IS constant-shaped but not answerable HERE: the
+# size of an object (no scope exists yet) and the size of a name with no declaration.
+# Those are refused by name.
 my @refused_by_parser = (
    ['a local variable',  'void main(void) { uint8_t n; n := 3; uint8_t p[n]; p[0] := 1; }',
     qr/syntax error/],
@@ -181,15 +197,6 @@ my @refused_by_folder = (
    # literal-shaped primary -- so the folder is what refuses it, by name.
    ['sizeof of an object',       "uint16_t g;\npage const uint8_t p[sizeof(g)] := { 1 };",
     qr/array size 'sizeof\(g\)' is not a compile-time constant:.*an object's\s+size needs a scope/s],
-   # A struct or union is named directly by `struct S { ... }`, which registers S as a
-   # type, and sizeof(S) folds in any ordinary expression.  It is only in an EXTENT
-   # that it cannot: extents are folded while the declaration is parsed, and struct
-   # sizes are laid out afterwards from the whole program.  The refusal must not imply
-   # the language cannot size a struct, because it can.
-   ['sizeof of a struct',       "struct blob { uint8_t a; uint8_t b; };\npage const uint8_t p[sizeof(blob)] := { 1 };",
-    qr/array size 'sizeof\(blob\)' is not a compile-time constant:.*a struct\s+or union size is laid out only after parsing/s],
-   ['sizeof of a union',        "union ub { uint8_t x; uint16_t y; };\npage const uint8_t p[sizeof(ub)] := { 1 };",
-    qr/array size 'sizeof\(ub\)' is not a compile-time constant/],
    ['sizeof of void',            'page const uint8_t p[sizeof(void)] := { 1 };',
     qr/invalid application of sizeof to void type/],
    ['sizeof of an undefined name', 'page const uint8_t p[sizeof(nosuchtype)] := { 1 };',
@@ -265,6 +272,34 @@ for my $set ([\@refused_by_parser], [\@refused_by_folder]) {
    $grammar =~ /TYPEDEF\s+TYPENAME\s+IDENTIFIER\s*';'
                   \s*\{[^}]*attach_typename/x
       or die "a typedef no longer attaches its target while parsing\n";
+
+   # A struct or union carries no `$size:` flag -- its size is laid out from its fields
+   # -- so sizeof(S) in an extent works only because the size is recorded the moment the
+   # declaration closes.  Both keywords must do it, on BOTH of their grammar
+   # alternatives, or a declaration written the other way silently stops working.
+   for my $kw (['struct', 'true'], ['union', 'false']) {
+      my ($word, $flag) = @{$kw};
+      my $call = qr/record_declared_struct_union_size\(\s*\$\$\s*,\s*\$2\s*,\s*$flag\s*\)/;
+      my $hits = () = $grammar =~ /$call/g;
+      $hits == 2
+         or die "expected a $word to record its size on both of its grammar"
+               . " alternatives, found $hits calls\n";
+      my ($rule) = $grammar =~ /^${word}_decl_stmt:\n(.*?)^ +;/ms;
+      defined $rule && $rule =~ /$call/
+         or die "the ${word}_decl_stmt rule no longer records a size with is_struct = $flag\n";
+   }
+
+   # And it must go through the ONE field walk the authoritative layout pass uses.  Two
+   # copies of these rules is exactly how a size recorded while parsing and a size laid
+   # out afterwards would come to disagree -- and nothing else would notice.
+   open($fh, '<', File::Spec->catfile($repo, 'compiler', 'compile_toplevel.c'))
+      or die "could not read compile_toplevel.c: $!\n";
+   my $top = do { local $/; <$fh> };
+   close($fh);
+   my $walk = () = $top =~ /struct_union_size_from_fields/g;
+   $walk == 3
+      or die "struct_union_size_from_fields appears $walk times; it must be defined"
+            . " once and called from both the parse-time recording and the layout pass\n";
 }
 
 # --- the same constants are legal where a case label is ------------------------
@@ -330,6 +365,43 @@ STRUCT
    $code =~ /^tripled:\n\t\.byte \$06$/m or die "sizeof(struct blob) * 3 did not fold\n";
    $code =~ /^\.proc __init_/m
       and die "a known struct size left a runtime initializer behind\n";
+}
+
+# --- the parse-time size recording must stay silent ----------------------------
+# The compile phase is the ONLY place a malformed bitfield is diagnosed, and under
+# -X coverage it never runs at all: vcsc-cc1 calls coverage_report() and exits the
+# moment parsing succeeds.  So a diagnostic emitted from the parse-time size walk
+# would fire on a run that is only supposed to parse -- which is exactly what the two
+# grammar-coverage fixtures are, and both declare deliberately absurd bitfields.
+#
+# Both directions are pinned, because either alone is satisfiable by accident: a walk
+# that never reported would pass the first check and silently accept a bad field, and a
+# walk that always reported would pass the second and break those fixtures.
+{
+   my $bad = "struct bad { int16_t mantissa:23; };\npage const uint8_t p[1] := { 1 };";
+   my $src = File::Spec->catfile($tmp, 'silent.c26');
+   open(my $fh, '>', $src) or die "could not write $src: $!\n";
+   print {$fh} qq{include "machine_6502.c26"\n$bad\n};
+   close($fh);
+
+   # Under -X coverage the compile phase never runs, so parsing must produce no
+   # diagnostic.  The EXIT CODE cannot be used to say that: coverage_report() itself
+   # exits non-zero when any grammar rule went unvisited, and a source this small
+   # leaves most of them unvisited.  What is being asserted is the absence of a
+   # diagnostic, so that is what is checked.
+   my ($crc, $csig, $cso, $cse) = capture($cc1, '-quiet', '-I', $runtime, '-X', 'coverage', $src);
+   my $clog = $cse . $cso;
+   $clog !~ /Error/
+      or die "a coverage-only run diagnosed a bitfield, but it never reaches the"
+            . " compile phase that owns that diagnostic:\n$clog\n";
+
+   # Without it, the same source must still be refused, by that same phase.
+   my ($nrc, $nerr) = compile_cc1($bad, 'loud');
+   $nrc != 0
+      or die "an over-wide bitfield is accepted; the parse-time size walk has"
+            . " silenced the compile phase instead of merely adding to it\n";
+   $nerr =~ /bitfield 'mantissa' width 23 exceeds storage of 'int16_t'/
+      or die "the over-wide bitfield is no longer diagnosed as one:\n$nerr\n";
 }
 
 print "vcs_array_extent_constant_expression ok\n";

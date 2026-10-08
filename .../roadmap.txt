@@ -39,4 +39,33 @@ Current next action: Item 57, add renderer playfield/color stripes.
         * Add deterministic emulator-backed tests for scrolling, collision,
           animation, and completion/reset behavior.
 
+[ ] 60. Elide the storage of a const scalar nothing takes the address of.
+
+        The READ side of item 59 is done; this is the half that was left, and it is
+        worth 1-2 bytes per scalar.  Before starting, MEASURE whether that justifies
+        the audit, because folding the read kept finding larger wins and this ceiling
+        is small.  Blocked by, per the survey:
+          - `.export` plus ABI metadata (compile_toplevel.c): an object that is
+            exported but no longer defined.
+          - `emit_lvalue_semantic_use`, which records a use per access.
+          - inline assembly, which names the linker symbol directly and is invisible
+            to any expression-level fold.
+          - ~40 read sites with no single choke point.
+        The gate: a `static`, non-exported const whose address is never taken and
+        which no inline assembly names.  Anything else keeps its storage.
+
+[ ] 61. A const scalar as an array EXTENT, e.g. `uint8_t a[K]`.
+
+        Refused today, and correctly so: an extent folds while its declaration is
+        parsed, where no scope exists and no const scalar has been recorded.  Needs
+        the extent to defer, or the constant to be recorded at parse time -- and the
+        latter is only sound for a `page const` declared earlier in the same file,
+        which is a much weaker guarantee than it looks.
+
+[ ] 62. `p[K]` where the base pointer is a runtime value.
+
+        The index folds, but it would have to become a displacement on a computed
+        address rather than an offset on a known base.  Low value: the pattern is
+        rare and the index is a byte.
+
 have TJ fix stella 3EX

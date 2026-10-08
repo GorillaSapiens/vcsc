@@ -145,6 +145,12 @@ const ASTNode *cast_expr_target_modifiers(const ASTNode *expr) {
  * declared size, which may legitimately be 0 for `type void { $size:0 }`.  The
  * distinction matters: "not resolvable yet" is a caller problem to report as
  * not-constant, while a resolved size of 0 is a real error about the operand. */
+static int parse_time_type_size(const char *name, int depth);
+
+int declared_type_size(const char *name) {
+   return parse_time_type_size(name, 0);
+}
+
 static int parse_time_type_size(const char *name, int depth) {
    const ASTNode *decl;
    const ASTNode *flags;
@@ -206,8 +212,8 @@ int expr_sizeof_type_size(const ASTNode *operand) {
        * pass has run.  Once it has, the size is a compile-time constant like any other,
        * and must fold -- a `const` object whose initializer the compiler already knows
        * belongs in link-time data, not behind a runtime initializer. */
-      size = known_type_size(is_pointer ? "*" : type_name);
-      if (size <= 0) {
+      size = available_type_size(is_pointer ? "*" : type_name);
+      if (size < 0) {
          return 0;
       }
    }

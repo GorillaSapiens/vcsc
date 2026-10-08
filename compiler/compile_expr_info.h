@@ -30,4 +30,9 @@ const char *expr_bare_identifier_name(ASTNode *expr);
 // required.
 int expr_sizeof_type_size(const ASTNode *operand);
 
+// Size of a named type read from its own declaration -- a `type X { $size:N }`,
+// a pointer, or a typedef alias resolved to one of those -- or -1 when the
+// declaration carries no size.  Never diagnoses.
+int declared_type_size(const char *name);
+
 #endif

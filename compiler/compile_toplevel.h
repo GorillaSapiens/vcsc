@@ -29,4 +29,12 @@ void check_struct_union_undefined(ASTNode *program);
 void crosscheck_struct_union_nesting(ASTNode *program);
 void calculate_struct_union_sizes(ASTNode *program);
 
+// Record a struct or union's size the moment its declaration closes.  A field's type
+// must already be declared -- there are no forward references -- so the size is
+// determined there and there is nothing for the fixed-point pass to find later.  This
+// is what lets an array extent use sizeof(S), since an extent is folded while its
+// declaration is parsed.  Uses the same field walk as calculate_struct_union_sizes so
+// the recorded size and the laid-out size cannot disagree.
+void record_declared_struct_union_size(ASTNode *decl, const char *name, bool is_struct);
+
 #endif

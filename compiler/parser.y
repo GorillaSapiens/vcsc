@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "coverage.h"
 #include "compile_init.h"
+#include "compile_toplevel.h"
 #include "enumname.h"
 #include "lextern.h"
 #include "memname.h"
@@ -629,7 +630,7 @@ enum_value:
 
 struct_decl_stmt:
     STRUCT IDENTIFIER ';'                    { COVER; if (register_typename($2) < 0) YYABORT; $$ = make_empty_leaf(); $$->strval = strdup($2); } // Add early to type table
-  | STRUCT TYPENAME '{' field_list '}' ';'   { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); }
+  | STRUCT TYPENAME '{' field_list '}' ';'   { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); record_declared_struct_union_size($$, $2, true); }
   | STRUCT IDENTIFIER '{'                    {
                                                 COVER;
                                                 if (register_typename($2) < 0) YYABORT;  // Add early to type table
@@ -637,12 +638,13 @@ struct_decl_stmt:
     field_list '}' ';'                       {
                                                 COVER;
                                                 $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $5);
+                                                record_declared_struct_union_size($$, $2, true);
                                              }
   ;
 
 union_decl_stmt:
     UNION IDENTIFIER ';'                     { COVER; if (register_typename($2) < 0) YYABORT; $$ = make_empty_leaf(); $$->strval = strdup($2); } // Add early to type table
-  | UNION TYPENAME '{' field_list '}' ';'    { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); }
+  | UNION TYPENAME '{' field_list '}' ';'    { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); record_declared_struct_union_size($$, $2, false); }
   | UNION IDENTIFIER '{'                     {
                                                 COVER;
                                                 if (register_typename($2) < 0) YYABORT;  // Add early to type table
@@ -650,6 +652,7 @@ union_decl_stmt:
     field_list '}' ';'                       {
                                                 COVER;
                                                 $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $5);
+                                                record_declared_struct_union_size($$, $2, false);
                                              }
   ;
 

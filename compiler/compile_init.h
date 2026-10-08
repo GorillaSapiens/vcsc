@@ -18,6 +18,19 @@ bool eval_constant_initializer_expr_resolved(ASTNode *expr, InitConstValue *out,
                                              InitConstIdentifierResolver resolver,
                                              void *opaque);
 bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out);
+
+// Record a file-scope `const` scalar's folded bytes as a compile-time value, so an
+// expression that uses it folds instead of being computed at runtime.  Only plain ROM
+// data may be recorded: elsewhere -- a named memory region, zeropage, an absolute
+// binding, swapram -- the byte's ADDRESSABILITY is the contract rather than its value,
+// and folding a read would erase the very reference the linker diagnoses.
+void const_scalar_value_record(const char *name, const unsigned char *bytes, int size);
+bool const_scalar_value_lookup(const char *name, long long *out);
+
+// eval_constant_initializer_expr with const scalars resolvable by name.  Separate from
+// the plain entry point because a constant expression is also evaluated while PARSING,
+// to fold an array extent, where no scope exists and nothing has been recorded yet.
+bool eval_constant_initializer_expr_in_scope(ASTNode *expr, Context *ctx, InitConstValue *out);
 bool encode_integer_initializer_value(long long value, unsigned char *buf, int size, const ASTNode *type);
 bool encode_integer_literal_text(const char *text, unsigned char *buf, int size, const ASTNode *type);
 bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf, int size, const ASTNode *type);
