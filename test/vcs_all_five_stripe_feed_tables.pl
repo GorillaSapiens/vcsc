@@ -115,6 +115,16 @@ sub record_byte {
 # pair q = P*s + p is read at the single index Y = R-1-q.  Three pairs carry eight
 # bytes: pairs 0 and 1 carry a colour plus two PF bytes, pair 2 carries two PF
 # bytes, and no pair carries more.
+#
+# Record stripe s goes in the pair this layout calls s, with NO rotation.  The
+# fixture used to rotate by one (record_byte(8*($s+1)+...)), which contradicted
+# stripe_generic_feed_source_bound.pl -- the declared authority -- while each was
+# internally self-consistent, so both passed their own checks.  The bound's rule
+# is the one the renderer and the machine will follow, and the raster reads
+# feed[Y] at whatever Y it is on, so the tables and the machine's Y discipline have
+# to agree on this and there is no machine yet to catch a disagreement.  A rotation
+# here would draw every stripe with the next stripe's colours and playfield, and no
+# size check would notice.
 my @blank = () x $R;                        # one row of unfilled slots
 my @expect=([@blank],[@blank],[@blank]);
 for my $q (0..$R-1) {
@@ -128,7 +138,7 @@ for my $q (0..$R-1) {
       my ($tab,$field)=@$take;
       defined $expect[$tab][$Y]
          and die "layout would write table $tab index $Y twice\n";
-      $expect[$tab][$Y]=record_byte(8*($s+1)+$field);
+      $expect[$tab][$Y]=record_byte(8*$s+$field);
    }
 }
 

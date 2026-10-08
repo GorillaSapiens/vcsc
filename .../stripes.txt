@@ -129,6 +129,34 @@ installs the service high byte but supplies no pair-2 PF copies, so the next
 stripe's PF1R/PF2R are unsupplied and it may not be emitted as-is.
 `stripe_supercycle_event_compose_bound.pl` owns the executable proof.
 
+RESOLVED 2026-10-08: the BOUND's rule is canonical -- record stripe s goes in the
+pair the layout calls s, with NO rotation.  The user agreed the bound is the more
+logical of the two, and it is already the declared authority.
+
+The contradiction, for the record.  Both artifacts place pair q at Y = region-1-q
+and both were internally self-consistent, but they disagreed on which record stripe
+landed in which pair: the bound used stripe s, while
+test/fixtures/all_five_stripe_feed/feed_transposition_probe.c26 and the
+vcs_all_five_stripe_feed_tables.pl checking it used record_byte(8*($s+1)+$field), a
++1 rotation modulo the stripe count.  Verified by generating all three (192,32)
+tables under each rule: with the rotation all three matched the fixture byte for
+byte, without it none did.
+
+Why it had to be settled before the machine was written.  The raster reads feed[Y]
+at whatever Y it is on, so the tables and the machine's Y discipline must agree on
+this.  A rotation does not crash, does not fail a size check, and cannot be caught
+by any test that only counts bytes: it draws every stripe with the NEXT stripe's
+colours and playfield, which reads as a renderer bug and is not one.  There is also
+no machine yet to catch it.
+
+The bound could not see it either, which is worth noting as a general trap.  Its
+claim to "still reproduce it for (192,32)" is
+  $out =~ /3x96=288 bytes/ && $out =~ /feed2 has 32 spare pair2 slots/
+which compares SIZE STRINGS.  A layout rotation is invisible to a size check, so
+"reproduces the maintained proof" was true about sizes and silent about layout.
+Both files now say which rule they follow and why the two must not be allowed to
+diverge quietly.
+
 Remaining
 ---------
 0. DONE: the fold is landed. A `const` object built from another `const` object's
