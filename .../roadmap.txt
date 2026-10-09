@@ -18,16 +18,16 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 57, add playfield-color support as an explicit renderer capability.
+Current next action: Item 57, add renderer playfield/color stripes.
 
-[ ] 57. Add playfield-color support as an explicit renderer capability.
+[ ] 57. Add playfield/color stripes as an explicit renderer capability.
 
-        * Define whether colors are global, per logical row, or both.
-        * Schedule every COLUPF write against the beam.
-        * Preserve existing renderer output when the feature is unused.
-        * Expose a clear application data/API contract.
-        * Add static, motion, transition, installation, and pixel/color-oracle
-          coverage for every supported profile.
+        * `.../stripes.txt` owns the active ABI, renderer/component consolidation
+          roadmap, timing/compatibility invariants, documentation, and acceptance
+          criteria.
+        * Consolidate the duplicated gameplay-renderer family first, preserving
+          each established schedule as a compile-time specialization; implement
+          stripes once that unified renderer is certified.
 
 [ ] 58. Add a public side-scroller/platform example.
 
@@ -38,5 +38,29 @@ Current next action: Item 57, add playfield-color support as an explicit rendere
         * Stay inside a documented RAM/ROM/frame budget.
         * Add deterministic emulator-backed tests for scrolling, collision,
           animation, and completion/reset behavior.
+
+[ ] 60. Elide the storage of a const scalar nothing takes the address of.
+
+        The READ side of const-scalar folding is done and shipped on this branch;
+        this is the half left.  Worth 1-2 bytes per scalar, so MEASURE before
+        starting: folding the read kept finding larger wins, and this ceiling is
+        small.  Blocked by `.export` plus ABI metadata, by the per-access semantic
+        use record, by inline assembly naming the linker symbol directly, and by
+        ~40 read sites with no single choke point.  The gate: a `static`, non-exported
+        const whose address is never taken and that no inline assembly names.
+
+[ ] 61. A const scalar as an array EXTENT, e.g. `uint8_t a[K]`.
+
+        Refused today, and correctly: an extent folds while its declaration is
+        parsed, where no scope exists and nothing has been recorded.  Needs the
+        extent to defer, or the constant recorded at parse time -- and the latter is
+        only sound for a `page const` declared earlier in the same file, which is a
+        much weaker guarantee than it looks.
+
+[ ] 62. `p[K]` where the base pointer is a runtime value.
+
+        The index folds, but it would have to become a displacement on a computed
+        address rather than an offset on a known base.  Low value: the pattern is
+        rare and the index is a byte.
 
 have TJ fix stella 3EX

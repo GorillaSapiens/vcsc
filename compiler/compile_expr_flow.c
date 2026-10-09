@@ -272,6 +272,13 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
 typedef struct DirectByteOperand {
    LValueRef lv;
    bool valid;
+   /* Set when the expression names a `const` scalar whose value is known, so the
+    * instruction uses an immediate instead of reading the object.  `lv` is still
+    * populated, deliberately: the semantic-use record for the object is emitted from
+    * it, and eliding that record would change what the linker cross-checks without
+    * eliding the object.  Only the INSTRUCTION changes. */
+   bool immediate;
+   long long immediate_value;
    bool direct_memory;
    bool local_scratch;
    bool register_x;
@@ -331,6 +338,26 @@ static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode
           !out.lv.needs_runtime_address && out.lv.offset == 0) {
          out.register_x = true;
          return out;
+      }
+      /* A name with no local declaration of its own may be a file-scope `const` scalar
+       * whose value is known.  `ctx_lookup` above has already answered the shadowing
+       * question: a local of the same name would have been found and returned, so
+       * `!entry` here IS the proof that nothing shadows it.
+       *
+       * Restricted to a whole object at offset zero.  An element of a const ARRAY is
+       * not one known value, and a field of a const STRUCT is a separate object whose
+       * address is its own; folding those would substitute one object's value for
+       * another's.  A `ref` binding is excluded for the same reason -- it names a
+       * caller-side object, not this one. */
+      if (!entry && !out.lv.is_ref && !out.lv.is_absolute_ref && out.lv.offset == 0 &&
+          !out.lv.indirect && !out.lv.needs_runtime_address) {
+         long long known;
+         if (const_scalar_value_lookup(out.lv.name, &known) &&
+             integer_value_fits_type(known, out.lv.type)) {
+            out.immediate = true;
+            out.immediate_value = known;
+            return out;
+         }
       }
    }
 
@@ -401,6 +428,10 @@ static bool emit_load_direct_byte_operand_impl(Context *ctx,
    }
    if (op->register_x) {
       emit(&es_code, "    txa\n");
+      return true;
+   }
+   if (op->immediate) {
+      emit(&es_code, "    lda #$%02llx\n", (unsigned long long) (unsigned char) (op->immediate_value));
       return true;
    }
    if (op->indexed_x) {
@@ -507,7 +538,7 @@ static bool classify_direct_u8_value_operand(Context *ctx, ASTNode *expr,
 //! @brief Return whether one classified byte can be used as a 6502 memory ALU operand.
 static bool direct_byte_operand_is_alu_memory(const DirectByteOperand *op) {
    return op && op->valid && !op->register_x &&
-          (op->direct_memory || op->local_scratch || op->indexed_x);
+          (op->immediate || op->direct_memory || op->local_scratch || op->indexed_x);
 }
 
 //! @brief Apply one 6502 memory ALU operation to A from a direct byte operand.
@@ -520,6 +551,10 @@ static bool emit_alu_direct_byte_operand(Context *ctx, const char *mnemonic,
       return false;
    }
    emit_lvalue_semantic_use(ctx, &op->lv, "read");
+   if (op->immediate) {
+      emit(&es_code, "    %s #$%02llx\n", mnemonic, (unsigned long long) (unsigned char) (op->immediate_value));
+      return true;
+   }
    if (op->indexed_x) {
       formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
       if (op->offset == 0) emit(&es_code, "    %s %s,x\n", mnemonic, formatted);
@@ -1968,6 +2003,10 @@ static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *
       return false;
    }
    emit_lvalue_semantic_use(ctx, &op->lv, "read");
+   if (op->immediate) {
+      emit(&es_code, "    cmp #$%02llx\n", (unsigned long long) (unsigned char) (op->immediate_value));
+      return true;
+   }
    if (op->direct_memory) {
       formatted = assembler_address_expr(op->expr, asm_expr, sizeof(asm_expr));
       if (op->offset == 0) {
@@ -2055,7 +2094,7 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
    }
 
    rhs_expr = (ASTNode *) unwrap_expr_node(expr->children[1]);
-   if (rhs_expr && eval_constant_initializer_expr(rhs_expr, &rhs_constant) &&
+   if (rhs_expr && eval_constant_initializer_expr_in_scope(rhs_expr, ctx, &rhs_constant) &&
        rhs_constant.kind == INIT_CONST_INT) {
       rhs_immediate = lhs_type && integer_value_fits_type(rhs_constant.i, lhs_type) &&
                       encode_integer_initializer_value(rhs_constant.i, &rhs_encoded,
@@ -2209,10 +2248,18 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
 static bool direct_byte_operand_same_storage(const DirectByteOperand *a,
                                              const DirectByteOperand *b) {
    if (!a || !b || !a->valid || !b->valid ||
+       a->immediate != b->immediate ||
        a->register_x != b->register_x || a->indexed_x != b->indexed_x ||
        a->direct_memory != b->direct_memory || a->local_scratch != b->local_scratch ||
        a->offset != b->offset) {
       return false;
+   }
+   /* An immediate is not storage, so it can only match another immediate of the same
+    * value.  The flag test above already separates immediates from every other kind;
+    * this states the positive case, which otherwise fell through to `return false` and
+    * quietly lost the elision when both operands were the same constant. */
+   if (a->immediate) {
+      return a->immediate_value == b->immediate_value;
    }
    if (a->register_x) return true;
    if (a->indexed_x || a->direct_memory) return !strcmp(a->expr, b->expr);
@@ -2707,7 +2754,7 @@ static bool compile_direct_scalar_constant_assignment(Context *ctx,
    unsigned char encoded[4] = {0, 0, 0, 0};
 
    if (!dst || dst->is_swapram || dst->size < 1 || dst->size > 4 || dst->is_bitfield ||
-       !eval_constant_initializer_expr(rhs, &value) ||
+       !eval_constant_initializer_expr_in_scope(rhs, ctx, &value) ||
        value.kind != INIT_CONST_INT || !integer_value_fits_type(value.i, dst->type)) {
       return false;
    }
@@ -3970,7 +4017,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          ASTNode *direct_index = direct_single_subscript_expr(node->children[1]);
          long long direct_index_value = 0;
          bool constant_index = direct_index &&
-            expr_is_integer_constant_expr(direct_index, &direct_index_value);
+            expr_is_integer_constant_expr_in_scope(direct_index, ctx, &direct_index_value);
          if (direct_index && !constant_index &&
              compile_direct_u8_array_assignment(ctx, node->children[1], rhs)) {
             return;

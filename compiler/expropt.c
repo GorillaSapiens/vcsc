@@ -10,6 +10,8 @@
 #include <stdint.h>
 
 #include "ast.h"
+#include "compile_declarator.h"
+#include "compile_expr_info.h"
 #include "expropt.h"
 #include "integer.h"
 #include "messages.h"
@@ -213,23 +215,34 @@ static void expropt(ASTNode **noderef) {
       return;
    }
 
-   if (((!strcmp(node->name, "conditional_expr") && node->count == 4 && node->children[0] &&
-         node->children[0]->kind == AST_IDENTIFIER && !strcmp(node->children[0]->strval, "?:"))) ||
-       (!strcmp(node->name, "?:") && node->count == 3)) {
+   /* The shared detector and accessors own this shape.  This used to be a fourth
+    * inline copy of the same test, including tolerance for a node named "?:" that
+    * this grammar cannot produce. */
+   /* The shared detector owns the shape, but collapsing a ternary is only valid when
+    * the ternary IS this node.  The detector unwraps, and `case_choice` is one of the
+    * wrappers unwrap_expr_node peels, so a `case choice' wrapper around a case-term
+    * ternary also matches.  Replacing through that wrapper would put the selected
+    * branch where the wrapper was, and the switch emitter identifies a case by
+    * `strcmp(case_expr->name, "case_choice")' -- so the wrapper would stop looking like
+    * a case choice and the direct dispatch path would be abandoned in favour of
+    * runtime comparison.  That is a codegen regression, not a fold: the label was
+    * still correct, just no longer constant.  The inline test this replaced did not
+    * unwrap, which is why it never collapsed a wrapped ternary in the first place. */
+   if (expr_is_ternary_node(node) && (ASTNode *) unwrap_expr_node(node) == node) {
       bool truthy;
-      ASTNode **test = !strcmp(node->name, "?:") ? &(node->children[0]) : &(node->children[1]);
-      ASTNode **iftrue = !strcmp(node->name, "?:") ? &(node->children[1]) : &(node->children[2]);
-      ASTNode **iffalse = !strcmp(node->name, "?:") ? &(node->children[2]) : &(node->children[3]);
+      ASTNode *test = expr_ternary_test(node);
+      ASTNode *iftrue = expr_ternary_true(node);
+      ASTNode *iffalse = expr_ternary_false(node);
 
-      expropt(test);
-      if (node_truthy(*test, &truthy)) {
-         ASTNode *selected = truthy ? *iftrue : *iffalse;
+      expropt(&test);
+      if (node_truthy(test, &truthy)) {
+         ASTNode *selected = truthy ? iftrue : iffalse;
          expropt(&selected);
          *noderef = selected;
          return;
       }
-      expropt(iftrue);
-      expropt(iffalse);
+      expropt(&iftrue);
+      expropt(&iffalse);
       return;
    }
 

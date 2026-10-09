@@ -1,0 +1,84 @@
+2026-10-04 20:41:56 PDT, fix zero-length array and reserved -D names
+
+Fixed two real toolchain defects, each with a regression, and established that
+the third report of mine was not a bug at all.
+
+Zero-length arrays (fixed).  `extern const uint8_t x[0]` was accepted silently
+and produced a zero-sized object.  That made the idiom look like a compile-time
+guard while doing nothing: never diagnosed, never allocated, never taking effect.
+declarator_array_multiplier_from did `mult *= atoi(...)` with no validation, so
+extent 0 flowed straight through to a zero size.  It now rejects a non-positive
+extent at the declaration with a located diagnostic.  A negative extent was
+already refused, but by the parser rather than on purpose: a negative literal is
+not an integer expression.
+
+Regression: test/zero_length_array_error_test.c26, using the existing expectfail
+convention so it is picked up by `make unit` with no runner changes.
+
+Because the old guards were decorative, this fix exposed three more of them in
+libraries/vcs/components: paddle_samples_must_be_0_2_or_4,
+paddle_samples_must_be_0_or_2, and line_markers_must_be_0_or_1.  All three were
+inactive.  Converted to the negative-size idiom so they actually reject.  No
+`[0]` guard remains anywhere in the tree.
+
+-D names colliding with an assembler register (fixed).  My earlier report said
+"any single-character -D name fails".  That was wrong: it is specifically A, X
+and Y, which are the three register tokens the assembler lexer hardcodes.
+-DB=5 and -DZ=5 are fine; only the register names break.
+
+The mechanism is a genuine layering mistake, not a parser quirk.  The assembler
+lexer hardcodes [Aa], [Xx] and [Yy] as REG_A/REG_X/REG_Y, so a define named A is
+turned into the source line "A = 5", which lexes as REG_A '=' 5 and fails.  The
+driver forwards every -D to the assembler as well as to the compiler
+(add_define_flags in run_as), so this was reachable from any -D regardless of
+which stage needed it, and the only diagnostic was a bare
+"<command-line>:1: parse error" naming neither the define nor the reason.
+define_name_is_valid checked identifier characters but not reserved words, so it
+happily accepted A.
+
+Fixed in the assembler, which is where the name is validated and where vcsc-as
+enforces it for direct invocation.  The diagnostic now names the collision.
+
+Regression: test/vcs_define_reserved_register_name.pl.  Asserts A, X and Y in
+either case, with and without a value, are rejected by name; that names merely
+beginning with those letters (AB, AVX, ALPHA, XRAY, YOURS) stay valid, which is
+what would regress if the check were written as a prefix test; and that vcsc-as
+enforces the same rule directly.
+
+Unresolved symbols (not a bug; my report was wrong).  I claimed unsatisfied
+externs produce no diagnostic.  Re-tested properly: a *used* unsatisfied extern
+does error, with `vcsc-ld: unresolved symbol 'name'` and a non-zero exit, from
+both the C side and the assembly side (an `.import` referenced by a real
+instruction).  An extern or `.import` that is declared but never referenced is
+silent in both languages, which is correct and is what a forward declaration
+should do.  So there is no missing diagnostic to add.
+
+The genuine defect here was narrower and is now fixed: the zero-length array made
+it *look* as though unsatisfied externs were tolerated, because the intended
+guard shape produced no error.  With that fixed, unsatisfied symbols are diagnosed
+whenever they are actually used.
+
+Verified: make unit 582/582, source tree hygiene ok, and the stripe suites
+unchanged (geometry compile, stripes2_192, stripes_192, stripes Stella,
+generic geometry bound, supercycle event compose).Follow-up to the zero-length array fix.  Three component guards were found
+inactive and corrected, but the tree-wide sweep was only for the exact
+`extern const uint8_t NAME[0]` spelling.
+
+Still worth auditing when there is budget, because the same class of defect can
+hide behind other shapes:
+
+* Guards spelled with a different type, element size, or pointer form rather than
+  `const uint8_t`, which this grep did not cover.
+* Guards that are active but whose *condition* was mis-authored, which produce no
+  error at all and so cannot be found by testing whether a build fails.  These
+  need a positive test: prove the guarded configuration is refused AND prove a
+  neighbouring permitted configuration still builds.
+* Guards relying on a symbol being referenced where the reference can be dropped
+  before resolution.  An asm operand to an undeclared symbol is resolved late and
+  an inlined asm block can disappear first, so it is not dependable; a plain
+  undefined-identifier read is a compile error in every case.
+
+The stripe guards in libraries/vcs/renderers/all_five/all_five.c26 now follow the
+last rule and are proved to fire by vcs_all_five_stripe_geometry_compile.pl,
+which discriminates by behaviour rather than by matching error text because a
+negative array size produces a diagnostic with no symbol name in it.

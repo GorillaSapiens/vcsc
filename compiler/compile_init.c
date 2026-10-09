@@ -14,6 +14,7 @@
 #include "ast.h"
 #include "builtin.h"
 #include "compile.h"
+#include "compile_expr_info.h"
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_support.h"
@@ -42,12 +43,215 @@ typedef struct PendingGlobalInit {
 
 static PendingGlobalInit *pending_global_inits = NULL;
 
+/* A file-scope `const` object whose initializer was folded entirely at link time
+ * is a compile-time constant, not merely a read-only runtime table.  Recording its
+ * link-time bytes lets a later declaration read one of those bytes as a constant
+ * expression, so a table DERIVED from another table is itself link-time data
+ * instead of a RAM object plus a startup copy.
+ *
+ * Only byte-granular objects are recorded.  A wider element type would need its
+ * own decode and sign handling to yield a value rather than a byte, and nothing
+ * needs that yet; an unrecorded object simply keeps today's behaviour, which is a
+ * runtime read. */
+typedef struct {
+   char *name;
+   unsigned char *bytes;
+   int size;
+} ConstLinkTimeTable;
+
+static ConstLinkTimeTable *const_link_time_tables = NULL;
+static int const_link_time_table_count = 0;
+
+/** @brief A file-scope `const` scalar whose value is known when compilation finishes.
+ *
+ * This is the SCALAR counterpart of ConstLinkTimeTable, and it exists for a different
+ * reason.  A recorded table lets a later declaration read one of its BYTES as a
+ * constant; this lets the expression compiler read the object ITSELF as a constant, so
+ * that an expression using it folds instead of being computed byte by byte at runtime.
+ *
+ * The two pay off differently, which is worth being precise about.  A bare read is
+ * already cheap -- `v := W` compiles to the same four instructions as `v := 300` --
+ * so replacing a load with an immediate saves nothing there.  What is expensive is
+ * arithmetic ON the constant: `v := W & 255` costs 26 instructions against 4 for
+ * `v := 300 & 255`, because the expression cannot fold and runs through scratch a byte
+ * at a time.  Folding the value fixes that; it does not depend on eliding storage. */
+typedef struct ConstScalarValue {
+   char *name;
+   long long value;
+} ConstScalarValue;
+
+static ConstScalarValue *const_scalar_values = NULL;
+static int const_scalar_value_count = 0;
+
+/** @brief Record a file-scope `const` scalar's folded bytes as a compile-time value.
+ *
+ * Only a genuine scalar is recorded -- an array is left to ConstLinkTimeTable, and a
+ * value wider than an InitConstValue's long long is left alone rather than truncated.
+ * Little-endian is the encoding the emitter itself writes (see compile_type.c), so the
+ * bytes are decoded exactly as they would be read back at runtime. */
+void const_scalar_value_record(const char *name, const unsigned char *bytes, int size) {
+   long long value = 0;
+   int i;
+
+   if (!name || !*name || !bytes || size < 1 || size > (int) sizeof(value)) {
+      return;
+   }
+   for (i = size - 1; i >= 0; i--) {
+      value = (value << 8) | (long long) bytes[i];
+   }
+   for (i = 0; i < const_scalar_value_count; i++) {
+      if (!strcmp(const_scalar_values[i].name, name)) {
+         const_scalar_values[i].value = value;
+         return;
+      }
+   }
+   const_scalar_values = (ConstScalarValue *) realloc(const_scalar_values,
+                                                      sizeof(ConstScalarValue) *
+                                                      (size_t) (const_scalar_value_count + 1));
+   if (!const_scalar_values) {
+      error_unreachable("out of memory recording const scalar '%s'", name);
+   }
+   const_scalar_values[const_scalar_value_count].name = strdup(name);
+   const_scalar_values[const_scalar_value_count].value = value;
+   const_scalar_value_count++;
+}
+
+/** @brief Read back a recorded const scalar, or false if the name has no recorded value. */
+bool const_scalar_value_lookup(const char *name, long long *out) {
+   int i;
+
+   if (!name || !*name || !out) {
+      return false;
+   }
+   for (i = 0; i < const_scalar_value_count; i++) {
+      if (!strcmp(const_scalar_values[i].name, name)) {
+         *out = const_scalar_values[i].value;
+         return true;
+      }
+   }
+   return false;
+}
+
+/** @brief Resolve a name to a recorded const scalar, honouring local shadowing.
+ *
+ * A local declaration of the same name shadows the file-scope object, so consulting the
+ * table first would substitute the WRONG value -- `page const uint8_t K := 7;` together
+ * with `uint8_t K;` in a function body is legal today.  The Context is therefore asked
+ * first, and the table is only consulted when the name resolves to nothing local. */
+static bool const_scope_constant_resolver(const char *name, InitConstValue *out, void *opaque) {
+   Context *ctx = (Context *) opaque;
+   long long value;
+
+   if (!name || !out) {
+      return false;
+   }
+   if (ctx && ctx_lookup(ctx, name)) {
+      /* Shadowed by a local.  If the inliner has already proven that local constant,
+       * its own value is the right answer; otherwise there is nothing to fold and the
+       * expression must be compiled as written. */
+      ContextEntry *entry = ctx_lookup(ctx, name);
+      if (!entry->has_const_value) {
+         return false;
+      }
+      memset(out, 0, sizeof(*out));
+      out->kind = INIT_CONST_INT;
+      out->i = entry->const_value;
+      return true;
+   }
+   if (!const_scalar_value_lookup(name, &value)) {
+      return false;
+   }
+   memset(out, 0, sizeof(*out));
+   out->kind = INIT_CONST_INT;
+   out->i = value;
+   return true;
+}
+
+/** @brief Evaluate a constant expression that may name a const scalar, in this scope.
+ *
+ * This is eval_constant_initializer_expr with the const-scalar resolver installed.  It
+ * is a separate entry point rather than a change to the existing one because a constant
+ * expression is also evaluated while PARSING -- to fold an array extent -- where no
+ * scope has been built and no const scalar has been recorded.  Leaving the no-context
+ * entry point alone keeps that path exactly as it was. */
+bool eval_constant_initializer_expr_in_scope(ASTNode *expr, Context *ctx, InitConstValue *out) {
+   return eval_constant_initializer_expr_resolved(expr, out, const_scope_constant_resolver, ctx);
+}
+
 /* Keep generated .byte directives comfortably below assembler/source-reader
  * line-buffer limits.  This is an output-format detail; C26 source objects do
  * not need to be split merely to constrain generated S26 line length. */
 #define INITIALIZER_BYTES_PER_ASM_LINE 128
 
 static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_offset, const ASTNode *init, const ASTNode *type, const ASTNode *declarator, int total_size);
+
+//! @brief Record a file-scope `const` object's link-time bytes as a compile-time constant table.
+void const_link_time_table_record(const char *name, const unsigned char *bytes, int size, int elem_size) {
+   ConstLinkTimeTable *items;
+   int i;
+
+   if (!name || !*name || !bytes || size <= 0) {
+      return;
+   }
+   /* Only byte-granular tables are readable as constants here; see the type
+    * comment.  An object of any other element size keeps its runtime-read
+    * behaviour rather than being recorded with a width this code cannot honour. */
+   if (elem_size != 1) {
+      return;
+   }
+   for (i = 0; i < const_link_time_table_count; i++) {
+      if (!strcmp(const_link_time_tables[i].name, name)) {
+         /* A later declaration of the same name supersedes the earlier one, which
+          * is what a redeclaration inside a second instantiation of one template
+          * must see. */
+         free(const_link_time_tables[i].bytes);
+         memcpy(const_link_time_tables[i].bytes, bytes, (size_t) size);
+         const_link_time_tables[i].size = size;
+         return;
+      }
+   }
+   items = (ConstLinkTimeTable *) realloc(const_link_time_tables,
+                                          sizeof(*items) * (size_t) (const_link_time_table_count + 1));
+   if (!items) {
+      error_unreachable("out of memory");
+   }
+   const_link_time_tables = items;
+   items = &const_link_time_tables[const_link_time_table_count++];
+   items->name = strdup(name);
+   items->bytes = (unsigned char *) malloc((size_t) size);
+   if (!items->name || !items->bytes) {
+      error_unreachable("out of memory");
+   }
+   memcpy(items->bytes, bytes, (size_t) size);
+   items->size = size;
+}
+
+//! @brief Read one recorded link-time table byte as a constant value.
+bool const_link_time_table_byte(const ASTNode *at, const char *name, long long index, long long *out) {
+   int i;
+
+   if (!name || !*name || !out || index < 0) {
+      return false;
+   }
+   for (i = 0; i < const_link_time_table_count; i++) {
+      if (strcmp(const_link_time_tables[i].name, name)) {
+         continue;
+      }
+      if (index >= (long long) const_link_time_tables[i].size) {
+         /* Out of range.  A constant expression has no runtime bounds check left
+          * to defer to, so this is refused rather than folded to whatever byte
+          * would follow the table in link-time data. */
+         error_user("[%s:%d.%d] constant read index %lld must be less than the size of link-time table '%s' (%d)",
+                    at && at->file ? at->file : "<unknown>",
+                    at ? at->line : 0, at ? at->column : 0,
+                    index, name, const_link_time_tables[i].size);
+         return false;
+      }
+      *out = (long long) const_link_time_tables[i].bytes[(size_t) index];
+      return true;
+   }
+   return false;
+}
 
 //! @brief Return whether a constant initializer explicitly names a packed-BCD type.
 static bool initializer_expr_mentions_bcd_type(const ASTNode *expr) {
@@ -107,46 +311,15 @@ static int pending_global_init_max_size = 0;
 static char runtime_global_init_symbol_buf[64];
 static bool runtime_global_init_symbol_ready = false;
 
-//! @brief Return whether expr is ternary node in compiler initializer lowering.
-static bool expr_is_ternary_node(const ASTNode *expr) {
-   if (!expr || strcmp(expr->name, "expr")) {
-      return false;
-   }
-   if (expr->count <= 0) {
-      return false;
-   }
-   return !strcmp(expr->children[0]->name, "question_expr");
-}
+/* The ternary accessors below used to be file-local copies here that recognised an
+ * "expr" node with a "question_expr" child.  The grammar builds a ternary as a
+ * `conditional_expr` node with four children, the first being an identifier "?:",
+ * so those copies could never match anything and the ternary arm of the constant
+ * evaluator was unreachable: `page const uint8_t t := 1 ? 5 : 6;` folded only
+ * because expropt.c happens to fold the same shape later, and the same expression
+ * in any other constant context did not fold at all.  The shared accessors in
+ * compile_expr_info.c accept both the current and the legacy shape. */
 
-//! @brief Return expr ternary test data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_test(ASTNode *expr) {
-   ASTNode *question;
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   question = expr->children[0];
-   return question->count > 0 ? question->children[0] : NULL;
-}
-
-//! @brief Return expr ternary true data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_true(ASTNode *expr) {
-   ASTNode *question;
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   question = expr->children[0];
-   return question->count > 1 ? question->children[1] : NULL;
-}
-
-//! @brief Return expr ternary false data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_false(ASTNode *expr) {
-   ASTNode *question;
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   question = expr->children[0];
-   return question->count > 2 ? question->children[2] : NULL;
-}
 //! @brief Return whether type is aggregate in compiler initializer lowering.
 bool type_is_aggregate(const ASTNode *type) {
    const ASTNode *node;
@@ -427,6 +600,50 @@ bool eval_constant_initializer_expr_resolved(ASTNode *expr, InitConstValue *out,
 
    if (!strcmp(expr->name, "()") && builtin_call_result_type_name(expr)) {
       return builtin_eval_constant_call(expr, out);
+   }
+
+   /* `sizeof(type)` is a compile-time constant, so it folds here and then composes
+    * with the surrounding arithmetic: `sizeof(glyph) * 3` is one value, not two
+    * nested special cases.  This is what lets an array extent be written in terms of
+    * the thing it is sizing.  Only the type form folds here; `sizeof(expression)`
+    * needs the expression's type, which is a function of scope, and a constant
+    * expression is evaluated before any scope exists.  That form remains valid where
+    * it always was, and reports as not-constant where a constant is required. */
+   if (!strcmp(expr->name, "sizeof")) {
+      int size = expr->count > 0 ? expr_sizeof_type_size(expr->children[0]) : 0;
+      if (size <= 0) {
+         return false;
+      }
+      out->kind = INIT_CONST_INT;
+      out->i = size;
+      return true;
+   }
+
+   /* A single-subscript read of a file-scope `const` object that was itself
+    * folded at link time is a compile-time constant.  Folding it here rather than
+    * in the caller's initializer walk is what lets the result compose with the
+    * surrounding constant arithmetic, so `src[2]+1` and `src[7]` both fold. */
+   if (!strcmp(expr->name, "lvalue") && expr->count >= 2) {
+      ASTNode *base = expr->children[0];
+      ASTNode *suffix = expr->children[1];
+      const char *table = (base && !strcmp(base->name, "lvalue_base") && base->count > 0 &&
+                           base->children[0] && base->children[0]->kind == AST_IDENTIFIER)
+                             ? base->children[0]->strval : NULL;
+
+      if (table && suffix && !strcmp(suffix->name, "[") && suffix->count >= 2 &&
+          is_empty(suffix->children[0])) {
+         InitConstValue index = {0};
+         long long byte = 0;
+
+         if (eval_constant_initializer_expr_resolved((ASTNode *) unwrap_expr_node(suffix->children[1]),
+                                                     &index, resolver, resolver_opaque) &&
+             index.kind == INIT_CONST_INT &&
+             const_link_time_table_byte(expr, table, index.i, &byte)) {
+            out->kind = INIT_CONST_INT;
+            out->i = byte;
+            return true;
+         }
+      }
    }
 
    {
@@ -885,13 +1102,18 @@ bool global_initializer_is_all_zero(const ASTNode *type, const ASTNode *declarat
 }
 
 //! @brief Emit global initializer for compiler initializer lowering diagnostics or output files.
-bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size) {
+bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size,
+                             unsigned char **link_time_bytes) {
    ASTNode *uexpr = (ASTNode *) unwrap_expr_node(expression);
    unsigned char *bytes;
    InitConstValue value = {0};
 
    if (!es || !type || size < 0) {
       return false;
+   }
+
+   if (link_time_bytes) {
+      *link_time_bytes = NULL;
    }
 
    if (uexpr) {
@@ -911,6 +1133,13 @@ bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *d
 
    if (build_initializer_bytes(bytes, size, 0, uexpr ? uexpr : expression, type, declarator, size)) {
       emit_initializer_bytes_line(es, bytes, size);
+      if (link_time_bytes) {
+         /* Hand the bytes to the caller rather than only emitting them: a caller
+          * that owns a file-scope `const` object records them as a compile-time
+          * constant, which is what makes a derived table link-time data too. */
+         *link_time_bytes = bytes;
+         return true;
+      }
       free(bytes);
       return true;
    }

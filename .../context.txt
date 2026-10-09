@@ -89,11 +89,9 @@ Open workstreams
    maintained scheduler invariants and next allocator-quality work.
 
 2. **Main roadmap**
-   `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 57 playfield-color renderer support, followed by the
-   side-scroller/platform example.
-   Completed placement/compiler cleanup is owned by executable regressions and
-   dated history rather than this hot file.
+   `.../roadmap.txt` contains only unfinished main items. This branch carries the
+   compiler items only; item 57 (renderer stripes) and item 58 stay on `stripes`,
+   which also owns `.../stripes.txt`.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -101,15 +99,14 @@ Open workstreams
    `.../bankswitching.txt` owns mapper facts and unfinished work. C26 topology is
    authoritative; VCS mapper/linker cfg profiles are gone. The descriptor call
    ABI is complete through FC, F0, and constrained-state E0; each migrated mapper
-   owns `bankcall.s26` plus variable-length `entry.s26` reset normalization.
-   Entry may be empty when hardware already supplies the canonical startup state.
-   Ordinary direct `JMP` is a hard same-bank constraint: VCSC no longer synthesizes
-   mapper-changing application JMP trampolines. The sole mapper-changing one-way
-   JMP mechanism is reset/startup: replicated vector bridges run mapper `entry.s26`
-   as needed, then perform the ordinary absolute jump to the reset handler.
-   Cross-bank application control flow is by bankcall/return; FE remains special.
-   Linker ROM storage uses independent physical planes and bank-aware relocation;
-   the 256-bank 3F/3E/3EX/FC regressions own the large-mapper boundary contracts.
+   owns `bankcall.s26` plus variable-length `entry.s26` reset normalization, which
+   may be empty when hardware already supplies the canonical startup state.
+   Ordinary direct `JMP` is a hard same-bank constraint; the sole mapper-changing
+   one-way JMP mechanism is reset/startup, where replicated vector bridges run
+   `entry.s26` then jump to the reset handler. Cross-bank control flow is by
+   bankcall/return; FE remains special. Linker ROM storage uses independent
+   physical planes and bank-aware relocation; the 256-bank 3F/3E/3EX/FC
+   regressions own the large-mapper boundary contracts.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together
@@ -125,41 +122,17 @@ Open workstreams
    sink validation is separate from A5 bus legality. CM is modeled; DPC+/CDF
    remain unsupported/raw. See 2026-09-14 history for the semantic audit.
 
-5. **Zero static initializer placement**
-   Mutable all-zero link-time static initializers are emitted directly as
-   BSS/ZEROPAGE rather than DATA. This avoids pointless ROM copies and lets more
-   programs select the compact startup. Const/readonly objects and pointer
-   initializers that require backing objects retain their required storage
-   semantics. Regression tests own the detailed placement/footprint expectations.
-
-6. **Heart score component**
-   Complete for 0..11 hearts with left-half steps through 10.5; score 11 ignores
-   `half`. Default profile is 7 lines / 8 RIOT bytes. `line_markers:=1` selects
-   a 10-line / 12-byte profile with independent `lines` 0..11 and `line_color`,
-   drawing 8-pixel PF segments above/below on the same 12-pixel pitch without
-   changing the heart raster. `draw()` self-positions P0/P1. 4K above/below
-   `player_color_181` demos use right UP/DOWN for health, right LEFT/RIGHT for
-   markers, left stick for P0/P1/Ball and SELECT to cycle. See
-   `.../heart_score.txt`.
-
-7. **Direct Register Access**
-   `.../DRA.txt` is authoritative. DRA1-DRA12 are complete: the dedicated DRA
-   parser/AST/rejection surface, exact `$A/$X/$Y` direct loads/stores, native
-   register transfers, direct flag reads/writes, compound short-circuit flag
-   conditions, optimizer/register-lifetime barriers, full migration from lone
-   `_`, bounded trivial-inline-assembly cleanup, final public documentation, and
-   broad certification are complete. Lone `_` is an intentional error.
-
 Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. All three stock paths establish the
-same deterministic TIA baseline first by clearing the non-beam `$04-$2C` write-register
-window through its `$40` mirror (`$44-$6C`), leaving
+same deterministic TIA baseline first by clearing the non-beam `$04-$2C`
+write-register window through its `$40` mirror (`$44-$6C`), leaving
 `VSYNC`/`VBLANK`/`WSYNC`/`RSYNC` untouched and avoiding mapper-owned low-page
-addresses used by 3E/3F/WD. The descending sweep reaches `HMCLR` immediately before
-`HMOVE`, so the strobe applies zero motion; it also clears VDEL, graphics/audio,
-position, color, and collision state. Real TIA power-on contents are unspecified and Stella developer-mode TIA
-randomization must not leak graphics/audio into compiled programs.
+addresses used by 3E/3F/WD. The descending sweep reaches `HMCLR` immediately
+before `HMOVE`, so the strobe applies zero motion; it also clears VDEL,
+graphics/audio, position, color, and collision state. Real TIA power-on contents
+are unspecified and Stella developer-mode TIA randomization must not leak
+graphics/audio into compiled programs.
 `vcsc-rt1-simple.s26` is the smallest path for ordinary RIOT BSS with no
 DATA/runtime initializer work. `vcsc-rt1-data.s26` is selected for initialized
 DATA and/or runtime initializers when every startup-zeroed object can be satisfied
@@ -183,17 +156,6 @@ retain `$(ROOT)/libraries/vcs`; only their driver path is rewritten to
 `$(ROOT)/bin/vcsc[.exe]`. Driver/runtime/profile lookup uses the same
 `libraries/...` relative paths in source and installed trees.
 
-Human-readable linked listings
-------------------------------
-Final `.lst` sidecars now preserve C26/S26 source provenance through compile,
-assemble, object, and link. Each source statement is followed by readable
-generated 6502 assembly with final linked logical address and emitted bytes;
-resolved 16-bit operands are shown so split-address mappings such as Superchip
-read/write aliases are directly visible. Synthetic material is labeled rather
-than assigned false provenance. Source metadata is transparent to peephole
-optimization, and focused regressions lock source/assembly/address/byte
-correlation plus an F8SC read/write-alias example. See `linker/README.md`.
-
 Test policy
 -----------
 Stella and Xvfb are required dependencies for `make test` and `make e2e`;
@@ -204,35 +166,36 @@ absolute paths or command names through PATH, use explicit deterministic Stella
 power-on settings unless randomization is the behavior under test, and prefer
 completed-frame capture over asynchronous single snapshots. Every maintained
 Stella certification also uses `test/stella_test_lib.pl` with a private basedir,
-private HOME/XDG roots, and the checked-in 792-byte `test/fixtures/stella/stella.pal`;
+private HOME/XDG roots, an `O_CREAT|O_EXCL` display reservation from
+`vcsc_reserve_x_display`, a `vcsc_xvfb_assert_ready` check that the server came up,
+and the checked-in 792-byte `test/fixtures/stella/stella.pal`;
 that one file pins the NTSC, PAL, and SECAM tables from `compiler/builtin_rgb.c`,
 neutralizes palette adjustments/effects, and makes reviewed raster references
 exact-RGB contracts independent of Stella's host-version built-in palette. Example
-`make play` recipes warn that user-specific settings are ignored, set Stella's
-`-basedir` and `-userdir` to the example directory, disable developer TV jitter,
-and pass an absolute ROM path so ROM-specific debugger files cannot inherit stale
-test paths.
+`make play` warns that user settings are ignored, uses example-local basedir/userdir,
+disables developer TV jitter, enables developer settings/stats/detected-info and
+RAM/bank randomization, and passes an absolute ROM path.
 Focused `stella-*` Make targets are reruns of normal-suite coverage, not separate
 acceptance gates.
 
-Last validation state
----------------------
-Item 59 is complete: `vcsc` and `vcsc-cc1` accept `--stella-palette FILE` in
-Stella's combined 792-byte NTSC/PAL/SECAM format, and the three RGB builtins use
-their corresponding slices.  The built-in tables remain the exact default.
-The checked-in Stella palette is regression-tested as code-generation-equivalent
-to those defaults; custom-slice selection and bad-file diagnostics are covered.
-All 583 compile/unit tests pass after the change, plus the focused palette and
-tool-option e2e regressions.  A subsequent full e2e run reached 388/389 with only
-the standard-renderer timing inventory stale; that inventory was regenerated and
-its focused regression now passes.  Full e2e has not been rerun after that fix.
-
-The mapper/startup fixes remain: universal `$44-$6C` startup TIA clear,
-random-start recovery for E0/F0/FE, fresh-build dependencies for mapper examples,
-and canonical disassembler mirror spelling such as `COLUBK + $40`.
-
 Immediate TODO
 --------------
-Have the mapper diagnostics rechecked manually from fresh `make play` builds.
-`3ex_max` is expected to remain limited by Stella's documented >64K 3EX RAM-offset
-bug.
+This branch carries the COMPILER work only, split out of the `stripes` branch:
+array extents as constant expressions, `sizeof` folding, a narrowed ternary
+detector, the `case_term` extent, struct and union sizes, the link-time fold of a
+`const` table, and const-scalar folding across assignment, subscripts, arguments,
+binary operands and return values.  The renderer work stays on `stripes`.
+
+Remaining compiler items are 60 (elide the storage of a const scalar nothing takes
+the address of), 61 (a const scalar as an array EXTENT, refused today because an
+extent folds while parsing and no scope exists), and 62 (a const index on a runtime
+base pointer).  Measure 60 before starting it: the read fold kept finding larger
+wins and elision is worth 1-2 bytes per scalar.
+
+Two things to carry forward.  Resolution must stay SCOPE-AWARE -- a local can shadow
+a file-scope object, so the Context is consulted before the recorded table, and
+reversing that order substitutes the wrong value silently.  And only the READ is
+folded: the object keeps its storage, its label, its `.export` and its ABI metadata,
+none of which can see an expression-level fold.
+
+`gameplay`; 10 left.

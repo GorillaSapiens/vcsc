@@ -1,0 +1,110 @@
+
+2026-10-07 04:30:06 PDT, case label regression; case_term measured
+The user asked, reasonably, whether we had loosened CASE conditions.  Checking found
+a real regression I had introduced an hour earlier, and the answer to their other
+question -- use `case_term` for extents -- is right in principle and does not work as
+written.
+
+THE REGRESSION, which the 1031-test suite did not catch.  Deduplicating expropt's
+inline ternary test onto the shared detector changed case-label codegen.  The shared
+detector UNWRAPS, and `case_choice` is one of the wrappers unwrap_expr_node peels, so
+a `case 1 ? 2 : 3:` label matches it through the wrapper.  The optimizer collapses a
+ternary by REPLACING the node it was handed, so the replacement landed where the
+wrapper was.  The switch emitter identifies a case by
+`strcmp(case_expr->name, "case_choice")`, so it stopped seeing one, abandoned its
+direct dispatch path, and emitted a runtime comparison instead of `cmp #$02`.
+
+Emitted code before: `.res 1` then `cmp #$02`.
+Emitted code after:  `.res 2` then store 2, store 2 again, compare with itself.
+
+The label stayed CORRECT in both -- 1 ? 2 : 3 is 2 either way -- so nothing failed.
+It was purely a codegen regression, and a suite of value assertions cannot see it.
+That is worth remembering generally: "the tests pass" and "the code did not get
+worse" are different claims, and only the second one needed checking here.  The old
+inline test did not unwrap, which is why it never collapsed a wrapped ternary.
+
+Fixed by guarding the collapse on the ternary actually being this node.  Codegen for
+both a case-label ternary and an ordinary one is now byte-identical to before the
+series.  vcs_ternary_node_detection asserts the constant compare is present and that
+no scratch-based runtime comparison replaced it.
+
+Note also that I mislabelled an isolation run: I checked out compile_expr_info.c but
+not expropt.c, so "narrowing only" was actually the same configuration as "current",
+and I briefly concluded the narrowing was at fault.  Two configurations with one file
+differing each is easy to get wrong; label each build by what it actually contains.
+
+THE case_term IDEA.  The user suggested changing `direct_declarator '[' INTEGER ']'` to
+`direct_declarator '[' case_term ']'`.  The idea is right and worth recording why:
+case_term is the grammar's EXISTING notion of a constant whose value is known here --
+the same notion case labels already use -- and its primaries are literals only.  So an
+identifier in an extent becomes a syntax error, no scope is needed at any point, and
+the whole "fold wide then reject" shape disappears.  It compiles with no conflicts.
+
+It does not, however, deliver what the extents are required to accept:
+
+  - `sizeof` is not a case primary, so it is rejected at parse time.
+  - `case_term: case_conditional_expr | case_enum_primary_expr` makes an enum name
+    reachable only as a WHOLE case term.  `C` is a valid extent; `B + C` is a syntax
+    error, because ENUMNAME is not a primary in the conditional hierarchy.
+
+Getting both means widening `case_primary_expr` with ENUMNAME and SIZEOF.  SIZEOF
+alone compiles clean.  Adding ENUMNAME yields THREE reduce/reduce conflicts, because
+`case_term: case_enum_primary_expr` then duplicates the new path, so that redundant
+alternative has to go too.  And both widenings change what CASE LABELS accept:
+`case B + C:` and `case sizeof(x):` become legal.  Both are legal C and both fold to
+constants, so this is arguably a fix to case labels rather than a loosening -- but it
+is a language change in precisely the area just questioned, and it is not a decision to
+take inside a bug fix.  Left for an explicit decision, and recorded here so the next
+chat starts from the measurement rather than redoing it.
+
+Full suite green at c30737d9: 588 compile, 443 e2e.
+
+2026-10-07 05:32:45 PDT, extents take case_term; enum and sizeof join it
+The user supplied the grammar diff themselves: move ENUMNAME into the numeric
+primary level and delete case_enum_primary_expr, and then told me to put sizeof
+down there with integer, char and enum.  Both were right, and the second was
+tidier than where I had put it.
+
+The change: `direct_declarator '[' INTEGER ']'` becomes
+`direct_declarator '[' case_term ']'`, and case_term gains the two things it was
+missing.
+
+Why case_term is the right rule, which was the user's point and I should have
+seen earlier.  It is the grammar's EXISTING notion of a constant whose value is
+known here -- the same one a case label uses -- and its primaries are literals.
+So the PARSER guarantees the extent is constant: an identifier cannot appear at
+all, nothing downstream re-checks constness, and no scope is needed at any point.
+That last part is what had forced the parse-time type attachment for sizeof.  An
+identifier in an extent is now a syntax error naming the identifier, which is both
+clearer and much closer to what the rule did before this whole series.
+
+The two gaps, both fixed in the case hierarchy rather than worked around in the
+extent, so case labels and extents remain ONE notion:
+
+  - ENUMNAME moved from its own `case_enum_primary_expr` into `case_num_primary_expr`
+    beside INTEGER and CHAR.  That is where it belongs regardless:
+    `make_enumname_expr` already returns an integer literal, so `B + C` SHOULD be
+    available in a case label.  It also removes the ambiguity that made my earlier
+    attempt produce three reduce/reduce conflicts -- `case_term:
+    case_enum_primary_expr` then duplicated the new path.  The user hit this first
+    and my measurement of it was right but my placement was worse.
+  - SIZEOF beside them, at the literal level, rather than one level up in
+    case_primary_expr, so that rule stays just the parenthesised wrapper.
+
+The pasted diff had a stray doubled `;` after case_num_primary_expr, which is a
+hard syntax error; otherwise it applied as given.
+
+Grammar stays conflict-free.  This WIDENS case labels: `case B - A:` and
+`case sizeof(uint16_t):` now compile.  Both are legal C and both fold, so it is a
+widening rather than a hole, but it is a language change and is now pinned:
+vcs_array_extent_constant_expression checks the folded values reach the compares
+(`cmp #$02` for LOW and sizeof(uint16_t), `cmp #$03` for HIGH - LOW), and the two
+grammar-coverage fixtures gained a `case sizeof(...)` label so the new
+alternative is exercised rather than silently unreached -- without those the
+-X coverage tests failed on the new COVER line, which is the mechanism working.
+
+Also fixed my own test harness while here: compile_cc1 captured only the FIRST
+line of a diagnostic, so a two-line syntax error could never be matched against its
+own "syntax error" explanation.  It now keeps everything from the first Error.
+
+Full suite green at 179bf3ec: 588 compile, 443 e2e.

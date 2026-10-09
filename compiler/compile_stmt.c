@@ -2915,6 +2915,20 @@ static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEn
             .is_zeropage = src.is_zeropage, .is_global = src.is_global,
             .offset = src.offset, .size = src.size };
          char src_sym[256];
+         long long known;
+         /* A file-scope `const` scalar is copied as an immediate rather than read.  Same
+          * rule as everywhere else: `ctx_lookup` above has already resolved the name, so
+          * no local declaration shadows it, and a const object is never written after
+          * initialization, so nothing can disagree with the value recorded here. */
+         if (!ctx_lookup(ctx, src.name) && src.offset == 0 &&
+             const_scalar_value_lookup(src.name, &known) &&
+             integer_value_fits_type(known, src.type)) {
+            emit_lvalue_semantic_use(ctx, &src, "read");
+            emit(&es_code, "    lda #$%02llx\n",
+                 (unsigned long long) (unsigned char) known);
+            emit_store_a_to_expr_address(sym, 0);
+            return true;
+         }
          if (entry_symbol_name(ctx, &src_entry, src_sym, sizeof(src_sym))) {
             emit_lvalue_semantic_use(ctx, &src, "read");
             emit_load_a_from_expr_address(src_sym, src.offset);
@@ -3421,7 +3435,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
             return;
          }
 
-         if (emit_global_initializer(&init_es, type, declarator, expression, size)) {
+         if (emit_global_initializer(&init_es, type, declarator, expression, size, NULL)) {
             if (entry->is_zeropage) {
                char segbuf[256];
                sink = &es_zpdata;

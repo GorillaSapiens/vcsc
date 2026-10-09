@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: array size must be greater than zero, not 0
+//
+// A zero-length array used to be accepted silently and produced a zero-sized
+// object. That made `extern const uint8_t guard[0]` look like a compile-time
+// guard while doing nothing at all: the declaration was never diagnosed, the
+// symbol was never allocated, and code guarded by it built and ran with the
+// guard permanently inactive.  Several compile-time guards in the tree were
+// written that way.
+include "machine_6502.c26"
+extern const uint8_t zero_length_declaration[0];
+void main(void) { }

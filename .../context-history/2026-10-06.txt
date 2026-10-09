@@ -1,0 +1,475 @@
+2026-10-06 13:28:21 PDT, fold const element reads into link-time tables
+
+Landed stripes item 0.  The generic positive-stripe emit was blocked on the
+pair-indexed feed's ORIGIN, and this removes that block.  A file-scope `const`
+object whose initializer is entirely constant is now folded at link time, and its
+bytes are then readable as a constant expression, so a table DERIVED from another
+table's element reads is itself link-time data.  That is exactly the shape the
+renderer needs: its three pair-indexed feed tables are the logical eight-byte
+stripe record transposed, so the public eight-byte authoring form is now the only
+thing a program has to supply.  No RAM, no startup copy, no per-count data.
+
+The change is small and localized.  emit_global_initializer optionally hands back
+the bytes it built, compile_toplevel records them for a file-scope `const` object,
+and eval_constant_initializer_expr_resolved folds a single-subscript read of such a
+table.  Folding inside the evaluator rather than as a special case in the
+initializer walk is what makes `record[2]+1` and `2*record[4]` fold too, which is
+how a transposition is written rather than raw bytes.
+
+Deliberately byte-granular.  A wider element type would need its own decode and
+sign handling to yield a value rather than a byte, and nothing needs that yet, so
+such a table is simply not recorded and keeps today's runtime-read behaviour.
+An out-of-range read is refused with a located diagnostic instead of folding to an
+adjacent byte, because a constant expression has no runtime bounds check left to
+defer to; the regression pins both that refusal and its in-range neighbour so the
+bound cannot be satisfied by refusing everything.
+
+Regressions: test/vcs_const_link_time_table.pl (placement AND emitted bytes for
+pure reads, reads through arithmetic, writable derived data, second-generation
+derivations, the wider-element exclusion, page containment, the fold inside an
+INSTANTIATED TEMPLATE, the named-region exclusion, declaration order in both
+directions, and the out-of-range refusal), with
+test/const_link_time_table_codegen_test.c26,
+test/const_link_time_table_template_codegen_test.c26 (plus
+test/fixtures/templates/const_link_time_table.c26) and
+test/const_link_time_table_fold_test.c26 as the fixtures.
+
+Two mistakes of my own worth recording, because both were caught by running things
+rather than by reasoning.  First, the template case was originally a .c26 fixture in
+test/ that included "vcs.c26"; the compile-only tier runs vcsc-cc1 with only `-I .`,
+so it could not find the VCS headers and failed there, not for the reason it existed.
+The fixture now uses machine_6502.c26 and its own template and builds standalone,
+which is what let it be discovered as a unit test at all.  Second, an earlier
+assertion on that fixture would have passed vacuously, so it was checked by breaking
+the template's index: the compile-only tier rejects it with the expected diagnostic,
+and restoring the file makes it pass again.
+
+A regression the fold caused, and its fix.  The full suite caught it, not review:
+test/vcs_dpc.pl asserts that a CPU reference to a DATA-ONLY bank object is rejected,
+because such a bank has no 6507 address.  `bank2 const uint8_t hidden[1]` with a
+read of `hidden[0]` stopped being rejected.  Cause: the fold turned that read into an
+immediate, so the relocation the linker exists to diagnose simply vanished and an
+illegal program became a legal one.
+
+That is a correctness boundary, not an oversight, and it says something the fold's
+first version got wrong.  For a `const` object in a NAMED memory region the byte's
+addressability IS the contract, not merely its value; split regions, absolute
+bindings and swapram are the same for the same reason.  So the fold now records
+plain read-only objects in DEFAULT ROM only (region_count == 0, not zero page, not
+an absolute binding, not noinit).  The stripe feed tables are ordinary ROM, so they
+are unaffected.  The regression now asserts that a table derived from a named-region
+source keeps its runtime-read form, with the DPC failure named as the reason.
+
+This is worth recording as a general lesson about the fold: a transformation that
+turns a memory reference into a constant also removes whatever the reference was
+being used to prove.  Constant folding is only sound where the reference carried no
+meaning beyond its value.
+
+Then went one step further than the blocker required and built the thing the emit
+is waiting on, because "the fold exists" is weaker than "the feed tables compile".
+test/fixtures/all_five_stripe_feed/feed_transposition_probe.c26 declares the real
+(192,32) three `page const` feed tables, derived from the public record exactly as
+the renderer will, and test/vcs_all_five_stripe_feed_tables.pl builds it and checks
+every emitted byte against the layout the bound derives, checks each logical record
+byte is delivered exactly once across the three tables, checks all three tables are
+page-contained, and checks the whole thing costs 0 bytes of RAM.  The assertions
+were checked against deliberate damage rather than only against a passing run:
+swapping two feed0 slots, dropping `page` from a feed, and making a feed writable
+are each caught.
+
+stripe_generic_feed_source_bound.pl and its regression now report the feed origin
+as settled and the emit as unblocked, which is the signal its own comments said to
+expect.  Its Part 4 is no longer a negative measurement, so it was rewritten to
+verify the derived bytes positively instead of asserting the old failure.
+
+Verified: make unit 585/585 with the template fixture included; the focused stripe
+and fold suites pass, including vcs_dpc.pl after the named-region fix; source tree
+hygiene ok.  The full suite result is reported separately.
+
+Next, per stripes item 1: emit the rolling machine in all_five.c26 behind a focused
+probe, reading the feeds at Y = region-1-q.  The tables and their bytes are done;
+
+A second correction to my own reasoning, found by being challenged on it rather than
+by a test.  I had attributed the per-configuration cost to the compiler accepting
+only a literal in an array extent (`direct_declarator '[' INTEGER ']'` in the
+grammar).  That limitation is real -- `const uint8_t b[2*4]` is a syntax error -- but
+it is not the cause.  A size expression cannot change WHICH byte lands in which slot;
+it only changes how the extent is spelled.  The cause is the layout: q=P*s+p selects
+the stripe, so 192/2 fills 48 pairs from stripe 0 while 192/32 fills 3 and moves on.
+Relaxing the grammar would let a renderer write `[3*(TEMPLATE_lines/2)]` instead of
+enumerating extents, which is a genuine readability win at a handful of sites, and it
+would reduce the table count not at all.
+
+The bound now checks the layout dependence directly: it finds the one pair of
+configurations that share a pairs-per-stripe value (192/16 and 228/19, both P=6),
+confirms their feeds still differ because the region length differs, and fails if
+they ever match.  So the claim is derived rather than asserted, and the two distinct
+causes stay distinct in the bound, its regression, and this record.
+
+The general lesson: I reached for a nearby explanation that was mechanically true
+rather than the one that was actually load-bearing, and I put it in writing where the
+next session would have taken it as settled.
+
+2026-10-06 17:20:00 PDT, two test-harness defects the user found
+
+A concurrent run in a different checkout failed with "could not read the reference
+RAM footprint" from stripe_generic_feed_source_bound.pl.  Both defects were mine,
+in one file, and both are now regressions.
+
+Discarded exit code.  The bound called the driver as `my(undef,$refout)=capture(...)`
+and never checked the result, then parsed $refout for the MEMORY USAGE block.  So
+ANY driver failure -- missing binary, stale build, link error, a collision-induced
+failure -- surfaced as a complaint about the RAM footprint, which names a symptom
+rather than a cause.  Reproduced exactly by pointing the bound at a tree whose driver
+exits 3 with a message on stderr: it printed the RAM complaint, not "exit 3" and not
+the driver's own text.  That misdiagnosis is worse than the failure it was hiding,
+because it points the next person at the wrong file.  Both driver invocations now
+check the exit code and carry stderr into every diagnostic.
+
+Shared scratch paths.  The bound wrote to FIXED names in the shared system temporary
+directory -- feed_source_stripes2.{bin,map} and feed_source_derived.{bin,map} -- so
+two people running the suite in separate directories overwrote each other's outputs
+mid-build.  The three test runners all correctly use the caller-supplied $tmp; the
+bound ignored it and invented its own.  It now takes VCSC_ALL_FIVE_TMP and falls back
+to a private mkdtemp directory when run standalone.
+
+The collision was wider than I first thought and worth recording: the driver derives
+sidecars from the output path, so each build leaves .bin, .map, .cfg, .lst and .sym,
+ten files in all, and the .lst runs to about 350KB.  My first version of the
+regression named only .map and .bin and would have missed all of the others, so it now
+checks the whole feed_source_* family.  Both regressions were proved by reintroducing
+each defect and confirming the runner fails.
+
+Worth noting how this was found: the user was running tests at the same time in
+another directory and asked whether that could interfere.  I had answered "no, and
+here is why" -- correctly about the three collision-proof mechanisms -- and then
+committed a shared-path bug in the very code I had just written.  The generalisation I
+gave was right; applying it to my own new code was not.
+
+SEPARATE, PRE-EXISTING, NOT FIXED HERE.  22 Stella runners choose an X display by
+`my$display=250+($$%20); $display++ while -e "/tmp/.X11-unix/X$display";` which is
+check-then-create and therefore a real race between concurrent runs.  PIDs differing
+by a multiple of 20 start probing at the same display, so two suites can pick the same
+one.  That is a plausible source of intermittent Stella failures when two people run
+at once, and it is unrelated to this session's changes, so it is recorded rather than
+fixed here -- 22 files late in a session is not the place to refactor display
+allocation.  It deserves its own change, ideally an atomic reservation.
+
+Next, per stripes item 1: emit the rolling machine in all_five.c26 behind a focused
+probe, reading the feeds at Y = region-1-q.  The tables and their bytes are done;
+what is left is the raster body.  The renderer needs per-configuration feed tables
+because the content depends on the data layout, not because of any array-size limit.
+
+2026-10-06 19:33:12 PDT, X display allocation made atomic
+The user asked for the 22-runner display race to be fixed so they could run tests
+while this tree was being worked on, and added that the two of us are different
+accounts in different directories sharing /tmp and the same X server and display.
+
+The pattern was `my$display=250+($$%20); $display++ while -e "/tmp/.X11-unix/X$display";`
+in all 22 runners, across six different base ranges and four spans.  Check-then-create,
+so two processes can both see a number free and both start a server on it.  Measured:
+with the pid bucket forced to collide, two of three Xvfb instances died with exit 1.
+The modulo is a second, independent defect: any two pids a multiple of the span apart
+start probing at the same number.
+
+I first assumed a stale `/tmp/.X<N>-lock` was the likely real-world cause, because it
+would be a deterministic failure rather than a race.  That was wrong: after SIGKILL
+the socket file survives, so the allocator skips that display and Xvfb cleans the stale
+lock itself.  Both self-heal.  Recorded because I asserted it before testing it.
+
+It stayed invisible because nothing verified that Xvfb came up, so a run continued
+against a dead display and failed later as an unrelated Stella error.  That
+indirection is the reason it survived in the tree.
+
+The fix is an O_CREAT|O_EXCL reservation file per display in /tmp, the one atomic
+primitive available there.  Displays already carrying a X socket are skipped outright,
+which is what covers the other account's server and an interactive session -- those
+are not addressed through a reservation at all.  Display base and span are preserved
+exactly in all 22 files; the four runners that start one server per case now claim per
+iteration instead of carrying a counter across.
+
+Ownership had to be recorded, because a reservation cannot be reclaimed blindly.  Two
+subtleties, both of which I got wrong first:
+
+- I wrote the cross-account case as "different account means dead", which makes
+  kill(0) decide, and kill(0) answers only for our own processes -- so the first
+  version STOLE a live foreign reservation.  A foreign claim is un-testable and is
+  retired by age instead; VCSC_X_RESERVATION_TTL bounds how long a killed run in
+  another account can hide a display.
+
+- The second was found by the new regression, not by reading.  sysopen creates the
+  file and Perl flushes the owner record at close, so a peer can read the claim while
+  it is still empty.  My liveness check read that as "owner gone", unlinked a live
+  claim and took the same display: five concurrent claims landing on one display, in
+  five runs out of five.  The fix is that a claim which exists but does not parse is
+  not evidence of a dead owner, only its age can retire it.  This is the same race the
+  mechanism exists to remove, reintroduced one layer down.
+
+Each runner now also asserts the server is accepting connections before pointing
+itself at the display.  It connects rather than testing for the socket file, because
+Xvfb creates the file slightly before it listens.  A reservation makes a display
+unique; it cannot make a server start.
+
+TWO TRAPS IN THE END BLOCK, both live bugs that shipped in my first working version:
+
+- An END block reaping registered servers poisoned the exit status of all 22 runners.
+  waitpid on an already-reaped child returns -1 and sets $? to -1, and a $? assigned
+  inside END becomes the process exit status, overriding even an explicit exit 0.  Every
+  converted runner printed its success line and exited 255.  $? is now saved and
+  restored.
+
+- The suite did not catch it.  make test aborts on the first failing phase, the failure
+  was in the compile phase, and the e2e phase that actually runs these 22 tests never
+  started.  My per-test verification had also been reading only the last line of
+  stdout and never the exit code, so it reported 22/22 green while all 22 exited 255.
+  Checking exit codes is now part of how I validate a converted runner.
+
+`test/vcs_stella_x_display_allocation.pl` owns the behaviour without needing Xvfb or
+Stella, so it stays in the compile phase: socketed displays refused, exhaustion names
+the range, the four ownership cases distinguished, twelve simultaneous claims in a
+twelve-wide range all distinct and leaving nothing behind, a server that exits or never
+listens reported with its display and status, plus a contract scan that fails if any
+runner reintroduces the old probe or starts Xvfb without asserting it came up.  Both
+halves of the scan were confirmed to fire, and the contention check was confirmed to
+fire against a deliberately de-atomicised allocator.  The contention check itself was
+wrong twice before it was right: a fixed hold let early claims release before late ones
+arrived, so reuse read as a collision, and the parent's poll could read a torn append
+and satisfy the barrier early.
+
+Full suite green at 4f4ec9e5: 586 compile, 443 e2e.  Eight concurrent runs across
+different tests and eight concurrent copies of one test all exit 0 with no leftover
+reservations or servers.  Commit 4f4ec9e5; handoff /tmp/vcsc.20261007_023245.tar.gz.
+
+2026-10-06 21:04:37 PDT, array extents take constant expressions
+`direct_declarator '[' INTEGER ']'` is now `direct_declarator '['
+conditional_expr ']'`, so an array extent is a compile-time integer constant
+rather than a bare token: `WIDTH * 2`, `BASE + COUNT - 1`, an enum constant, a
+shift, a conditional and a character difference are all extents.  This closes the
+grammar-limitation sentence that stripes.txt and the feed bound had both been
+carrying as a separate known limitation.
+
+The extent is folded in the grammar action rather than stored as an expression, so
+it stays an ordinary integer leaf in the AST.  That is why nothing downstream
+changed: declarator_array_count, the size multiplier and abi_meta's bound text all
+count AST_INTEGER children and now just read the resolved value.  Folding at parse
+time also means the declared extent is known before any later pass needs it.
+
+Integer rules are the ordinary ones, inherited from the shared constant evaluator:
+long long, division truncating toward zero, remainder taking the dividend's sign,
+and an out-of-range shift already diagnosed.  `-7 % 3` is -1 and is refused as a
+negative size, and the diagnostic reports -1 rather than an absolute value.
+
+Zero and negative are refused at the declaration.  declarator_array_multiplier_from
+kept the identical check, which I confirmed by removing each layer in turn: either
+one alone still refuses, and only removing both changes behaviour.  Worth knowing
+that the guard is duplicated rather than single.
+
+TWO THINGS THE CHANGE BROKE, both found by the existing suite rather than by me.
+
+First, refusals stopped locating themselves.  A syntax error had named the offending
+extent for free, because the parser rejected anything but an integer token; once the
+fold-or-refuse decision moved after parsing, "must be a compile-time integer
+constant" said only that something was wrong.  The multisprite renderer guard caught
+it: its unsupported-line branch is a poison declaration whose only purpose is to
+fail with TEMPLATE_lines_must_be_181_192_or_228 in the message, and the regression
+greps for that name.  So refusals now render the extent back to text.  That in turn
+had to quote source_spelling rather than strval, because an instantiated renderer
+has its TEMPLATE_ names rewritten to the instance prefix: strval named
+game_lines_must_be_181_192_or_228 for a line that reads
+TEMPLATE_lines_must_be_181_192_or_228, which a reader grepping the source they were
+given would not find.
+
+Second, and larger than the first: compile_init.c carried file-local copies of
+expr_is_ternary_node and its three accessors that recognised an "expr" node with a
+"question_expr" child.  The grammar builds a ternary as a conditional_expr with four
+children, the first an identifier "?:", so those copies could never match anything
+and the ternary arm of the constant evaluator was UNREACHABLE.  A pre-existing
+latent bug, dead since some earlier grammar change, which this work happened to
+depend on.  The shared accessors in compile_expr_info.c accept both shapes, so the
+copies are deleted.  What made it deceptive is that a ternary in a page-const
+initializer did fold, which sent me looking for a difference in my own path; it
+folded because expropt.c folds the same shape later, not because the evaluator
+could.  compile_type.c has a THIRD stale copy of the same detector, still in place
+and not on this path; it should be looked at separately.
+
+What I got wrong on the way, for the record: I asserted early that a ternary folds
+in constant initializers and used that to conclude my extent path was at fault.
+The initializer case really did fold and really did not go through this evaluator.
+Then I chased the stale local copies for a while by printing shapes that all looked
+correct, because the real detector was shadowed by a static one in another
+translation unit that I had not thought to look for.  The lesson is that
+instrumenting one copy of a function teaches you nothing when three exist.
+
+`sizeof` is still refused, and that is a real gap rather than an oversight: it is a
+compile-time constant in C but the shared evaluator does not fold it, and resolving
+a type needs context the parser does not have.  Worth doing deliberately if it
+matters.
+
+vcs_array_extent_constant_expression checks the resolved VALUE, not that the source
+parses: each accepted case counts the bytes actually emitted, so `9 / 2` is proved to
+be 4 by allocation rather than by reading the expression.  Four mutations were
+confirmed to fail it -- narrowing the grammar back to INTEGER, removing both
+positivity checks, rounding division up instead of truncating, and making the
+ternary arm unreachable again.  A fifth (shadowing the detector with a static copy)
+was not a valid mutation because it no longer compiled, and I say so rather than
+counting it.
+
+One correction to the stripes record, which had this backwards by omission.
+stripe_generic_feed_source_bound.pl and its regression both asserted verbatim that
+the grammar accepts only a literal in an array extent, and that this was a separate
+limitation which would buy readability and not a smaller table count.  The second
+half was right and the first half is now false, so both were corrected.  The part
+that was never wrong is the actual argument: a size expression cannot change WHICH
+byte goes in which slot, only how the extent is spelled, so the per-configuration
+table count is caused by the DATA LAYOUT and never by array-size arithmetic.  Note
+that the old wording made the grammar limitation sound like it was doing work.
+
+Full suite green at 3217d584: 587 compile, 443 e2e.
+
+2026-10-06 22:30:11 PDT, sizeof folds; the third ternary copy answered
+Two requests: fold sizeof in constant expressions, including in an array extent,
+and explain why there were three copies of the ternary detector.
+
+THE THREE COPIES, since that is the surprising half.  They are not three designs.
+There is one shared definition in compile_expr_info.c and two file-local `static`
+copies, in compile_init.c and compile_type.c.  A static copy shadows the shared
+declaration inside its own translation unit, so each file silently used its own.
+All three predate the current grammar: the copies looked for an "expr" node holding
+a "question_expr" child (compile_init.c) or a node named "?:" with three children
+(compile_type.c), while the grammar has always built a `conditional_expr` with four
+children whose first is an identifier "?:".  Neither shape has existed in this
+lineage since the hard fork from "n", so both copies could not match anything.
+
+The compile_init.c consequence is known and fixed: the ternary arm of the constant
+evaluator was unreachable.  The compile_type.c consequence is that the ternary arm
+of expr_value_size was unreachable; the copy is now deleted.
+
+WHAT I GOT WRONG HERE, and it matters more than the fix.  I measured
+`sizeof(1 ? uint8_value : uint16_value)` reporting 1 instead of 2, and asserted
+that the dead copy in compile_type.c caused it -- the fallback would have read the
+"?:" marker and the condition while ignoring both branches.  Then I checked the
+pre-existing tree and it reports 1 there too, so the claim was false.  I had already
+written the same false claim into a code comment; it is corrected there now, and the
+comment states the separate real cause.
+
+The real cause is still open: expr_value_type gives a ternary the type of its TRUE
+branch instead of the promoted common type.  That predates all of today and changes
+the type of every conditional in the tree, so it is its own decision and was NOT
+taken here.  Worth knowing it exists.
+
+The general lesson, which cost me real time last time as well: I reach for a cause
+that is adjacent to the symptom before checking whether the symptom is even new.
+Today I did it again -- an "unexplained" wrong value was attributed to code I had
+just been looking at.  The cheap check is to reproduce on the pre-fork tree FIRST,
+which takes one stash and thirty seconds, and I did not do it before writing the
+claim down.
+
+Removing the copy is still right: it was dead code carrying a wrong assumption about
+the AST, and had expr_value_type begun returning nothing for a ternary,
+expr_value_size would have fallen through to "largest of the first two children".
+vcs_ternary_node_detection owns the invariant rather than the three functions:
+exactly one definition, non-static; no file-local accessor copies; and the grammar
+still building the shape the detector matches.  Verified by reintroducing a copy.
+A duplicate is now also a COMPILE ERROR, because the shared declaration is visible in
+every translation unit -- before, a copy in a unit that did not include the header
+compiled fine and shadowed silently, which is exactly how three accumulated.
+
+SIZEOF.  The fold belongs in the shared constant evaluator, so it works in an array
+extent AND composes with surrounding arithmetic AND works in a `page const`
+initializer, with one implementation rather than one per consumer.
+
+The obstacle was that type sizes do not exist where the fold runs.  get_size
+consults `typesizes`, which is populated in the compile phase, and every
+attach_typename call was ALSO in the compile phase -- so at parse time a type had a
+name but no node, and get_size reported an internal error, not a user error.  A
+`type X { $size:N }` declaration and a `typedef X Y` alias now attach their node in
+the grammar action, which is where the information already is.  parse_time_type_size
+reads $size: from that node and returns -1 for "not resolvable here", so the caller
+refuses with a message instead of tripping an assertion.
+
+Two mistakes while getting there, both the same shape as each other:
+
+- I multiplied every AST_INTEGER child of the sizeof operand's declarator to apply
+  its array extents.  A declarator's FIRST child is the pointer depth, itself an
+  integer leaf holding 0 for a non-pointer, so every sizeof came out as 0.  The
+  existing declarator_array_multiplier already skips to the array suffix.  Fixed by
+  using it, and the comment says why the loop was wrong.
+- `sizeof(void)` was refused as "not a compile-time constant", which names the wrong
+  problem: void has no size, it is not "not yet known".  A resolved size of zero is
+  now reported as the operand's own error, using the emitter's existing wording.  It
+  is positioned at the type node rather than the sizeof operand so the same mistake
+  reports the same line and column on either path -- sizeof_void_error_test.c26 pins
+  the column and caught the difference.
+
+A struct, union or object is deliberately NOT folded in an extent: those sizes come
+from the whole program or from a scope, and neither exists while a declaration is
+being parsed.  That is the honest limit of where the fold sits, and the refusal says
+so by name (`array size 'sizeof(g)' is not a compile-time constant: sizeof needs a
+type or typedef here; the size of a struct, union or object is not yet known while
+this declaration is parsed`) rather than blaming the extent as a whole.
+
+Full suite green at ff004aae: 588 compile, 443 e2e.
+
+2026-10-06 23:21:25 PDT, ternary shape matched narrowly, expropt deduped
+The user asked which of the three detectors was correct and then asked for the
+surviving one to match ONLY what the grammar builds.  Both answered here.
+
+Which is correct: the global one in compile_expr_info.c.  #2 and #3 were not wrong,
+they were correct for grammars that no longer existed, and only the global one was
+maintained as the grammar moved.  Useful evidence for "which is right", from nm on
+the historical objects:
+
+  compile_expr_info.o   T expr_is_ternary_node   T = global
+  compile_init.o        t expr_is_ternary_node   t = file-local (static)
+  compile_type.o        t expr_is_ternary_node   t = file-local (static)
+
+There were never three functions in the binary: two had internal linkage and never
+left their object file.  The linker saw no conflict and the build emitted no
+warning.  compile_type.o also had no expr_ternary_test at all, confirming #3
+shipped only true/false.
+
+The "four arguments" confusion is worth recording because it came up twice and the
+AST dump settles it.  A ternary takes three operands.  The node has four CHILDREN:
+marker, test, true branch, false branch.
+
+  conditional_expr
+  +- identifier ?:      <- MARKER, not an operand
+  +- lvalue (c)         <- test
+  +- assign_expr (5)    <- true
+  +- integer_literal 6  <- false
+
+The marker exists only because MAKE_NODE names a node after its rule's left-hand
+nonterminal, which for the ternary rule is conditional_expr -- and that name is also
+used by the bare `conditional_expr: logical_or_expr` rule with one child.  So the
+action stuffs an identifier leaf in as child[0] to say which kind it is.
+MAKE_NAMED_NODE("?:", test, true, false) would have been three children with a
+meaningful name; that is evidently what the grammar used to do, which is why the
+two deleted copies were half-remembering it.  Also worth noting: in an array extent
+the node does not survive at all, because the extent fold replaces it with
+integer_literal 5.  The encoding is internal bookkeeping and was never visible.
+
+NARROWED.  The detector now matches only a conditional_expr / case_conditional_expr
+of four children with the "?: " marker.  The legacy `"?:"` branch is provably dead:
+"?:" is not a nonterminal, so MAKE_NODE can never produce that node name, and
+nothing calls MAKE_NAMED_NODE("?:", ...).  It was also not free -- two accepted
+shapes meant all three accessors branched on the node name to pick child indices,
+so every ternary paid a comparison that can no longer matter.  Accessors are now
+fixed indices.
+
+expropt.c turned out to hold a FOURTH inline copy of the same test, legacy
+tolerance included.  It now calls the shared detector and accessors.  That is a
+small widening I should flag rather than bury: expropt previously recognised only
+conditional_expr ternaries, so it now also folds a case_conditional_expr one.  A
+case term can syntactically be a ternary and folding it is the consistent
+behaviour, but it IS a behaviour change and the 1031-test suite is what says it is
+safe, not my say-so.
+
+vcs_ternary_node_detection now pins the narrowing, which is the part that stops the
+tolerance creeping back: the detector body must not test for a node named "?:",
+and no file outside compile_expr_info.c may re-derive the shape at all.  Generated
+parser.tab.c and lex.yy.c are excluded, since they legitimately carry the grammar
+action text -- my first version of that check flagged parser.tab.c and I had to
+exclude it rather than loosen the rule.  Verified by restoring the dead branch and
+confirming the test fails.
+
+Full suite green at 012d0490: 588 compile, 443 e2e.

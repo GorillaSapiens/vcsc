@@ -10,6 +10,7 @@
 #include "compile_declarator.h"
 #include "compile_literal.h"
 #include "compile_type.h"
+#include "messages.h"
 
 //! @brief Return decl subitem declarator data used by compiler declarator handling; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *decl_subitem_declarator(const ASTNode *node) {
@@ -473,7 +474,21 @@ int declarator_array_multiplier_from(const ASTNode *declarator, int start_child)
 
    for (int i = start_child; i < value_decl->count; i++) {
       if (value_decl->children[i] && value_decl->children[i]->kind == AST_INTEGER) {
-         mult *= atoi(value_decl->children[i]->strval);
+         int extent = atoi(value_decl->children[i]->strval);
+
+         // An array extent must be positive.  A zero extent silently produced a
+         // zero-sized object, which then let `extern const uint8_t x[0]` act as a
+         // decorative compile-time "guard": it was accepted, never allocated, and
+         // never diagnosed, so code guarded by it built and ran without the guard
+         // ever taking effect.  Reject it at the declaration instead.
+         if (extent <= 0) {
+            error_user("[%s:%d.%d] array size must be greater than zero, not %d",
+                       value_decl->children[i]->file,
+                       value_decl->children[i]->line,
+                       value_decl->children[i]->column,
+                       extent);
+         }
+         mult *= extent;
       }
    }
 

@@ -44,6 +44,11 @@ every turn.
 Only unfinished main-project roadmap items and their acceptance criteria.
 Completed main-roadmap material is historical.
 
+### `stripes.txt`
+
+Focused roadmap and public ABI contract for main-roadmap item 57 renderer
+playfield/color stripes. Read it only while that workstream is active.
+
 ### `DRA.txt`
 
 Design-only Direct Register Access contract and unfinished implementation roadmap.
@@ -84,6 +89,13 @@ session.
 
 Short human-only release/tag reminder. Keep it in the developer-record directory;
 it is intentional project state, not generated residue.
+
+### `docrevamp.txt`
+
+Compact side-quest handoff for the documentation readability revamp: explain
+VCSC-specific features goal-first, preserve reference detail, and apply the same
+editorial pattern to other READMEs when that work is resumed.
+
 
 ### `context-history/`
 

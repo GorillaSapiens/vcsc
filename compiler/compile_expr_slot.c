@@ -259,9 +259,8 @@ static const ASTNode *expr_bare_identifier_node(ASTNode *expr) {
 bool compile_constant_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    InitConstValue value = {0};
    unsigned char *bytes;
-   (void) ctx;
 
-   if (!dst || !eval_constant_initializer_expr(expr, &value)) {
+   if (!dst || !eval_constant_initializer_expr_in_scope(expr, ctx, &value)) {
       return false;
    }
 
@@ -659,6 +658,30 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
             free(bytes);
             return ok;
+         }
+         /* Not a local at all, so nothing shadows it, and the name may be a file-scope
+          * `const` scalar whose value is known.  That is the same situation as the case
+          * above -- a name with a compile-time value -- reached by a different route,
+          * and without this the argument is loaded from the object instead of being
+          * stored as an immediate, which also keeps the object's storage alive for a
+          * read that no longer needs it.  `ctx_lookup` above has already answered the
+          * shadowing question: a local of the same name would have been found and this
+          * branch not reached. */
+         if (!entry) {
+            long long scalar;
+            if (const_scalar_value_lookup(ident, &scalar)) {
+               unsigned char *bytes = (unsigned char *)calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
+               bool ok;
+               if (!bytes) {
+                  error_unreachable("out of memory");
+               }
+               ok = encode_integer_initializer_value(scalar, bytes, dst->size, dst->type);
+               if (ok) {
+                  emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
+               }
+               free(bytes);
+               return ok;
+            }
          }
          if (entry && entry_is_absolute_ref(entry)) {
             LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .is_swapram = entry->is_swapram, .mem_region_name = entry->mem_region_name, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .has_split_alias_delta = entry->has_split_alias_delta, .split_alias_delta = entry->split_alias_delta, .offset = entry->offset, .size = entry->size, .use_site = expr };

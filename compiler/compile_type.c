@@ -12,6 +12,8 @@
 #include <limits.h>
 
 #include "ast.h"
+#include "compile_expr_info.h"
+#include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_type.h"
 #include "integer.h"
@@ -23,34 +25,20 @@
 #include "xray.h"
 #include "lextern.h"
 
-//! @brief Return whether expr is ternary node in compiler type system.
-static bool expr_is_ternary_node(const ASTNode *expr) {
-   expr = unwrap_expr_node(expr);
-
-   if (!expr) {
-      return false;
-   }
-
-   return !strcmp(expr->name, "?:") && expr->count == 3;
-}
-
-//! @brief Return expr ternary true data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_true(ASTNode *expr) {
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   return expr->children[1];
-}
-
-//! @brief Return expr ternary false data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *expr_ternary_false(ASTNode *expr) {
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr_is_ternary_node(expr)) {
-      return NULL;
-   }
-   return expr->children[2];
-}
+/* These used to be file-local copies here that recognised a node named "?:" with
+ * three children.  The grammar builds a ternary as a `conditional_expr` node with
+ * four children, the first an identifier "?:", so the copies could never match: the
+ * ternary arm of expr_value_size below was unreachable, and a ternary that reached
+ * the function fell through to "largest of the first two children" -- which reads
+ * the "?:" marker and the condition and ignores both branches.  That was latent
+ * rather than observable, because expr_value_type answers for a ternary first and
+ * has not returned nothing for one yet.  The shared accessors in compile_expr_info.c
+ * accept both shapes.
+ *
+ * Separate and still open: expr_value_type gives a ternary the type of its TRUE
+ * branch rather than the promoted common type, so `sizeof(1 ? uint8 : uint16)`
+ * reports 1.  That predates this change and is not caused by it; fixing it changes
+ * the type of every conditional in the tree and is its own decision. */
 
 //! @brief Extract type name from node for compiler type system.
 static const char *raw_type_name_from_node(const ASTNode *type) {
@@ -1162,6 +1150,30 @@ bool expr_is_integer_constant_expr(const ASTNode *expr, long long *value_out) {
    return true;
 }
 
+bool expr_is_integer_constant_expr_in_scope(const ASTNode *expr, Context *ctx,
+                                           long long *value_out) {
+   InitConstValue value = {0};
+
+   expr = unwrap_expr_node(expr);
+   if (!expr) {
+      return false;
+   }
+   if (expr->kind == AST_INTEGER) {
+      if (value_out) {
+         *value_out = parse_int(expr->strval);
+      }
+      return true;
+   }
+   if (!eval_constant_initializer_expr_in_scope((ASTNode *) expr, ctx, &value) ||
+       value.kind != INIT_CONST_INT) {
+      return false;
+   }
+   if (value_out) {
+      *value_out = value.i;
+   }
+   return true;
+}
+
 //! @brief Return whether expr is untyped integer literal in compiler type system.
 bool expr_is_untyped_integer_literal(const ASTNode *expr) {
    expr = unwrap_expr_node(expr);
@@ -1896,6 +1908,23 @@ int get_size(const char *type) {
    return -1;
 }
 
+
+//! @brief Return a named type's size, or -1 if no size is available yet.
+int available_type_size(const char *name) {
+   if (!name || !*name) {
+      return -1;
+   }
+   /* The recorded size first: that is a struct or union the layout pass has already
+    * done, and it is also the authoritative answer for a `type X { ... }` by the time
+    * compilation proper begins. */
+   if (typesizes && pair_exists(typesizes, name)) {
+      return (int) (intptr_t) pair_get(typesizes, name);
+   }
+   /* Otherwise the declaration's own $size: flag.  This is what answers BEFORE the
+    * layout pass has run, which is why an array extent -- folded while its declaration
+    * is parsed -- can size a `type X { ... }` and a typedef alias to one. */
+   return declared_type_size(name);
+}
 
 //! @brief Extract type size from node for compiler type system.
 int type_size_from_node(const ASTNode *type) {

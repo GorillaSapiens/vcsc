@@ -1,0 +1,27 @@
+// This file is covered under CC0-1.0. See test/LICENSE.txt.
+
+// Template body for const_link_time_table_template_codegen_test.c26.
+//
+// A derived `page const` table inside an instantiated template, referring to a
+// `const` record the program authors.  This is the shape the generic stripe
+// renderer declares its three pair-indexed feed tables in, so the fold it depends
+// on is exercised here in the same place the renderer uses it rather than only in a
+// flat translation unit.
+
+extern const uint8_t TEMPLATE_record[8];
+
+// The renderer-facing form: derived from the program-supplied record.
+page const uint8_t TEMPLATE_feed[8] := {
+   TEMPLATE_record[7],TEMPLATE_record[6],TEMPLATE_record[5],TEMPLATE_record[4],
+   TEMPLATE_record[3],TEMPLATE_record[2],TEMPLATE_record[1],TEMPLATE_record[0]
+};
+
+// The template owns no rendering behaviour; it exists to declare the derived table
+// in the place the renderer declares it.  `machine_6502.c26` has no TIA register, so
+// the body just reads a byte, which is enough to make the template a real
+// definition rather than an unused-link error.
+extern const uint8_t TEMPLATE_feed[8];
+
+uint8_t TEMPLATE_draw(void) {
+   return TEMPLATE_feed[0];
+}

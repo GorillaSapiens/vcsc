@@ -131,9 +131,23 @@ void validate_declaration_access_qualifiers(const ASTNode *origin,
                                             const char *what);
 int get_size(const char *type);
 int type_size_from_node(const ASTNode *type);
+// Size of a named type, or -1 if no size is available yet.  Never diagnoses, unlike
+// get_size(), which errors on an unknown name -- right where an answer is required and
+// wrong where the question is only whether an answer exists yet.  Checks the recorded
+// sizes (a struct or union the layout pass has done) and then the declaration's own
+// $size: flag (a `type X { ... }`, a pointer, a typedef alias), so it answers both
+// before and after the layout pass.
+int available_type_size(const char *name);
 int declarator_value_size(const ASTNode *type, const ASTNode *declarator);
 int expr_value_size(ASTNode *expr, Context *ctx);
 bool expr_is_integer_constant_expr(const ASTNode *expr, long long *value_out);
+
+// As above, but a name that resolves to a `const` scalar in this scope also counts.
+// The unscoped form is left alone deliberately: it has callers while PARSING, where no
+// scope exists, and threading a Context through its 80-odd call sites to serve one
+// compile-phase decision would be the wrong trade.
+bool expr_is_integer_constant_expr_in_scope(const ASTNode *expr, Context *ctx,
+                                           long long *value_out);
 bool expr_is_untyped_integer_literal(const ASTNode *expr);
 bool integer_literal_is_zero_expr(const ASTNode *expr);
 bool integer_literal_fits_plain_integer_type(const ASTNode *expr, const ASTNode *formal_type, const ASTNode *formal_decl);

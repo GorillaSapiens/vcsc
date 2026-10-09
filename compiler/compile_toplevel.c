@@ -1306,6 +1306,7 @@ void compile_global_decl_item(ASTNode *node) {
    validate_global_object_region_modifiers(node, modifiers, declarator, name);
    ASTNode *uexpr;
    EmitSink init_es = EMIT_INIT;
+   unsigned char *link_time_bytes = NULL;
 
    if (has_modifier(modifiers, "inline")) {
       error_user("[%s:%d.%d] 'inline' applies only to function declarations and definitions",
@@ -1534,7 +1535,32 @@ void compile_global_decl_item(ASTNode *node) {
          return;
       }
 
-      if (emit_global_initializer(&init_es, type, declarator, uexpr ? uexpr : expression, size)) {
+      if (emit_global_initializer(&init_es, type, declarator, uexpr ? uexpr : expression, size,
+                                  &link_time_bytes)) {
+         /* Record ONLY an ordinary read-only object in default ROM.  A `const`
+          * object in a NAMED memory region is excluded on purpose: there the byte's
+          * addressability is itself the contract, not just its value.  Folding a
+          * read of a data-only object would erase the very reference the linker
+          * diagnoses (a data-only bank has no 6507 address), turning an illegal
+          * program into a legal one.  Split regions, absolute bindings and swapram
+          * are excluded for the same reason: their reads carry address meaning that
+          * a constant cannot.  So the fold applies to plain ROM data only, which is
+          * what the stripe feed tables are. */
+         if (link_time_bytes && is_const && !is_zeropage && region_count == 0 &&
+             !is_absolute_binding && !is_noinit) {
+            const_link_time_table_record(name, link_time_bytes, size,
+                                         declarator_first_element_size(type, declarator));
+            /* The same gate, for the same reason, admits a SCALAR: this is plain
+             * read-only ROM whose reads carry no address meaning, so a use of it can
+             * be folded to the value.  An array or a pointer is not a scalar value and
+             * stays with the table record above, whose reads are of an element at an
+             * index rather than of the object itself. */
+            if (declarator_array_count(declarator) == 0 &&
+                declarator_pointer_depth(declarator) == 0) {
+               const_scalar_value_record(name, link_time_bytes, size);
+            }
+         }
+         free(link_time_bytes);
          if (is_zeropage) {
             char segbuf[256];
             build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
@@ -1802,6 +1828,135 @@ void crosscheck_struct_union_nesting(ASTNode *program) {
 }
 
 //! @brief Handle calculate struct union sizes logic for compile toplevel.
+/* Size of one struct or union declaration, computed from its fields.  Returns false
+   when a field type has no size yet, which the caller resolves by retrying later.
+ *
+ * ONE implementation, used both by the parse-time recording below and by the
+ * authoritative pass in calculate_struct_union_sizes.  That sharing is the point:
+ * a struct size recorded while its declaration was parsed has to agree with the size
+ * the layout pass would compute, and two copies of these rules is exactly how they
+ * would come to disagree.
+ *
+ * `report` says whether to diagnose a malformed bitfield.  Only the compile phase
+ * does, and it walks every declaration, so the answer to "is this field legal" is
+ * asked and answered exactly once and in one place.  The parse-time call passes
+ * false: it exists only to learn a size for an array extent, and under -X coverage
+ * the compile phase never runs at all -- the tool exits immediately after parsing --
+ * so a diagnostic emitted there would fire on a run that is only supposed to parse. */
+static bool struct_union_size_from_fields(const ASTNode *node, bool is_struct, int sizeof_ptr, bool report, int *out) {
+   int size = 0;
+   int bit_cursor = 0;
+
+   for (int j = 1; j < node->count; j++) {
+      ASTNode *item = node->children[j];
+      const ASTNode *type = item->children[1];
+      const char *tname = type->strval;
+      const ASTNode *decl = item->children[2];
+      int mult = declarator_array_multiplier(decl);
+      bool isptr = declarator_pointer_depth(decl) > 0;
+      int bit_width = declarator_bitfield_width(decl);
+      int othersize;
+
+      if (isptr) {
+         othersize = sizeof_ptr;
+      }
+      else {
+         othersize = available_type_size(tname);
+         if (othersize < 0) {
+            *out = -1;
+            return false;
+         }
+      }
+
+      if (bit_width > 0) {
+         if (report && (declarator_pointer_depth(decl) > 0 || declarator_array_count(decl) > 0)) {
+            error_user("[%s:%d.%d] bitfield '%s' must be a plain scalar field",
+                  decl->file, decl->line, decl->column,
+                  declarator_name(decl) ? declarator_name(decl) : "<unnamed>");
+         }
+         if (report && has_flag_prefix(tname, "$float:")) {
+            error_user("[%s:%d.%d] bitfield '%s' cannot use floating type '%s'",
+                  decl->file, decl->line, decl->column,
+                  declarator_name(decl) ? declarator_name(decl) : "<unnamed>", tname);
+         }
+         if (report && (bit_width <= 0 || bit_width > othersize * 8)) {
+            error_user("[%s:%d.%d] bitfield '%s' width %d exceeds storage of '%s' (%d bits)",
+                  decl->file, decl->line, decl->column,
+                  declarator_name(decl) ? declarator_name(decl) : "<unnamed>",
+                  bit_width, tname, othersize * 8);
+         }
+         if (report && mult != 1) {
+            error_user("[%s:%d.%d] bitfield '%s' cannot be an array",
+                  decl->file, decl->line, decl->column,
+                  declarator_name(decl) ? declarator_name(decl) : "<unnamed>");
+         }
+         if (is_struct) {
+            bit_cursor += bit_width;
+            size = (bit_cursor + 7) / 8;
+         }
+         else {
+            int field_size = (bit_width + 7) / 8;
+            if (field_size > size) {
+               size = field_size;
+            }
+         }
+      }
+      else if (is_struct) {
+         if (bit_cursor % 8) {
+            bit_cursor = ((bit_cursor + 7) / 8) * 8;
+         }
+         bit_cursor += othersize * mult * 8;
+         size = bit_cursor / 8;
+      }
+      else if (othersize * mult > size) {
+         /* A union takes the largest member. */
+         size = othersize * mult;
+      }
+   }
+
+   *out = size;
+   return true;
+}
+
+/* Record a struct or union's size as soon as its declaration closes.
+ *
+ * A field's type must already be declared -- there are no forward references, so a
+ * struct cannot mention one declared later -- which means the size is fully determined
+ * here and there is nothing for the fixed-point loop in calculate_struct_union_sizes to
+ * discover later.  Recording it now is what lets an array extent use sizeof(S): an
+ * extent is folded while its declaration is parsed, and that is the only moment at
+ * which an extent can be resolved at all. */
+void record_declared_struct_union_size(ASTNode *decl, const char *name, bool is_struct) {
+   int sizeof_ptr;
+   int size;
+
+   if (!decl || !name) {
+      return;
+   }
+   /* This runs from a grammar action, so it happens long before do_compile creates the
+    * size table.  Creating it here is what lets the same table serve both phases; the
+    * compile-time pass then finds the entry already present and agrees with it. */
+   if (!typesizes) {
+      typesizes = pair_create();
+   }
+   if (pair_exists(typesizes, name)) {
+      return;
+   }
+   if (!typename_exists("*")) {
+      return;
+   }
+   sizeof_ptr = available_type_size("*");
+   if (sizeof_ptr < 0) {
+      return;
+   }
+   if (!struct_union_size_from_fields(decl, is_struct, sizeof_ptr, false, &size)) {
+      return;
+   }
+   pair_insert(typesizes, name, (void *) (intptr_t) size);
+   debug("sizeof(%s) == %d", name, size);
+}
+
+//! @brief Handle calculate struct union sizes logic for compile toplevel.
 void calculate_struct_union_sizes(ASTNode *program) {
    // everybody uses pointers, let's just do that now...
 
@@ -1826,100 +1981,28 @@ void calculate_struct_union_sizes(ASTNode *program) {
          else if (!strcmp(program->children[i]->name, "union_decl_stmt")) {
             is_union = true;
          }
-         // else if (!strcmp(program->children[i]->name, "type_decl_stmt")) {
-         // // types have already been done.
-         // }
 
          if (is_struct || is_union) {
             ASTNode *node = program->children[i];
             const char *name = node->children[0]->strval;
             int size = 0;
-            int bit_cursor = 0;
 
-            if (!pair_exists(typesizes, name)) {
-               for (int j = 1; j < node->count; j++) {
-                  ASTNode *item = node->children[j];
-                  const ASTNode *type = item->children[1];
-                  const char *tname = type->strval;
-                  const ASTNode *decl = item->children[2];
-                  int mult = declarator_array_multiplier(decl);
-                  bool isptr = declarator_pointer_depth(decl) > 0;
-                  int bit_width = declarator_bitfield_width(decl);
-                  int othersize;
-
-                  if (isptr) {
-                     othersize = sizeof_ptr;
-                  }
-                  else if (pair_exists(typesizes, tname)) {
-                     othersize = (intptr_t) pair_get(typesizes, tname);
-                  }
-                  else {
-                     othersize = -1;
-                  }
-
-                  if (othersize == -1) {
-                     size = -1;
-                     break;
-                  }
-
-                  if (bit_width > 0) {
-                     if (declarator_pointer_depth(decl) > 0 || declarator_array_count(decl) > 0) {
-                        error_user("[%s:%d.%d] bitfield '%s' must be a plain scalar field",
-                              decl->file, decl->line, decl->column,
-                              declarator_name(decl) ? declarator_name(decl) : "<unnamed>");
-                     }
-                     if (has_flag_prefix(tname, "$float:")) {
-                        error_user("[%s:%d.%d] bitfield '%s' cannot use floating type '%s'",
-                              decl->file, decl->line, decl->column,
-                              declarator_name(decl) ? declarator_name(decl) : "<unnamed>",
-                              tname);
-                     }
-                     if (bit_width <= 0 || bit_width > othersize * 8) {
-                        error_user("[%s:%d.%d] bitfield '%s' width %d exceeds storage of '%s' (%d bits)",
-                              decl->file, decl->line, decl->column,
-                              declarator_name(decl) ? declarator_name(decl) : "<unnamed>",
-                              bit_width, tname, othersize * 8);
-                     }
-                     if (mult != 1) {
-                        error_user("[%s:%d.%d] bitfield '%s' cannot be an array",
-                              decl->file, decl->line, decl->column,
-                              declarator_name(decl) ? declarator_name(decl) : "<unnamed>");
-                     }
-                     if (is_struct) {
-                        bit_cursor += bit_width;
-                        size = (bit_cursor + 7) / 8;
-                     }
-                     else {
-                        int field_size = (bit_width + 7) / 8;
-                        if (field_size > size) {
-                           size = field_size;
-                        }
-                     }
-                  }
-                  else if (is_struct) {
-                     if (bit_cursor % 8) {
-                        bit_cursor = ((bit_cursor + 7) / 8) * 8;
-                     }
-                     bit_cursor += othersize * mult * 8;
-                     size = bit_cursor / 8;
-                  }
-                  else if (is_union) {
-                     if (othersize * mult > size) {
-                        size = othersize * mult;
-                     }
-                  }
-               }
-
-               if (size == -1) {
-                  done = false;
-               }
-               else {
-                  pair_insert(typesizes, name, (void *)(intptr_t)size);
-                  debug("sizeof(%s) == %d", name, size);
-               }
+            /* Walk every declaration, INCLUDING one whose size was already recorded
+             * while it was parsed.  Skipping those would mean a struct that closed
+             * before the first array extent asked for its size never got its bitfields
+             * checked at all -- the parse-time call is deliberately silent, so this is
+             * the only place that diagnoses.  What is skipped is only the insert: the
+             * recorded size came from this same function, so there is nothing to
+             * correct, and overwriting it could only lose a better answer to a later
+             * re-declaration. */
+            if (!struct_union_size_from_fields(node, is_struct, sizeof_ptr, true, &size)) {
+               done = false;
+            }
+            else if (!pair_exists(typesizes, name)) {
+               pair_insert(typesizes, name, (void *)(intptr_t)size);
+               debug("sizeof(%s) == %d", name, size);
             }
          }
       }
    }
 }
-

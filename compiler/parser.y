@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "coverage.h"
 #include "compile_init.h"
+#include "compile_toplevel.h"
 #include "enumname.h"
 #include "lextern.h"
 #include "memname.h"
@@ -42,6 +43,249 @@ static ASTNode *make_decl_addr_term(char *tok) {
       return make_empty_leaf();
    }
    return make_identifier_leaf(tok);
+}
+
+/* An array extent is a compile-time integer CONSTANT, not merely an integer
+ * token.  `WIDTH * 2`, `BASE + COUNT - 1` and an enum constant are all extents;
+ * accepting only a bare token pushed that arithmetic out into the surrounding
+ * source, where it had to be repeated and could drift between declarations.
+ *
+ * Folding in the grammar action keeps the extent in the AST an ordinary integer
+ * leaf, so every consumer of a declarator's array children -- the array count,
+ * the size multiplier, the ABI bound text -- reads the resolved value and
+ * nothing downstream has to learn that an expression ever appeared here.
+ *
+ * The arithmetic is ordinary integer arithmetic: the shared constant evaluator
+ * computes in long long, divides truncating toward zero, and already diagnoses
+ * an out-of-range shift count.  A non-integer result (a string or an address) is
+ * not an extent.  Zero and negative are rejected here rather than left to
+ * declarator_array_multiplier_from, which keeps the identical check for
+ * declarators synthesized without the parser.
+ */
+/* A constant expression that divides by a constant zero does not fold, and
+ * "must be a compile-time integer constant" would send the reader hunting for a
+ * non-constant operand that is not there.  The shared evaluator declines to fold a
+ * zero divisor rather than trapping, so the real cause is named here instead.
+ *
+ * This runs only after folding has already failed, which also keeps it correct for
+ * the untaken arm of a conditional: `0 ? 4 / 0 : 4` folds to 4 and never divides. */
+static bool array_extent_divides_by_constant_zero(const ASTNode *expr) {
+   if (!expr) {
+      return false;
+   }
+
+   if (expr->count == 2 && (!strcmp(expr->name, "/") || !strcmp(expr->name, "%"))) {
+      InitConstValue divisor = {0};
+      if (eval_constant_initializer_expr(expr->children[1], &divisor) &&
+          divisor.kind == INIT_CONST_INT && divisor.i == 0) {
+         return true;
+      }
+   }
+
+   for (int i = 0; i < expr->count; i++) {
+      if (array_extent_divides_by_constant_zero(expr->children[i])) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
+/* A syntax error used to name the offending extent by itself, because the parser
+ * rejected anything but an integer token there.  Now that an extent is an
+ * expression, the fold-or-refuse decision is made after parsing, so the
+ * diagnostic has to supply the text itself or it says only that something was
+ * wrong.  The multisprite renderer guard depends on this: its unsupported-line
+ * branch is a poison declaration whose whole purpose is to fail with the
+ * offending identifier in the message.
+ *
+ * Bounded by construction.  Unrecognised shapes render as the node's own name,
+ * recursion is depth limited, and the result is truncated to a fixed buffer, so
+ * this cannot produce an unbounded or self-referential diagnostic. */
+static void array_extent_append(char *buf, size_t cap, size_t *len, const char *text) {
+   size_t room;
+
+   if (!text || *len + 1 >= cap) {
+      return;
+   }
+   room = cap - *len - 1;
+   if (strlen(text) > room) {
+      text += strlen(text) - room;      /* keep the tail: the identifier matters most */
+   }
+   memcpy(buf + *len, text, strlen(text));
+   *len += strlen(text);
+   buf[*len] = '\0';
+}
+
+static void array_extent_render(char *buf, size_t cap, size_t *len, const ASTNode *node, int depth);
+
+static bool array_extent_is_operator(const char *name) {
+   static const char *const binary[] = {
+      "+", "-", "*", "/", "%", "<<", ">>", "&", "|", "^",
+      "==", "!=", "<", ">", "<=", ">=", "&&", "||", NULL
+   };
+   const char *const *p;
+
+   for (p = binary; *p; p++) {
+      if (!strcmp(name, *p)) {
+         return true;
+      }
+   }
+   return false;
+}
+
+static void array_extent_render(char *buf, size_t cap, size_t *len, const ASTNode *node, int depth) {
+   char join[8];
+   size_t mark = *len;
+
+   if (!node || depth > 6 || *len + 1 >= cap) {
+      return;
+   }
+   /* Leaf kinds are checked before the childless case: an integer or identifier
+    * leaf is exactly a node with no children, so treating "no children" as
+    * "nothing to say" first would discard every literal in the expression. */
+   if (node->kind == AST_IDENTIFIER || node->kind == AST_TYPENAME ||
+       node->kind == AST_INTEGER || node->kind == AST_STRING) {
+      /* Quote the spelling the source actually has.  An instantiated renderer has
+       * its TEMPLATE_ names rewritten to the instance prefix, so strval can name
+       * `game_lines_must_be_181_192_or_228` for a line that reads
+       * `TEMPLATE_lines_must_be_181_192_or_228`, and a reader grepping the source
+       * they were given would not find it. */
+      const char *shown_text = (node->source_spelling && node->source_spelling[0])
+                                  ? node->source_spelling : node->strval;
+      array_extent_append(buf, cap, len, shown_text ? shown_text : "?");
+      return;
+   }
+   if (node->kind == AST_EMPTY || node->count == 0) {
+      return;
+   }
+   if (!strcmp(node->name, "conditional_expr") && node->count == 4 &&
+       node->children[0] && !strcmp(node->children[0]->strval, "?:")) {
+      array_extent_render(buf, cap, len, node->children[1], depth + 1);
+      array_extent_append(buf, cap, len, " ? ");
+      array_extent_render(buf, cap, len, node->children[2], depth + 1);
+      array_extent_append(buf, cap, len, " : ");
+      array_extent_render(buf, cap, len, node->children[3], depth + 1);
+      return;
+   }
+   if (!strcmp(node->name, "lvalue") && node->count == 2) {
+      array_extent_render(buf, cap, len, node->children[0], depth + 1);
+      array_extent_render(buf, cap, len, node->children[1], depth + 1);
+      return;
+   }
+   if (!strcmp(node->name, "sizeof")) {
+      /* Name the operand rather than eliding it: `sizeof(...)` in a refusal tells a
+       * reader nothing about which operand the compiler could not size. */
+      array_extent_append(buf, cap, len, "sizeof(");
+      if (node->count > 0 && !strcmp(node->children[0]->name, "sizeof_type") &&
+          node->children[0]->count > 0) {
+         const ASTNode *cast_type = node->children[0]->children[0];
+         if (cast_type && !strcmp(cast_type->name, "cast_type") && cast_type->count > 1) {
+            const ASTNode *specifiers = cast_type->children[0];
+            if (specifiers && specifiers->count > 1) {
+               array_extent_render(buf, cap, len, specifiers->children[1], depth + 1);
+            }
+         }
+      }
+      else if (node->count > 0) {
+         array_extent_render(buf, cap, len, node->children[0]->children[0], depth + 1);
+      }
+      array_extent_append(buf, cap, len, ")");
+      return;
+   }
+   if (node->count == 2 && array_extent_is_operator(node->name)) {
+      array_extent_render(buf, cap, len, node->children[0], depth + 1);
+      snprintf(join, sizeof(join), " %s ", node->name);
+      array_extent_append(buf, cap, len, join);
+      array_extent_render(buf, cap, len, node->children[1], depth + 1);
+      return;
+   }
+   if (node->count == 1 && node->name[0] && !node->name[1] && strchr("!~-+", node->name[0])) {
+      array_extent_append(buf, cap, len, node->name);
+      array_extent_render(buf, cap, len, node->children[0], depth + 1);
+      return;
+   }
+   if (node->count == 1) {
+      /* A single-child wrapper such as `expr` or `assign_expr`: the operand is the
+       * useful part, and unwrapping it keeps the message readable. */
+      array_extent_render(buf, cap, len, node->children[0], depth + 1);
+      if (*len == mark) {
+         array_extent_append(buf, cap, len, node->name);
+      }
+      return;
+   }
+   array_extent_append(buf, cap, len, node->name);
+}
+
+/* An extent that folds except for a sizeof says nothing useful if it is reported as
+ * simply not constant.  A sizeof of a type or typedef IS constant and folds; what
+ * does not fold is a struct or union, whose size is computed from the whole program,
+ * or an object, whose size needs a scope.  Neither exists yet while a declaration is
+ * being parsed, so the refusal names the reason instead of the symptom. */
+static bool array_extent_contains_sizeof(const ASTNode *expr) {
+   if (!expr) {
+      return false;
+   }
+   if (!strcmp(expr->name, "sizeof")) {
+      return true;
+   }
+   for (int i = 0; i < expr->count; i++) {
+      if (array_extent_contains_sizeof(expr->children[i])) {
+         return true;
+      }
+   }
+   return false;
+}
+
+static ASTNode *make_array_extent_leaf(ASTNode *extent) {
+   InitConstValue value = {0};
+   char text[32];
+   char shown[160];
+   size_t shown_len = 0;
+
+   shown[0] = '\0';
+   array_extent_render(shown, sizeof(shown), &shown_len, extent, 0);
+
+   if (!extent ||
+       !eval_constant_initializer_expr(extent, &value) ||
+       value.kind != INIT_CONST_INT) {
+      if (array_extent_divides_by_constant_zero(extent)) {
+         error_user("[%s:%d.%d] array size '%s' divides by zero",
+                    extent->file, extent->line, extent->column, shown);
+      }
+      if (array_extent_contains_sizeof(extent)) {
+         /* Say what is actually true.  An extent is folded while its declaration is
+          * parsed, and two things a sizeof can ask about are not available then: a
+          * struct or union size, because those are laid out after parsing from the
+          * whole program, and an object's size, because that needs a scope.  Both ARE
+          * known to the language elsewhere -- `sizeof(S)` works in any expression --
+          * so the old wording, which implied they were not known at all, sent a reader
+          * looking for a missing feature instead of at the one real restriction. */
+         error_user("[%s:%d.%d] array size '%s' is not a compile-time constant: an "
+                    "extent is resolved while this declaration is parsed, and a struct "
+                    "or union size is laid out only after parsing, while an object's "
+                    "size needs a scope. Give the size a name -- an enum constant, or "
+                    "a `type` -- and use that",
+                    extent->file, extent->line, extent->column, shown);
+      }
+      error_user("[%s:%d.%d] array size '%s' must be a compile-time integer constant",
+                 extent ? extent->file : "<input>",
+                 extent ? extent->line : 0,
+                 extent ? extent->column : 0,
+                 shown);
+   }
+
+   /* A zero extent silently produced a zero-sized object, which then let
+    * `extern const uint8_t x[0]` act as a decorative compile-time "guard": it
+    * was accepted, never allocated, and never diagnosed, so code guarded by it
+    * built and ran without the guard ever taking effect. */
+   if (value.i <= 0) {
+      error_user("[%s:%d.%d] array size must be greater than zero, not %lld",
+                 extent->file, extent->line, extent->column, value.i);
+   }
+
+   snprintf(text, sizeof(text), "%lld", value.i);
+   return make_integer_leaf(strdup(text));
 }
 
 
@@ -158,7 +402,6 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %type <node> case_block
 %type <node> case_choice
 %type <node> case_additive_expr
-%type <node> case_enum_primary_expr
 %type <node> case_bitwise_and_expr
 %type <node> case_bitwise_or_expr
 %type <node> case_bitwise_xor_expr
@@ -362,12 +605,12 @@ bank_decl_stmt:
   ;
 
 type_decl_stmt:
-    TYPE IDENTIFIER '{' opt_flags '}' ';'    { COVER; if (register_typename($2) < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf($2), $4); }
-  | TYPE '*' '{' opt_flags '}' ';'           { COVER; if (register_typename("*") < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf("*"), $4); }
+    TYPE IDENTIFIER '{' opt_flags '}' ';'    { COVER; if (register_typename($2) < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf($2), $4); attach_typename($2, $$); }
+  | TYPE '*' '{' opt_flags '}' ';'           { COVER; if (register_typename("*") < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf("*"), $4); attach_typename("*", $$); }
   ;
 
 typedef_decl_stmt:
-    TYPEDEF TYPENAME IDENTIFIER ';'          { COVER; if (register_typename($3) < 0) YYABORT; $$ = MAKE_NODE(make_typename_leaf($2), make_identifier_leaf($3)); }
+    TYPEDEF TYPENAME IDENTIFIER ';'          { COVER; if (register_typename($3) < 0) YYABORT; $$ = MAKE_NODE(make_typename_leaf($2), make_identifier_leaf($3)); attach_typename($3, make_typename_leaf($2)); }
   ;
 
 enum_decl_stmt:
@@ -387,7 +630,7 @@ enum_value:
 
 struct_decl_stmt:
     STRUCT IDENTIFIER ';'                    { COVER; if (register_typename($2) < 0) YYABORT; $$ = make_empty_leaf(); $$->strval = strdup($2); } // Add early to type table
-  | STRUCT TYPENAME '{' field_list '}' ';'   { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); }
+  | STRUCT TYPENAME '{' field_list '}' ';'   { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); record_declared_struct_union_size($$, $2, true); }
   | STRUCT IDENTIFIER '{'                    {
                                                 COVER;
                                                 if (register_typename($2) < 0) YYABORT;  // Add early to type table
@@ -395,12 +638,13 @@ struct_decl_stmt:
     field_list '}' ';'                       {
                                                 COVER;
                                                 $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $5);
+                                                record_declared_struct_union_size($$, $2, true);
                                              }
   ;
 
 union_decl_stmt:
     UNION IDENTIFIER ';'                     { COVER; if (register_typename($2) < 0) YYABORT; $$ = make_empty_leaf(); $$->strval = strdup($2); } // Add early to type table
-  | UNION TYPENAME '{' field_list '}' ';'    { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); }
+  | UNION TYPENAME '{' field_list '}' ';'    { COVER; $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $4); record_declared_struct_union_size($$, $2, false); }
   | UNION IDENTIFIER '{'                     {
                                                 COVER;
                                                 if (register_typename($2) < 0) YYABORT;  // Add early to type table
@@ -408,6 +652,7 @@ union_decl_stmt:
     field_list '}' ';'                       {
                                                 COVER;
                                                 $$ = append_decl_items(MAKE_NODE(make_identifier_leaf($2)), $5);
+                                                record_declared_struct_union_size($$, $2, false);
                                              }
   ;
 
@@ -516,7 +761,7 @@ direct_declarator:
   | DOLLAR_DOLLAR                            { COVER; $$ = MAKE_NODE(make_identifier_leaf(strdup("$$"))); }
   | dra_pseudo                               { COVER; $$ = MAKE_NODE($1); }
   | '(' declarator ')'                       { COVER; $$ = MAKE_NODE($2); }
-  | direct_declarator '[' INTEGER ']'        { COVER; $$ = append_child($1, make_integer_leaf($3)); }
+  | direct_declarator '[' case_term ']' { COVER; $$ = append_child($1, make_array_extent_leaf($3)); }
   | direct_declarator '(' parameter_list ')' { COVER; $$ = append_child($1, $3); }
   | direct_declarator '(' ')'                { COVER; $$ = append_child($1, MAKE_NAMED_NODE("parameter_list", NULL)); }
   ;
@@ -849,12 +1094,6 @@ case_choice:
 
 case_term:
     case_conditional_expr                    { COVER; $$ = $1; }
-  | case_enum_primary_expr                   { COVER; $$ = $1; }
-  ;
-
-case_enum_primary_expr:
-    ENUMNAME                                 { COVER; $$ = make_enumname_expr($1); }
-  | ENUMNAME '`' TYPENAME                    { COVER; $$ = make_enumname_expr_with_type($1, make_typename_leaf($3)); }
   ;
 
 case_conditional_expr:
@@ -939,6 +1178,9 @@ case_num_primary_expr:
   | INTEGER '`' TYPENAME                                   { COVER; $$ = make_integer_leaf_with_type($1, make_typename_leaf($3)); }
   | CHAR                                                   { COVER; $$ = do_xform(make_string_leaf($1), NULL); }
   | CHAR '`' XFORMNAME                                     { COVER; $$ = do_xform(make_string_leaf($1), $3); }
+  | ENUMNAME                                               { COVER; $$ = make_enumname_expr($1); }
+  | ENUMNAME '`' TYPENAME                                  { COVER; $$ = make_enumname_expr_with_type($1, make_typename_leaf($3)); }
+  | SIZEOF sizeof_operand                                  { COVER; $$ = MAKE_NAMED_NODE("sizeof", $2); }
   ;
 
 opt_flags:

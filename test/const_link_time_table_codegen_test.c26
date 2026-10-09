@@ -1,0 +1,53 @@
+// vcsc-cc1 -I .
+// A file-scope `const` object whose initializer is entirely constant is folded at
+// link time, so its bytes become readable as a constant expression.  A table
+// DERIVED from another table is therefore link-time ROM data, not a RAM object
+// plus a startup copy.
+//
+// This is the mechanism the generic positive-stripe renderer needs: its three
+// pair-indexed feed tables are the logical eight-byte stripe record transposed,
+// and the public record is the only thing a program should have to author.
+//
+// What must hold, and is asserted here:
+//   * a pure element read folds and lands in RODATA;
+//   * a read composed with constant arithmetic folds too, because the fold is
+//     applied inside the constant evaluator rather than as a special case;
+//   * the derived bytes are the SOURCE's bytes, so a transposition round-trips;
+//   * a writable table derived this way lands in DATA, not RODATA, because it is
+//     still writable and must be copied into RAM at startup;
+//   * a derived table is itself readable, so derivations compose;
+//   * a wider element type is NOT recorded and keeps its runtime-read behaviour,
+//     since this fold is byte-granular by construction;
+//   * `page const` derived data is still page-contained, which is what the
+//     renderer's fixed-cost absolute,Y feed reads require.
+include "machine_6502.c26"
+
+const uint8_t record[8] := { 0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88 };
+
+// A pure transposition: reversed copy of the record.
+const uint8_t reversed[8] := {
+   record[7],record[6],record[5],record[4],
+   record[3],record[2],record[1],record[0]
+};
+
+// The same reads composed with constant arithmetic.
+const uint8_t with_arithmetic[4] := {
+   record[2]+1, 2*record[4], record[0]+record[1], record[6]
+};
+
+// Writable, so it must be DATA with a startup copy rather than ROM.
+uint8_t writable_derived[3] := { record[1], record[3], record[5] };
+
+// Reads of an already-derived table, so derivations compose.
+const uint8_t second_generation[2] := { reversed[0], reversed[7] };
+
+// Wider element type: not recorded, so this stays a runtime read (BSS).
+const uint16_t wide[2] := { 0x0102,0x0304 };
+const uint8_t from_wide[2] := { wide[0], wide[1] };
+
+// Page-contained derived data, the shape the feed tables need.
+page const uint8_t paged_derived[3] := { record[4], record[5], record[6] };
+
+void main(void) {
+   // Nothing reads these; the declarations are the test.
+}
