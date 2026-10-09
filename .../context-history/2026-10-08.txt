@@ -183,3 +183,67 @@ COMPLETED ROADMAP ITEM 59, as recorded before renumbering:
         * A compiler capability, not a library one, and 22 instructions per
           16-bit mask is a lot of a 4K cartridge to pay for arithmetic the
           compiler already knows the answer to.
+
+
+--- stripes workstream, moved out of the hot record ---
+
+RESOLVED 2026-10-08: the BOUND's rule is canonical -- record stripe s goes in the
+pair the layout calls s, with NO rotation.  The user agreed the bound is the more
+logical of the two, and it is already the declared authority.
+
+The contradiction, for the record.  Both artifacts place pair q at Y = region-1-q
+and both were internally self-consistent, but they disagreed on which record stripe
+landed in which pair: the bound used stripe s, while
+test/fixtures/all_five_stripe_feed/feed_transposition_probe.c26 and the
+vcs_all_five_stripe_feed_tables.pl checking it used record_byte(8*($s+1)+$field), a
++1 rotation modulo the stripe count.  Verified by generating all three (192,32)
+tables under each rule: with the rotation all three matched the fixture byte for
+byte, without it none did.
+
+Why it had to be settled before the machine was written.  The raster reads feed[Y]
+at whatever Y it is on, so the tables and the machine's Y discipline must agree on
+this.  A rotation does not crash, does not fail a size check, and cannot be caught
+by any test that only counts bytes: it draws every stripe with the NEXT stripe's
+colours and playfield, which reads as a renderer bug and is not one.  There is also
+no machine yet to catch it.
+
+The bound could not see it either, which is worth noting as a general trap.  Its
+claim to "still reproduce it for (192,32)" is
+  $out =~ /3x96=288 bytes/ && $out =~ /feed2 has 32 spare pair2 slots/
+which compares SIZE STRINGS.  A layout rotation is invisible to a size check, so
+"reproduces the maintained proof" was true about sizes and silent about layout.
+Both files now say which rule they follow and why the two must not be allowed to
+diverge quietly.
+
+ITEM 1 PROGRESS, 2026-10-08.  The renderer now DECLARES the (192,32) feed itself,
+behind VCS_STRIPES32_FEED_DECL_PROBE, and the guard is relaxed only for that probe.
+The declarations are proven correct: generated under the bound's rule they reproduce
+the certified fixture's three tables slot for slot, and the `page` qualifier, the
+link-time fold and the zero-RAM property are all the same ones the fixture already
+certifies.
+
+The renderer still cannot LINK at stripes:=32, and that is the finding.  Enabling the
+probe exposes two things the guard had been concealing:
+
+  1. The stripe scratch is declared only for TEMPLATE_stripes == 1 and == 2, while
+     the shared `stripes > 0` init path copies the record into stripe_cache.  At 32
+     neither branch matched, so the object was missing entirely.  A cache[6] is now
+     declared for 32 under the probe, sized like the others because that init copies
+     six record bytes.  What the real machine will need is NOT guessed: a boundary
+     colour, a service pointer and a three-byte pointer are all plausible, and
+     inventing a layout here would be a guess that later reads as a measurement.
+
+  2. More seriously, something on the stripes:=32 path still references the
+     UNSTRIPED `game_playfield` array, which the two-stripe build never needs.  The
+     PF-priming block at the top of the row is correctly striped (`#if TEMPLATE_stripes
+     > 0` takes stripe_cache, the `#else` takes TEMPLATE_playfield), so the reference
+     comes from elsewhere in the draw path.  That means the striped PROFILE is not
+     selected for 32, not merely that the machine is missing: the renderer falls
+     through to code written for an un-striped frame.
+
+That second point is the real shape of the remaining work, and it is larger than "write
+the kernel".  Before a machine can be written the renderer has to select the striped
+profile at 32 -- every playfield source in the draw path, and the object/phase/handoff
+paths that a stripe boundary interrupts.  A test asserting the declarations emit
+correctly is written but NOT committed, because it cannot pass until this is fixed and
+a permanently failing test is worse than none.

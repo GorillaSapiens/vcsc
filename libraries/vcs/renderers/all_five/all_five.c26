@@ -53,7 +53,12 @@ extern const uint8_t vcsc_stripes_currently_require_solid_all_five_object_profil
 #if TEMPLATE_stripes > 0 && TEMPLATE_player_colors != 0
 extern const uint8_t vcsc_stripes_currently_require_solid_all_five_object_profile[-1];
 #endif
-#if TEMPLATE_stripes > 2
+#if TEMPLATE_stripes > 2 && !defined(VCS_STRIPES32_FEED_DECL_PROBE)
+// Relieved ONLY for VCS_STRIPES32_FEED_DECL_PROBE, which brings declarations and
+// not a machine: the raster body still does not exist, so a build that defined it
+// would link and draw an un-striped frame.  That is the exact failure the older
+// zero-length guards allowed, and it is why the relaxation is tied to the probe
+// rather than made permanent.
 extern const uint8_t vcsc_stripes_generic_machine_not_yet_emitted[-1];
 #endif
 #if TEMPLATE_stripes == 1
@@ -63,6 +68,118 @@ extern const uint8_t TEMPLATE_playfield_data[6];
 extern const uint8_t TEMPLATE_playfield_colors[4];
 extern const uint8_t TEMPLATE_playfield_data[12];
 #endif
+#if TEMPLATE_stripes == 32 && defined(VCS_STRIPES32_FEED_DECL_PROBE)
+// The generic feed declarations, at their worst case, behind a probe.
+//
+// This is DECLARATIONS ONLY.  No raster body reads these yet: the machine that
+// consumes them is the next piece of work, and the `stripes > 2` guard above is
+// still in force for every build that does not define this probe.  What this
+// establishes is that the renderer itself can hold the feed -- derived from the
+// public record, page contained, and costing no RAM -- so the machine is written
+// against data that is already proven reachable rather than against a table that
+// exists only in a fixture.
+//
+// The layout is stripe_generic_feed_source_bound.pl's, which is the declared
+// authority: record stripe s goes in the pair the layout calls s, with NO
+// rotation.  The fixture and its test were realigned to match after the two were
+// found to disagree by a one-stripe rotation; that mistake drew every stripe with
+// the next stripe's colours and no size check could see it, so the rule is stated
+// here too rather than left implicit in 288 index expressions.
+//
+// `page` is load-bearing: each read is a fixed four-cycle abs,Y and a straddling
+// table would cost a cycle the six-line machine does not have.  The record arrays
+// are NOT page qualified, because they are read only while these tables are built,
+// at link time, and never by the raster.
+//
+// The entries are constant reads of the record's own elements, so the whole table
+// folds to link-time ROM.  A four-byte version of this costs 20 bytes of RAM when
+// the record is not const; the real 288-byte feed would not fit at all, against 25
+// bytes free.
+extern const uint8_t TEMPLATE_playfield_colors[64];
+extern const uint8_t TEMPLATE_playfield_data[192];
+
+page const uint8_t TEMPLATE_stripe_feed0[96] := {
+   TEMPLATE_playfield_data[ 190], TEMPLATE_playfield_colors[  63], TEMPLATE_playfield_colors[  62], TEMPLATE_playfield_data[ 184],
+   TEMPLATE_playfield_colors[  61], TEMPLATE_playfield_colors[  60], TEMPLATE_playfield_data[ 178], TEMPLATE_playfield_colors[  59],
+   TEMPLATE_playfield_colors[  58], TEMPLATE_playfield_data[ 172], TEMPLATE_playfield_colors[  57], TEMPLATE_playfield_colors[  56],
+   TEMPLATE_playfield_data[ 166], TEMPLATE_playfield_colors[  55], TEMPLATE_playfield_colors[  54], TEMPLATE_playfield_data[ 160],
+   TEMPLATE_playfield_colors[  53], TEMPLATE_playfield_colors[  52], TEMPLATE_playfield_data[ 154], TEMPLATE_playfield_colors[  51],
+   TEMPLATE_playfield_colors[  50], TEMPLATE_playfield_data[ 148], TEMPLATE_playfield_colors[  49], TEMPLATE_playfield_colors[  48],
+   TEMPLATE_playfield_data[ 142], TEMPLATE_playfield_colors[  47], TEMPLATE_playfield_colors[  46], TEMPLATE_playfield_data[ 136],
+   TEMPLATE_playfield_colors[  45], TEMPLATE_playfield_colors[  44], TEMPLATE_playfield_data[ 130], TEMPLATE_playfield_colors[  43],
+   TEMPLATE_playfield_colors[  42], TEMPLATE_playfield_data[ 124], TEMPLATE_playfield_colors[  41], TEMPLATE_playfield_colors[  40],
+   TEMPLATE_playfield_data[ 118], TEMPLATE_playfield_colors[  39], TEMPLATE_playfield_colors[  38], TEMPLATE_playfield_data[ 112],
+   TEMPLATE_playfield_colors[  37], TEMPLATE_playfield_colors[  36], TEMPLATE_playfield_data[ 106], TEMPLATE_playfield_colors[  35],
+   TEMPLATE_playfield_colors[  34], TEMPLATE_playfield_data[ 100], TEMPLATE_playfield_colors[  33], TEMPLATE_playfield_colors[  32],
+   TEMPLATE_playfield_data[  94], TEMPLATE_playfield_colors[  31], TEMPLATE_playfield_colors[  30], TEMPLATE_playfield_data[  88],
+   TEMPLATE_playfield_colors[  29], TEMPLATE_playfield_colors[  28], TEMPLATE_playfield_data[  82], TEMPLATE_playfield_colors[  27],
+   TEMPLATE_playfield_colors[  26], TEMPLATE_playfield_data[  76], TEMPLATE_playfield_colors[  25], TEMPLATE_playfield_colors[  24],
+   TEMPLATE_playfield_data[  70], TEMPLATE_playfield_colors[  23], TEMPLATE_playfield_colors[  22], TEMPLATE_playfield_data[  64],
+   TEMPLATE_playfield_colors[  21], TEMPLATE_playfield_colors[  20], TEMPLATE_playfield_data[  58], TEMPLATE_playfield_colors[  19],
+   TEMPLATE_playfield_colors[  18], TEMPLATE_playfield_data[  52], TEMPLATE_playfield_colors[  17], TEMPLATE_playfield_colors[  16],
+   TEMPLATE_playfield_data[  46], TEMPLATE_playfield_colors[  15], TEMPLATE_playfield_colors[  14], TEMPLATE_playfield_data[  40],
+   TEMPLATE_playfield_colors[  13], TEMPLATE_playfield_colors[  12], TEMPLATE_playfield_data[  34], TEMPLATE_playfield_colors[  11],
+   TEMPLATE_playfield_colors[  10], TEMPLATE_playfield_data[  28], TEMPLATE_playfield_colors[   9], TEMPLATE_playfield_colors[   8],
+   TEMPLATE_playfield_data[  22], TEMPLATE_playfield_colors[   7], TEMPLATE_playfield_colors[   6], TEMPLATE_playfield_data[  16],
+   TEMPLATE_playfield_colors[   5], TEMPLATE_playfield_colors[   4], TEMPLATE_playfield_data[  10], TEMPLATE_playfield_colors[   3],
+   TEMPLATE_playfield_colors[   2], TEMPLATE_playfield_data[   4], TEMPLATE_playfield_colors[   1], TEMPLATE_playfield_colors[   0],
+};
+
+page const uint8_t TEMPLATE_stripe_feed1[96] := {
+   TEMPLATE_playfield_data[ 191], TEMPLATE_playfield_data[ 188], TEMPLATE_playfield_data[ 186], TEMPLATE_playfield_data[ 185],
+   TEMPLATE_playfield_data[ 182], TEMPLATE_playfield_data[ 180], TEMPLATE_playfield_data[ 179], TEMPLATE_playfield_data[ 176],
+   TEMPLATE_playfield_data[ 174], TEMPLATE_playfield_data[ 173], TEMPLATE_playfield_data[ 170], TEMPLATE_playfield_data[ 168],
+   TEMPLATE_playfield_data[ 167], TEMPLATE_playfield_data[ 164], TEMPLATE_playfield_data[ 162], TEMPLATE_playfield_data[ 161],
+   TEMPLATE_playfield_data[ 158], TEMPLATE_playfield_data[ 156], TEMPLATE_playfield_data[ 155], TEMPLATE_playfield_data[ 152],
+   TEMPLATE_playfield_data[ 150], TEMPLATE_playfield_data[ 149], TEMPLATE_playfield_data[ 146], TEMPLATE_playfield_data[ 144],
+   TEMPLATE_playfield_data[ 143], TEMPLATE_playfield_data[ 140], TEMPLATE_playfield_data[ 138], TEMPLATE_playfield_data[ 137],
+   TEMPLATE_playfield_data[ 134], TEMPLATE_playfield_data[ 132], TEMPLATE_playfield_data[ 131], TEMPLATE_playfield_data[ 128],
+   TEMPLATE_playfield_data[ 126], TEMPLATE_playfield_data[ 125], TEMPLATE_playfield_data[ 122], TEMPLATE_playfield_data[ 120],
+   TEMPLATE_playfield_data[ 119], TEMPLATE_playfield_data[ 116], TEMPLATE_playfield_data[ 114], TEMPLATE_playfield_data[ 113],
+   TEMPLATE_playfield_data[ 110], TEMPLATE_playfield_data[ 108], TEMPLATE_playfield_data[ 107], TEMPLATE_playfield_data[ 104],
+   TEMPLATE_playfield_data[ 102], TEMPLATE_playfield_data[ 101], TEMPLATE_playfield_data[  98], TEMPLATE_playfield_data[  96],
+   TEMPLATE_playfield_data[  95], TEMPLATE_playfield_data[  92], TEMPLATE_playfield_data[  90], TEMPLATE_playfield_data[  89],
+   TEMPLATE_playfield_data[  86], TEMPLATE_playfield_data[  84], TEMPLATE_playfield_data[  83], TEMPLATE_playfield_data[  80],
+   TEMPLATE_playfield_data[  78], TEMPLATE_playfield_data[  77], TEMPLATE_playfield_data[  74], TEMPLATE_playfield_data[  72],
+   TEMPLATE_playfield_data[  71], TEMPLATE_playfield_data[  68], TEMPLATE_playfield_data[  66], TEMPLATE_playfield_data[  65],
+   TEMPLATE_playfield_data[  62], TEMPLATE_playfield_data[  60], TEMPLATE_playfield_data[  59], TEMPLATE_playfield_data[  56],
+   TEMPLATE_playfield_data[  54], TEMPLATE_playfield_data[  53], TEMPLATE_playfield_data[  50], TEMPLATE_playfield_data[  48],
+   TEMPLATE_playfield_data[  47], TEMPLATE_playfield_data[  44], TEMPLATE_playfield_data[  42], TEMPLATE_playfield_data[  41],
+   TEMPLATE_playfield_data[  38], TEMPLATE_playfield_data[  36], TEMPLATE_playfield_data[  35], TEMPLATE_playfield_data[  32],
+   TEMPLATE_playfield_data[  30], TEMPLATE_playfield_data[  29], TEMPLATE_playfield_data[  26], TEMPLATE_playfield_data[  24],
+   TEMPLATE_playfield_data[  23], TEMPLATE_playfield_data[  20], TEMPLATE_playfield_data[  18], TEMPLATE_playfield_data[  17],
+   TEMPLATE_playfield_data[  14], TEMPLATE_playfield_data[  12], TEMPLATE_playfield_data[  11], TEMPLATE_playfield_data[   8],
+   TEMPLATE_playfield_data[   6], TEMPLATE_playfield_data[   5], TEMPLATE_playfield_data[   2], TEMPLATE_playfield_data[   0],
+};
+
+page const uint8_t TEMPLATE_stripe_feed2[96] := {
+   0                           , TEMPLATE_playfield_data[ 189], TEMPLATE_playfield_data[ 187], 0,
+   TEMPLATE_playfield_data[ 183], TEMPLATE_playfield_data[ 181], 0                           , TEMPLATE_playfield_data[ 177],
+   TEMPLATE_playfield_data[ 175], 0                           , TEMPLATE_playfield_data[ 171], TEMPLATE_playfield_data[ 169],
+   0                           , TEMPLATE_playfield_data[ 165], TEMPLATE_playfield_data[ 163], 0,
+   TEMPLATE_playfield_data[ 159], TEMPLATE_playfield_data[ 157], 0                           , TEMPLATE_playfield_data[ 153],
+   TEMPLATE_playfield_data[ 151], 0                           , TEMPLATE_playfield_data[ 147], TEMPLATE_playfield_data[ 145],
+   0                           , TEMPLATE_playfield_data[ 141], TEMPLATE_playfield_data[ 139], 0,
+   TEMPLATE_playfield_data[ 135], TEMPLATE_playfield_data[ 133], 0                           , TEMPLATE_playfield_data[ 129],
+   TEMPLATE_playfield_data[ 127], 0                           , TEMPLATE_playfield_data[ 123], TEMPLATE_playfield_data[ 121],
+   0                           , TEMPLATE_playfield_data[ 117], TEMPLATE_playfield_data[ 115], 0,
+   TEMPLATE_playfield_data[ 111], TEMPLATE_playfield_data[ 109], 0                           , TEMPLATE_playfield_data[ 105],
+   TEMPLATE_playfield_data[ 103], 0                           , TEMPLATE_playfield_data[  99], TEMPLATE_playfield_data[  97],
+   0                           , TEMPLATE_playfield_data[  93], TEMPLATE_playfield_data[  91], 0,
+   TEMPLATE_playfield_data[  87], TEMPLATE_playfield_data[  85], 0                           , TEMPLATE_playfield_data[  81],
+   TEMPLATE_playfield_data[  79], 0                           , TEMPLATE_playfield_data[  75], TEMPLATE_playfield_data[  73],
+   0                           , TEMPLATE_playfield_data[  69], TEMPLATE_playfield_data[  67], 0,
+   TEMPLATE_playfield_data[  63], TEMPLATE_playfield_data[  61], 0                           , TEMPLATE_playfield_data[  57],
+   TEMPLATE_playfield_data[  55], 0                           , TEMPLATE_playfield_data[  51], TEMPLATE_playfield_data[  49],
+   0                           , TEMPLATE_playfield_data[  45], TEMPLATE_playfield_data[  43], 0,
+   TEMPLATE_playfield_data[  39], TEMPLATE_playfield_data[  37], 0                           , TEMPLATE_playfield_data[  33],
+   TEMPLATE_playfield_data[  31], 0                           , TEMPLATE_playfield_data[  27], TEMPLATE_playfield_data[  25],
+   0                           , TEMPLATE_playfield_data[  21], TEMPLATE_playfield_data[  19], 0,
+   TEMPLATE_playfield_data[  15], TEMPLATE_playfield_data[  13], 0                           , TEMPLATE_playfield_data[   9],
+   TEMPLATE_playfield_data[   7], 0                           , TEMPLATE_playfield_data[   3], TEMPLATE_playfield_data[   1],
+};
+#endif
+
 #if TEMPLATE_stripes == 2
 // Pair-height descriptors split each stripe into coarse eight-pair rows plus
 // a 0..7-pair tail.  The public two-stripe default is the equal 48/48-pair
@@ -308,6 +425,18 @@ uint8_t TEMPLATE_object_masks[48];
 #endif
 alias TEMPLATE_playfield_position TEMPLATE_object_masks[47]
 #if TEMPLATE_stripes == 1
+uint8_t TEMPLATE_stripe_cache[6];
+#elif TEMPLATE_stripes == 32 && defined(VCS_STRIPES32_FEED_DECL_PROBE)
+// Declarations-only probe.  The shared `stripes > 0` init path copies the record into
+// stripe_cache, so that one object is referenced even though no machine exists yet.
+// The rest of the two-stripe machine's scratch is declared only for `== 2` and is not
+// referenced at 32, because that machine's own code is `== 2` guarded.
+//
+// Sized 6 like the one- and two-stripe cases because the shared init copies six
+// record bytes.  What the real 32-stripe machine will need here is not yet known and
+// is deliberately not guessed: a stripe boundary colour, a service pointer and a
+// three-byte pointer are all plausible, and inventing a layout here would be a
+// guess that later looks like a measurement.
 uint8_t TEMPLATE_stripe_cache[6];
 #elif TEMPLATE_stripes == 2
 uint8_t TEMPLATE_stripe_cache[6];
