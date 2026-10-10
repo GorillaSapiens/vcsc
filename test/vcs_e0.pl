@@ -106,8 +106,10 @@ my $cart_font=read_file(File::Spec->catfile($example_dir,'cart_type_font.c26'));
 $status_font =~ /bank5 const uint8_t status_glyphs\[128\]/ && $cart_font =~ /bank5 const uint8_t cart_type_glyphs\[24\]/
    or die "E0 visible glyphs must live in canonical state-2 bank 5\n";
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /FONT_SUBSET_FLAGS := --license examples\/LICENSE\.txt --bank bank5 --no-page/ &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+E0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+E0\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "E0 Makefile lost bank5 font generation or forced Stella mapper\n";
 
 my $bin=File::Spec->catfile($tmp,'e0.bin'); my $map_path=File::Spec->catfile($tmp,'e0.map');
@@ -184,12 +186,14 @@ if ($stella_mode) {
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    my $snap=File::Spec->catdir($tmp,'stella-snap'); my $user=File::Spec->catdir($tmp,'stella-user');
    make_path($snap,$user); unlink glob(File::Spec->catfile($snap,'*.png'));
-   my $display_num=180+($$%40); $display_num++ while -e "/tmp/.X11-unix/X$display_num";
+   my($display_num)=vcsc_reserve_x_display(180,40);
    my $display=':'.$display_num;
    my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
    if ($xpid==0) { open(STDOUT,'>',File::Spec->catfile($tmp,'xvfb.log')) or die $!; open(STDERR,'>&STDOUT') or die $!; exec($xvfb,$display,'-ac','-screen','0','1024x768x24'); die "exec Xvfb: $!\n"; }
    select undef,undef,undef,0.20;
    my $xdg=File::Spec->catdir($tmp,'xdg'); make_path($xdg);
+   # Fail here, not later inside Stella, if the X server did not come up.
+   vcsc_xvfb_assert_ready($display,$xpid);
    local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp;
    local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";

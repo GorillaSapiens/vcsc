@@ -67,8 +67,10 @@ my%profile=(
    'below'=>[File::Spec->catfile($repo,qw(examples 04_renderers multisprite score_below multisprite_181_score_below_interactive.c26)),"   initialize_multisprite_scene();\n"],
 );
 
-my$display=280+($$%30); $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display";
+my(undef,$d)=vcsc_reserve_x_display(280,30);
 my$xpid=fork(); defined$xpid or die "fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
+# Fail here, not later inside Stella, if the X server did not come up.
+vcsc_xvfb_assert_ready($d,$xpid);
 select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
 
 sub snapshot_case {

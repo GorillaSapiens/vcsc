@@ -222,21 +222,21 @@ sub run_stella_certification {
    my $snap_root=File::Spec->catdir($stella_tmp,'snapshots');
    my $user_root=File::Spec->catdir($stella_tmp,'user');
    make_path($snap_root,$user_root);
-   my $display_num=90+($$%100);
    my $selected=sub {
       my($label)=@_; return !$ENV{VCSC_STELLA_FILTER} || $label =~ /$ENV{VCSC_STELLA_FILTER}/;
    };
 
    my $run_one=sub {
       my(%arg)=@_; my $label=$arg{label}; return unless $selected->($label);
-      $display_num++ while -e "/tmp/.X11-unix/X$display_num";
-      my $display=':'.$display_num++;
+      my(undef,$display)=vcsc_reserve_x_display(250,20);
+      # Fail here, not later inside Stella, if the X server did not come up.
       my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
       if ($xpid==0) {
          open(STDOUT,'>:raw',File::Spec->catfile($stella_tmp,"$label.xvfb.log")) or die $!;
          open(STDERR,'>&STDOUT') or die $!;
          exec($xvfb,$display,'-ac','-screen','0','1024x768x24'); die "exec Xvfb: $!\n";
       }
+      vcsc_xvfb_assert_ready($display,$xpid);
       select(undef,undef,undef,0.20);
       local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null';
       local $ENV{HOME}=$stella_tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
@@ -281,6 +281,10 @@ sub run_stella_certification {
       }
       terminate_child($pid);
       terminate_child($xpid);
+      # This run's server is gone, so hand the display back.  Without this the
+      # reservation outlives the server and a later iteration skips a number it could
+      # have used, which exhausts the span part-way through a profile list.
+      vcsc_release_x_displays();
       $graded or die $last_grade_error;
    };
 

@@ -29,17 +29,26 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc)); my $vcs=File::Spec->catdi
 my $source=File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching standard_renderer banked_standard_renderer.c26));
 my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
 my @runs=(['4k','4K',['-DUNBANKED_REFERENCE'],undef],['f8','F8',['-DMAPPER_BANKS=2'],1],['f8sc','F8SC',['-DMAPPER_BANKS=2','-DSUPERCHIP_TEST'],1]);
-my %dig; my $display=130+($$%50);
+my %dig;
 for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,$source,$renderer,'-o',$rom);
-   $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display"; $display++;
+   # Reserve the display atomically rather than probing for a free socket.  A socket test
+   # cannot tell a free display from one another process is about to take, so two
+   # concurrent runs could pick the same number; the reservation file is created O_EXCL
+   # and is keyed globally, because separate checkouts share /tmp.
+   my(undef,$d)=vcsc_reserve_x_display(250,20);
    my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/$name.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
-   select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
+   # Fail here, not later inside Stella, if the X server did not come up.
+   vcsc_xvfb_assert_ready($d,$xpid);
+   local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
    my$snap=File::Spec->catdir($tmp,"snap_$name"); my$user=File::Spec->catdir($tmp,"user_$name"); make_path($snap,$user); unlink glob("$snap/*.png");
    my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','0','-speed','1','-uimessages','0','-audio.enabled','0','-bs',$mapper,'-snapsavedir',$snap,'-snapname','rom','-sssingle','0','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user); push@cmd,('-startbank',$start)if defined$start; push@cmd,$rom;
    my$pid=fork(); defined$pid or die"fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$tmp/$name.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    ok("capture completed $name frames",$perl,$keys,'--fast','--every-frame',
       '--snapshot-dir',$snap,'--snapshot-count','20','--snapshot-timeout','20');
    my@png=sort grep{-s$_}glob("$snap/*.png"); terminate($pid);terminate($xpid);
+   # This run's server is gone, so hand the display back rather than leaving a
+   # reservation that would make the next run skip it.
+   vcsc_release_x_displays();
    @png>=12 or die"$name produced only ".scalar(@png)." completed-frame snapshots\n";
    my($out,$err)=ok("stable digest $name",$perl,$sequence,'--stable-tail','8',@png); $err eq'' or die$err; chomp$out; $dig{$name}=$out;
 }

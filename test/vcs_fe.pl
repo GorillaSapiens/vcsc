@@ -84,8 +84,10 @@ my $source=File::Spec->catfile($example_dir,'fe_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
+(my $mk_flat=$mk) =~ s/\\[ \t]*\r?\n[ \t]*//g;
+$mk_flat =~ s/ -dev\.(?:settings|stats|detectedinfo|ramrandom|bankrandom) 1//g;
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
+$mk_flat =~ /^\s*stella\s+-dev\.tv\.jitter\s+0\s+-basedir\s+"\$\(CURDIR\)"\s+-userdir\s+"\$\(CURDIR\)"\s+-bs\s+FE\s+"\$\(CURDIR\)\/\$\(TARGET\)"\s*$/m
    or die "FE play target must force Stella -bs FE\n";
 my $pt=read_file($profile);
 $pt =~ /\$signature:FE\b/ && $pt !~ /\$select_access:/ &&
@@ -203,7 +205,7 @@ if ($stella_mode) {
    my $snap=File::Spec->catdir($tmp,'stella-snap');
    my $user=File::Spec->catdir($tmp,'stella-user');
    make_path($snap,$user); unlink glob(File::Spec->catfile($snap,'*.png'));
-   my $display_num=180+($$%40); $display_num++ while -e "/tmp/.X11-unix/X$display_num";
+   my($display_num)=vcsc_reserve_x_display(180,40);
    my $display=':'.$display_num;
    my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
    if ($xpid==0) {
@@ -213,6 +215,8 @@ if ($stella_mode) {
    }
    select undef,undef,undef,0.20;
    my $xdg=File::Spec->catdir($tmp,'xdg'); make_path($xdg);
+   # Fail here, not later inside Stella, if the X server did not come up.
+   vcsc_xvfb_assert_ready($display,$xpid);
    local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp;
    local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";

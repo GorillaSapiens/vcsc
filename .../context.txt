@@ -89,9 +89,11 @@ Open workstreams
    maintained scheduler invariants and next allocator-quality work.
 
 2. **Main roadmap**
-   `.../roadmap.txt` contains only unfinished main items. This branch carries the
-   compiler items only; item 57 (renderer stripes) and item 58 stay on `stripes`,
-   which also owns `.../stripes.txt`.
+   `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
+   `.../stripes.txt` owns renderer consolidation and stripes. S10/S11 are
+   complete; the maintained all-five, pairwise-position, banked-composition and
+   Stella regressions carry the useful `standard_4k_ntsc*` behavior. Item 58
+   follows after stripes.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -180,22 +182,23 @@ acceptance gates.
 
 Immediate TODO
 --------------
-This branch carries the COMPILER work only, split out of the `stripes` branch:
-array extents as constant expressions, `sizeof` folding, a narrowed ternary
-detector, the `case_term` extent, struct and union sizes, the link-time fold of a
-`const` table, and const-scalar folding across assignment, subscripts, arguments,
-binary operands and return values.  The renderer work stays on `stripes`.
-
-Remaining compiler items are 60 (elide the storage of a const scalar nothing takes
-the address of), 61 (a const scalar as an array EXTENT, refused today because an
-extent folds while parsing and no scope exists), and 62 (a const index on a runtime
-base pointer).  Measure 60 before starting it: the read fold kept finding larger
-wins and elision is worth 1-2 bytes per scalar.
-
-Two things to carry forward.  Resolution must stay SCOPE-AWARE -- a local can shadow
-a file-scope object, so the Context is consulted before the recorded table, and
-reversing that order substitutes the wrong value silently.  And only the READ is
-folded: the object keeps its storage, its label, its `.export` and its ABI metadata,
-none of which can see an expression-level fold.
+Continue `.../stripes.txt`.  The feed's origin is settled and the emit is unblocked:
+a file-scope `const` object folded at link time has readable constant bytes, so the
+renderer's three `page const` feed tables are a link-time ROM derivation of the
+public eight-byte record (0 RAM, no startup copy, no per-count public data).
+`vcs_const_link_time_table.pl` owns the fold (plain default-ROM data only; a
+NAMED region is excluded because folding a data-only read erases the relocation the
+linker must reject) and `vcs_all_five_stripe_feed_tables.pl` builds the real
+(192,32) tables and checks every emitted byte.  Both record-based sources are dead
+and RAM cannot hold the feed, so `stripe_generic_feed_source_bound.pl` reports the
+emit unblocked.  The renderer will need PER-CONFIGURATION feed tables: the content
+depends on the data layout (q=P*s+p picks the stripe), so all 19 legal
+configurations need their own (5625 source entries; ROM stays 288 per build).  The
+grammar takes only a literal in an array extent; relaxing that is a readability win
+and would NOT reduce the table count.  Next:
+emit the rolling machine in all_five.c26 behind a focused probe, reading the feeds at
+Y = region-1-q; then remove the stripes:=2-only machinery and supply the pair-2 PF
+copies the hoisted path omits.  Relax the `stripes > 2` guard only once the generic
+path serves 2..32.
 
 `gameplay`; 10 left.

@@ -65,7 +65,6 @@ my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
 my%requested=map { $_=>1 } grep { length } split(/,/, $ENV{VCSC_STELLA_CASES}//'');
 my%seen;
-my$display=350+($$%30);
 for my$standard (
    ['ntsc',0,'NTSC'],
    ['pal',1,'PAL'],
@@ -89,11 +88,12 @@ for my$standard (
 
       # A fresh private X server per case avoids stale SDL/X11 state after
       # repeatedly terminating Stella during the 12-screen matrix.
-      $display++ while -e "/tmp/.X11-unix/X$display";
-      my$d=":$display"; $display++;
+      my(undef,$d)=vcsc_reserve_x_display(350,30);
       my$xpid=fork(); defined$xpid or die"fork Xvfb\n";
       if(!$xpid){open(STDOUT,'>:raw',"$tmp/$name.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
       select undef,undef,undef,.2;
+      # Fail here, not later inside Stella, if the X server did not come up.
+      vcsc_xvfb_assert_ready($d,$xpid);
       local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null';
       local$ENV{HOME}="$tmp/home-$name"; local$ENV{SDL_AUDIODRIVER}='dummy'; make_path($ENV{HOME});
 

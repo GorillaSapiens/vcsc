@@ -216,14 +216,15 @@ if ($stella_mode) {
    my $snap=File::Spec->catdir($tmp,'stella-snap');
    my $user=File::Spec->catdir($tmp,'stella-user');
    make_path($snap,$user); unlink glob(File::Spec->catfile($snap,'*.png'));
-   my $display_num=180+($$%40); $display_num++ while -e "/tmp/.X11-unix/X$display_num";
-   my $display=':'.$display_num;
+   my(undef,$display)=vcsc_reserve_x_display(250,20);
+   # Fail here, not later inside Stella, if the X server did not come up.
    my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
    if ($xpid==0) {
       open(STDOUT,'>',File::Spec->catfile($tmp,'xvfb.log')) or die $!;
       open(STDERR,'>&STDOUT') or die $!;
       exec($xvfb,$display,'-ac','-screen','0','1600x1200x24'); die "exec Xvfb: $!\n";
    }
+      vcsc_xvfb_assert_ready($display,$xpid);
    select undef,undef,undef,0.20;
    my $xdg=File::Spec->catdir($tmp,'xdg'); make_path($xdg);
    local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp;

@@ -82,3 +82,77 @@ The stripe guards in libraries/vcs/renderers/all_five/all_five.c26 now follow th
 last rule and are proved to fire by vcs_all_five_stripe_geometry_compile.pl,
 which discriminates by behaviour rather than by matching error text because a
 negative array size produces a diagnostic with no symbol name in it.
+2026-10-04 21:02:11 PDT, reject opcode mnemonics as defines
+
+Extended the -D reserved-name check from A/X/Y to everything the assembler
+actually reserves.  Hardcoding A/X/Y was the wrong shape: -Dsta=1, -Dlda=1 and
+-Dclc=1 all still failed with a bare "<command-line>:1: parse error".
+
+Two things fixed:
+
+* Every opcode mnemonic, driven by the loaded opcode table rather than a
+  hand-written list, so a user --opcode-cfg's mnemonics are covered too.
+* The generic opXX form.  opcode_parse_raw_byte already implements it canonically
+  (op plus exactly two hex digits, either case) and is broader than the configured
+  set: op00 parses as a raw opcode though no config lists it, which is why a
+  table-only check missed it.  The check now calls that recogniser.
+
+The opcode check runs after the tables load, immediately before the defines are
+consumed, because a user config may contribute opcodes that do not exist at
+option-parse time.
+
+One of the five proposed classes was rejected on evidence: abs, same, cross and
+flex are not reserved words.  The lexer's MODE_SUFFIX pattern is
+\.(z|zx|zy|a|ax|ay|i|ix|iy|flex|same|cross), so they are only ever matched
+dot-suffixed, and abs is an addressing-mode name used in dotted and
+size-expression contexts.  Measured: each of abs, same, cross and flex assembles
+cleanly when defined and read back as an operand, exit 0.  Rejecting them would
+forbid four legal assembly symbols, so the regression now asserts they stay
+usable and a future tightening cannot happen silently.
+
+Periods in define names were already disallowed by define_name_is_valid, so
+-Djsr.abs=1 was refused before any of this; that also means dotted forms such as
+NOP.abs and bcs.same cannot collide with a define.  jsr was in the agreed set and
+is now rejected as a mnemonic.
+
+Regression extended to cover registers in both cases, real mnemonics, the generic
+opXX form including op00, a user-config mnemonic, the dot-in-name rejection,
+prefix-sharing names staying valid, and the bare mode/branch words staying usable.
+
+Verified: make unit 582/582, hygiene ok, assembler_opcode_override and the stripe
+suites including Stella unchanged.
+
+2026-10-04 22:09:12 PDT, fix hash-pin regression and history header
+
+Full make test surfaced two failures caused by this session's own changes, plus
+one that predates the session.
+
+vcs_six_glyph_wide.pl pinned sha256 of six_glyph_component.c26, and the
+zero-length-array fix changed that file: the paddle_samples guard went from [0]
+to [-1] so it actually rejects.  The pin exists to stop the centered component
+drifting while the wide profile is added; this was an intended one-line change, so
+the pin was bumped rather than the fix reverted.  Verified before bumping: git
+diff shows exactly one changed line, the test's other assertions all pass ahead
+of the hash check, the fixture still builds to 4096 bytes, and neither
+heart_score_component nor three_plus_three_score_component is hash-pinned, so the
+other two guard fixes could not have had the same effect.  The bump carries a
+comment saying what moved and why.
+
+context_history_format.pl rejected a 76-character entry header against a 72
+character limit.  Shortened.
+
+vcsc_branding.pl is pre-existing and NOT fixed: it scans every *.md and requires
+the FIGlet banner, and AI.md has none.  AI.md is untracked, dated 2026-10-03, and
+was present before this session started, so it is not a consequence of any change
+here, and it does not ship because make tar uses git ls-files.  Adding the banner
+or removing AI.md clears it; both are the owner's call.
+
+Also added the no-substitution regression asked for in review: defining abs, same,
+cross or flex must not rewrite a dot-suffixed form.  Asserted by comparing the hex
+code image before and after, which is the instruction stream and excludes the
+o26 bookkeeping that legitimately grows when a symbol is defined, plus a positive
+control that a bare symbol reference still takes the defined value so the check
+cannot be vacuous.
+
+Final state: make unit 582/582; make test 438/439 with vcsc_branding.pl the only
+failure, being the pre-existing one above.

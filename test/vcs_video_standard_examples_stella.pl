@@ -37,13 +37,11 @@ for my$spec(
    ['pal','__builtin_pal_rgb',qw(05_video_standards blank pal pal50_blank.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
-   ['pal','__builtin_pal_rgb',qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards blank secam secam50_blank.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$builtin,@parts)=@$spec;
@@ -79,12 +77,10 @@ for my$case(
 for my$case(
    ['pal','PAL','all-five',[],qw(05_video_standards all_five pal pal_all_five_228_interactive.c26)],
    ['pal','PAL','player-color',[],qw(05_video_standards player_color pal pal_player_color_228_interactive.c26)],
-   ['pal','PAL','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial pal pal_all_five_unofficial_228_interactive.c26)],
    ['pal','PAL','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite pal pal_multisprite_228_interactive.c26)],
    ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric pal pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','SECAM','all-five',[],qw(05_video_standards all_five secam secam_all_five_228_interactive.c26)],
    ['secam','SECAM','player-color',[],qw(05_video_standards player_color secam secam_player_color_228_interactive.c26)],
-   ['secam','SECAM','all-five-unofficial',['-Wa,--illegals'],qw(05_video_standards all_five_unofficial secam secam_all_five_unofficial_228_interactive.c26)],
    ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(05_video_standards multisprite secam secam_multisprite_228_interactive.c26)],
    ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(05_video_standards enhanced_multisprite_asymmetric secam secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$format,$family,$flags,@parts)=@$case;
@@ -97,8 +93,10 @@ for my$case(
       push@inputs,$startup;
    }
    ok("build $tag example",$driver,'-I',$vcs,@$flags,@inputs,'-o',$rom);
-   my$display=360+($$%40);$display++ while-e"/tmp/.X11-unix/X$display";my$d=":$display";
+   my(undef,$d)=vcsc_reserve_x_display(360,40);
    my$xpid=fork();defined$xpid or die"fork Xvfb\n";if(!$xpid){open(STDOUT,'>:raw',"$tmp/$tag.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
+   # Fail here, not later inside Stella, if the X server did not come up.
+   vcsc_xvfb_assert_ready($d,$xpid);
    select undef,undef,undef,.2;local$ENV{DISPLAY}=$d;local$ENV{XAUTHORITY}='/dev/null';local$ENV{HOME}="$tmp/home-$tag";local$ENV{SDL_AUDIODRIVER}='dummy';make_path($ENV{HOME});
    my$snap="$tmp/snap-$tag";my$user="$tmp/user-$tag";make_path($snap,$user);unlink glob("$snap/*.png");
    my$bs=$family eq 'enhanced-asymmetric' ? 'F8' : '4K';

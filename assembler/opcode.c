@@ -94,6 +94,43 @@ static opcode_entry_t *find_entry(const char *mnemonic, emit_mode_t mode)
    return NULL;
 }
 
+//! @brief Return whether a name matches any loaded opcode mnemonic, ignoring case.
+//!
+//! Opcode lookup is case-insensitive, so a define whose name collides with a
+//! mnemonic turns the define line into a mnemonic followed by " = value" and the
+//! parser rejects it.  Comparing against the loaded table rather than a
+//! hand-written pattern is what makes this correct for the generic opXX mnemonics
+//! and for opcodes contributed by a user-supplied -f config.
+int opcode_name_is_reserved(const char *name)
+{
+   opcode_entry_t *e;
+   unsigned char raw;
+
+   if (!name || !*name)
+      return 0;
+
+   // The generic raw-opcode form is a mnemonic too, and it is broader than the
+   // configured set: `op00` parses as a raw opcode even though no config lists it.
+   // Reuse the canonical recogniser rather than restating the pattern here, so the
+   // two can never drift.
+   if (opcode_parse_raw_byte(name, &raw))
+      return 1;
+
+   for (e = g_opcodes; e; e = e->next) {
+      const unsigned char *a = (const unsigned char *) name;
+      const unsigned char *b = (const unsigned char *) e->mnemonic;
+
+      while (*a && *b && ascii_tolower(*a) == ascii_tolower(*b)) {
+         a++;
+         b++;
+      }
+      if (!*a && !*b)
+         return 1;
+   }
+
+   return 0;
+}
+
 
 //! @brief Clear opcode-byte to addressing-mode information for raw opXX validation.
 static void opcode_clear_reverse_map(void)

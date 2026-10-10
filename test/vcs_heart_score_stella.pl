@@ -79,11 +79,13 @@ my @wanted_lines=(
 '320 x 228 c8ad60dab5d6a7ad89360bc39405af81a09c743821c481020c9bac361261d8e4',
 );
 
-my $display=180+($$%50); $display++ while -e "/tmp/.X11-unix/X$display";
+my($display)=vcsc_reserve_x_display(180,50);
 my $d=":$display";
 my $xpid=fork(); defined$xpid or die "fork Xvfb\n";
 if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
 select undef,undef,undef,.2;
+# Fail here, not later inside Stella, if the X server did not come up.
+vcsc_xvfb_assert_ready($d,$xpid);
 local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user);
 
