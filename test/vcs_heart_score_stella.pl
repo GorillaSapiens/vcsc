@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# serial
 # timeout: 900
 # expectexit: 0
 # Authoritative pinned-palette Stella raster certification for the 0..11 heart-score component.
@@ -159,6 +158,10 @@ my %demo_wanted=(
       move_right=>'320 x 228 552137179d1db22cfee2f9474ba600e5e3457678b76af89eff3caf08f4f07365',
    },
 );
+# The frame every interactive-demo capture is taken at.  See the note at the
+# capture site for why this number is what it is.
+my $demo_frame=120;
+
 my @demo_inputs=(
    [neutral=>[]],
    [score_up=>['-holdjoy1','U']],
@@ -177,32 +180,23 @@ for my $kind (qw(above below)) {
       unlink glob("$snap/*.png");
       my $demo_user=File::Spec->catdir($tmp,"user_${kind}_${label}"); make_path($demo_user);
       my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-         @$joy,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+         @$joy,'-framesnap',$demo_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$demo_user,$rom);
       my $pid=fork(); defined$pid or die "fork Stella\n";
       if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${kind}_${label}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
       my $actual;
-      if ($label eq 'move_right') {
-         # RIGHT is held from Stella startup.  Snapshot production is not tied
-         # one-for-one to emulated game frames, so counting PNGs cannot prove
-         # that P0 has reached the public X=159 clamp.  Let the emulator run
-         # well beyond the 115 required movement frames, then take one reviewed
-         # completed-frame snapshot.  This still fails if the interactive demo
-         # stops moving, but it does not depend on host snapshot throughput.
-         select undef,undef,undef,5.0;
-         ok("snapshot heart score $kind $label",$perl,$keys,'--fast');
-         my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
-         terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
-         my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
-         $ae eq '' or die $ae; chomp $value; $actual=$value;
-      }
-      else {
-         ok("snapshot heart score $kind $label",$perl,$keys,'--fast');
-         my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
-         terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
-         my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
-         $ae eq '' or die $ae; chomp $value; $actual=$value;
-      }
+      # Stella writes the snapshot itself, at this exact frame.  Nothing here
+      # presses a key, so the capture does not depend on a window being mapped in
+      # time, on host snapshot throughput, or on how busy the machine is.
+      #
+      # The frame has to clear the movement case: RIGHT is held from startup and
+      # P0 needs 115 frames to reach the public X=159 clamp.  Measured on this
+      # fixture, 120 through 250 all produce the pinned raster and 100 does not,
+      # so the margin above the requirement is real but not unbounded.
+      my @png; for(1..400){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+      terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
+      my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
+      $ae eq '' or die $ae; chomp $value; $actual=$value;
       $actual eq $demo_wanted{$kind}{$label}
          or die "heart score $kind $label raster differs: actual=$actual wanted=$demo_wanted{$kind}{$label}\n";
    }
