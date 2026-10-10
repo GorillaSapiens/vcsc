@@ -1,0 +1,6 @@
+# This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+# examples/.gitignore ignores *.s26 throughout; this is the one checked-in
+# .s26 in this directory, so it is re-included here rather than by a path
+# named in the leaf above.
+!diagnostic_boot.s26
