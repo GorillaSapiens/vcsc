@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# serial
 # timeout: 600
 # expectstdout: FA2 diagnostic passed
 # expectexit: 0
@@ -258,6 +257,10 @@ if ($stella_mode) {
    defined($stella) && -x $stella or die "FA2 Stella certification requires Stella\n";
    my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "FA2 Stella certification requires Xvfb\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
+
+# The frame every capture is taken at.  200 is well past Stella's ~60 frame
+# PAL/NTSC detection pre-roll, and past this ROM's settling point.
+my $snap_frame=200;
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    my $snap=File::Spec->catdir($tmp,'stella-snap'); my $user=File::Spec->catdir($tmp,'stella-user'); make_path($snap,$user);
    my(undef,$display)=vcsc_reserve_x_display(180,40);
@@ -268,8 +271,9 @@ if ($stella_mode) {
    vcsc_xvfb_assert_ready($display,$xpid);
    local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
-   if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
-   select undef,undef,undef,.35; ok('snapshot FA2 in Stella',$^X,$keys); my @png;
+   if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
+# -framesnap has Stella write this frame itself; nothing presses a key.
+   my @png;
    for(1..40){ @png=grep{-s $_} glob(File::Spec->catfile($snap,'*.png')); last if @png==1; select undef,undef,undef,.05; }
    terminate_child($pid); terminate_child($xpid); @png==1 or die "Stella FA2 produced ".scalar(@png)." snapshots\n";
    ok('grade FA2 Stella frame',$^X,$grade,$png[0],'pass','FA2');

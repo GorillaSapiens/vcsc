@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 180
+# timeout: 900
 # expectstdout: diagnostic paddle sampling passed
 # expectexit: 0
 

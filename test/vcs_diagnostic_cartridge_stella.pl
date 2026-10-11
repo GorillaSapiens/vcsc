@@ -66,7 +66,7 @@ my%requested=map { $_=>1 } grep { length } split(/,/, $ENV{VCSC_STELLA_CASES}//'
 
 # The frame every diagnostic capture is taken at.  See the note at the capture
 # site for why this is a frame and why this number.
-my$snap_frame=30;
+my$snap_frame=200;
 my%seen;
 for my$standard (
    ['ntsc',0,'NTSC'],
@@ -125,6 +125,12 @@ for my$standard (
       my@png;
       for(1..400){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
       terminate($pid); terminate($xpid);
+      # This run's server is gone, so hand the display back.  Without this the
+      # reservation outlives the server and a later case skips a number it could
+      # have used, which exhausts the span part-way through the twelve-screen
+      # matrix -- and looks like a display collision with some other runner
+      # rather than a leak in this one.
+      vcsc_release_x_displays();
       @png==1 or die"$name Stella produced only ".scalar(@png)." snapshots\n";
       my$actual_png=$png[0];
       # The Stella launcher installs the pinned NTSC/PAL/SECAM user palette,

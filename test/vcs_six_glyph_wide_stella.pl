@@ -31,7 +31,7 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score golden.c26));
 my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 05_wide_score reference_stella_pinned.png));
 # The frame every capture is taken at.  See the capture site.
-my $snap_frame=120;
+my $snap_frame=200;
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 my $rom=File::Spec->catfile($tmp,'wide_score.bin');

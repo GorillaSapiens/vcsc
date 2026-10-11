@@ -162,11 +162,19 @@ Test policy
 -----------
 Stella and Xvfb are required dependencies for `make test` and `make e2e`;
 maintained Stella raster/mapper certifications are ordinary e2e tests rather
-than an opt-in tier. `make unit` remains compile-only. Stella-bearing tests are
-serialized by the unified runner, resolve `VCSC_STELLA`/`VCSC_XVFB` as either
-absolute paths or command names through PATH, use explicit deterministic Stella
-power-on settings unless randomization is the behavior under test, and prefer
-completed-frame capture over asynchronous single snapshots. Every maintained
+than an opt-in tier. `make unit` remains compile-only. Stella-bearing tests
+resolve `VCSC_STELLA`/`VCSC_XVFB` as either absolute paths or command names
+through PATH, use explicit deterministic Stella power-on settings unless
+randomization is the behavior under test, and capture with `-framesnap` at a
+named emulated frame rather than pressing F12 and hoping. That option is a local
+Stella addition kept at `addons/stella-framesnap.patch`, not stock upstream;
+`test/vcs_stella_framesnap_contract.pl` asserts it is advertised and functional,
+because an unpatched Stella would ignore it and every certification would quietly
+fall back to timing-dependent capture. Captures must name a frame past Stella's
+~60 frame PAL/NTSC detection pre-roll, where frames can be delivered twice. A
+runner that wants a SEQUENCE of frames is not a single-frame capture and must not
+be marked as one; `vcs_startup_tia_stella` stays `# serial` because which early
+frame it lands on is the thing under test. Every maintained
 Stella certification also uses `test/stella_test_lib.pl` with a private basedir,
 private HOME/XDG roots, an `O_CREAT|O_EXCL` display reservation from
 `vcsc_reserve_x_display`, a `vcsc_xvfb_assert_ready` check that the server came up,

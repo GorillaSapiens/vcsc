@@ -1,0 +1,89 @@
+2026-10-11 16:55:00 PDT, stella suite 15m33 -> 10m30 via -framesnap
+The suite had 19 Stella runners marked `# serial`, totalling about 590s of the
+933s wall clock.  Each one slept a fixed interval and pressed F12 over the X
+socket, then waited for a PNG to appear.  test.pl only starts a serial case when
+no worker is running, so every one of them drained all 8 slots, ran alone with 7
+cores idle, and refilled.  Sixteen of the nineteen captured a SINGLE frame.
+
+Measured before changing anything, because the diagnosis was not obvious:
+  - user 25m51 vs real 15m33 is only 1.78x parallelism on 8 cores, and the cgroup
+    does grant 8, so the machine was idle rather than saturated;
+  - a single stella test is CPU-bound (75.7s wall / 77.0s user), so nothing was
+    sleeping that should have been working;
+  - `--jobs 8` was already maxed.
+
+The reason a single capture was racy: the runners had no way to know which frame
+they were on.  `move_right` in the heart-score runner slept a flat 5.0 seconds,
+with a comment in the file saying outright that snapshot production is not tied
+one-for-one to emulated frames and that counting PNGs cannot prove P0 reached the
+X=159 clamp.  So the capture point was whatever the host happened to reach, which
+is exactly what `serial` was covering for.
+
+SOLUTION.  The user patched Stella with a local `-framesnap` option that has TIA
+capture the front buffer synchronously on a chosen frame, before the next frame
+overwrites it.  The patch is now kept at addons/stella-framesnap.patch.  That
+option is a local addition rather than stock upstream, so an unpatched Stella
+would ignore it and every runner would silently fall back to timing-dependent
+capture -- hence test/vcs_stella_framesnap_contract.pl, which asserts the option
+is advertised in -help AND functional, by capturing the same frame twice and
+requiring identical bytes, then a different frame and requiring different bytes.
+Verified to fail against two deliberately broken Stellas.
+
+Sixteen runners converted, all still passing against their existing pinned
+digests and checked-in reference PNGs.  Three left on the old path, deliberately:
+  - vcs_startup_tia_stella asserts that a control ROM clearing TIA registers every
+    vblank matches three variants that do not.  Its subject IS which early frame
+    the capture lands on; at every frame from 1 to 13 the variants diverge and
+    frame 0 produces no raster at all.  A fixed frame cannot express it.
+  - vcs_standard_renderer_banked_stella and vcs_player_color_192_stella want 20
+    consecutive completed frames, which is a sequence capture.  -framesnap now
+    accepts ranges, so they can be converted, but they are 12s combined and
+    already pass concurrently.
+
+THREE THINGS I GOT WRONG, all found by measuring rather than by reasoning.
+
+1. I reported the captured image was not the requested frame, then that it was a
+   fixed even offset.  Both wrong.  Stella runs the video for about a second to
+   decide PAL from NTSC before starting the game, so frames in that pre-roll can
+   be delivered twice and the early ones are not the game.  The user told me
+   this; the alternating-colour ROM then confirmed it, showing clean one-colour
+   frames matching the F12 reference exactly once past the pre-roll.  I should
+   have tested the pre-roll hypothesis before asserting a mechanism.
+2. I said a contract-test probe ROM was fine because "the point is only that no
+   two frames share a raster", while it stored playfield registers MID-FRAME.
+   A playfield write landing on a different scanline shifts the pattern within
+   the frame, which is how the contract test came to fail about one run in twelve
+   -- intermittently, on a loaded machine, the worst way for a contract test to be
+   wrong.  Writes now go inside vblank: 25 of 25 clean.
+3. Converting five runners left the F12 press behind in three of them, so each
+   wrote two PNGs and failed its own "exactly one snapshot" assertion.  Only
+   visible once Stella's naming changed and the two captures became
+   distinguishable.
+
+ALL TEN converted runners now capture at frame 200.  Seven of them were at frame
+30 or 40, inside the ~60 frame pre-roll, which is precisely where a duplicate
+capture can arrive.  No digest changed, and that is the check that matters: a
+frame inside the pre-roll shows warm-up content rather than the settled raster,
+so the pinned comparisons would have failed.
+
+WHAT UN-SERIALING EXPOSED.  Six mapper runners went last (e0, fa2, fe, wd, dpc,
+3f_3e).  Putting that much extra work in the same 8 slots broke two unrelated
+tests and one of the converted ones:
+
+  - vcs_3e_max_diagnostic and vcs_diagnostic_paddle_sampling timed out.  Neither
+    touches Stella; they are pure simulator tests taking 43s and 47s on an idle
+    machine against ceilings of 120s and 180s.  Those ceilings were comfortable
+    when fewer runners overlapped them.  Raised to 600 and 900.
+  - vcs_diagnostic_cartridge_stella failed with "no free X display in 350..379",
+    which reads like a collision with another runner and was not: it never called
+    vcsc_release_x_displays, so it reserved a display for each of its twelve
+    standard/controller cases and held every one until exit.  It terminates Xvfb
+    between cases but never hands the reservation back.  vcs_bankswitching
+    carries a comment describing exactly this hazard.  Six concurrent instances
+    went from 0 17 17 17 0 17 to six clean exits.  Widening the span was tried
+    first, appeared to help, then did not; reverting it and fixing the leak was
+    what actually worked, so the span is unchanged.
+
+STILL OPEN.  vcs_startup_tia_stella is the one certification that cannot be made
+deterministic this way, and it is why the remaining serial count is 3 rather
+than 0.

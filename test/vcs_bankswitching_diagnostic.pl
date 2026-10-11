@@ -228,7 +228,7 @@ sub run_stella_certification {
    # The frame every bank-switching capture is taken at.  The matrix ROM settles
    # well before it; measured at 20 and 40 both grade PASS, including from a
    # randomized start bank.
-   my $snap_frame=40;
+   my $snap_frame=200;
 
    my $run_one=sub {
       my(%arg)=@_; my $label=$arg{label}; return unless $selected->($label);

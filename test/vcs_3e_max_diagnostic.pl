@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 120
+# timeout: 600
 # expectstdout: 3E max diagnostic passed: 512K ROM, 32K RAM, 65025 lower-pair calls, 65535 total calls, 262-line display
 # expectexit: 0
 

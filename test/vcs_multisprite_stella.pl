@@ -60,7 +60,7 @@ my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella') or die "set STELLA 
 require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb') or die "Xvfb required\n"; my$perl=findexe('perl') or die "perl required\n";
 # The frame every multisprite capture is taken at.  See the capture site.
-my$snap_frame=30;
+my$snap_frame=200;
 my$driver=File::Spec->catfile($repo,qw(driver vcsc)); my$vcs=File::Spec->catdir($repo,qw(libraries vcs)); my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my%profile=(
    '192'=>[File::Spec->catfile($repo,qw(examples 04_renderers multisprite no_score multisprite_192_interactive.c26)),"   initialize_192_scene();\n"],

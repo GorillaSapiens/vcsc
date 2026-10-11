@@ -160,7 +160,7 @@ my %demo_wanted=(
 );
 # The frame every interactive-demo capture is taken at.  See the note at the
 # capture site for why this number is what it is.
-my $demo_frame=120;
+my $demo_frame=200;
 
 my @demo_inputs=(
    [neutral=>[]],

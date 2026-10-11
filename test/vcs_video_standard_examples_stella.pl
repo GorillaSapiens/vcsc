@@ -27,7 +27,7 @@ my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella')or die"set STELLA or
 require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb')or die"Xvfb required\n";my$perl=findexe('perl')or die"perl required\n";
 # The frame every capture is taken at.  See the capture site.
-my$snap_frame=30;
+my$snap_frame=200;
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));my$vcs=File::Spec->catdir($repo,qw(libraries vcs));my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my$cxx=$ENV{CXX}||'c++';my$mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my$mos_obj=File::Spec->catfile($mos,'mos6502.o');

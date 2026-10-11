@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 # runner: perl @FILE@ @REPO@ @TMP@ --stella
 # phase: e2e
-# serial
 # timeout: 600
 # expectstdout: E0 diagnostics passed: constrained three-state complete matrix
 # expectexit: 0
@@ -183,6 +182,10 @@ if ($stella_mode) {
    defined($stella) && -x $stella or die "E0 Stella certification requires Stella\n";
    my $xvfb=find_executable($ENV{VCSC_XVFB} || $ENV{XVFB} || 'Xvfb') or die "E0 Stella certification requires Xvfb\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
+
+# The frame every capture is taken at.  200 is well past Stella's ~60 frame
+# PAL/NTSC detection pre-roll, and past this ROM's settling point.
+my $snap_frame=200;
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    my $snap=File::Spec->catdir($tmp,'stella-snap'); my $user=File::Spec->catdir($tmp,'stella-user');
    make_path($snap,$user); unlink glob(File::Spec->catfile($snap,'*.png'));
@@ -201,12 +204,11 @@ if ($stella_mode) {
       open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')) or die $!; open(STDERR,'>&STDOUT') or die $!;
       exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0',
            '-dev.settings','1','-dev.bankrandom','1','-dev.tiarandom','1','-bs','E0',
-           '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+           '-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
            '-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible);
       die "exec Stella: $!\n";
    }
-   select undef,undef,undef,0.35;
-   require_ok('snapshot E0 in Stella',$^X,$keys);
+   # -framesnap has Stella write this frame itself; nothing presses a key.
    my @png; for (1..40) { @png=grep { -s $_ } glob(File::Spec->catfile($snap,'*.png')); last if @png==1; select undef,undef,undef,0.05; }
    terminate_child($pid); terminate_child($xpid);
    @png==1 or die "Stella E0 produced ".scalar(@png)." snapshots\n";
