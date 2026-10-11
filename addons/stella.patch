@@ -1,0 +1,310 @@
+diff --git a/FRAMESNAP_PATCH_NOTES.txt b/FRAMESNAP_PATCH_NOTES.txt
+new file mode 100644
+index 000000000..a0c7bd907
+--- /dev/null
++++ b/FRAMESNAP_PATCH_NOTES.txt
+@@ -0,0 +1,37 @@
++Stella -framesnap: completed emulated-frame capture
++===================================================
++
++Usage:
++  ./stella -framesnap '1,5-10,12' game.bin
++
++The PNGs are saved in Stella's normal snapshot directory (-snapsavedir).
++Each name includes the ROM name, an actual per-run wall-clock timestamp
++and microsecond epoch component, plus the emulated frame index in 8-digit hex.
++Example:
++  game_framesnap_2026-10-10_12-34-56_1791670496123456_0000000C.png
++
++The images are 320 x TIA image height (160 native TIA color clocks
++horizontally doubled for display) and lossless indexed PNGs. The active
++Stella TIA palette supplies the 256 RGB palette entries, but no phosphor,
++NTSC filter, scanlines, bezel, or UI effects are applied.
++
++Implementation:
++ - TIA::onFrameComplete() tests -framesnap and synchronously saves the
++   completed myFrontBuffer, before the next frame can overwrite it.
++ - PNGLibrary::saveEmulatedFrame() encodes that buffer directly as a
++   paletted PNG. It NEVER reads the last displayed framebuffer.
++ - The earlier TIASurface::render() capture hook is removed. F12 and
++   the existing snapshot path remain untouched.
++ - PNG failures are logged to stderr with the affected frame index.
++
++NOTE: Disk I/O for selected frames runs on the emulation thread. A long
++range will temporarily slow real-time playback, but will not skip frames
++because of the display render loop. Each selected frame is saved before
++emulation proceeds to the next one.
++
++Build check in this environment:
++ - src/emucore/tia/TIA.cxx, src/common/PNGLibrary.cxx and
++   src/emucore/TIASurface.cxx compiled successfully.
++ - Full compilation / emulator execution was not possible here because
++   the SDL3 development headers and runtime are absent.
++ - Rebuild on your Stella machine with make -j$(nproc).
+diff --git a/src/common/PNGLibrary.cxx b/src/common/PNGLibrary.cxx
+index 9f41d8c01..b47c7d7c0 100644
+--- a/src/common/PNGLibrary.cxx
++++ b/src/common/PNGLibrary.cxx
+@@ -19,6 +19,7 @@
+ 
+ #include <bit>
+ #include <fstream>
++#include <chrono>
+ 
+ #include "OSystem.hxx"
+ #include "Console.hxx"
+@@ -456,6 +457,87 @@ void PNGLibrary::takeSnapshot(uInt32 number)
+ }
+ 
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++void PNGLibrary::saveEmulatedFrame(const uInt8* pixels, uInt32 width,
++                                   uInt32 height, uInt32 frameNumber)
++{
++  // This method deliberately does not use the displayed framebuffer.
++  if(!myOSystem.hasConsole() || !pixels || !width || !height)
++    return;
++
++  if(myFrameSnapSession.empty())
++  {
++    const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
++      std::chrono::system_clock::now().time_since_epoch()).count();
++    myFrameSnapSession = std::format("{}_{}", snapTimestamp(), micros);
++  }
++
++  const bool useIntName = myOSystem.settings().getString("snapname") == "int";
++  const string name = !useIntName
++    ? string{myOSystem.romFile().getBaseName()}
++    : string{myOSystem.console().properties().get(PropType::Cart_Name)};
++  const string filename = std::format("{}{}_framesnap_{}_{:08X}.png",
++    myOSystem.snapshotSaveDir().getPath(), name, myFrameSnapSession,
++    frameNumber);
++
++  png_structp png_ptr{nullptr};
++  png_infop info_ptr{nullptr};
++  const ScopeExit pngGuard{[&]() {
++    if(png_ptr)
++      png_destroy_write_struct(&png_ptr, &info_ptr);
++  }};
++  png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
++                                    png_user_error, png_user_warn);
++  if(!png_ptr)
++    throw std::runtime_error("Couldn't allocate frame PNG write struct");
++  info_ptr = png_create_info_struct(png_ptr);
++  if(!info_ptr)
++    throw std::runtime_error("Couldn't allocate frame PNG info struct");
++
++  auto out = FSNode(filename).openOFStream(std::ios_base::binary);
++  if(!out.is_open())
++    throw std::runtime_error("Couldn't create frame snapshot file: " + filename);
++  png_set_write_fn(png_ptr, &out, png_write_data, png_io_flush);
++
++  // Indexed PNG preserves every TIA palette index without phosphor/NTSC
++  // postprocessing. The palette is the current display palette's RGB values.
++  const FrameBuffer& fb = myOSystem.frameBuffer();
++  const TIASurface& surface = fb.tiaSurface();
++  const uInt32 rshift = std::countr_zero(fb.rMask());
++  const uInt32 gshift = std::countr_zero(fb.gMask());
++  const uInt32 bshift = std::countr_zero(fb.bMask());
++  png_color palette[256]{};
++  for(uInt32 i = 0; i < 256; ++i)
++  {
++    const uInt32 color = surface.mapIndexedPixel(static_cast<uInt8>(i));
++    palette[i].red   = static_cast<png_byte>((color & fb.rMask()) >> rshift);
++    palette[i].green = static_cast<png_byte>((color & fb.gMask()) >> gshift);
++    palette[i].blue  = static_cast<png_byte>((color & fb.bMask()) >> bshift);
++  }
++
++  png_set_IHDR(png_ptr, info_ptr, width * 2, height, 8,
++               PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
++               PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
++  png_set_PLTE(png_ptr, info_ptr, palette, 256);
++  png_write_info(png_ptr, info_ptr);
++
++  // 2600 color pixels are twice as wide for display. Every row here comes
++  // from this exact completed frame, without passing through FBSurface.
++  std::vector<png_byte> row(static_cast<size_t>(width) * 2);
++  for(uInt32 y = 0; y < height; ++y)
++  {
++    for(uInt32 x = 0; x < width; ++x)
++    {
++      const uInt8 value = pixels[static_cast<size_t>(y) * width + x];
++      row[2 * x] = row[2 * x + 1] = value;
++    }
++    png_write_row(png_ptr, row.data());
++  }
++  png_write_end(png_ptr, info_ptr);
++  if(!out.good())
++    throw std::runtime_error("Failed writing frame snapshot: " + filename);
++}
++
++// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ void PNGLibrary::writeMetaData(png_structp png_ptr, png_infop info_ptr,
+                                const VariantList& metaData)
+ {
+diff --git a/src/common/PNGLibrary.hxx b/src/common/PNGLibrary.hxx
+index 557ef6077..68ece8766 100644
+--- a/src/common/PNGLibrary.hxx
++++ b/src/common/PNGLibrary.hxx
+@@ -110,6 +110,16 @@ class PNGLibrary
+     */
+     void takeSnapshot(uInt32 number = 0);
+ 
++    /**
++      Capture *one completed emulated TIA frame*, not the possibly stale
++      display framebuffer.  Called synchronously from TIA::onFrameComplete().
++      Pixels are the unmodified 8-bit TIA palette indices (160 per row).
++      Each PNG is lossless, 2x horizontally for the 2600 aspect ratio.
++    */
++    void saveEmulatedFrame(const uInt8* pixels, uInt32 width, uInt32 height,
++                           uInt32 frameNumber);
++
++
+   private:
+     // Global OSystem object
+     OSystem& myOSystem;
+@@ -118,6 +128,9 @@ class PNGLibrary
+     uInt32 mySnapInterval{0};
+     uInt32 mySnapCounter{0};
+ 
++    // Unique per-emulation-session suffix for -framesnap output.
++    string myFrameSnapSession;
++
+     // Auto-cropped area for the current snapshot.  For continuous snapshots
+     // the crop is computed once (on the first frame) and cached here, so that
+     // every frame in the sequence is saved with identical dimensions.
+diff --git a/src/emucore/OSystem.cxx b/src/emucore/OSystem.cxx
+index 4baeee393..4e013bc6e 100644
+--- a/src/emucore/OSystem.cxx
++++ b/src/emucore/OSystem.cxx
+@@ -69,6 +69,8 @@
+ using namespace std::chrono;
+ 
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++OSystem* gOSystem = nullptr;
++
+ OSystem::OSystem()
+ {
+   // Get built-in features
+@@ -105,6 +107,7 @@ OSystem::OSystem()
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ OSystem::~OSystem()
+ {
++  gOSystem = nullptr;
+ #ifdef GUI_SUPPORT
+   // BrowserDialog is a special dialog that is statically allocated
+   // So we need to make sure that it is destroyed in the normal d'tor chain;
+@@ -117,6 +120,7 @@ OSystem::~OSystem()
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ bool OSystem::initialize(const Settings::Options& options)
+ {
++  gOSystem = this;
+   loadConfig(options);
+ 
+   Logger::debug("Creating the OSystem ...");
+diff --git a/src/emucore/Settings.cxx b/src/emucore/Settings.cxx
+index bfc258033..487aa619e 100644
+--- a/src/emucore/Settings.cxx
++++ b/src/emucore/Settings.cxx
+@@ -220,6 +220,7 @@ Settings::Settings()
+   setTemporary("plusroms.id", "");
+   setPermanent("plusroms.fixedid", "");
+   setPermanent("filterbstypes", "true");
++  setTemporary("framesnap", "");
+ 
+ #ifdef DEBUGGER_SUPPORT
+   // Debugger/disassembly options
+@@ -600,6 +601,8 @@ void Settings::usage()
+     << "                                  snapshots\n"
+     << "  -ssinterval   <number>         Number of seconds between snapshots in\n"
+     << "                                  continuous snapshot mode\n\n"
++    << "  -framesnap    <rangelist>      Do a snapshot on a specific frame number, range, or\n"
++    << "                                  comma separated list of ranges/numbers\n"
+     << "  -saveonexit   <none|current|   Automatically save state(s) when exiting\n"
+     << "                 all>             emulation\n"
+     << "  -autoslot     <0|1>            Automatically change to next save slot when\n"
+diff --git a/src/emucore/tia/TIA.cxx b/src/emucore/tia/TIA.cxx
+index aa22df656..312ae3773 100644
+--- a/src/emucore/tia/TIA.cxx
++++ b/src/emucore/tia/TIA.cxx
+@@ -16,6 +16,12 @@
+ //============================================================================
+ 
+ #include "TIA.hxx"
++#include <sstream>
++
++#ifdef IMAGE_SUPPORT
++  #include "OSystem.hxx"
++  #include "PNGLibrary.hxx"
++#endif
+ #include "M6502.hxx"
+ #include "M6532.hxx"
+ #include "Control.hxx"
+@@ -27,6 +33,34 @@
+ #include "Base.hxx"
+ 
+ namespace {
++#ifdef IMAGE_SUPPORT
++  // Comma-separated frame numbers and inclusive ranges: 1,5-10,12.
++  bool inFrameRange(const std::string& rangeList, uInt32 frame)
++  {
++    std::istringstream input(rangeList);
++    std::string item;
++    while(std::getline(input, item, ','))
++    {
++      const size_t dash = item.find('-');
++      try
++      {
++        if(dash == std::string::npos)
++        {
++          if(std::stoul(item) == frame) return true;
++        }
++        else
++        {
++          const unsigned long low = std::stoul(item.substr(0, dash));
++          const unsigned long high = std::stoul(item.substr(dash + 1));
++          if(low <= frame && frame <= high) return true;
++        }
++      }
++      catch(const std::exception&) { /* Ignore malformed entries. */ }
++    }
++    return false;
++  }
++#endif
++
+   // Per-object collision bit patterns. Chosen so that, for any two distinct
+   // objects A and B, A & B is a single unique bit appearing in no other
+   // object's mask. Each object's mask is exactly the union of those unique
+@@ -1554,6 +1588,33 @@ void TIA::onFrameComplete()
+ 
+   myFrontBufferScanlines = scanlinesLastFrame();
+ 
++#ifdef IMAGE_SUPPORT
++  // This is the exact frame just completed, BEFORE later emulated frames
++  // can replace myFrontBuffer. No display-thread timing is involved.
++  const std::string& framesnap = mySettings.getString("framesnap");
++  if(!framesnap.empty())
++  {
++    const uInt32 frame = myFrameManager->frameCount();
++    if(inFrameRange(framesnap, frame))
++    {
++      extern OSystem* gOSystem;
++      if(gOSystem)
++      {
++        try
++        {
++          gOSystem->png().saveEmulatedFrame(myFrontBuffer.data(), width(),
++                                           height(), frame);
++          fprintf(stderr, "FRAMESNAP '%s' %u\n", framesnap.c_str(), frame);
++        }
++        catch(const std::exception& e)
++        {
++          fprintf(stderr, "FRAMESNAP frame %u FAILED: %s\n", frame, e.what());
++        }
++      }
++    }
++  }
++#endif
++
+   if(myAutoPhosphorEnabled)
+   {
+     // Calculate difference to previous frames (with some margin).
