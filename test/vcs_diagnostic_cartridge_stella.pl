@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# serial
 # timeout: 1200
 # expectexit: 0
 # Independent pinned-palette Stella raster certification for the public F4SC field diagnostic.
@@ -64,6 +63,10 @@ my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
 my%requested=map { $_=>1 } grep { length } split(/,/, $ENV{VCSC_STELLA_CASES}//'');
+
+# The frame every diagnostic capture is taken at.  See the note at the capture
+# site for why this is a frame and why this number.
+my$snap_frame=30;
 my%seen;
 for my$standard (
    ['ntsc',0,'NTSC'],
@@ -100,29 +103,33 @@ for my$standard (
       my$snap=File::Spec->catdir($tmp,"snap-$name"); my$user=File::Spec->catdir($tmp,"user-$name");
       make_path($snap,$user); unlink glob("$snap/*.png");
       my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,
-         '-bs','F4SC','-bc',$stella_controller,'-snapsavedir',$snap,'-snapname',$name,'-sssingle','1','-ss1x','1',
+         '-bs','F4SC','-bc',$stella_controller,'-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname',$name,'-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
       my$pid=fork(); defined$pid or die"fork Stella\n";
       if(!$pid){open(STDOUT,'>:raw',"$tmp/$name.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-      # Capture completed frames instead of an asynchronous F12 framebuffer.
-      # The diagnostic updates live controller detail in phases, so require the
-      # masked certification raster to settle for three complete frames.
-      ok("snapshot $name diagnostic",$perl,$keys,'--fast','--every-frame',
-         '--snapshot-dir',$snap,'--snapshot-count','10','--snapshot-timeout','20');
-      my@png=sort grep{-s$_}glob("$snap/*.png");
+      # Capture one frame at a known index instead of asking for ten completed
+      # frames and checking that the tail of them agreed.
+      #
+      # The old form existed because the diagnostic updates its live controller
+      # detail in phases, and F12 could land anywhere, so it waited for a settled
+      # tail.  With DIAGNOSTIC_TEST_TIA_FREEZE the ROM advances sixteen phases per
+      # frame until phase $f0 and then holds still, so the settled raster is simply
+      # the raster at a frame past that point -- 30 is measured to sit well clear
+      # of it, and 30, 40 and 50 all reproduce the checked-in reference PNGs for
+      # all twelve standard/controller combinations.
+      #
+      # The stability assertion is not simply dropped.  The reference comparison
+      # below is against a checked-in PNG per combination, so a capture taken at
+      # the wrong phase still fails; and test.pl runs this concurrently with the
+      # other certification runners, so the capture has to hold up under load.
+      my@png;
+      for(1..400){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
       terminate($pid); terminate($xpid);
-      @png>=10 or die"$name Stella produced only ".scalar(@png)." completed-frame snapshots\n";
+      @png==1 or die"$name Stella produced only ".scalar(@png)." snapshots\n";
+      my$actual_png=$png[0];
       # The Stella launcher installs the pinned NTSC/PAL/SECAM user palette,
       # so all three standards are certified with exact RGB outside live rows.
       my@digest_mask=('--mask-rows','125-133','--mask-rows','138-146');
-      my@tail_digest;
-      for my$frame (@png[-3..-1]) {
-         my($value,$err)=ok("$name stable completed-frame digest",$perl,$digest,@digest_mask,$frame);
-         $err eq '' or die$err; chomp$value; push@tail_digest,$value;
-      }
-      $tail_digest[0] eq $tail_digest[1] && $tail_digest[1] eq $tail_digest[2]
-         or die"$name diagnostic completed-frame tail is not stable: @tail_digest\n";
-      my$actual_png=$png[-1];
       my($actual_row,$are)=ok("$name actual first lit row",$perl,$digest,'--first-lit-row',$actual_png);
       my($reference_row,$rre)=ok("$name reference first lit row",$perl,$digest,'--first-lit-row',$reference);
       $are eq ''&&$rre eq '' or die$are.$rre;

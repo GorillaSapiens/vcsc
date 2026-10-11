@@ -102,7 +102,7 @@ my $help_text = do {
 };
 vcsc_release_x_displays();
 
-$help_text =~ /^\s+-framesnap\s+<number>\s+\S/m
+$help_text =~ /^\s+-framesnap\s+<(?:number|rangelist)>\s+\S/m
    or die "$stella does not advertise -framesnap in -help.\n"
     . "This suite certifies rasters with -framesnap, which is a local addition to\n"
     . "Stella rather than stock upstream behaviour.  An unpatched or older build\n"
@@ -112,8 +112,14 @@ $help_text =~ /^\s+-framesnap\s+<number>\s+\S/m
 
 # The option has to take an argument, not just exist as a name: a bare boolean
 # would parse and then mean something else entirely.
-$help_text =~ /^\s+-framesnap\s+<number>/m
-   or die "$stella advertises -framesnap without a <number> argument\n";
+#
+# The placeholder is accepted as either <number> or <rangelist>.  The argument
+# was widened to accept "12,15-25" once range support landed, and pinning the
+# older wording would fail a build that is strictly more capable than the one
+# this was written against.  What matters here is that the option takes a
+# value, not what that value is called.
+$help_text =~ /^\s+-framesnap\s+<(?:number|rangelist)>/m
+   or die "$stella advertises -framesnap without a value argument\n";
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # 2. The option works, and the same frame captures the same bytes.
@@ -129,36 +135,35 @@ print {$sfh} <<'ROM';
 // Frames whose raster differs on every frame, so "captured at the right frame"
 // and "captured at some other frame" cannot be confused.
 include "vcs.c26"
+include "frame_ntsc.c26"
 
 void main(void) {
    uint8_t f;
-   COLUBK := 0x84;
-   COLUPF := 0x2e;
    f := 0x11;
    while (1) {
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      asm sta WSYNC;
-      // Advance the playfield pattern every frame.  The counters are driven with
-      // plain stores outside vblank on purpose: the point is only that no two
-      // frames share a raster, not that this is well-timed 2600 code.
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      // Advance the playfield pattern every frame.  The step has to be ODD as
+      // well as non-zero: an even step walks a short cycle through a 4-bit
+      // register value, so frames N and N+7 came out identical and the option
+      // could not be shown to be selecting the frame it was asked for.
       //
-      // The step has to be ODD as well as non-zero.  An even step walks a short
-      // cycle through a 4-bit register value, so frames N and N+7 came out
-      // identical and the option could not be shown to be selecting the frame it
-      // was asked for.
+      // These writes go INSIDE vblank, which is where a TIA register belongs.
+      // An earlier version of this probe stored them mid-frame and called that
+      // acceptable, on the grounds that the probe only needed the rasters to
+      // differ.  It does not: a playfield write that lands on a different
+      // scanline from one run to the next shifts the pattern within the frame,
+      // and the reproducibility assertion below then failed about one run in
+      // twelve -- intermittently, on a loaded machine, which is the worst way
+      // for a contract test to be wrong.
+      COLUBK := 0x84;
+      COLUPF := 0x2e;
       PF0 := f;
       PF1 := f;
       PF2 := 0x00;
       f := f + 3;
       if (f > 0x0f) { f := f - 0x10; }
+      vcs_ntsc_end_vblank();
    }
 }
 ROM
@@ -261,7 +266,7 @@ sub capture_frame {
 # N against N+1 would therefore pass for an emulator that ignored the frame
 # number entirely.
 my $frame_a = 40;
-my $frame_b = 140;
+my $frame_b = 400;
 my ($digest_a) = capture_frame($frame_a, 'a');
 my ($digest_b) = capture_frame($frame_a, 'b');
 

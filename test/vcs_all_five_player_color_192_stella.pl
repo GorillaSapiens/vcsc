@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# serial
 # timeout: 300
 # expectexit: 0
 # Required pinned-palette Stella raster equivalence test for all_five_player_color_192.
@@ -29,6 +28,8 @@ my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella')or die"set STELLA or
 require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
 my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc)); my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
+# The frame every capture is taken at.  See the capture site.
+my$snap_frame=30;
 my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
 my(undef,$d)=vcsc_reserve_x_display(250,20);
@@ -42,9 +43,10 @@ sub build_rom {
 }
 sub snapshot_digest {
    my($name,$rom)=@_; my$snap=File::Spec->catdir($tmp,"snap_$name"); my$user=File::Spec->catdir($tmp,"user_$name"); remove_tree($snap,$user); make_path($snap,$user);
-   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork(); defined$pid or die"fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_$name.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-   select undef,undef,undef,.4; ok("snapshot $name",$perl,$keys); my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05} terminate($pid); @png==1 or die"$name produced ".scalar(@png)." snapshots\n";
+   # -framesnap has Stella write this frame itself; nothing presses a key.
+   my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05} terminate($pid); @png==1 or die"$name produced ".scalar(@png)." snapshots\n";
    my($dg,$de)=ok("digest $name",$perl,$digest,$png[0]); $de eq'' or die$de; chomp$dg; return$dg;
 }
 sub same_raster { my($label,$a,$b)=@_; my$da=snapshot_digest("${label}_candidate",$a); my$db=snapshot_digest("${label}_golden",$b); $da eq$db or die"$label Stella raster differs\ncandidate=$da\ngolden=$db\n"; }

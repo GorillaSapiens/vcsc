@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# serial
 # timeout: 300
 # expectexit: 0
 # Authoritative pinned-palette Stella visible-raster certification for the 3+3 score.
@@ -31,6 +30,8 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score golden.c26));
 my $reference=File::Spec->catfile($repo,qw(test fixtures three_plus_three_score reference_stella_pinned.png));
+# The frame every capture is taken at.  See the capture site.
+my $snap_frame=30;
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 my $rom=File::Spec->catfile($tmp,'three_plus_three_score.bin');
@@ -46,11 +47,11 @@ vcsc_xvfb_assert_ready($d,$xpid);
 local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user); unlink glob("$snap/*.png");
 my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-   '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+   '-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
    '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
 my $pid=fork(); defined$pid or die "fork Stella\n";
 if(!$pid){open(STDOUT,'>:raw',"$tmp/stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-ok('snapshot three-plus-three score',$perl,$keys);
+# -framesnap has Stella write this frame itself; nothing presses a key.
 my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
 terminate($pid); terminate($xpid); @png==1 or die "Stella produced ".scalar(@png)." snapshots\n";
 my($actual,$ae)=ok('actual digest',$perl,$digest,$png[0]); my($wanted,$we)=ok('reference digest',$perl,$digest,$reference);
