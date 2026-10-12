@@ -94,3 +94,12 @@ certified section profiles plus history, branding and source hygiene (7/7).
 Next: resolve intra-line write deadlines, then certify every user-defined seam
 and all endpoint cases before deciding on a public component/API. Keep the
 failing exact-RGB comparator; do not relax it to make this experiment pass.
+
+2026-10-12 15:14:51 PDT, Keep configuration inside the language
+User rejected JSON configuration because it adds a separate tool/file workflow.
+Removed the probe's JSON input, JSON::PP dependency and the JSON reproduction
+fixture. Retained the internal opt-in fine test profile and its strict failing
+raster comparison. Reproduction now uses the named fine profile directly.
+The intended user configuration belongs in .c26, using existing compile-time
+language facilities such as instantiate parameters. No public syntax or API
+is implemented yet; fix the intra-line timing before selecting that interface.

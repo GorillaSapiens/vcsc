@@ -48,22 +48,21 @@ tables, score composition and PAL/SECAM remain unproven here.
 
 UNVERIFIED FINE-LAYOUT EXPERIMENT (not a supported renderer)
 ----------------------------------------------------------
-The probe now accepts an optional JSON filename instead of a named profile.
-The file is an array of {lines, colupf, colubk} records. Heights must be positive
-even integers totalling 192; colours must be bytes (decimal numbers or quoted
-hexadecimal strings). Unknown fields and invalid values are rejected. Multiple
-sections compile into four page-contained colour feeds indexed by the existing
+The probe's opt-in "fine" profile uses an internal eight-section test fixture.
+There is no external configuration file or user-facing fine-layout API yet.
+The user requires configuration inside .c26, using existing language facilities
+such as compile-time instantiate parameters, not JSON or a separate generator.
+Multiple sections compile into four page-contained colour feeds indexed by the existing
 packed-row X, without a runtime boundary search or additional RAM. This changes
 the intra-line schedule and is NOT the certified baked-only implementation.
 
 Reproduce the unfinished experiment from the repository root:
-perl test/vcs_all_five_sections_probe.pl . /tmp/opencode/sections-fine-check \
-  test/fixtures/all_five_player_color_192/sections_fine.json
+perl test/vcs_all_five_sections_probe.pl . /tmp/opencode/sections-fine-check fine
 
-The built-in "fine" profile has the same eight section heights:
+The built-in "fine" profile has these eight section heights:
 2, 4, 8, 2, 2, 10, 34, 130. Its boundaries are 2, 6, 14, 16, 18, 28 and 62.
 Independent golden cartridges are generated for every distinct palette, so
-custom colours are not silently compared to the old hard-coded two palettes.
+fixture colours are not silently compared to the old hard-coded two palettes.
 
 Current failure: the fine/together experiment passes raw frame timing but fails
 the full exact-RGB raster at pixel (160,31) in captured frame 200. Palette and

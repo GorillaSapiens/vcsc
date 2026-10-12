@@ -7,7 +7,7 @@
 # Experimental baked-in sections, not a new public renderer ABI.
 # Reuse the certified cached all-five pipeline and compare moving objects against
 # an exact-RGB composite of two ordinary, independently coloured golden rasters.
-# Opt-in fine/JSON layouts are unfinished timing experiments, not supported
+# Opt-in fine layouts are unfinished timing experiments, not supported
 # renderers: they currently fail exact-RGB certification. Default and split_*
 # profiles retain the certified baked schedule. See .../layers.txt.
 use strict;
@@ -18,7 +18,6 @@ use File::Spec;
 use IPC::Open3;
 use POSIX qw(:sys_wait_h);
 use Symbol qw(gensym);
-use JSON::PP qw(decode_json);
 
 sub slurp_file {
    my($path)=@_; open(my$f,'<:raw',$path) or die "read $path: $!\n";
@@ -57,15 +56,13 @@ sub replace_once {
    $$text =~ s/\Q$old\E/$new/ or die "probe source marker missing: $label\n";
 }
 
-(@ARGV==2||@ARGV==3) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine|LAYOUT.json]\n";
+(@ARGV==2||@ARGV==3) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine]\n";
 my$profile=$ARGV[2]//'alternating';
 my%boundaries=(alternating=>undef,split_32=>32,split_48=>48,split_96=>96);
 my$records;
 if($profile eq'fine') {
    my$i=0;
    $records=[map{{lines=>$_,colupf=>($i&1?0x46:0x2e),colubk=>($i++&1?0xc2:0x84)}}(2,4,8,2,2,10,34,130)];
-} elsif(-f$profile) {
-   $records=decode_json(slurp_file($profile)); $profile='custom';
 }
 exists$boundaries{$profile}||defined$records or die "unknown section profile: $profile\n";
 my$repo=abs_path($ARGV[0]) or die "resolve repo\n";
@@ -173,7 +170,7 @@ sub two_sections {
 }
 
 sub section_records {
-   my($records)=@_; ref$records eq'ARRAY'&&@$records or die "layout must be a nonempty JSON array\n";
+   my($records)=@_; ref$records eq'ARRAY'&&@$records or die "layout must be a nonempty section array\n";
    my$total=0;
    for my$r(@$records) {
       ref$r eq'HASH' or die "each section must be an object\n";
