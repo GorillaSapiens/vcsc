@@ -69,3 +69,28 @@ the shared socket helper then searched under that directory, while Xvfb uses
 /tmp/.X11-unix. Rerunning in the normal environment passed without changing or
 bypassing readiness checks. No unrelated full-suite rerun was needed because
 production compiler/renderer code is unchanged.
+
+2026-10-12 14:48:53 PDT, Explore user-defined fine section layouts
+User requested finer boundaries, more boundaries and user-specifiable layouts.
+Added opt-in fine/JSON profiles to vcs_all_five_sections_probe.pl, retaining the
+four passing profiles unchanged. JSON records specify lines, colupf and colubk;
+positive even heights must total 192, colours must be bytes, unknown fields are
+rejected. Added sections_fine.json as an explicit unfinished reproduction fixture.
+The eight-section experiment has boundaries 2,6,14,16,18,28,62. Custom palette
+comparisons build an independent golden cartridge for each distinct palette.
+
+Attempted four 48-byte page-contained colour feeds addressed by the existing
+row X, with no boundary search or added RAM. Rebalanced player selectors and
+mask preparation to make room for colour stores. Retained every .same assertion;
+the attempted A/B page phase is $08, found by a bounded link-valid phase search.
+Earlier attempts exposed late COLUPF/left PF1 writes. Further attempts still
+fail exact-RGB at pixel (160,31), frame 200, in the together scene, though the
+current experiment passes raw frame timing. It is NOT a certified renderer.
+All-seam motion and fine-layout endpoint proof remain unfinished; no normal
+runner entry enables the failing fine profile. Production renderers unchanged.
+
+Validation: Perl syntax passes; the unified four-worker runner passes all four
+certified section profiles plus history, branding and source hygiene (7/7).
+Next: resolve intra-line write deadlines, then certify every user-defined seam
+and all endpoint cases before deciding on a public component/API. Keep the
+failing exact-RGB comparator; do not relax it to make this experiment pass.

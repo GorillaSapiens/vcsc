@@ -7,6 +7,9 @@
 # Experimental baked-in sections, not a new public renderer ABI.
 # Reuse the certified cached all-five pipeline and compare moving objects against
 # an exact-RGB composite of two ordinary, independently coloured golden rasters.
+# Opt-in fine/JSON layouts are unfinished timing experiments, not supported
+# renderers: they currently fail exact-RGB certification. Default and split_*
+# profiles retain the certified baked schedule. See .../layers.txt.
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -15,6 +18,7 @@ use File::Spec;
 use IPC::Open3;
 use POSIX qw(:sys_wait_h);
 use Symbol qw(gensym);
+use JSON::PP qw(decode_json);
 
 sub slurp_file {
    my($path)=@_; open(my$f,'<:raw',$path) or die "read $path: $!\n";
@@ -53,10 +57,17 @@ sub replace_once {
    $$text =~ s/\Q$old\E/$new/ or die "probe source marker missing: $label\n";
 }
 
-(@ARGV==2||@ARGV==3) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96]\n";
+(@ARGV==2||@ARGV==3) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine|LAYOUT.json]\n";
 my$profile=$ARGV[2]//'alternating';
 my%boundaries=(alternating=>undef,split_32=>32,split_48=>48,split_96=>96);
-exists$boundaries{$profile} or die "unknown section profile: $profile\n";
+my$records;
+if($profile eq'fine') {
+   my$i=0;
+   $records=[map{{lines=>$_,colupf=>($i&1?0x46:0x2e),colubk=>($i++&1?0xc2:0x84)}}(2,4,8,2,2,10,34,130)];
+} elsif(-f$profile) {
+   $records=decode_json(slurp_file($profile)); $profile='custom';
+}
+exists$boundaries{$profile}||defined$records or die "unknown section profile: $profile\n";
 my$repo=abs_path($ARGV[0]) or die "resolve repo\n";
 make_path($ARGV[1]); my$tmp=abs_path($ARGV[1]);
 require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
@@ -161,6 +172,115 @@ sub two_sections {
    return$source;
 }
 
+sub section_records {
+   my($records)=@_; ref$records eq'ARRAY'&&@$records or die "layout must be a nonempty JSON array\n";
+   my$total=0;
+   for my$r(@$records) {
+      ref$r eq'HASH' or die "each section must be an object\n";
+      for my$key(keys%$r) { $key =~ /\A(?:lines|colupf|colubk)\z/ or die "unknown section field: $key\n"; }
+      for my$key(qw(lines colupf colubk)) {
+         exists$r->{$key}&&!ref$r->{$key} or die "section requires integer $key\n";
+         my$v=$r->{$key};
+         $v =~ /\A(?:[0-9]+|0[xX][0-9a-fA-F]+)\z/ or die "section $key must be an integer\n";
+         $r->{$key}=$v =~ /\A0[xX]/?hex$v:0+$v;
+      }
+      $r->{lines}>0&&$r->{lines}%2==0 or die "section lines must be positive and even\n";
+      $r->{colupf}<=255&&$r->{colubk}<=255 or die "section colours must be bytes\n";
+      $total+=$r->{lines};
+   }
+   $total==192 or die "section heights must sum to 192 (got $total)\n";
+   return$records;
+}
+sub fine_sections {
+   # UNVERIFIED: frame timing alone does not certify the intra-line schedule.
+   # Keep .same contracts and exact-RGB failures; do not publish this as an ABI.
+   my($s,$records)=@_; section_records($records);
+   my@colours;
+   push@colours,([$_->{colupf},$_->{colubk}])x($_->{lines}/2) for@$records;
+   my$tables='';
+   for my$colour(0,1) {
+      for my$half(0,1) {
+         my@data;
+         for my$row(0..11) { push@data,map{$colours[$row*8+$half*4+$_][$colour]}0..3; }
+         my$name=$colour?'bk':'pf';
+         $tables.="page const uint8_t TEMPLATE_sections_${name}$half\[48\] := {".join(',',map{sprintf('0x%02x',$_)}@data)."};\n";
+      }
+   }
+   $s=$tables.$s;
+   replace_once(\$s,'require inline void TEMPLATE_vblank(void) {',sprintf("require inline void TEMPLATE_vblank(void) {\n   asm lda #\$%02x;\n   asm sta COLUPF;\n   asm lda #\$%02x;\n   asm sta COLUBK;",@{$colours[0]}),'initial section palette');
+   for my$c(qw(A B)) {
+      my$offset=$c eq'A'?0:7;
+      my($m0,$m1,$left,$ball)=($offset+6,$offset+5,$offset,$offset+4);
+      for my$p(1..6) {
+         my$half=int($p/4); my$index=$p%4;
+         my$head="   asm lda.z TEMPLATE_row_cache + $m0;\n   asm lsr.z TEMPLATE_row_cache + $m0;\n   asm nop;";
+         $s =~ s/(   asm \@TEMPLATE_${c}_u$p:;\n).*?   asm lda.z TEMPLATE_row_cache \+ $m0;\n   asm sta ENAM0;/$1$head\n   asm \@TEMPLATE_${c}_u${p}_commit:;\n   asm sta ENAM0;/s
+            or die "missing $c pair $p head\n";
+         my$old="   asm bcc.same \@TEMPLATE_${c}_u${p}_p1_active;\n   asm lda #0;\n   asm nop;\n   asm nop;\n   asm nop;\n   asm nop;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p1_ready;\n   asm \@TEMPLATE_${c}_u${p}_p1_active:;\n$pad7\n   asm lda.iy (TEMPLATE_player1_graphics),y;\n   asm \@TEMPLATE_${c}_u${p}_p1_ready:;\n   asm sta GRP1;";
+         my$new="   asm bcc.same \@TEMPLATE_${c}_u${p}_p1_active;\n   asm lda.z TEMPLATE_object_masks + 2;\n   asm jmp \@TEMPLATE_${c}_u${p}_p1_ready;\n   asm \@TEMPLATE_${c}_u${p}_p1_active:;\n   asm lda.iy (TEMPLATE_player1_graphics),y;\n   asm \@TEMPLATE_${c}_u${p}_p1_ready:;\n   asm ldy.z TEMPLATE_object_masks;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks;\n   asm sta GRP1;";
+         replace_once(\$s,$old,$new,"$c pair $p balanced P1 and P0 preparation");
+         $old="   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + $ball;";
+         $new="   asm lda.z TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + $ball;";
+         replace_once(\$s,$old,$new,"$c pair $p P1 phase");
+         $old="   asm lda.z TEMPLATE_row_cache + $m1;\n   asm sta ENAM1;\n   asm lsr.z TEMPLATE_row_cache + $m1;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + ".($left+1).";\n   asm sta PF2;\n   asm lsr.z TEMPLATE_row_cache + $m0;\n   asm ldy.z TEMPLATE_object_masks + 0;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks + 0;\n   asm cpy.z TEMPLATE_player0_height;";
+         $new="   asm lda.z TEMPLATE_row_cache + $m1;\n   asm sta ENAM1;\n   asm lda.ax TEMPLATE_sections_bk$half + $index,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.ax TEMPLATE_sections_pf$half + $index,x;\n   asm sta COLUPF;\n   asm lda.z TEMPLATE_row_cache + ".($left+1).";\n   asm sta PF2;\n   asm lsr.z TEMPLATE_row_cache + $m1;\n   asm cpy.z TEMPLATE_player0_height;";
+         replace_once(\$s,$old,$new,"$c pair $p colour window");
+         # There are two copies of this pair's right PF1 load; only the P0
+         # one remains absolute after the P1 rewrite above.
+         replace_once(\$s,"   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p0_zero;",
+            "   asm lda.z TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p0_zero;","$c pair $p P0 phase");
+      }
+      # The packed eighth pair stages M1 into its now-dead current-cache lane.
+      replace_once(\$s,"   asm \@TEMPLATE_${c}_u7:;\n$pad7",
+         "   asm \@TEMPLATE_${c}_u7:;\n   asm dec.z TEMPLATE_object_masks + 1;\n   asm nop;","$c pair 7 countdown");
+      replace_once(\$s,"   asm sta ENABL;\n   asm lsr;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $m0;\n   asm ldy.zx TEMPLATE_object_masks + 6,x;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";",
+         "   asm sta ENABL;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $m1;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $m0;\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";","$c packed M1 staging");
+      my$next_m0=$c eq'A'?13:6;
+      replace_once(\$s,"   asm sty.z TEMPLATE_row_cache + $next_m0;\n   asm ldy.z TEMPLATE_object_masks + 1;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks + 1;\n   asm cpy.z TEMPLATE_player1_height;",
+         "   asm ldy.zx TEMPLATE_object_masks + 6,x;\n   asm sty.z TEMPLATE_row_cache + $next_m0;\n   asm ldy.z TEMPLATE_object_masks + 1;\n   asm cpy.z TEMPLATE_player1_height;","$c packed P1 preparation");
+      my$old="   asm bcs.same \@TEMPLATE_${c}_u7_p1_zero;\n$pad7\n   asm lda.iy (TEMPLATE_player1_graphics),y;\n   asm jmp \@TEMPLATE_${c}_u7_p1_ready;\n   asm \@TEMPLATE_${c}_u7_p1_zero:;\n   asm ldy #0;\n$pad7\n   asm lda #0;\n   asm bit.z \$00;\n   asm \@TEMPLATE_${c}_u7_p1_ready:;\n   asm sta GRP1;";
+      my$new="   asm bcc.same \@TEMPLATE_${c}_u7_p1_active;\n   asm lda.z TEMPLATE_object_masks + 2;\n   asm jmp \@TEMPLATE_${c}_u7_p1_ready;\n   asm \@TEMPLATE_${c}_u7_p1_active:;\n   asm lda.iy (TEMPLATE_player1_graphics),y;\n   asm \@TEMPLATE_${c}_u7_p1_ready:;\n   asm sta GRP1;";
+      replace_once(\$s,$old,$new,"$c packed P1 selector");
+      replace_once(\$s,"   asm lda.zx TEMPLATE_object_masks + 3,x;\n   asm lsr;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + ".($left+1).";\n   asm sta PF2;",
+         "   asm lda.z TEMPLATE_row_cache + $m1;\n   asm sta ENAM1;\n   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.ax TEMPLATE_sections_pf1 + 3,x;\n   asm sta COLUPF;\n   asm lda.z TEMPLATE_row_cache + ".($left+1).";\n   asm sta PF2;","$c packed colour window");
+      replace_once(\$s,"   asm cpy.z TEMPLATE_player0_height;\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";",
+         "   asm cpy.z TEMPLATE_player0_height;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";","$c packed P0 phase");
+      $old="   asm bcc.same \@TEMPLATE_${c}_u7_p0_active;\n   asm ldy #0;\n   asm sty.a GRP0;\n   asm jmp \@TEMPLATE_${c}_u7_p0_ready;\n   asm \@TEMPLATE_${c}_u7_p0_active:;\n   asm lda.iy (TEMPLATE_player0_graphics),y;\n   asm sta GRP0;\n   asm \@TEMPLATE_${c}_u7_p0_ready:;";
+      $new="   asm bcc.same \@TEMPLATE_${c}_u7_p0_active;\n   asm lda.z TEMPLATE_object_masks + 2;\n   asm jmp \@TEMPLATE_${c}_u7_p0_ready;\n   asm \@TEMPLATE_${c}_u7_p0_active:;\n   asm lda.iy (TEMPLATE_player0_graphics),y;\n   asm \@TEMPLATE_${c}_u7_p0_ready:;\n   asm sta GRP0;";
+      replace_once(\$s,$old,$new,"$c packed P0 selector");
+      my($next,$nm1,$nl,$nm0)= $c eq'A'?('B',12,7,13):('A',5,0,6);
+      # Remove the old row palette and move all four INX after the display
+      # writes. Preload M0 and jump directly to its fixed-phase commit.
+      $s =~ s/   asm sta GRP1;\n   asm lda #\$[0-9a-f]{2};\n   asm sta COLUPF;\n   asm lda #\$[0-9a-f]{2};\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache \+ $nm1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache \+ $nl;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache \+ @{[$nl+1]};\n   asm sta PF2;\n   asm lsr.z TEMPLATE_row_cache \+ $nm1;\n   asm cpy.z TEMPLATE_player0_height;\n   asm inx;\n   asm inx;/"   asm sta GRP1;\n   asm lda.ax TEMPLATE_sections_bk0 + 4,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $nm1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $nl;\n   asm sta PF1;\n   asm lda.ax TEMPLATE_sections_pf0 + 4,x;\n   asm sta COLUPF;\n   asm lda.z TEMPLATE_row_cache + ".($nl+1).";\n   asm sta PF2;\n   asm lsr.z TEMPLATE_row_cache + $nm1;\n   asm cpy.z TEMPLATE_player0_height;"/e
+         or die "missing $c row colour window\n";
+      $old="   asm bcs.same \@TEMPLATE_${c}_first${next}_p0_zero;\n   asm lda.iy (TEMPLATE_player0_graphics),y;\n   asm jmp \@TEMPLATE_${c}_first${next}_p0_ready;\n   asm \@TEMPLATE_${c}_first${next}_p0_zero:;\n   asm lda #0;\n   asm tay;\n   asm bit.z \$00;\n   asm \@TEMPLATE_${c}_first${next}_p0_ready:;\n   asm sta GRP0;\n   asm inx;\n   asm inx;\n   asm jmp \@TEMPLATE_${next}_u1;";
+      $new="   asm bcc.same \@TEMPLATE_${c}_first${next}_p0_active;\n   asm lda.z TEMPLATE_object_masks + 2;\n   asm jmp \@TEMPLATE_${c}_first${next}_p0_ready;\n   asm \@TEMPLATE_${c}_first${next}_p0_active:;\n   asm lda.iy (TEMPLATE_player0_graphics),y;\n   asm \@TEMPLATE_${c}_first${next}_p0_ready:;\n   asm sta GRP0;\n   asm inx;\n   asm inx;\n   asm inx;\n   asm inx;\n   asm lda.z TEMPLATE_row_cache + $nm0;\n   asm lsr.z TEMPLATE_row_cache + $nm0;\n   asm jmp \@TEMPLATE_${next}_u1_commit;";
+      replace_once(\$s,$old,$new,"$c fixed-phase next M0 commit");
+   }
+   $s =~ s/   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta ENAM1;\n   asm lda.ax (TEMPLATE_sections_bk[01] \+ \d+,x);\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta PF1;\n   asm lda.ax (TEMPLATE_sections_pf[01] \+ \d+,x);\n   asm sta COLUPF;/   asm lda.ax $4;\n   asm sta COLUPF;\n   asm lda.ax $2;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $3;\n   asm sta PF1;/g;
+   $s =~ s/\.align 256, \$90/.align 256, \$08/g;
+   for my$c(qw(A B)) {
+      my$right=$c eq'A'?3:10;
+      for my$p(1..6) {
+         replace_once(\$s,"   asm lsr.z TEMPLATE_row_cache + ".($c eq'A'?6:13).";\n   asm nop;\n   asm \@TEMPLATE_${c}_u${p}_commit:;",
+            "   asm lsr.z TEMPLATE_row_cache + ".($c eq'A'?6:13).";\n   asm \@TEMPLATE_${c}_u${p}_commit:;","$c pair $p phase correction");
+      }
+      $s =~ s/(   asm \@TEMPLATE_${c}_u[1-6]:;.*?)(?=   asm \@TEMPLATE_${c}_u[2-7]:;)/my$t=$1; $t =~ s!asm lda.z TEMPLATE_row_cache \+ $right;\n   asm sta PF1;!asm lda.a TEMPLATE_row_cache + $right;\n   asm sta PF1;!g; $t/gse;
+      for my$p(1..6) {
+         replace_once(\$s,"   asm lda.a TEMPLATE_row_cache + $right;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + ".($c eq'A'?4:11).";",
+            "   asm lda.z TEMPLATE_row_cache + $right;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + ".($c eq'A'?4:11).";","$c pair $p earlier colour handoff");
+         replace_once(\$s,"   asm lda.a TEMPLATE_row_cache + $right;\n   asm sta PF1;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p0_zero;",
+            "   asm lda.a TEMPLATE_row_cache + $right;\n   asm sta.a PF1;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p0_zero;","$c pair $p restore terminal phase");
+      }
+      replace_once(\$s,"   asm \@TEMPLATE_${c}_boundary_p1_ready:;\n   asm ldy.z TEMPLATE_object_masks + 0;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks + 0;\n   asm nop;",
+         "   asm \@TEMPLATE_${c}_boundary_p1_ready:;\n   asm ldy.z TEMPLATE_object_masks + 0;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks + 0;","$c boundary phase correction");
+   }
+   $s =~ s/   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta PF2;/   asm lda.z TEMPLATE_row_cache + $2;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + $1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $3;\n   asm sta PF2;/g;
+   replace_once(\$s,'   asm jmp @TEMPLATE_A_u1;','   asm jmp @TEMPLATE_sections_first;','initial pair entry');
+   replace_once(\$s,'   asm @TEMPLATE_A_u1:;',"   asm \@TEMPLATE_sections_first:;\n   asm nop;\n   asm \@TEMPLATE_A_u1:;",'initial pair phase');
+   return$s;
+}
+
 my$fixture=slurp_file(File::Spec->catfile($repo,qw(test fixtures all_five_player_color_192 all_five_match.c26)));
 # Distinct halves and neighbouring rows make early/late PF rewrites observable;
 # a symmetric pattern alone can hide a broken mid-scanline schedule.
@@ -181,7 +301,15 @@ push@cases, ["${_}_left",$_,0],["${_}_right",$_,159] for qw(P0 P1 M0 M1 BL);
 my$moving_fixture=$fixture;
 my$work_tmp=$tmp;
 my$profile_boundary=$boundaries{$profile};
-for my$layout([$profile,$profile_boundary,defined$profile_boundary?two_sections($probe,$profile_boundary):$probe]) {
+my@row_palette;
+if(defined$records) {
+   section_records($records);
+   # Custom palettes get independent golden cartridges too: never infer a
+   # section's background from just its playfield colour.
+   push@row_palette,(sprintf('%02x:%02x',$_->{colupf},$_->{colubk}))x$_->{lines} for@$records;
+   $profile_boundary=$records->[0]{lines};
+}
+for my$layout([$profile,$profile_boundary,defined$records?fine_sections($probe,$records):defined$profile_boundary?two_sections($probe,$profile_boundary):$probe]) {
 my($layout_name,$boundary,$layout_source)=@$layout;
 $tmp=$layout_name eq'alternating'?$work_tmp:File::Spec->catdir($work_tmp,$layout_name);
 make_path($tmp); write_file("$tmp/sections_probe.c26",$layout_source);
@@ -211,13 +339,26 @@ if(defined$isolated) {
    }
 }
 my%rom;
-for my$name(qw(top bottom sections)) {
+my%palettes=(top=>[0x2e,0x84],bottom=>[0x46,0xc2]);
+my%palette_names;
+if(defined$records) {
+   %palettes=();
+   for my$r(@$records) {
+      my$key=sprintf('%02x:%02x',$r->{colupf},$r->{colubk});
+      next if exists$palette_names{$key};
+      my$name=keys(%palettes)?'palette_'.scalar(keys%palettes):'top';
+      $palette_names{$key}=$name; $palettes{$name}=[$r->{colupf},$r->{colubk}];
+   }
+}
+my@captures=('top',sort(grep{$_ ne'top'}keys%palettes),'sections');
+for my$name(@captures) {
    my$source=$fixture;
    if($name eq'sections') {
       $source =~ s#renderers/all_five_player_color_192/all_five_player_color_192\.c26#sections_probe.c26# or die "fixture renderer marker missing\n";
-   } elsif($name eq'bottom') {
-      $source =~ s/COLUPF := 0x2e;/COLUPF := 0x46;/g;
-      $source =~ s/COLUBK := 0x84;/COLUBK := 0xc2;/g;
+    } else {
+       my($pf,$bk)=@{$palettes{$name}};
+       $source =~ s/COLUPF := 0x2e;/sprintf('COLUPF := 0x%02x;',$pf)/ge;
+       $source =~ s/COLUBK := 0x84;/sprintf('COLUBK := 0x%02x;',$bk)/ge;
    }
    write_file("$tmp/$name.c26",$source); $rom{$name}="$tmp/$name.bin";
    ok("build $case_name $name",$driver,'-I',$vcs,'-I',$root_tmp,'-Map',"$tmp/$name.map","$tmp/$name.c26",'-o',$rom{$name});
@@ -241,7 +382,7 @@ if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xv
 $children{$xpid}=1; vcsc_xvfb_assert_ready($display,$xpid);
 local$ENV{DISPLAY}=$display; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{SDL_AUDIODRIVER}='dummy';
 my%frames;
-for my$name(qw(top bottom sections)) {
+for my$name(@captures) {
    my$snap="$tmp/snap_$name"; my$user="$tmp/user_$name";
    remove_tree($snap,$user); make_path($snap,$user);
    my@cmd=($stella,vcsc_stella_palette_args($repo,$user),
@@ -275,9 +416,11 @@ if(defined$isolated) {
 }
 for my$f(200..215) {
    my($w,$h,$gold)=@{$frames{top}{$f}};
-   my($bw,$bh,$other)=@{$frames{bottom}{$f}};
-   my($cw,$ch,$actual)=@{$frames{sections}{$f}};
-   $w==$bw&&$h==$bh&&$w==$cw&&$h==$ch or die "frame $f image geometry differs\n";
+    my($cw,$ch,$actual)=@{$frames{sections}{$f}};
+    for my$name(@captures) {
+       my($bw,$bh)=@{$frames{$name}{$f}};
+       $w==$bw&&$h==$bh or die "frame $f image geometry differs\n";
+    }
    # The PF0 margin has no objects. Its modal golden RGB identifies the visible
    # area without assuming how Stella transforms the pinned palette internally.
    # Pixel comparisons below remain exact RGB, not colour-normalised digests.
@@ -290,7 +433,8 @@ for my$f(200..215) {
    # changing whole-frame digests. The golden fixture isolates their X windows;
    # BL is in the zero PF0 margin so its shared playfield colour is distinguishable.
    for my$obj(@objects) {
-      my($name,$lo,$hi,$hex)=@$obj; my$colour=pack('H6',$hex); my@halves;
+       my($name,$lo,$hi,$hex)=@$obj; my$colour=pack('H6',$hex); my@halves;
+       $colour=substr($gold,($first*$w+32)*3,3) if$name eq'BL'&&defined$records;
       my$seam=$first+($boundary//16);
       for my$range([$seam-8,$seam-1],[$seam,$seam+7]) {
          my$found=0;
@@ -303,8 +447,12 @@ for my$f(200..215) {
       }
       $crossed{$name}=1 if$halves[0]&&$halves[1];
    }
-   for my$y($first..$first+191) {
-      next unless defined$boundary ? $y-$first>=$boundary : int(($y-$first)/16)&1;
+    for my$y($first..$first+191) {
+       my$gold_name;
+       if(defined$records) { $gold_name=$palette_names{$row_palette[$y-$first]}; }
+       else { $gold_name=(defined$boundary ? $y-$first>=$boundary : int(($y-$first)/16)&1)?'bottom':'top'; }
+       next if$gold_name eq'top';
+       my$other=$frames{$gold_name}{$f}[2];
       substr($expected,$y*$w*3,$w*3)=substr($other,$y*$w*3,$w*3);
    }
    if($actual ne$expected) {

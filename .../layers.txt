@@ -45,6 +45,37 @@ Next: remove the 16-line boundary restriction, targeting two-scanline-pair
 granularity. Preserve the moving-object and endpoint comparators when promoting
 the proof into a maintained component. Arbitrary section heights, player colour
 tables, score composition and PAL/SECAM remain unproven here.
+
+UNVERIFIED FINE-LAYOUT EXPERIMENT (not a supported renderer)
+----------------------------------------------------------
+The probe now accepts an optional JSON filename instead of a named profile.
+The file is an array of {lines, colupf, colubk} records. Heights must be positive
+even integers totalling 192; colours must be bytes (decimal numbers or quoted
+hexadecimal strings). Unknown fields and invalid values are rejected. Multiple
+sections compile into four page-contained colour feeds indexed by the existing
+packed-row X, without a runtime boundary search or additional RAM. This changes
+the intra-line schedule and is NOT the certified baked-only implementation.
+
+Reproduce the unfinished experiment from the repository root:
+perl test/vcs_all_five_sections_probe.pl . /tmp/opencode/sections-fine-check \
+  test/fixtures/all_five_player_color_192/sections_fine.json
+
+The built-in "fine" profile has the same eight section heights:
+2, 4, 8, 2, 2, 10, 34, 130. Its boundaries are 2, 6, 14, 16, 18, 28 and 62.
+Independent golden cartridges are generated for every distinct palette, so
+custom colours are not silently compared to the old hard-coded two palettes.
+
+Current failure: the fine/together experiment passes raw frame timing but fails
+the full exact-RGB raster at pixel (160,31) in captured frame 200. Palette and
+left/right playfield write deadlines conflict in the attempted schedule. Page
+anchors and all .same assertions remain enabled; a link-valid, frame-valid
+schedule is insufficient. Endpoint scenes and all-seam motion certification
+have NOT been completed for fine layouts. No normal runner test enables this
+known-failing profile. Existing alternating/split profiles remain unchanged.
+
+Next: resolve the intra-line write phases before adding fine layouts to the
+passing suite or defining a maintained user-facing component. Then exercise
+all new seams with all five objects and isolated endpoints, not just the first.
 The cached baseline uses 83 renderer RAM bytes versus ordinary all_five's 71;
 do not hide that tradeoff when selecting the implementation.
 

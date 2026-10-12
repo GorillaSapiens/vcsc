@@ -21,6 +21,8 @@ not selected another workstream.
 Current next action: Item 63, remove the baked-section probe's 16-line boundary
 restriction, targeting two-scanline pairs while preserving moving-object and
 X=0/159 exact-RGB tests. Player colour tables remain a separate timing gate.
+The opt-in fine/JSON experiment currently fails exact-RGB despite passing raw
+frame timing. Resolve intra-line deadlines, then certify every custom seam.
 
 [ ] 63. Layers: frames built from cooperating components sharing a vocabulary of
         global variables.

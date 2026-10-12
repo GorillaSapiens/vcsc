@@ -198,6 +198,8 @@ section timing probe exists in test/vcs_all_five_sections_probe.pl, with normal
 e2e entries for alternating rows and fixed 32/160, 48/144 and 96/96 splits.
 Next: extend to two-scanline-pair granularity rather than requiring 16-line
 packed-row boundaries, preserving exact-RGB moving-object and X=0/159 tests.
+An opt-in fine/JSON-layout experiment exists but fails exact-RGB certification;
+see layers.txt for reproduction. Fix write phases before publishing any API.
 Player colour tables
 remain a separate timing gate. No public layer ABI is agreed; production renderers
 are unchanged. See layers.txt for the bounded probe contract.
