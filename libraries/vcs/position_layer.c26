@@ -1,0 +1,150 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+//
+// position_layer -- horizontal positioning and NUMSIZ for the layers workstream.
+//
+// Establishes the horizontal position of P0, P1, M0, M1 and BL, strobes HMOVE,
+// and writes NUSIZ0/NUSIZ1.  It draws nothing and does no vertical work.
+//
+// WHY IT RUNS DURING THE VISIBLE FRAME, NOT IN VBLANK
+// -----------------------------------------------------
+// A top score component writes sprite position registers and NUMSIZ.  Anything
+// positioned in vblank is therefore trashed by the score component before the
+// first visible scanline, and the whole sequence has to be redone.  all_five
+// gets away with vblank positioning because its own source says why:
+//
+//     // The scoreless profile positions all five objects during VBLANK.
+//
+// It is the scoreless profile; there is no score component to clobber the result,
+// so vblank placement costs it none of the visible frame.  That is a property of
+// that profile, not a technique to copy.  A layers build may or may not have a
+// top score, and the "may" is the constraint.
+//
+// SHARED VOCABULARY
+// -----------------
+// pos_x[5] and obj_y[5] are the ABI.  The index is the object index, and it is
+// the same index RESP0,x and HMP0,x take, which is why the position registers are
+// written with an indexed store rather than named individually:
+//
+//     0 = P0    1 = P1    2 = M0    3 = M1    4 = BL
+//
+// The caller writes pos_x[] during its own motion code; this layer reads it.
+
+include "vcs.c26"
+
+// Horizontal position, 0..127.  Read by this layer, written by the caller.
+uint8_t TEMPLATE_pos_x[5];
+
+// Countdown to the next graphic byte for each object, decremented by the draw
+// layers.  The countdown IS the graphics index.  Seeded here from the caller's
+// vertical positions.
+uint8_t TEMPLATE_obj_y[5];
+
+parameter p0_nusiz := 0;
+parameter p1_nusiz := 0;
+
+// Fine-motion conversion table.  The positioning loop's immediate is $0F but it
+// subtracts SIXTEEN, because `sec` sets the carry before the first pass and every
+// `sbc` leaves it set for the next.  The loop therefore exits with
+// A = 240 + (x mod 16): the low four bits are the RESPx position, and Y carries
+// that value plus the 240 wrap.  `+ 16 - 256 + Y` folds the wrap away so the
+// indexed read lands inside this 16-entry table at index (x mod 16), which is the
+// remainder the loop actually leaves behind.
+const uint8_t TEMPLATE_repost[16] := {
+   0x80, 0x70, 0x60, 0x50, 0x40, 0x30, 0x20, 0x10,
+   0x00, 0xf0, 0xe0, 0xd0, 0xc0, 0xb0, 0xa0, 0x90
+};
+
+// Establish all five horizontal positions and both NUSIZ registers.
+//
+// Five unrolled copies of the divide loop, one per object, each ending in its own
+// WSYNC, then a single HMOVE strobe, then NUSIZ.  The WSYNC per object is not
+// incidental: the loop runs a variable number of times depending on the position,
+// and each WSYNC resynchronises to a scanline boundary so the next object's
+// RESP0 write lands at a fixed phase.  The `bit.z $00` and the pair of nops are
+// calibrating that phase.
+require inline void TEMPLATE_establish(void) {
+   asm sta WSYNC;
+
+   asm ldx #4;
+   asm bit.z $00;
+   asm lda.zx TEMPLATE_pos_x,x;
+   asm sec;
+   asm @l4:;
+   asm sbc #15;
+   asm bcs.same @l4;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_repost + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+
+   asm ldx #3;
+   asm bit.z $00;
+   asm lda.zx TEMPLATE_pos_x,x;
+   asm sec;
+   asm @l3:;
+   asm sbc #15;
+   asm bcs.same @l3;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_repost + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+
+   asm ldx #2;
+   asm bit.z $00;
+   asm lda.zx TEMPLATE_pos_x,x;
+   asm sec;
+   asm @l2:;
+   asm sbc #15;
+   asm bcs.same @l2;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_repost + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+
+   asm ldx #1;
+   asm bit.z $00;
+   asm lda.zx TEMPLATE_pos_x,x;
+   asm sec;
+   asm @l1:;
+   asm sbc #15;
+   asm bcs.same @l1;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_repost + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+
+   asm ldx #0;
+   asm bit.z $00;
+   asm lda.zx TEMPLATE_pos_x,x;
+   asm sec;
+   asm @l0:;
+   asm sbc #15;
+   asm bcs.same @l0;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_repost + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+
+   // One strobe applies all five latches.
+   asm sta HMOVE;
+
+   asm lda #TEMPLATE_p0_nusiz;
+   asm sta NUSIZ0;
+   asm lda #TEMPLATE_p1_nusiz;
+   asm sta NUSIZ1;
+}

@@ -1,3 +1,32 @@
+2026-10-11 15:11:38 PDT, Clarify section-colour goal and shelve stripes
+The user clarified that the actual goal is all_five or the all-five/player-colour
+renderer with different COLUPF and COLUBK in vertical sections. The table-driven
+stripe effort is shelved; baked-in layers were proposed for comprehensibility,
+but the implementation choice is still open. No new object engine or layer ABI
+was agreed. Updated the roadmap, compact context and layers introduction to stop
+the stale stripe-feed next action and the earlier draft's positioning-first task
+order from driving development.
+
+Focused source inspection: the official all_five steady pipeline and row-boundary
+paths are tightly cycle-scheduled; it spreads P0/P1 work across two scanlines and
+uses precomputed BL/M1/M0 masks. The separate player-colour-table profile has its
+own scheduled paths and cannot be assumed to share any timing headroom. Baked-in
+sections are a candidate, not proof that two extra colour writes fit. A minimal
+two-section seam must be cycle-proved and covered by a persistent Stella test
+before expanding an API or configuration matrix. Fixed versus runtime geometry
+and the first renderer baseline still require clarification.
+
+The inherited layers draft contains definite errors: with carry set SBC #15
+subtracts 15, not 16 (simulator/mos6502/mos6502.cpp also implements that correctly);
+RESP/RESM/RESBL strobes ignore the byte written, so changing only RESM0's value
+does not investigate its position; libraries/vcs/tia.c26 binds four colour
+registers, not three. position_layer.c26 has the same incorrect SBC commentary.
+The earlier draft's report of two player observations had no committed harness;
+it is not maintained certification for that new component. No renderer code was
+changed or new raster correctness claimed in this design clarification.
+Validation: source_tree_hygiene.pl passed; git diff --check passed. Changes are
+developer records only, so no renderer build or raster test was run.
+
 2026-10-11 16:55:00 PDT, stella suite 15m33 -> 10m30 via -framesnap
 The suite had 19 Stella runners marked `# serial`, totalling about 590s of the
 933s wall clock.  Each one slept a fixed interval and pressed F12 over the X
@@ -87,3 +116,36 @@ tests and one of the converted ones:
 STILL OPEN.  vcs_startup_tia_stella is the one certification that cannot be made
 deterministic this way, and it is why the remaining serial count is 3 rather
 than 0.
+
+2026-10-11 21:46:57 PDT, Prove baked colours across object seams
+User confirmed compile-time section boundaries and smooth movement/straddling
+for all five objects. Added test/vcs_all_five_sections_probe.pl, discoverable as
+ordinary e2e coverage. It generates a timing prototype from the cached official
+all-five/player-colour renderer, retaining the original mask preparation,
+horizontal positioning and delayed-object latches. Solid player colours only:
+unused colour slots become equal-time padding; boundary bookkeeping moves to
+make room for immediate COLUPF/COLUBK writes at cycles 7/12 after GRP1's cycle-2
+commit. M1 and left playfield writes remain in safe windows; right-half phases
+and the continuous pipeline are preserved. No production renderer was modified.
+
+Initial page-contract failures were diagnosed with temporary unannotated layout
+listings, never accepted as certification. Restored every .same assertion, added
+an equal-time wider pad in each fourth pair, and a B-row page anchor reached by
+replacing a three-cycle pad with a three-cycle jump. Diagnostic overrides and
+early exits are removed. A temporary raster mismatch was explained by the
+diagnostic VBLANK branch crossing changing P0 positioning, not a valid result.
+
+The maintained proof compares all pixels in 16 frame-200..215 captures against
+composites of two independently coloured ordinary golden rasters. Each object
+must actually straddle the first seam, and all sixteen motion rasters differ.
+It uses the pinned palette/shared private Stella environment, reserved display,
+ready-checked Xvfb and synchronous range captures. Focused test passed twice
+sequentially and twice concurrently. Frame timing passed; the proof links at
+2922/4090 ROM bytes and 90/128 total RAM bytes including hardware stack.
+The cached renderer itself uses 83 RAM bytes, not ordinary all_five's 71.
+
+Scope: alternating 16-line sections, solid player colours, NTSC scoreless.
+Next: isolate X=0/159 cases, then generalize fixed geometry; player-colour-table
+support, score composition and PAL/SECAM remain separate acceptance gates.
+Handoff checks: source_tree_hygiene.pl and git diff --check passed. No full
+suite was run because the only executable addition is this isolated probe.

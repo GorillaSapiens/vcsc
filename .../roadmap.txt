@@ -18,16 +18,35 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 57, add renderer playfield/color stripes.
+Current next action: Item 63, generalize the baked-section probe's fixed layout
+beyond alternating 16-line sections, preserving its moving-object and isolated
+X=0/159 exact-RGB tests. Player colour tables remain a separate timing gate.
+
+[ ] 63. Layers: frames built from cooperating components sharing a vocabulary of
+        global variables.
+
+        * The actual user goal is all_five or all-five/player-colour renderer
+          behaviour with different playfield/background colours by vertical
+          section. A new object engine or shared-variable ABI is not itself
+          the goal; both remain implementation choices.
+        * `.../layers.txt` records the clarified goal. Its earlier AI-written
+          draft is not an authoritative hardware specification or task order.
+        * Preserve the chosen renderer's object continuity and frame timing;
+          prove section seams with maintained, deterministic Stella tests.
+        * `position_layer.c26` remains experimental. Reusing an existing
+          certified renderer does not depend on finishing that separate probe.
+        * Section boundaries are compile-time constants, confirmed by the user.
+          All five objects must move and span them without restarting.
+        * The current probe uses solid player colours and the certified cached
+          all-five machinery. General geometry/API and player colour tables
+          are not yet implemented; do not infer them from the probe.
 
 [ ] 57. Add playfield/color stripes as an explicit renderer capability.
 
-        * `.../stripes.txt` owns the active ABI, renderer/component consolidation
-          roadmap, timing/compatibility invariants, documentation, and acceptance
-          criteria.
-        * Consolidate the duplicated gameplay-renderer family first, preserving
-          each established schedule as a compile-time specialization; implement
-          stripes once that unified renderer is certified.
+        * Shelved by the user. Do not resume feed-table generation or the old
+          renderer-consolidation plan without an explicit decision to return.
+        * The section-colour goal is being reconsidered under item 63; the old
+          table-driven approach is an alternative, not a current prerequisite.
 
 [ ] 58. Add a public side-scroller/platform example.
 

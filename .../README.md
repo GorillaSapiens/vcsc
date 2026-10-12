@@ -49,6 +49,13 @@ Completed main-roadmap material is historical.
 Focused roadmap and public ABI contract for main-roadmap item 57 renderer
 playfield/color stripes. Read it only while that workstream is active.
 
+### `layers.txt`
+
+Design and acceptance criteria for the layers workstream: frames built from
+cooperating components that share a small vocabulary of global variables, rather
+than one monolithic renderer or a table-driven raster machine. Read it only while
+that workstream is active.
+
 ### `DRA.txt`
 
 Design-only Direct Register Access contract and unfinished implementation roadmap.

@@ -1,0 +1,33 @@
+2026-10-12 11:10:14 PDT, Certify isolated objects at section endpoints
+Extended test/vcs_all_five_sections_probe.pl with ten isolated cases: each of
+P0/P1/M0/M1/BL at X=0 and X=159, in addition to the original all-five scene.
+Unselected players use zero graphics; unselected non-players have out-of-field
+Y=255. The selected object retains sixteen moving Y poses and must actually
+straddle the first section seam within its clipped endpoint window.
+
+Every case checks full exact-RGB rasters against two ordinary golden captures
+composited by section, not just object bounds. All cases also check frame timing.
+The timing harness is compiled once per run. Captures retain the pinned palette,
+private basedirs, reserved/ready-checked display and frame-200..215 capture range.
+Owned snapshot/user directories are cleared on reruns to prevent stale captures
+from being mistaken for current results; process cleanup handles already-reaped
+children without signalling them. The original 300-second test ceiling remains.
+
+Validation: the full eleven-case probe passed once sequentially, then twice
+concurrently. Production renderer code is unchanged. Updated hot next actions
+to generalize fixed geometry beyond alternating 16-line sections, retaining the
+moving-object/endpoint regressions. Player colour tables, score composition and
+PAL/SECAM remain unproven for the new schedule.
+Handoff checks: source_tree_hygiene.pl and git diff --check passed. The focused
+probe is ordinary e2e coverage; no unrelated full-suite run was needed here.
+
+2026-10-12 11:58:21 PDT, Fix history header and layers allowlist
+User's full suite reported 391/393 passing: context_history_format.pl rejected
+the new 2026-10-11 seam-proof header for exceeding 72 characters, and
+vcsc_branding.pl rejected the intentional layers.txt developer record.
+Shortened the header without changing the format test. Added only layers.txt
+to the existing developer-record allowlist: the workstream record is documented
+in .../README.md and is current project state, not generated residue. Unknown
+developer files remain rejected; other branding assertions are unchanged.
+Both reported tests and git diff --check now pass. No renderer changes or
+full-suite rerun were needed for these two narrowly scoped fixes.

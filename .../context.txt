@@ -89,11 +89,12 @@ Open workstreams
    maintained scheduler invariants and next allocator-quality work.
 
 2. **Main roadmap**
-   `.../roadmap.txt` contains only unfinished main items. Item 57 is active.
-   `.../stripes.txt` owns renderer consolidation and stripes. S10/S11 are
-   complete; the maintained all-five, pairwise-position, banked-composition and
-   Stella regressions carry the useful `standard_4k_ntsc*` behavior. Item 58
-   follows after stripes.
+   `.../roadmap.txt` contains only unfinished main items. Item 63 is active.
+   The user's goal is existing all_five or all-five/player-colour rendering with
+   different COLUPF and COLUBK in vertical sections. Table-driven stripes are
+   shelved. Baked-in layers are a candidate, not a settled implementation.
+   `.../layers.txt` contains the clarified goal and an unverified earlier draft;
+   do not inherit that draft's hardware claims, ABI or prerequisites as facts.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -190,23 +191,13 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue `.../stripes.txt`.  The feed's origin is settled and the emit is unblocked:
-a file-scope `const` object folded at link time has readable constant bytes, so the
-renderer's three `page const` feed tables are a link-time ROM derivation of the
-public eight-byte record (0 RAM, no startup copy, no per-count public data).
-`vcs_const_link_time_table.pl` owns the fold (plain default-ROM data only; a
-NAMED region is excluded because folding a data-only read erases the relocation the
-linker must reject) and `vcs_all_five_stripe_feed_tables.pl` builds the real
-(192,32) tables and checks every emitted byte.  Both record-based sources are dead
-and RAM cannot hold the feed, so `stripe_generic_feed_source_bound.pl` reports the
-emit unblocked.  The renderer will need PER-CONFIGURATION feed tables: the content
-depends on the data layout (q=P*s+p picks the stripe), so all 19 legal
-configurations need their own (5625 source entries; ROM stays 288 per build).  The
-grammar takes only a literal in an array extent; relaxing that is a readability win
-and would NOT reduce the table count.  Next:
-emit the rolling machine in all_five.c26 behind a focused probe, reading the feeds at
-Y = region-1-q; then remove the stripes:=2-only machinery and supply the pair-2 PF
-copies the hoisted path omits.  Relax the `stripes > 2` guard only once the generic
-path serves 2..32.
+Continue item 63's section-colour design, not the shelved stripe-feed machine.
+The user confirmed compile-time section boundaries and requires all five objects
+to move and span sections without restarting. A cached, solid-player-colour
+16-line-section timing probe exists in test/vcs_all_five_sections_probe.pl.
+Next: generalize the baked layout beyond alternating 16-line rows, preserving
+the exact-RGB moving-object and isolated X=0/159 regressions. Player colour tables
+remain a separate timing gate. No public layer ABI is agreed; production renderers
+are unchanged. See layers.txt for the bounded probe contract.
 
 `gameplay`; 10 left.

@@ -1,0 +1,642 @@
+Layers
+======
+
+A workstream for section-dependent playfield and background colours.
+
+CURRENT USER GOAL (authoritative)
+---------------------------------
+The desired result is the existing all_five or all-five/player-colour renderer
+with different COLUPF and COLUBK in different vertical sections. Table-driven
+stripes were shelved; baking sections into code is a candidate intended to be
+easier to explain and verify, not a settled implementation choice.
+
+Reuse of the certified object pipeline should be investigated before building
+a new positioning/drawing system. Stacking sections must not restart sprites,
+introduce blank separator scanlines, or change the selected profile's frame
+timing. Player-colour-table behaviour must be preserved if that is the selected
+baseline. The user confirmed compile-time section boundaries and explicitly
+requires all five objects to move smoothly across them, including straddling
+poses. No new public layer ABI is agreed yet.
+
+CURRENT PROBE AND OPEN WORK
+---------------------------
+test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
+from the certified cached all-five renderer. It retains preparation, positioning,
+object masks and delayed latches, but uses solid player colours and alternates
+two immediate COLUPF/COLUBK palettes across twelve fixed 16-line sections.
+It has no section-colour table or runtime section selector. The ordinary
+playfield/cache/mask data are retained; this is not a claim of eliminating all
+renderer data accesses. Production renderers are unchanged.
+
+The comparator checks 16 moving poses against exact-RGB composites of two
+ordinary golden rasters, requires all five objects to straddle the first seam,
+and checks frame timing. Its isolated cases require each object to straddle
+the seam at X=0 and X=159. Branch .same assertions and page anchors are retained.
+The ball follows COLUPF, so its colour changes with its section by hardware.
+
+Next: generalize the fixed layout beyond alternating 16-line rows. Preserve
+the moving-object and endpoint comparators when
+promoting the proof into a maintained component. Arbitrary section heights,
+player colour tables, score composition and PAL/SECAM remain unproven here.
+The cached baseline uses 83 renderer RAM bytes versus ordinary all_five's 71;
+do not hide that tradeoff when selecting the implementation.
+
+The older AI-written draft below is unverified, not authoritative. In particular:
+SEC; SBC #15 subtracts 15, not 16; RESP/RESM/RESBL are timing strobes rather than
+position-value registers; TIA has four colour registers; and all_five distributes
+object work across a two-scanline pipeline using precomputed non-player masks.
+Its earlier task order and purported hardware facts must not drive implementation.
+
+
+EARLIER DRAFT STATUS (not the current task order)
+------------------------------------------------
+
+Branch `layers`, branched from main at 3b66fff1. Nothing pushed. Working tree
+clean at 5d00a7b5.
+
+DONE
+
+  29bebf21  Repost table indexing resolved. It was never in doubt; I had read
+            `sbc #15` literally instead of following the carry chain. See
+            "horizontal positioning".
+  8c9571ba  position_layer built and two of five slots verified.
+  5d00a7b5  Colour split corrected -- I had COLUPF/COLUBK backwards.
+
+position_layer WHERE IT STANDS
+
+  libraries/vcs/position_layer.c26. Builds. Entry point
+  `require inline void TEMPLATE_establish(void)`, called as `pos_establish()`.
+  Caller writes the vocabulary through the instance alias, `pos_pos_x[0] := 20`.
+
+  It writes RESP0..RESBL and HMP0..HMBL via indexed stores, strobes HMOVE once,
+  then NUSIZ0/NUSIZ1. It draws nothing, by design.
+
+  Emitted as `sta $10,x` and `sta $20,x` -- the indexed forms covering
+  RESP0..RESBL and HMP0..HMBL, matching all_five's contiguous rows.
+
+  VERIFIED BY RASTER, two objects only. P0 at x=20 renders a 16px bar at display
+  px 38-53; P1 at x=100 renders at 198-213. Both match the predicted x*2-2, the
+  -2 being the HBLANK margin, identical for both. Bar width 16px is correct for a
+  solid 0xff graphic doubled.
+
+  NOT VERIFIED: slots 2, 3, 4 -- M0, M1, BL. The indexed store covers them so the
+  addressing is right, but no raster test has shown they land where pos_x says.
+  The probe that was meant to settle it did not: two ROMs differing only in RESM0
+  ($2e versus $4e) rendered the missile at the same display position. So this
+  TIA's missile-position behaviour is not established, and it is NOT safe to
+  assume the P0/P1 result covers the other three. This is the first thing to
+  finish.
+
+OPEN WORK, IN THE ORDER IT BLOCKS THINGS
+
+  1. Missiles and ball under this TIA. Blocks finishing position_layer's
+     verification, and draw_layer needs it anyway.
+  2. Five objects in 76 CPU cycles. The hard blocker for draw_layer. Not worked
+     out. The per-object figures quoted elsewhere in this file (21 drawing / 13
+     skipping) came from a fragment and are an unverified upper bound; do not
+     build on them.
+  3. Whether a ball ever needs to be visible against its own layer's playfield.
+     Not a blocker, just undecided.
+
+DO NOT REDO THESE
+
+  - The $0A register investigation. It looked like libraries/vcs/tia.c26 had
+    dropped COLUPM0/COLUPM1/COLUPB and shifted CTRLPF/REFP0/REFP1 down into
+    $0A-$0C, which would have broken player reflect, playfield reflect and ball
+    width. It has not. The compact three-colour TIA is deliberate, and $0A does
+    behave as CTRLPF: writing $21 there produced a left-right symmetric playfield
+    against a non-symmetric one for $00, measured. Settled, do not reopen.
+
+  - The repost table "loose end" I flagged. There wasn't one.
+
+GOTCHAS THAT COST TIME
+
+  - Hex literals in `asm` passthrough need `$`, not `0x`. `asm lda #0x21;`
+    assembles to a parse error; `asm lda #$21;` is correct. The C26 compiler
+    accepts 0x, the assembler does not.
+
+  - Hex in `asm` is emitted verbatim to the assembler, so `#TEMPLATE_foo` is fine
+    (a decimal or template value) but a hand-written hex literal is not.
+
+HOW TO REPRODUCE THE VERIFICATION
+
+  The harness that produced the numbers above lived in /tmp/opencode and is gone.
+  It was not committed. Rebuild it as:
+
+    build:  ./driver/vcsc -I libraries/vcs -I <dir> <file>.c26 -o <file>.bin
+
+    render: reserve a display with vcsc_reserve_x_display() from
+            test/stella_test_lib.pl, run stella under Xvfb with
+            -framesnap 200 -snapsavedir <dir> -snapname <n> -ss1x 1, then decode
+            the PNG by lifting read_file/paeth/decode_rgb out of
+            test/stella_png_sequence.pl and calling decode_rgb on it.
+
+    read:   for each row of interest, walk the decoded RGB and collect x where
+            any channel exceeds 40, then group into runs. A solid 0xff bar should
+            come back as a single 16px run, and its left edge should be x*2-2.
+
+  Positions were verified that way rather than by inspecting emitted assembly,
+  because the emit can look right and still position wrongly.
+
+
+Why
+---
+The stripe kernel approach was data-driven: a per-configuration feed table, a
+frame counter walking a schedule, a phase carried in a register, and a Y
+discipline that had to be right for all 19 legal configurations. The bulk of the
+work went into generating and byte-checking those tables, which is a poor use of
+effort. Layers make the same rasters a consequence of structure instead of data.
+No tables to generate, no configuration matrix, no per-configuration fixtures.
+
+
+Frame structure
+---------------
+
+A frame is a vertical stack of components:
+
+    [top score?]  position_layer  draw_layer  draw_layer  ...  [bottom score?]
+
+A frame may or may not have a top score component and may or may not have a
+bottom score component. The position layer is instantiated at the top of the
+frame, or immediately below the top score component if one is present. One or
+more draw layers follow it.
+
+Layers never call each other. The only coordination is the shared vocabulary of
+globals described below, which is an ABI in the sense that the layers agree on
+names and nothing else: no ordering is assumed, no layer knows how many layers
+precede it, and a layer cannot discover what is above or below it.
+
+The vertical budget is currently the caller's problem. A frame that overflows its
+192 visible scanlines is a caller error and is not diagnosed. Enforcing it is
+deliberately deferred.
+
+
+Vocabulary (the ABI)
+--------------------
+
+Named globals, agreed across all layers. Proposed names, all prefixed so they
+cannot collide with caller state:
+
+    p0_y,  p1_y,  m0_y,  m1_y,  bl_y      countdown to the next graphic byte
+    p0_x,  p1_x,  m0_x,  m1_x,  bl_x      horizontal position, 0..127
+    p0_gfx, p1_gfx, m0_gfx, m1_gfx, bl_gfx pointer to an 8-byte graphic
+
+CHANGED FROM THE ABOVE, having built it. The five x positions are one array, not
+five names, and the five y countdowns likewise:
+
+    pos_x[5]     horizontal position, 0..127
+    obj_y[5]     countdown to the next graphic byte
+
+The index is the object index, and it is deliberately the same index RESP0,x and
+HMP0,x take. RESP0/RESP1/RESM0/RESM1/RESBL are contiguous and HMP0/HMP1/HMM0/
+HMM1/HMBL likewise, so one indexed store writes each row, exactly as all_five
+does it. Five separate names cannot be reached by an indexed store without five
+copies of the whole divide block, so the named form would have bought a prettier
+vocabulary at the cost of a much larger position layer.
+
+Object height is NOT in the vocabulary. It is a constant, 8 scanline pairs, so
+the bound is a compile-time `cpy #8` rather than a variable.
+
+COLOUR SPLITS TWO WAYS, and the split is the point of the workstream.
+
+    COLUP0, COLUP1   GLOBAL. COLUP0 serves P0 and M0, COLUP1 serves P1 and M1.
+                     Set once by the caller. No layer writes these.
+
+    COLUPF, COLUBK   PER LAYER. Written at the very start of each layer. This is
+                     what lets stacked layers carry different playfield and
+                     background colours within one frame, which is the entire
+                     reason to build frames out of layers rather than one routine.
+
+This TIA has three colour registers, not six. Measured, not assumed: a ROM
+enabling M0 with COLUP0 := $c6 and no other colour write renders the missile in
+$c6-derived 338d31, confirming M0 takes COLUP0.
+
+What follows from only three:
+
+  - A missile cannot differ in colour from the player it belongs to, because
+    COLUPM0 does not exist. A property of this TIA, not a problem to solve.
+
+  - The ball takes COLUPF. So within one layer the ball is the same colour as
+    that layer's playfield and is invisible against it. Against a different
+    layer's playfield it is fine, because whichever layer draws the ball is the
+    layer that set COLUPF. Whether a ball has to be visible against its own
+    layer's playfield is still an open question and is not decided here.
+
+There is deliberately no shared scanline cursor. An earlier draft had a global
+current_ypos advanced once per pair. It is unnecessary: the per-object countdowns
+already decide what each scanline draws, and with the playfield held constant
+across a layer there is nothing left for a cursor to index. Dropping it also
+removes the need for the position layer to take a seed parameter.
+
+
+position_layer
+--------------
+
+The first thing built. Nothing can be tested until it is correct: with horizontal
+positioning wrong, every raster is wrong, and with NUMSIZ wrong the sprite
+geometry is wrong regardless of what the draw layers do.
+
+IT MUST RUN DURING THE VISIBLE FRAME, NOT IN VBLANK. This is not a preference.
+
+A top score component, when present, writes sprite position registers and
+NUMSIZ. Anything positioned in vblank is therefore trashed by the score component
+before the first visible scanline, and the whole positioning sequence has to be
+redone. all_five gets away with positioning in vblank because its own source says
+why:
+
+    // The scoreless profile positions all five objects during VBLANK.
+
+It is the scoreless profile. There is no score component to clobber the result, so
+vblank placement is safe there and costs none of the visible frame. That is a
+property of that profile, not a technique to copy. A layers build may or may not
+have a top score, and the "may" is the whole constraint, so positioning is always
+paid for out of the visible frame.
+
+Consequently the vertical budget must include position_layer's own height, and the
+visible-frame stack in the frame layout above is literal, not conceptual.
+
+Responsibilities:
+
+  - Establish horizontal position for P0, P1, M0, M1 and BL. This means writing
+    RESP0/RESP1/RESM0/RESM1/RESBL and HMOVE.
+  - Establish NUMSIZ/NUSIZ0/NUSIZ1.
+  - Seed the per-object countdowns from the caller's positions.
+
+It does NO vertical work and draws nothing.
+
+It must not assume NUMSIZ or any sprite position survives from the previous
+frame. If a top score component is present it may have clobbered them, so the
+position layer sets all of it itself. This is the reason it exists as a distinct
+layer rather than being folded into the caller.
+
+Its height is nonzero and structural rather than chosen, and it comes out of the
+VISIBLE frame. all_five's positioning block is the reference for the mechanism --
+five unrolled copies of the coarse-position loop, each ending in its own WSYNC,
+then a single HMOVE strobe, then NUSIZ0/NUSIZ1 immediately after. That is 6
+WSYNCs. In all_five those are vblank scanlines. Here they cannot be, so they are
+6 visible scanlines and every one of them is subtracted from what the draw layers
+get.
+
+The WSYNC per object is not incidental. The loop's immediate is $0F but it
+subtracts SIXTEEN, and it runs floor(x/16)+1 times -- one to eight iterations
+across the 0..127 position range -- and each WSYNC resynchronises to a scanline
+boundary so the next object's RESP0 write lands at a fixed phase. The bit.z $00
+and the pair of nops are calibrating that phase, not padding for taste.
+
+See "horizontal positioning" below. The exact height falls out of that
+implementation and should not be hand-tuned.
+
+Implementation shape, taken from the existing renderers rather than invented:
+
+    lda object_x+0,X
+    sec
+  @DivideLoop:
+    sbc #15
+    bcs.same @DivideLoop
+    sta RESP0,X
+    sta WSYNC
+    dex
+    bpl.same @HorPosLoop
+
+  then a second pass writing HMP0 from a repost table for the bit RESP0 cannot
+  hold.
+
+Note there is no RSWP0 in this project. The seventh horizontal bit is delivered
+through HMOVE and the repost table.
+
+
+draw_layer
+----------
+
+Params: COLUPF, COLUBK, the six PF register values PF[0-2][left] and
+PF[0-2][right], an object count, and a height in scanline pairs.
+
+A layer has ONE playfield pattern, held constant for its whole height. The six PF
+values are compile-time constants baked into the emitted code. This is the point
+of the design: stripes come from stacking layers that carry different patterns and
+colours, not from a table the raster machine walks.
+
+COLUPF and COLUBK are written once, at the very start of the layer. The TIA holds
+register values, so there is no reason to rewrite them per scanline.
+
+Per scanline, in this order:
+
+    PF1l, PF2l              left half
+    <object work>           see below
+    PF2r, PF1r              right half, REVERSED -- see Hardware facts below
+    STA WSYNC
+
+Per pair, the object work happens ONCE, on the first scanline of the pair:
+
+    ENABL and the ball/missile enables
+    for each object: ldy p0_y ; dey ; sty p0_y ; cpy #8 ; bcs skip
+                     lda (p0_gfx),y ; sta GRP0
+
+Layers do NOT use PF0. See "PF0: dropped on purpose" below. All five objects --
+both players, both missiles, and the ball -- are drawn.
+
+GRPx and the enables simply hold their values into the second scanline of the
+pair; nothing rewrites them.
+
+The layer iterates over pairs with a runtime loop rather than being unrolled:
+`ldy #height ; @loop: <body> ; dey ; bne @loop`. Unrolling is possible, since
+compile-time substitution works per instruction, but it was judged not worth the
+ROM for a 7-cycle loop overhead, and the playfield timing is internal to a single
+scanline's straight-line sequence so unrolling gains nothing there.
+
+
+Hardware facts that constrain the design
+----------------------------------------
+
+These were established by reading the maintained renderers and are load-bearing.
+Each one is a place where an assumption that sounds reasonable is wrong.
+
+Playfield is a single set of registers rewritten mid-scanline. There is no
+PF0_left/PF0_right register pair. PF1 and PF2 each serve two places, and the
+emulator rewrites them as the beam crosses the screen.
+
+The right half is written in REVERSE register order relative to the left. This
+is not a detail that can be guessed at. In all_five, which is the renderer the
+layers model follows:
+
+    left:   lda playfield+0,x ; sta PF1
+            lda playfield+1,x ; sta PF2
+    right:  lda playfield+2,x ; sta PF2      <- PF2 first
+            lda playfield+3,x ; sta PF1      <- PF1 second
+
+all_five's fixtures set CTRLPF := 0x21, whose bit 0 is REF, so that renderer draws
+a REFLECTED playfield, and under reflection the right half is installed
+PF2-then-PF1.
+
+The opposite order exists in the tree and is NOT interchangeable.
+standard_4k_ntsc_playercolors installs the right half PF1-then-PF2. It never
+writes CTRLPF itself -- the caller sets it -- so the order cannot be attributed to
+REF from that side, and the mechanism has not been established. What is verified
+is which order all_five uses, and all_five is the one being copied, because it is
+the PF1/PF2-only renderer that also draws all five objects.
+
+This is a terrible design that we have to live with.
+
+PF0: dropped on purpose
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Layers do not use PF0. The playfield lives in PF1/PF2 only.
+
+This is a trade, and the two sides of it are both already in production:
+
+    renderer                     PF0            objects drawn
+    all_five                     zeroed only     GRP0/GRP1 + ENAM0/ENAM1 + ENABL
+    player_color                 zeroed only     GRP0/GRP1 + ENAM0/ENAM1 + ENABL
+    enhanced_multisprite_        carries         GRP0/GRP1 only
+    asymmetric                   content         (players; no missiles, no ball)
+
+So dropping PF0 buys the cycles for two missiles and a ball, and all_five and
+player_color are the proof that it fits: both are maintained, certified renderers
+that do precisely this. Affordability does not have to be argued.
+
+Going the other way is not symmetric in difficulty. Reusing PF0 as
+enhanced_multisprite does means paying for a third register rewritten twice per
+scanline and dropping three objects to pay for it. The vocabulary would still
+carry m0/m1/bl globals that layers could never draw, and any example wanting a
+missile or a ball could not be built from layers at all. That is a capability
+ceiling, not just extra work.
+
+PF0 is likely to be revisited in an enhanced-multisprite-style profile later.
+That route is the one to take if a layer ever needs to draw a third playfield
+register's worth of pattern; it is not the default.
+
+The right-half write block is load-bearing for timing, not just for data.
+enhanced_multisprite repeats IDENTICAL values in its right-half block on purpose:
+the comment there says the draw-time rewrites "are identical values and preserve
+the proven right-half timing." Everything downstream of that block, ENABL and the
+graphics load included, is timed relative to it. So even a layer whose left and
+right values happen to be equal must still emit the second block. If a symmetric
+layer ever renders wrong, the first thing to suspect is that block being skipped
+as redundant.
+
+A symmetry optimisation is available but must be decided at compile time, never
+branched on at runtime: when PF1l==PF1r and so on, the values collapse and the
+emitted constants simply match. The instruction sequence stays the same.
+
+The per-object countdown is how the existing renderers select a sprite byte, and
+it is worth copying rather than replacing. The counter IS the graphics index, so
+there is no subtraction and no comparison against a frame-relative position:
+
+    ldy player1_y
+    dey
+    sty player1_y
+    cpy object_masks + 15      ; exclusive height
+    bcs.same @skipP1
+    lda (player1_graphics),y   ; counter is the index
+    sta GRP1
+
+Object height is 8 scanline pairs. 8 bytes give the sprite, written out over 8
+pairs, 16 scanlines total.
+
+Vertical positioning is done by the draw layers, not the position layer. The draw
+layer consults the countdown and the shared position vocabulary to decide what to
+feed GRPx and the ball/missile enables. An individual layer may draw any subset of
+the five objects, and a single sprite can start in one layer and finish in
+another.
+
+Horizontal position is 7 bits, and the mechanism is worth copying wholesale
+rather than re-deriving. RESP0/RESP1/RESM0/RESM1/RESBL are contiguous, as are
+HMP0/HMP1/HMM0/HMM1/HMBL, so `sta RESP0,x` and `sta HMP0,x` with X as the object
+index position any of the five objects. X is not a loop counter there; it is a
+register selector.
+
+The coarse value comes from a loop whose immediate is $0F but which subtracts
+SIXTEEN, because `sec` sets the carry before the first pass and each `sbc` leaves
+it set for the next. The remainder is absorbed by a 16-entry repost table of
+negative offsets (0x80,0x70...0x00,0xf0, 0xe0...0x90) whose own comment reads
+"Indexes 1..15 correspond to the negative remainder left by the 15-pixel
+coarse-position loop." That comment is accurate; the loop is the 15-pixel one the
+name refers to.
+
+HMPx is a latch and HMOVE is a strobe: all five latches are set, then one HMOVE
+applies all of them. NUMSIZ0/NUSIZ1 are written immediately after in the source,
+which is exactly the position_layer's remit.
+
+The loop leaves the REMAINDER in A, not a quotient. `sec` sets the carry before
+the first pass and every `sbc` leaves it set for the next, so each iteration
+subtracts SIXTEEN despite the immediate being $0F. For x=40: 40-16=24 (carry
+still set), 24-16=8 (set), 8-16=-8 which wraps to 248 and borrows, so the loop
+exits with A=248. RESP0 then holds 248 & $0F = 8, and Y holds 248.
+
+248 is 240 + (x mod 16). The 240 is the wrap, and `reposition_table + 16 - 256 + Y`
+folds it away: 248 + 16 - 256 = 8. So the effective table index is x mod 16, which
+is the remainder, which is what the table's own comment says it is indexed by. The
+-256 is not decoration; it is what makes the indexed read land inside a 16-entry
+table when Y has wrapped.
+
+Copy this block as it stands. The immediate is $0F and the subtraction is 16.
+
+
+Cycle budget
+------------
+
+NTSC timing, and this is easy to get backwards:
+
+    1 scanline = 76 CPU cycles = 228 TIA colour clocks
+    1 scanline pair = 152 CPU cycles = 456 TIA colour clocks
+
+152 CPU cycles per pair is the number to design against. It is not generous.
+Confusing the two inflates the apparent budget 3x and produces a layer that is
+far too slow to fit.
+
+Worth recording: the "76 cycles per scanline" figure is a CPU figure, and it is
+also the colour-clock-per-2-scanlines figure. Treating 76 as colour clocks per
+scanline is a common and wrong reading that puts a scanline at 228 CPU cycles.
+
+An object's per-scanline cost, using the renderers' own pattern:
+
+    ldy obj_y (3)  dey (2)  sty obj_y (3)  cpy #8 (2)  bcs (2/3)   = 12-13
+    when drawing, additionally:  lda (ptr),y (5)  sta GRPx (4)       = +9
+
+so roughly 21 cycles per drawing object and 13 per non-drawing, against 76 for the
+scanline. Five objects all drawing is therefore around 105 against 76, which is
+over budget on a single scanline -- and all_five demonstrably draws all five
+inside the budget.
+
+Those figures came from one fragment of one renderer's instruction path, not from
+a whole path, so treat them as an unverified upper bound. Finding how all_five
+actually fits five objects is a PREREQUISITE for writing a draw_layer, not a
+detail to settle afterwards.
+
+There is no hardware assistance available. Read out of Stella's own TIA source,
+CTRLPF is four things and none of them is copying:
+
+    Playfield::ctrlpf   reflected  = value & 0x01
+                        colorMode  = (value & 0x06) == 0x02 ? score : normal
+    Ball::ctrlpf        newWidth   = widths[(value & 0x30) >> 4]   // {1,2,4,8}
+    TIA::write          priority   = (value & 0x04) ? pfp
+                                                  : (value & 0x02) ? score
+                                                                   : normal
+
+So bits 1-2 are the priority encoder and the score colour mode, and bits 4-5 are
+the ball width. There is no copy-lock bit and no missile-to-object copy bit, in
+CTRLPF or anywhere else. Every object is positioned and sized in software, and
+nothing makes the TIA start an object on the kernel's behalf.
+
+all_five's fixtures set CTRLPF := 0x21, which decodes as reflect on and ball
+width 2. That is the whole register.
+
+If five objects fit, it is because of a software schedule -- shared pointers, a
+combined loop, or arithmetic in place of per-object branches -- and finding that
+schedule is the next thing to do, before position_layer.
+
+
+Build shape
+-----------
+
+A layer is a component, not a template renderer, and takes compile-time
+parameters via `parameter`, read inside `asm` through the TEMPLATE_ prefix. This
+was verified to build and emit correct code:
+
+    require inline void TEMPLATE_draw_layer(void) {
+       asm ldy #TEMPLATE_height_pairs;
+       asm @lp:
+       asm ldy #TEMPLATE_pf0_left;
+       asm sty PF0;
+       ...
+       asm sta WSYNC;
+       asm dey;
+       asm bne.same @lp;
+    }
+
+instantiated with `instantiate "draw_layer.c26" as l0 (pf0_left:=0xf0, ...)` and
+called as `l0_draw_layer()`. Instantiating a component brings it in; `include`-ing
+it as well is an error, and `parameter` may only be declared directly in an
+instantiated source file.
+
+Caller example:
+
+    instantiate "position_layer.c26" as pos
+    instantiate "draw_layer.c26" as l0 (colupf:=..., pf0_left:=..., height_pairs:=8)
+    instantiate "draw_layer.c26" as l1 (...)
+
+Not a rename of anything. The existing renderers stay.
+
+
+position_layer: BUILT
+---------------------
+
+libraries/vcs/position_layer.c26 exists and builds. Entry point is
+`require inline void TEMPLATE_establish(void)`, called as `pos_establish()`. The
+caller writes the vocabulary through the instance alias, e.g. `pos_pos_x[0] := 20`.
+
+The emitted code matches all_five's structure exactly. RESP0,X and HMP0,X come out
+as `sta $10,x` and `sta $20,x`, which are the indexed forms writing RESP0..RESBL
+and HMP0..HMBL respectively -- the same contiguous rows all_five relies on.
+
+VERIFIED END TO END, two objects, by raster. P0 at x=20 and P1 at x=100, each
+drawn as a solid 0xff bar, rendered through Stella and read back:
+
+    object   requested   measured (display px)   predicted x*2-2
+    P0       20          run 38-53               38    correct
+    P1       100         run 198-213             198   correct
+
+Both bars are 16 display px wide, which is a solid 8-color-clock graphic doubled,
+as expected. The constant -2 is the HBLANK margin and is identical for both.
+
+NOT VERIFIED: slots 2, 3 and 4 (M0, M1, BL) by raster. They are covered by the
+same indexed store, so the addressing is right, but no raster test has confirmed
+the missiles and ball land where pos_x says. A probe intended to settle this did
+not: two ROMs differing only in RESM0 ($2e versus $4e) rendered the missile at the
+same place, so this compact TIA's missile-position behaviour is not established and
+needs its own investigation before it can be assumed. Do not read the P0/P1 result
+as covering the other three slots.
+
+Also still true and still unmeasured: the 6-visible-scanline height above is an
+extrapolation, not a measurement. It has not been counted in the assembled output.
+
+
+Outstanding, in the order it blocks things
+-----------------------------------------
+
+1. Five objects in 76 CPU cycles. Prerequisite for draw_layer, not yet worked out.
+   The per-object figures quoted earlier (21 drawing / 13 skipping) came from a
+   fragment and are an unverified upper bound; treat them as unreliable.
+
+2. Missile and ball position under this TIA. Needed to finish verifying
+   position_layer, and needed by draw_layer regardless.
+
+3. Whether a ball ever needs to be visible against its own layer's playfield. The
+   ball takes COLUPF, so inside one layer it matches that layer's playfield. Not
+   a blocker and not decided; recorded so it is not discovered late.
+
+
+Acceptance criteria
+-------------------
+
+In order. The list is deliberately sequential: nothing after position_layer is
+testable until position_layer is proven.
+
+1. position_layer alone builds, and sets horizontal position and NUMSIZ for all
+   five objects. With no draw layers present the screen is blank, which is correct
+   and is the check that it is not accidentally drawing anything.
+
+2. position_layer + ONE draw layer renders. The layer's constant playfield and
+   colours appear across the layer's height. Sprites appear where their countdowns
+   place them. The raster is checked in Stella against a reviewed reference, as
+   the other certifications do.
+
+3. position_layer + TWO draw layers renders, with the second starting exactly
+   where the first ended. This is the first test of the ABI: no layer knows about
+   the other.
+
+4. A sprite spans a layer boundary: a layer draws the top bytes, the next draws
+   the rest, and the seam is invisible.
+
+5. A sprite is drawn in only some layers, exercising the `cpy #8` skip.
+
+6. Top and bottom score components present. Confirms the position layer's reason
+   to exist: it re-establishes NUMSIZ and positions that the score components
+   clobbered.
+
+7. Under concurrent load, with the runners running in parallel rather than
+   serialised. Determinism is a precondition for dropping the serial marking on
+   the certifications, and is checked the way the framesnap conversion checked it.
+
+Punted, explicitly: enforcement of the vertical budget, and any decision about
+what replaces or retires the existing renderers.
