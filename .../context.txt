@@ -194,9 +194,11 @@ Immediate TODO
 Continue item 63's section-colour design, not the shelved stripe-feed machine.
 The user confirmed compile-time section boundaries and requires all five objects
 to move and span sections without restarting. A cached, solid-player-colour
-16-line-section timing probe exists in test/vcs_all_five_sections_probe.pl.
-Next: generalize the baked layout beyond alternating 16-line rows, preserving
-the exact-RGB moving-object and isolated X=0/159 regressions. Player colour tables
+section timing probe exists in test/vcs_all_five_sections_probe.pl, with normal
+e2e entries for alternating rows and fixed 32/160, 48/144 and 96/96 splits.
+Next: extend to two-scanline-pair granularity rather than requiring 16-line
+packed-row boundaries, preserving exact-RGB moving-object and X=0/159 tests.
+Player colour tables
 remain a separate timing gate. No public layer ABI is agreed; production renderers
 are unchanged. See layers.txt for the bounded probe contract.
 

@@ -31,3 +31,41 @@ in .../README.md and is current project state, not generated residue. Unknown
 developer files remain rejected; other branding assertions are unchanged.
 Both reported tests and git diff --check now pass. No renderer changes or
 full-suite rerun were needed for these two narrowly scoped fixes.
+
+2026-10-12 13:12:23 PDT, Prove larger fixed colour sections
+Generalized the cached solid-colour probe from alternating 16-line sections to
+two fixed sections. Added 32/160, 48/144 and 96/96 profiles. Specialized only the
+last-pair/boundary code for each cache; a baked cutoff comparison dispatches
+through the existing seven-cycle padding slot, with both paths taking seven
+cycles. Both paths rejoin the original pair loops. Bottom-path terminal handling
+jumps to the shared final WSYNC before synchronization, retaining return cycle
+zero. No object state is reset at section boundaries; no colour table, added
+RAM or scanline cycles are introduced. Production renderer code is unchanged.
+
+Strengthened all fixtures with different left/right playfield bytes and distinct
+neighbouring rows. Earlier symmetric patterns could conceal mistimed PF rewrites
+despite exact-RGB comparison. Larger splits retain sixteen moving poses, full
+golden-composite comparison, all-five straddling and ten isolated X=0/159 cases.
+The 48/144 split exercises the other cache's transition path. The larger-layout
+together fixture links at 3438/4090 ROM and 90/128 total RAM bytes; the alternating
+fixture remains 2922/4090 ROM. Cached renderer state remains 83 bytes.
+
+An initial monolithic four-profile matrix hit the tool's 240-second timeout while
+entering its last profile, with no earlier raster failures. Split profiles into
+independent vcs_all_five_sections_32/48/96.test entries instead of increasing the
+300-second per-test ceiling or reducing coverage. The original .pl entry still
+tests alternating rows and retains the documented generated-demo paths.
+All four profiles passed concurrently after the split (44 scenes, each with
+16 captures per candidate/golden and a frame-timing check).
+
+Current restriction: boundaries remain on 16-line packed rows; no new public
+layer ABI or production example is introduced. Next: two-scanline-pair boundary
+granularity, retaining the exact-RGB motion/endpoint regressions. Player colour
+tables, score composition and native PAL/SECAM remain separate acceptance gates.
+Final validation: unified e2e runner with four workers passed all four profile
+entries plus context_history_format.pl, vcsc_branding.pl and source_tree_hygiene.pl
+(7/7). An earlier invocation set TMPDIR=/tmp/opencode and failed Xvfb readiness:
+the shared socket helper then searched under that directory, while Xvfb uses
+/tmp/.X11-unix. Rerunning in the normal environment passed without changing or
+bypassing readiness checks. No unrelated full-suite rerun was needed because
+production compiler/renderer code is unchanged.

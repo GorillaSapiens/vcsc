@@ -18,8 +18,8 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, generalize the baked-section probe's fixed layout
-beyond alternating 16-line sections, preserving its moving-object and isolated
+Current next action: Item 63, remove the baked-section probe's 16-line boundary
+restriction, targeting two-scanline pairs while preserving moving-object and
 X=0/159 exact-RGB tests. Player colour tables remain a separate timing gate.
 
 [ ] 63. Layers: frames built from cooperating components sharing a vocabulary of

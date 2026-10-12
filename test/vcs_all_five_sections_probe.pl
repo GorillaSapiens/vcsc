@@ -4,7 +4,7 @@
 # timeout: 300
 # expectstdout: vcs_all_five_sections_probe ok
 # expectexit: 0
-# Experimental baked-in 16-line sections, not a new public renderer ABI.
+# Experimental baked-in sections, not a new public renderer ABI.
 # Reuse the certified cached all-five pipeline and compare moving objects against
 # an exact-RGB composite of two ordinary, independently coloured golden rasters.
 use strict;
@@ -53,7 +53,10 @@ sub replace_once {
    $$text =~ s/\Q$old\E/$new/ or die "probe source marker missing: $label\n";
 }
 
-@ARGV==2 or die "usage: $0 REPO TMP\n";
+(@ARGV==2||@ARGV==3) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96]\n";
+my$profile=$ARGV[2]//'alternating';
+my%boundaries=(alternating=>undef,split_32=>32,split_48=>48,split_96=>96);
+exists$boundaries{$profile} or die "unknown section profile: $profile\n";
 my$repo=abs_path($ARGV[0]) or die "resolve repo\n";
 make_path($ARGV[1]); my$tmp=abs_path($ARGV[1]);
 require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
@@ -123,7 +126,49 @@ replace_once(\$probe,"   asm \@TEMPLATE_B_u4:;\n$pad7",
    "   asm \@TEMPLATE_B_u4:;\n   asm nop;\n   asm nop;\n   asm jmp \@TEMPLATE_B_u4_pad_done;\n   asm \@TEMPLATE_B_u4_pad_done:;",'B page-safe seven-cycle pad');
 write_file("$tmp/sections_probe.c26",$probe);
 
+sub boundary_palette {
+   my($text,$pf,$bk)=@_;
+   my$n=$$text =~ s/   asm lda #\$[0-9a-f]{2};\n   asm sta COLUPF;\n   asm lda #\$[0-9a-f]{2};\n   asm sta COLUBK;/sprintf("   asm lda #\$%02x;\n   asm sta COLUPF;\n   asm lda #\$%02x;\n   asm sta COLUBK;",$pf,$bk)/ge;
+   $n or die "missing boundary palette\n";
+}
+sub two_sections {
+   my($source,$lines)=@_;
+   $lines>0&&$lines<192&&$lines%16==0 or die "two-section proof requires an interior packed-row boundary\n";
+   my($a)=$source =~ /   asm \@TEMPLATE_A_u7:;\n\Q$pad7\E\n(.*?)   asm \.align 256, \$90;\n   asm \@TEMPLATE_B_u1:;/s;
+   my($b)=$source =~ /   asm \@TEMPLATE_B_u7:;\n\Q$pad7\E\n(.*?)\n}\n\nrequire inline void TEMPLATE_overscan/s;
+   defined$a&&defined$b or die "missing packed-row tails\n";
+   boundary_palette(\$source,0x2e,0x84);
+   my$copies='';
+   for my$cache(qw(A B)) {
+      my$body=$cache eq'A'?$a:$b;
+      boundary_palette(\$body,0x46,0xc2);
+      $body =~ s/\@TEMPLATE_(?!(?:A|B)_u1\b)(\w+)/\@TEMPLATE_split_$1/g;
+      if($cache eq'B') {
+         replace_once(\$body,'   asm sta WSYNC;','   asm jmp @TEMPLATE_sections_last_wsync;','shared terminal WSYNC');
+      }
+      $copies.="   asm .align 256, \$90;\n   asm \@TEMPLATE_split_${cache}_u7:;\n$body\n";
+      # Spend the existing seven-cycle pad on a balanced row-end dispatch.
+      # The cutoff is baked into code; no palette/section lookup table is used.
+      my$dispatch=sprintf("   asm \@TEMPLATE_${cache}_u7:;\n   asm cpx #%d;\n   asm bcc.same \@TEMPLATE_${cache}_u7_top;\n   asm jmp \@TEMPLATE_split_${cache}_u7;\n   asm \@TEMPLATE_${cache}_u7_top:;\n   asm nop;",($lines/16-1)*4);
+      replace_once(\$source,"   asm \@TEMPLATE_${cache}_u7:;\n$pad7",$dispatch,"$cache fixed section dispatch");
+   }
+   # Copies are off the raster's fall-through path. Both paths rejoin the
+   # original cached pair loops; no object state is reinitialised at the seam.
+   $source =~ s/(   asm jmp \@TEMPLATE_A_u1;\n)(\s*asm \.align 256, \$90;)/$1$copies$2/
+      or die "missing off-path copy anchor\n";
+   replace_once(\$source,"   asm sta WSYNC;\n}\n\nrequire inline void TEMPLATE_overscan",
+      "   asm \@TEMPLATE_sections_last_wsync:;\n   asm sta WSYNC;\n}\n\nrequire inline void TEMPLATE_overscan",'terminal handoff');
+   return$source;
+}
+
 my$fixture=slurp_file(File::Spec->catfile($repo,qw(test fixtures all_five_player_color_192 all_five_match.c26)));
+# Distinct halves and neighbouring rows make early/late PF rewrites observable;
+# a symmetric pattern alone can hide a broken mid-scanline schedule.
+my@pf;
+push@pf, $_&1?(0x36,0x81,0x18,0xa5):(0x81,0x18,0x42,0x24) for 0..11;
+my$pf_source=join(',',map{sprintf('0x%02x',$_)}@pf);
+$fixture =~ s/(page const uint8_t game_playfield\[48\] := )\{.*?\};/$1\{$pf_source\};/s
+   or die "fixture playfield marker missing\n";
 $fixture =~ s/game_PLAYER1_X := 130;/game_PLAYER1_X := 60;/;
 $fixture =~ s/game_MISSILE0_X := 50;/game_MISSILE0_X := 85;/;
 $fixture =~ s/game_BALL_X := 80;/game_BALL_X := 148;/;
@@ -134,11 +179,19 @@ $fixture =~ s/game_vblank\(\);/motion := (motion + 1) \& 15;\n      game_player0
 my@cases=(['together',undef,undef]);
 push@cases, ["${_}_left",$_,0],["${_}_right",$_,159] for qw(P0 P1 M0 M1 BL);
 my$moving_fixture=$fixture;
+my$work_tmp=$tmp;
+my$profile_boundary=$boundaries{$profile};
+for my$layout([$profile,$profile_boundary,defined$profile_boundary?two_sections($probe,$profile_boundary):$probe]) {
+my($layout_name,$boundary,$layout_source)=@$layout;
+$tmp=$layout_name eq'alternating'?$work_tmp:File::Spec->catdir($work_tmp,$layout_name);
+make_path($tmp); write_file("$tmp/sections_probe.c26",$layout_source);
 for my$case(@cases) {
 my($case_name,$isolated,$endpoint)=@$case;
 my$case_tmp=File::Spec->catdir($tmp,$case_name); make_path($case_tmp);
 my$root_tmp=$tmp; $tmp=$case_tmp;
 $fixture=$moving_fixture;
+my$motion_base=($boundary//16)/2;
+$fixture =~ s/ := 8 \+ motion;/ := $motion_base + motion;/g;
 if(defined$isolated) {
    my%names=(P0=>'PLAYER0',P1=>'PLAYER1',M0=>'MISSILE0',M1=>'MISSILE1',BL=>'BALL');
    my%ys=(P0=>'player0',P1=>'player1',M0=>'missile0',M1=>'missile1',BL=>'ball');
@@ -152,7 +205,7 @@ if(defined$isolated) {
             or die "missing $obj graphics\n";
       } else {
          my$y=$ys{$obj};
-         $fixture =~ s/game_${y}_y := 8 \+ motion;/game_${y}_y := 255;/
+         $fixture =~ s/game_${y}_y := $motion_base \+ motion;/game_${y}_y := 255;/
             or die "missing $obj moving Y\n";
       }
    }
@@ -238,7 +291,8 @@ for my$f(200..215) {
    # BL is in the zero PF0 margin so its shared playfield colour is distinguishable.
    for my$obj(@objects) {
       my($name,$lo,$hi,$hex)=@$obj; my$colour=pack('H6',$hex); my@halves;
-      for my$range([$first+8,$first+15],[$first+16,$first+23]) {
+      my$seam=$first+($boundary//16);
+      for my$range([$seam-8,$seam-1],[$seam,$seam+7]) {
          my$found=0;
          for my$y($range->[0]..$range->[1]) {
             for my$x($lo..$hi) {
@@ -250,14 +304,14 @@ for my$f(200..215) {
       $crossed{$name}=1 if$halves[0]&&$halves[1];
    }
    for my$y($first..$first+191) {
-      next unless int(($y-$first)/16)&1;
+      next unless defined$boundary ? $y-$first>=$boundary : int(($y-$first)/16)&1;
       substr($expected,$y*$w*3,$w*3)=substr($other,$y*$w*3,$w*3);
    }
    if($actual ne$expected) {
       for(my$i=0;$i<length($actual);$i+=3) {
          next if substr($actual,$i,3)eq substr($expected,$i,3);
-         my$pixel=$i/3; die sprintf("%s frame %d pixel (%d,%d) differs: actual=%s expected=%s\n",
-            $case_name,$f,$pixel%$w,int($pixel/$w),unpack('H6',substr($actual,$i,3)),unpack('H6',substr($expected,$i,3)));
+         my$pixel=$i/3; die sprintf("%s/%s frame %d pixel (%d,%d) differs: actual=%s expected=%s\n",
+            $layout_name,$case_name,$f,$pixel%$w,int($pixel/$w),unpack('H6',substr($actual,$i,3)),unpack('H6',substr($expected,$i,3)));
       }
    }
    $motion_rasters{$gold}=1;
@@ -266,5 +320,6 @@ keys(%motion_rasters)==16 or die "motion proof did not exercise all sixteen posi
 $crossed{$_->[0]} or die "$_->[0] never straddled the section seam\n" for@objects;
 terminate($xpid); vcsc_release_x_displays();
 $tmp=$root_tmp;
+}
 }
 print "vcs_all_five_sections_probe ok\n";

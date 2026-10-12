@@ -22,22 +22,29 @@ CURRENT PROBE AND OPEN WORK
 ---------------------------
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,
-object masks and delayed latches, but uses solid player colours and alternates
-two immediate COLUPF/COLUBK palettes across twelve fixed 16-line sections.
-It has no section-colour table or runtime section selector. The ordinary
-playfield/cache/mask data are retained; this is not a claim of eliminating all
-renderer data accesses. Production renderers are unchanged.
+object masks and delayed latches, but uses solid player colours and immediate
+COLUPF/COLUBK palettes. Its default profile alternates twelve 16-line sections.
+The split_32, split_48 and split_96 profiles use two larger sections, selected
+by a fixed row-end comparison baked into the code. That seven-cycle dispatch
+replaces seven-cycle padding; it adds no scanline cycles or RAM. Only the last
+pair/boundary paths are specialized, not whole renderer instances.
+There is no section-colour lookup table. Ordinary playfield/cache/mask data
+remain; this is not a claim of eliminating all renderer data accesses.
+Production renderers are unchanged. Each larger-layout profile is independently
+discoverable by the unified e2e runner through vcs_all_five_sections_*.test.
 
 The comparator checks 16 moving poses against exact-RGB composites of two
 ordinary golden rasters, requires all five objects to straddle the first seam,
 and checks frame timing. Its isolated cases require each object to straddle
-the seam at X=0 and X=159. Branch .same assertions and page anchors are retained.
+the seam at X=0 and X=159. All profiles use distinct left/right playfield bytes
+and neighbouring rows so timing errors cannot hide behind identical rewrites.
+Branch .same assertions and page anchors are retained.
 The ball follows COLUPF, so its colour changes with its section by hardware.
 
-Next: generalize the fixed layout beyond alternating 16-line rows. Preserve
-the moving-object and endpoint comparators when
-promoting the proof into a maintained component. Arbitrary section heights,
-player colour tables, score composition and PAL/SECAM remain unproven here.
+Next: remove the 16-line boundary restriction, targeting two-scanline-pair
+granularity. Preserve the moving-object and endpoint comparators when promoting
+the proof into a maintained component. Arbitrary section heights, player colour
+tables, score composition and PAL/SECAM remain unproven here.
 The cached baseline uses 83 renderer RAM bytes versus ordinary all_five's 71;
 do not hide that tradeoff when selecting the implementation.
 
