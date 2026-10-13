@@ -161,6 +161,9 @@ libraries	file	0644	libraries/vcs/renderers/all_five_player_color_181/README.md	
 libraries	file	0644	libraries/vcs/renderers/all_five_player_color_181/all_five_player_color_181.c26	libraries/vcs/renderers/all_five_player_color_181/all_five_player_color_181.c26
 libraries	file	0644	libraries/vcs/renderers/all_five_player_color_192/README.md	libraries/vcs/renderers/all_five_player_color_192/README.md
 libraries	file	0644	libraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26	libraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26
+libraries	file	0644	libraries/vcs/renderers/all_five_sections_192/README.md	libraries/vcs/renderers/all_five_sections_192/README.md
+libraries	file	0644	libraries/vcs/renderers/all_five_sections_192/all_five_sections_192.c26	libraries/vcs/renderers/all_five_sections_192/all_five_sections_192.c26
+libraries	file	0644	libraries/vcs/renderers/all_five_sections_192/palette.c26	libraries/vcs/renderers/all_five_sections_192/palette.c26
 libraries	file	0644	libraries/vcs/renderers/all_five_unofficial/README.md	libraries/vcs/renderers/all_five_unofficial/README.md
 libraries	file	0644	libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26	libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26
 libraries	file	0644	libraries/vcs/renderers/multisprite/README.md	libraries/vcs/renderers/multisprite/README.md

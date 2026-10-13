@@ -1,0 +1,78 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Build from the project root:
+// driver/vcsc -I libraries/vcs examples/04_renderers/all_five_sections/all_five_sections_192.c26 -o /tmp/all_five_sections.bin
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+page const uint8_t game_playfield[48] := {
+   0x81,0x18,0x42,0x24, 0x36,0x81,0x18,0xa5,
+   0x81,0x18,0x42,0x24, 0x36,0x81,0x18,0xa5,
+   0x81,0x18,0x42,0x24, 0x36,0x81,0x18,0xa5,
+   0x81,0x18,0x42,0x24, 0x36,0x81,0x18,0xa5,
+   0x81,0x18,0x42,0x24, 0x36,0x81,0x18,0xa5,
+   0x81,0x18,0x42,0x24, 0x36,0x81,0x18,0xa5
+};
+
+// Edit heights and colours here. Heights are scanlines, not sprite Y units.
+// Eight sections total 192; seams are at 6,8,14,16,18,28,62.
+instantiate "renderers/all_five_sections_192/all_five_sections_192.c26" as game (
+   section1_lines:=6,   section1_colupf:=0x2e, section1_colubk:=0x84,
+   section2_lines:=2,   section2_colupf:=0x46, section2_colubk:=0xc2,
+   section3_lines:=6,   section3_colupf:=0x8e, section3_colubk:=0x26,
+   section4_lines:=2,   section4_colupf:=0xae, section4_colubk:=0x64,
+   section5_lines:=2,   section5_colupf:=0x2e, section5_colubk:=0x84,
+   section6_lines:=10,  section6_colupf:=0x46, section6_colubk:=0xc2,
+   section7_lines:=34,  section7_colupf:=0x8e, section7_colubk:=0x26,
+   section8_lines:=130, section8_colupf:=0xae, section8_colubk:=0x64
+)
+
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x3c)
+};
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x7c)
+};
+uint8_t motion;
+uint8_t slow;
+void main(void) {
+   VBLANK := 2;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 60;
+   game_MISSILE0_X := 85;
+   game_MISSILE1_X := 110;
+   game_BALL_X := 148;
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 7;
+   game_missile1_height := 7;
+   game_ball_height := 7;
+   game_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      // Move slowly through the entire visible area, then wrap at the bottom.
+      slow := (slow + 1) & 3;
+      if (slow == 0) {
+         motion := motion + 1;
+         if (motion >= 96) { motion := 0; }
+      }
+      game_player0_y := motion;
+      game_player1_y := motion;
+      game_missile0_y := motion;
+      game_missile1_y := motion;
+      game_ball_y := motion;
+      game_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

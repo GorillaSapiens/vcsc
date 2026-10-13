@@ -426,8 +426,19 @@ if(defined$records) {
 my@captures=('top',sort(grep{$_ ne'top'}keys%palettes),'sections');
 for my$name(@captures) {
    my$source=$fixture;
-   if($name eq'sections') {
-      $source =~ s#renderers/all_five_player_color_192/all_five_player_color_192\.c26#sections_probe.c26# or die "fixture renderer marker missing\n";
+    if($name eq'sections') {
+       if(defined$records&&@$records<=8) {
+          my@params;
+          for my$i(0..$#$records) {
+             my$r=$records->[$i]; my$n=$i+1;
+             push@params,"section${n}_lines:=$r->{lines}","section${n}_colupf:=$r->{colupf}","section${n}_colubk:=$r->{colubk}";
+          }
+          my$args=join(',',@params);
+          $source =~ s#instantiate "renderers/all_five_player_color_192/all_five_player_color_192\.c26" as game#instantiate "renderers/all_five_sections_192/all_five_sections_192.c26" as game ($args)#
+             or die "fixture renderer marker missing\n";
+       } else {
+          $source =~ s#renderers/all_five_player_color_192/all_five_player_color_192\.c26#sections_probe.c26# or die "fixture renderer marker missing\n";
+       }
     } else {
        my($pf,$bk)=@{$palettes{$name}};
        $source =~ s/COLUPF := 0x2e;/sprintf('COLUPF := 0x%02x;',$pf)/ge;

@@ -1,0 +1,39 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Included by the component. All expressions fold during source compilation.
+alias TEMPLATE_END1 TEMPLATE_section1_lines
+alias TEMPLATE_END2 (TEMPLATE_END1 + TEMPLATE_section2_lines)
+alias TEMPLATE_END3 (TEMPLATE_END2 + TEMPLATE_section3_lines)
+alias TEMPLATE_END4 (TEMPLATE_END3 + TEMPLATE_section4_lines)
+alias TEMPLATE_END5 (TEMPLATE_END4 + TEMPLATE_section5_lines)
+alias TEMPLATE_END6 (TEMPLATE_END5 + TEMPLATE_section6_lines)
+alias TEMPLATE_END7 (TEMPLATE_END6 + TEMPLATE_section7_lines)
+alias TEMPLATE_END8 (TEMPLATE_END7 + TEMPLATE_section8_lines)
+// Height validation is emitted as zero-byte assembly directives in init().
+#if TEMPLATE_section1_colupf < 0 || TEMPLATE_section1_colupf > 255 || TEMPLATE_section1_colubk < 0 || TEMPLATE_section1_colubk > 255 || TEMPLATE_section2_colupf < 0 || TEMPLATE_section2_colupf > 255 || TEMPLATE_section2_colubk < 0 || TEMPLATE_section2_colubk > 255 || TEMPLATE_section3_colupf < 0 || TEMPLATE_section3_colupf > 255 || TEMPLATE_section3_colubk < 0 || TEMPLATE_section3_colubk > 255 || TEMPLATE_section4_colupf < 0 || TEMPLATE_section4_colupf > 255 || TEMPLATE_section4_colubk < 0 || TEMPLATE_section4_colubk > 255 || TEMPLATE_section5_colupf < 0 || TEMPLATE_section5_colupf > 255 || TEMPLATE_section5_colubk < 0 || TEMPLATE_section5_colubk > 255 || TEMPLATE_section6_colupf < 0 || TEMPLATE_section6_colupf > 255 || TEMPLATE_section6_colubk < 0 || TEMPLATE_section6_colubk > 255 || TEMPLATE_section7_colupf < 0 || TEMPLATE_section7_colupf > 255 || TEMPLATE_section7_colubk < 0 || TEMPLATE_section7_colubk > 255 || TEMPLATE_section8_colupf < 0 || TEMPLATE_section8_colupf > 255 || TEMPLATE_section8_colubk < 0 || TEMPLATE_section8_colubk > 255
+extern const uint8_t TEMPLATE_bad_colour[TEMPLATE_section_colours_must_be_bytes];
+#endif
+alias TEMPLATE_SELECT(line,a,b,c,d,e,f,g,h) ((line) < TEMPLATE_END1 ? (a) : (line) < TEMPLATE_END2 ? (b) : (line) < TEMPLATE_END3 ? (c) : (line) < TEMPLATE_END4 ? (d) : (line) < TEMPLATE_END5 ? (e) : (line) < TEMPLATE_END6 ? (f) : (line) < TEMPLATE_END7 ? (g) : (h))
+alias TEMPLATE_PF_AT(pf_line) TEMPLATE_SELECT(pf_line,TEMPLATE_section1_colupf,TEMPLATE_section2_colupf,TEMPLATE_section3_colupf,TEMPLATE_section4_colupf,TEMPLATE_section5_colupf,TEMPLATE_section6_colupf,TEMPLATE_section7_colupf,TEMPLATE_section8_colupf)
+alias TEMPLATE_BK_AT(bk_line) TEMPLATE_SELECT(bk_line,TEMPLATE_section1_colubk,TEMPLATE_section2_colubk,TEMPLATE_section3_colubk,TEMPLATE_section4_colubk,TEMPLATE_section5_colubk,TEMPLATE_section6_colubk,TEMPLATE_section7_colubk,TEMPLATE_section8_colubk)
+alias TEMPLATE_PF4(pf_start) TEMPLATE_PF_AT(pf_start),TEMPLATE_PF_AT((pf_start)+2),TEMPLATE_PF_AT((pf_start)+4),TEMPLATE_PF_AT((pf_start)+6)
+alias TEMPLATE_BK4(bk_start) TEMPLATE_BK_AT(bk_start),TEMPLATE_BK_AT((bk_start)+2),TEMPLATE_BK_AT((bk_start)+4),TEMPLATE_BK_AT((bk_start)+6)
+page const uint8_t TEMPLATE_sections_pf0[48] := {
+   TEMPLATE_PF4(0),TEMPLATE_PF4(16),TEMPLATE_PF4(32),TEMPLATE_PF4(48),
+   TEMPLATE_PF4(64),TEMPLATE_PF4(80),TEMPLATE_PF4(96),TEMPLATE_PF4(112),
+   TEMPLATE_PF4(128),TEMPLATE_PF4(144),TEMPLATE_PF4(160),TEMPLATE_PF4(176)
+};
+page const uint8_t TEMPLATE_sections_pf1[48] := {
+   TEMPLATE_PF4(8),TEMPLATE_PF4(24),TEMPLATE_PF4(40),TEMPLATE_PF4(56),
+   TEMPLATE_PF4(72),TEMPLATE_PF4(88),TEMPLATE_PF4(104),TEMPLATE_PF4(120),
+   TEMPLATE_PF4(136),TEMPLATE_PF4(152),TEMPLATE_PF4(168),TEMPLATE_PF4(184)
+};
+page const uint8_t TEMPLATE_sections_bk0[48] := {
+   TEMPLATE_BK4(0),TEMPLATE_BK4(16),TEMPLATE_BK4(32),TEMPLATE_BK4(48),
+   TEMPLATE_BK4(64),TEMPLATE_BK4(80),TEMPLATE_BK4(96),TEMPLATE_BK4(112),
+   TEMPLATE_BK4(128),TEMPLATE_BK4(144),TEMPLATE_BK4(160),TEMPLATE_BK4(176)
+};
+page const uint8_t TEMPLATE_sections_bk1[48] := {
+   TEMPLATE_BK4(8),TEMPLATE_BK4(24),TEMPLATE_BK4(40),TEMPLATE_BK4(56),
+   TEMPLATE_BK4(72),TEMPLATE_BK4(88),TEMPLATE_BK4(104),TEMPLATE_BK4(120),
+   TEMPLATE_BK4(136),TEMPLATE_BK4(152),TEMPLATE_BK4(168),TEMPLATE_BK4(184)
+};

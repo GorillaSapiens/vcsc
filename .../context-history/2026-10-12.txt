@@ -141,3 +141,37 @@ compile-time language configuration, provide an ordinary buildable example,
 and rerun these comparators against that exact component. No JSON input or
 separate user configuration tool. Odd boundaries, colour tables, score and
 PAL/SECAM remain separate acceptance gates. No commits or pushes made.
+
+2026-10-12 17:52:46 PDT, Add language-configured component and example
+Extracted the passing schedule into all_five_sections_192, with eight section
+slots configured by sectionN_lines/colupf/colubk instantiate parameters. The
+language compiler folds conditional palette expressions into four ROM feeds.
+Heights are decimal even scanline counts totalling 192; unused slots are zero.
+Assembly directives in required init reject invalid total/parity/first-section
+heights; source conditionals reject non-byte colours. No runtime guard code or
+external user configuration tool is needed. Initial colours load from ROM in
+vblank, avoiding assembler hex-spelling issues with immediate parameters.
+
+Added examples/04_renderers/all_five_sections/all_five_sections_192.c26 with
+eight sections, four palettes and smooth all-object vertical motion with wrap.
+The example uses the ordinary driver and frame_ntsc scheduler. Documented the
+solid-colour NTSC-only contract, cached RAM cost and initial eight-slot limit.
+Registered the three library files in packaging/install.manifest.
+
+Fine, edge and four-palette raster tests now instantiate the actual component
+using language parameters; dense stress remains a generated probe. All nine
+component raster entries passed together, covering every seam of the eight
+section fixture, all five objects and X=0/159 endpoints. Added a component test
+that builds private lifecycle, default and 30/162 configurations, rejects five
+invalid configurations and checks 420 lifecycle frames. That test passes. The
+public example was independently built and timed for 420 assertions, including
+motion wrap. Exact regression drivers use private fixtures, not editable examples.
+Production pre-existing renderers are unchanged.
+
+Remaining acceptance work: broader lifecycle/state/placement tests, player
+colour tables, odd boundaries, score and PAL/SECAM. The example is available now,
+not dependent on finishing those separate acceptance gates.
+Final focused validation: all nine actual-component raster entries pass, as do
+component configuration/lifecycle, history, branding, hygiene, installation
+manifest and existing video-portability checks. Public ROM is 3063/4090 bytes
+and 91/128 total RAM bytes. No unrelated full-suite rerun or commit was made.

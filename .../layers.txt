@@ -42,15 +42,20 @@ and neighbouring rows so timing errors cannot hide behind identical rewrites.
 Branch .same assertions and page anchors are retained.
 The ball follows COLUPF, so its colour changes with its section by hardware.
 
-Two-scanline-pair granularity now passes. Next: extract a documented component
-with configuration inside .c26 and rerun the existing comparators against it.
+Two-scanline-pair granularity now passes. The extracted component and example
+are libraries/vcs/renderers/all_five_sections_192/all_five_sections_192.c26 and
+examples/04_renderers/all_five_sections/all_five_sections_192.c26. Configuration
+uses sectionN_lines/colupf/colubk instantiate parameters inside .c26 (up to eight
+sections, even decimal heights totalling 192). No user generator is needed.
 Odd-scanline boundaries, player colour tables, score composition and PAL/SECAM
 remain unproven here.
 
 CERTIFIED FINE-LAYOUT PROBE (not yet a public component)
 -------------------------------------------------------
 The probe's "fine" profile uses an internal eight-section test fixture.
-There is no external configuration file or user-facing fine-layout API yet.
+There is no external configuration file; the component now exposes compile-time
+instantiate parameters. The 96-section stress case remains a probe, not a claim
+of 96 configurable slots in the eight-slot component.
 The user requires configuration inside .c26, using existing language facilities
 such as compile-time instantiate parameters, not JSON or a separate generator.
 Multiple sections compile into four page-contained colour feeds indexed by the
@@ -86,10 +91,12 @@ on representative normal, packed and row-boundary lines across moving frames.
 
 Together cartridges use 3099/4090 ROM bytes and 90/128 total RAM bytes. Four
 48-byte colour feeds are ROM data. Production renderers remain unchanged.
-The fine schedule is currently expressed as probe transformations, not a
-maintained language component. Next: extract it with compile-time .c26 section
-configuration and a buildable example, then certify that exact source with the
-same tests. Do not require users to run the Perl probe to configure a renderer.
+Fine/edge/four-palette tests now use the extracted component, not transformed
+candidate code. All seven seams and endpoint scenes pass against that exact
+source. The example builds normally and passes 420 live frames including motion
+wrap. Default/two-section configurations build; invalid heights/colours fail.
+Next: extend lifecycle/state and placement coverage before claiming the complete
+acceptance matrix of the older renderers. Player colour tables remain separate.
 The cached baseline uses 83 renderer RAM bytes versus ordinary all_five's 71;
 do not hide that tradeoff when selecting the implementation.
 

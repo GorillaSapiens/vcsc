@@ -18,8 +18,9 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, extract the now-passing fine section schedule as
-a documented .c26 component with compile-time configuration and an example.
+Current next action: Item 63, broaden lifecycle/state and placement coverage for
+the extracted all_five_sections_192 component. Its .c26 example now builds and
+uses compile-time section parameters without an external generator.
 All seven seams of its eight-section fixture, edge/dense/four-palette layouts
 and isolated X=0/159 cases pass. Preserve those comparators during extraction.
 Player colour tables remain a separate timing gate.
