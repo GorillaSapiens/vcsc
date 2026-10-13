@@ -9,7 +9,14 @@
 
 # All five objects across colour sections
 
-From the project root:
+From this example directory:
+
+```sh
+make
+make play
+```
+
+Use `make clean` to remove generated files. Alternatively, from the project root:
 
 ```sh
 driver/vcsc -I libraries/vcs \
@@ -23,6 +30,9 @@ Motion wraps at the bottom. Change the `sectionN_lines`, `sectionN_colupf` and
 `sectionN_colubk` arguments in the source's `instantiate` statement to configure
 your own layout. Heights are even scanline counts totalling 192. Up to eight
 sections are supported; omit unused slots (their heights default to zero).
+
+The A and B each have seven visible glyph rows, drawn across fourteen hardware
+scanlines. Their eighth data row is blank padding, not another letter row.
 
 No JSON, Perl generator or extra configuration step is required.
 See `libraries/vcs/renderers/all_five_sections_192/README.md` for the contract.

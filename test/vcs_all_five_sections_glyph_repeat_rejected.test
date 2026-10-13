@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_all_five_sections_probe.pl @REPO@ @TMP@ fine_glyph_repeat
+# phase: e2e
+# timeout: 120
+# expectstderr: P0 frame 200 has 16 visible scanlines, expected at most 14
+# expectexit: 255

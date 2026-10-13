@@ -55,12 +55,12 @@ sub replace_once {
    $$text =~ s/\Q$old\E/$new/ or die "probe source marker missing: $label\n";
 }
 
-(@ARGV>=2&&@ARGV<=4) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine|fine_edge|fine_dense|fine_palette] [PROOF_SEAM]\n";
+(@ARGV>=2&&@ARGV<=4) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine|fine_edge|fine_dense|fine_palette|fine_glyph|fine_glyph_repeat] [PROOF_SEAM]\n";
 my$profile=$ARGV[2]//'alternating';
 my$proof_seam=$ARGV[3];
 my%boundaries=(alternating=>undef,split_32=>32,split_48=>48,split_96=>96);
 my$records;
-if($profile eq'fine'||$profile eq'fine_edge'||$profile eq'fine_dense'||$profile eq'fine_palette') {
+if($profile eq'fine'||$profile eq'fine_edge'||$profile eq'fine_dense'||$profile eq'fine_palette'||$profile eq'fine_glyph'||$profile eq'fine_glyph_repeat') {
    my$i=0;
    my@heights=$profile eq'fine_dense'?(2)x96:$profile eq'fine_edge'?(2,4,8,2,2,10,34,130):(6,2,6,2,2,10,34,130);
    $records=[map{{lines=>$_,colupf=>($i&1?0x46:0x2e),colubk=>($i++&1?0xc2:0x84)}}@heights];
@@ -350,7 +350,7 @@ $fixture =~ s/game_MISSILE0_X := 50;/game_MISSILE0_X := 85;/;
 $fixture =~ s/game_BALL_X := 80;/game_BALL_X := 148;/;
 $fixture =~ s/game_missile0_height := 5;/game_missile0_height := 7;/;
 $fixture =~ s/game_ball_height := 3;/game_ball_height := 7;/;
-if(defined$records) {
+if(defined$records&&$profile ne'fine_glyph') {
    # Nonblank edge rows make seam coverage independent of glyph padding.
    $fixture =~ s/0x66,0x66,0x66,0x00\)/0x66,0x66,0x66,0x3c)/;
    $fixture =~ s/0x66,0x66,0x7c,0x00\)/0x66,0x66,0x7c,0x7c)/;
@@ -498,6 +498,7 @@ for my$name(@captures) {
 }
 my%motion_rasters;
 my%crossed;
+my%complete_glyph;
 my@objects=(
    ['P0',26,62,'e8e8e6'], ['P1',100,142,'46ab44'],
    ['M0',160,190,'e8e8e6'], ['M1',208,242,'46ab44'],
@@ -523,6 +524,35 @@ for my$f(200..215) {
    my@visible=grep{substr($gold,($_*$w+20)*3,3)eq$background}0..$h-1;
    @visible==192 or die "frame $f has ".scalar(@visible)." visible rows, expected 192\n";
    my$first=$visible[0]; my$expected=$gold;
+   if($profile =~ /^fine_glyph(?:_repeat)?\z/&&!defined$isolated) {
+      # Independent glyph geometry oracle, not another renderer's raster.
+      # Seven visible glyph rows each occupy two scanlines; the eighth data
+      # row is blank. Reject a repeated/extra row even if the golden agrees.
+      # The pinned raster's calibrated left edges are 38/118 pixels for the
+      # fixture's public X=20/60 positions (two PNG pixels per colour clock).
+      for my$glyph(['P0',38,'e8e8e6',[0x3c,0x66,0x66,0x7e,0x66,0x66,0x66]],
+                  ['P1',118,'46ab44',[0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c]]) {
+         my($name,$left,$hex,$shape)=@$glyph;
+         my$colour=pack('H6',$hex); my@rows;
+         for my$y($first..$first+191) {
+            my$bits=0;
+            for my$bit(0..7) {
+               my$x=$left+2*$bit;
+               my$a=substr($actual,($y*$w+$x)*3,3)eq$colour;
+               my$b=substr($actual,($y*$w+$x+1)*3,3)eq$colour;
+               $a==$b or die "$name frame $f has a half-pixel glyph bit\n";
+               $bits|=0x80>>$bit if$a;
+            }
+            push@rows,$bits if$bits;
+         }
+         @rows<=14 or die "$name frame $f has ".scalar(@rows)." visible scanlines, expected at most 14\n";
+         if(@rows==14) {
+            my@shape=map{($_,$_) }@$shape;
+            join(',',@rows)eq join(',',@shape) or die "$name frame $f glyph rows differ from the seven-row shape\n";
+            $complete_glyph{$name}=1;
+         }
+      }
+   }
    # Require an actual straddling pose for each of the five objects, not just
    # changing whole-frame digests. The golden fixture isolates their X windows;
    # BL is in the zero PF0 margin so its shared playfield colour is distinguishable.
@@ -560,6 +590,9 @@ for my$f(200..215) {
 }
 keys(%motion_rasters)==16 or die "motion proof did not exercise all sixteen positions\n";
 $crossed{$_->[0]} or die "$_->[0] never straddled the section seam\n" for@objects;
+if($profile =~ /^fine_glyph(?:_repeat)?\z/&&!defined$isolated) {
+   $complete_glyph{$_} or die "$_ never exercised a complete seven-row glyph\n" for qw(P0 P1);
+}
 terminate($xpid); vcsc_release_x_displays();
 $tmp=$root_tmp;
 }

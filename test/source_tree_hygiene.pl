@@ -110,7 +110,9 @@ for my $tree (qw(libraries examples)) {
       # builds leave a same-stem .cfg behind until `make clean`; hygiene must be
       # valid before or after that cleanup just as it is for .map/.sym/.lst.
       next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
-      next if $tree eq 'examples' && $rel =~ /\.cfg\z/;
+       next if $tree eq 'examples' && $rel =~ /\.cfg\z/;
+       # Stella's ignored runtime database and SQLite sidecars are not sources.
+       next if $tree eq 'examples' && basename($path) =~ /^stella\.sqlite3(?:-(?:journal|wal|shm))?\z/;
       basename($path) !~ /(?:license|copying|copyright)/i
          or die "subordinate license file remains under $tree: $rel\n";
       my $body=slurp($path);

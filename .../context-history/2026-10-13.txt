@@ -1,0 +1,30 @@
+2026-10-13 11:35:26 PDT, Fix glyph padding and handoff tests
+User noticed repeated final rows on the example's A/B and reported full-suite
+failures in example_reorg_inventory.pl and source_tree_hygiene.pl. The example
+had deliberately filled its eighth glyph slot with a copy of the first row,
+carried over from the probe's nonblank-edge fixture. Restored blank padding for
+both public glyphs and documented seven visible glyph rows, each occupying two
+hardware scanlines. No renderer schedule was changed.
+
+Added fine_glyph raster coverage with an independent geometry oracle: decode
+the actual player pixels into glyph bytes, require the known seven-row shape
+with exactly two scanlines per row in a complete pose, and reject more than
+fourteen nonblank scanlines. This does not rely on another renderer agreeing.
+The pinned fixture's calibrated sprite edges are 38/118 PNG pixels for public
+X=20/60. All sixteen moving poses and ten isolated endpoint cases still undergo
+the existing exact-RGB and frame/phase checks. Added a negative-control test
+that restores the repeated row: the geometry oracle rejects its sixteen-line
+P0, although the ordinary golden would agree with that deliberately bad data.
+
+Registered all_five_sections as the ninth new runnable leaf in the example
+inventory and updated its exact count. The hygiene license scan now excludes
+only examples' stella.sqlite3 and its journal/wal/shm runtime sidecars, matching
+their ignore patterns. Does not exempt arbitrary databases or delete any user
+runtime database. Verified hygiene while all four test-owned sidecar files were
+present, then removed only those temporary reproduction files.
+
+Validation: example make succeeds at 3063 ROM bytes and 91 total RAM bytes;
+inventory, hygiene, positive glyph and negative-control tests pass together.
+Full make test with eight workers passes 591 compile tests and 409 e2e tests
+(1000 total, zero failures). Full log retained outside the source tree at
+/tmp/opencode/sections-full-suite-20261013.log. No commits or pushes made.

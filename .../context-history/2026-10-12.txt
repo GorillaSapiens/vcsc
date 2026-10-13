@@ -175,3 +175,11 @@ Final focused validation: all nine actual-component raster entries pass, as do
 component configuration/lifecycle, history, branding, hygiene, installation
 manifest and existing video-portability checks. Public ROM is 3063/4090 bytes
 and 91/128 total RAM bytes. No unrelated full-suite rerun or commit was made.
+
+2026-10-12 19:36:32 PDT, Add the missing example Makefile
+User pointed out the colour-section example lacked the expected Makefile.
+Added the surrounding examples' all/clean/play pattern with the correct
+three-level ROOT path, explicit renderer and palette dependencies and a 4K
+size check. play depends on all and launches the named ROM, not a wildcard.
+README now leads with make/make play from the example directory. make builds
+successfully at 3063 ROM bytes and 91 total RAM bytes; make -n play is correct.

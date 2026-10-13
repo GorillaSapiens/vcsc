@@ -15,6 +15,9 @@
 # Stella writes this beside the ROM it is given, and each example's Makefile
 # runs in its own directory.
 stella.sqlite3
+stella.sqlite3-journal
+stella.sqlite3-wal
+stella.sqlite3-shm
 
 # No such directory exists and nothing tracked matches this name.  Left as found
 # rather than deleted: if the example returns, its .s26 still needs re-including.

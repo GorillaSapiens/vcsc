@@ -115,3 +115,4 @@ new	standards_all_five_ntsc	-	05_video_standards/all_five/ntsc	Makefile
 new	standards_all_five_unofficial_ntsc	-	05_video_standards/all_five_unofficial/ntsc	Makefile
 new	standards_multisprite_ntsc	-	05_video_standards/multisprite/ntsc	Makefile
 new	standards_enhanced_multisprite_asymmetric_ntsc	-	05_video_standards/enhanced_multisprite_asymmetric/ntsc	Makefile
+new	all_five_sections	-	04_renderers/all_five_sections	Makefile
