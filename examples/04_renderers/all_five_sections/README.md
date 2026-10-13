@@ -25,8 +25,13 @@ driver/vcsc -I libraries/vcs \
 stella /tmp/all_five_sections.bin
 ```
 
-All five objects move vertically across eight sections with four palettes.
-Motion wraps at the bottom. Change the `sectionN_lines`, `sectionN_colupf` and
+Use the **left joystick** to move the selected object. **Game Select** cycles
+P0 → P1 → M0 → M1 → ball → P0, once per press; P0 is selected initially.
+**Game Reset** restarts the example. Positions clamp at the screen edges,
+matching the other 192-line all-five interactive examples. There is no automatic
+motion.
+
+Change the `sectionN_lines`, `sectionN_colupf` and
 `sectionN_colubk` arguments in the source's `instantiate` statement to configure
 your own layout. Heights are even scanline counts totalling 192. Up to eight
 sections are supported; omit unused slots (their heights default to zero).

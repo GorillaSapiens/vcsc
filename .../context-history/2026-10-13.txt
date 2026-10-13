@@ -46,3 +46,23 @@ glyph tests plus component configuration/lifecycle test pass (3/3); example make
 still succeeds at 3063 ROM and 91 total RAM bytes. The previous full 1000-test
 pass predates this correction; no new full-suite claim is made for these narrow
 example-data and geometry-test changes.
+
+2026-10-13 12:49:16 PDT, Match all-five interactive controls
+User pointed out the other 192-line all-five examples use the left joystick
+and Game Select to choose the controlled object. Replaced the sections demo's
+automatic motion with the same clamped X/Y controls and edge-triggered selection
+cycle P0/P1/M0/M1/BL/P0. Holding Select does not keep advancing. Initialize
+SWACNT/SWBCNT and independent Y poses, with P0 selected first. Copied the existing
+scratch-free console Reset path. Controls run after game_overscan() as in the
+other interactive examples, never between renderer preparation and drawing.
+Eight-row A/B artwork and compile-time section configuration are unchanged.
+
+Validation: make succeeds at 3564/4090 ROM bytes and 97/128 total RAM bytes.
+Ran the actual public ROM through seven scripted-input cases, checking frame
+timing and final selected/ready/X/Y state: idle, held Select, selection wrap,
+P0-only movement, P1-only movement, and all five objects clamping at both the
+upper/left and lower/right limits. Cases cover 420 to 1002 VSYNC assertions;
+all pass. Scripts account for two startup assertions before completed controls.
+Manual input/timing log is /tmp/opencode/sections-interactive-controls.log.
+This is public-example validation, not an exact golden test coupled to editable
+examples. No renderer source or raster schedule was changed.

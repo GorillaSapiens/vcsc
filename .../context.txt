@@ -205,6 +205,8 @@ placement acceptance coverage. Player colour tables remain a separate gate.
 Example glyphs now have eight intentional visible rows (16 hardware scanlines);
 independent glyph-row and negative-control tests pass. The last full suite run
 passed 591 compile and 409 e2e tests (1000 total), before this glyph-data correction.
+The sections example now matches all-five interactive controls: left joystick,
+edge-triggered Select cycling through five objects, and Reset. No automatic motion.
 User configuration must live inside .c26; JSON input was rejected and removed.
 Player colour tables
 remain a separate timing gate. No public layer ABI is agreed; production renderers

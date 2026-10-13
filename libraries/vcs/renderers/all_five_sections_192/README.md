@@ -56,7 +56,8 @@ state between preparation and drawing. Private masks and caches are not an API.
 
 Draw enters at cycle 3, owns 192 complete lines and returns at cycle 0 after
 terminal WSYNC. The cached renderer uses 83 RAM bytes, plus application state
-and hardware stack. The example uses 91/128 total RAM bytes and fits a 4K ROM.
+and hardware stack. The interactive example uses 97/128 total RAM bytes and fits
+a 4K ROM.
 Vblank reserves the inherited 1800-cycle budget plus 24 cycles for initial colours.
 
 Normal GRP1/M1 stores finish at cycles 3/6, colours at 13/20. Packed-pair and
@@ -74,7 +75,7 @@ certified for this schedule.
 ## Example and tests
 
 See `examples/04_renderers/all_five_sections/all_five_sections_192.c26`.
-It has eight sections, four palettes and all five objects moving vertically.
+It has eight sections, four palettes and joystick/Select control of all five objects.
 Build/run instructions are in the example's README.
 
 `test/vcs_all_five_sections_fine_*.test` compares the actual component against
