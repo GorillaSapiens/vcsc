@@ -50,7 +50,8 @@ Public state follows `all_five_player_color_192`: `PLAYER0_X`, `PLAYER1_X`,
 `player1_y`, `missile0_y`, `missile1_y`, `ball_y`, object heights, sprite pointers,
 and `PLAYER0_NUSIZ`/`PLAYER1_NUSIZ`. Y/height use two-scanline object rows, not
 section scanlines. Graphics must be immutable and page-contained. Player heights
-are temporarily incremented in vblank and restored in overscan. Do not change
+are last-row indices: 7 selects eight graphics rows (sixteen hardware scanlines).
+They are temporarily incremented in vblank and restored in overscan. Do not change
 state between preparation and drawing. Private masks and caches are not an API.
 
 Draw enters at cycle 3, owns 192 complete lines and returns at cycle 0 after

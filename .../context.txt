@@ -202,8 +202,9 @@ The extracted all_five_sections_192 component and public example now build with
 compile-time .c26 section configuration (eight slots). Seam/endpoint tests use
 the actual component; the example passes 420 frames. Next: broaden lifecycle and
 placement acceptance coverage. Player colour tables remain a separate gate.
-Example glyph padding is corrected; independent glyph-row and negative-control
-tests pass. Full suite now passes 591 compile and 409 e2e tests (1000 total).
+Example glyphs now have eight intentional visible rows (16 hardware scanlines);
+independent glyph-row and negative-control tests pass. The last full suite run
+passed 591 compile and 409 e2e tests (1000 total), before this glyph-data correction.
 User configuration must live inside .c26; JSON input was rejected and removed.
 Player colour tables
 remain a separate timing gate. No public layer ABI is agreed; production renderers

@@ -350,7 +350,13 @@ $fixture =~ s/game_MISSILE0_X := 50;/game_MISSILE0_X := 85;/;
 $fixture =~ s/game_BALL_X := 80;/game_BALL_X := 148;/;
 $fixture =~ s/game_missile0_height := 5;/game_missile0_height := 7;/;
 $fixture =~ s/game_ball_height := 3;/game_ball_height := 7;/;
-if(defined$records&&$profile ne'fine_glyph') {
+if($profile =~ /^fine_glyph(?:_repeat)?\z/) {
+   my$bottom=$profile eq'fine_glyph_repeat'?'0x18':'0x66';
+   $fixture =~ s/game_SPRITE_GLYPH\(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x00\)/game_SPRITE_GLYPH(0x18,0x3c,0x66,0x66,0x7e,0x66,0x66,$bottom)/
+      or die "P0 glyph fixture missing\n";
+   $fixture =~ s/game_SPRITE_GLYPH\(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00\)/game_SPRITE_GLYPH(0x78,0x6c,0x66,0x7c,0x66,0x66,0x6c,0x7c)/
+      or die "P1 glyph fixture missing\n";
+} elsif(defined$records) {
    # Nonblank edge rows make seam coverage independent of glyph padding.
    $fixture =~ s/0x66,0x66,0x66,0x00\)/0x66,0x66,0x66,0x3c)/;
    $fixture =~ s/0x66,0x66,0x7c,0x00\)/0x66,0x66,0x7c,0x7c)/;
@@ -526,12 +532,12 @@ for my$f(200..215) {
    my$first=$visible[0]; my$expected=$gold;
    if($profile =~ /^fine_glyph(?:_repeat)?\z/&&!defined$isolated) {
       # Independent glyph geometry oracle, not another renderer's raster.
-      # Seven visible glyph rows each occupy two scanlines; the eighth data
-      # row is blank. Reject a repeated/extra row even if the golden agrees.
+      # Eight visible glyph rows each occupy two scanlines. Reject a
+      # repeated/extra row even if the ordinary golden renderer agrees.
       # The pinned raster's calibrated left edges are 38/118 pixels for the
       # fixture's public X=20/60 positions (two PNG pixels per colour clock).
-      for my$glyph(['P0',38,'e8e8e6',[0x3c,0x66,0x66,0x7e,0x66,0x66,0x66]],
-                  ['P1',118,'46ab44',[0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c]]) {
+      for my$glyph(['P0',38,'e8e8e6',[0x18,0x3c,0x66,0x66,0x7e,0x66,0x66,0x66]],
+                  ['P1',118,'46ab44',[0x78,0x6c,0x66,0x7c,0x66,0x66,0x6c,0x7c]]) {
          my($name,$left,$hex,$shape)=@$glyph;
          my$colour=pack('H6',$hex); my@rows;
          for my$y($first..$first+191) {
@@ -545,10 +551,10 @@ for my$f(200..215) {
             }
             push@rows,$bits if$bits;
          }
-         @rows<=14 or die "$name frame $f has ".scalar(@rows)." visible scanlines, expected at most 14\n";
-         if(@rows==14) {
+         @rows<=16 or die "$name frame $f has ".scalar(@rows)." visible scanlines, expected at most 16\n";
+         if(@rows==16) {
             my@shape=map{($_,$_) }@$shape;
-            join(',',@rows)eq join(',',@shape) or die "$name frame $f glyph rows differ from the seven-row shape\n";
+            join(',',@rows)eq join(',',@shape) or die "$name frame $f glyph rows differ from the eight-row shape\n";
             $complete_glyph{$name}=1;
          }
       }
@@ -591,7 +597,7 @@ for my$f(200..215) {
 keys(%motion_rasters)==16 or die "motion proof did not exercise all sixteen positions\n";
 $crossed{$_->[0]} or die "$_->[0] never straddled the section seam\n" for@objects;
 if($profile =~ /^fine_glyph(?:_repeat)?\z/&&!defined$isolated) {
-   $complete_glyph{$_} or die "$_ never exercised a complete seven-row glyph\n" for qw(P0 P1);
+   $complete_glyph{$_} or die "$_ never exercised a complete eight-row glyph\n" for qw(P0 P1);
 }
 terminate($xpid); vcsc_release_x_displays();
 $tmp=$root_tmp;

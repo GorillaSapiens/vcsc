@@ -31,8 +31,8 @@ Motion wraps at the bottom. Change the `sectionN_lines`, `sectionN_colupf` and
 your own layout. Heights are even scanline counts totalling 192. Up to eight
 sections are supported; omit unused slots (their heights default to zero).
 
-The A and B each have seven visible glyph rows, drawn across fourteen hardware
-scanlines. Their eighth data row is blank padding, not another letter row.
+The A and B each have eight intentional glyph rows, drawn across sixteen
+hardware scanlines. The player-height value is the last row index (7 for 8 rows).
 
 No JSON, Perl generator or extra configuration step is required.
 See `libraries/vcs/renderers/all_five_sections_192/README.md` for the contract.

@@ -28,3 +28,21 @@ inventory, hygiene, positive glyph and negative-control tests pass together.
 Full make test with eight workers passes 591 compile tests and 409 e2e tests
 (1000 total, zero failures). Full log retained outside the source tree at
 /tmp/opencode/sections-full-suite-20261013.log. No commits or pushes made.
+
+2026-10-13 12:05:44 PDT, Restore the intended eight-row glyphs
+User clarified the intended glyphs have eight visible rows, not seven plus
+padding. The prior response fixed the repeated row by dropping a visible row,
+which was the wrong interpretation. Replaced A/B artwork with eight deliberate
+rows; the last row is not an accidental copy of the first. Documented that the
+player height is a last-row index: 7 selects eight rows, sixteen hardware lines.
+No renderer or timing schedule changed.
+
+Updated the independent geometry oracle to require exactly eight doubled rows
+in a complete pose and reject more than sixteen visible hardware scanlines.
+The negative control substitutes the first A row into its last slot, without
+changing its height: exact shape comparison rejects it even though the golden
+renderer and the scanline count would otherwise agree. Positive and negative
+glyph tests plus component configuration/lifecycle test pass (3/3); example make
+still succeeds at 3063 ROM and 91 total RAM bytes. The previous full 1000-test
+pass predates this correction; no new full-suite claim is made for these narrow
+example-data and geometry-test changes.

@@ -26,13 +26,12 @@ instantiate "renderers/all_five_sections_192/all_five_sections_192.c26" as game 
    section8_lines:=130, section8_colupf:=0xae, section8_colubk:=0x64
 )
 
-// Seven visible glyph rows followed by blank padding. Each row occupies two
-// hardware scanlines; the padding must not repeat the letter's first row.
+// Eight intentional glyph rows, each occupying two hardware scanlines.
 page const uint8_t p0_graphics[8] := {
-   game_SPRITE_GLYPH(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x00)
+   game_SPRITE_GLYPH(0x18,0x3c,0x66,0x66,0x7e,0x66,0x66,0x66)
 };
 page const uint8_t p1_graphics[8] := {
-   game_SPRITE_GLYPH(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00)
+   game_SPRITE_GLYPH(0x78,0x6c,0x66,0x7c,0x66,0x66,0x6c,0x7c)
 };
 uint8_t motion;
 uint8_t slow;
@@ -50,6 +49,7 @@ void main(void) {
    game_BALL_X := 148;
    game_player0_graphics := p0_graphics;
    game_player1_graphics := p1_graphics;
+   // The inherited player-height convention is the last row index: 7 means 8.
    game_player0_height := 7;
    game_player1_height := 7;
    game_missile0_height := 7;
