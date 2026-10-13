@@ -196,10 +196,10 @@ The user confirmed compile-time section boundaries and requires all five objects
 to move and span sections without restarting. A cached, solid-player-colour
 section timing probe exists in test/vcs_all_five_sections_probe.pl, with normal
 e2e entries for alternating rows and fixed 32/160, 48/144 and 96/96 splits.
-Next: extend to two-scanline-pair granularity rather than requiring 16-line
-packed-row boundaries, preserving exact-RGB moving-object and X=0/159 tests.
-An opt-in fine-layout experiment exists but fails exact-RGB certification;
-see layers.txt for reproduction. Fix write phases before publishing any API.
+The fine schedule now passes all seven seams of an eight-section layout, plus
+edge, 96-section and four-palette profiles. Exact RGB, X=0/159 and timing pass.
+Next: extract the proven schedule as a documented component with compile-time
+.c26 section configuration and a buildable example; retain all comparators.
 User configuration must live inside .c26; JSON input was rejected and removed.
 Player colour tables
 remain a separate timing gate. No public layer ABI is agreed; production renderers

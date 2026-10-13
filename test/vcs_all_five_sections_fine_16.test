@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_all_five_sections_probe.pl @REPO@ @TMP@ fine 16
+# phase: e2e
+# timeout: 300
+# expectstdout: vcs_all_five_sections_probe ok
+# expectexit: 0

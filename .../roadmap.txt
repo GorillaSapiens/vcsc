@@ -18,11 +18,11 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, remove the baked-section probe's 16-line boundary
-restriction, targeting two-scanline pairs while preserving moving-object and
-X=0/159 exact-RGB tests. Player colour tables remain a separate timing gate.
-The opt-in fine experiment currently fails exact-RGB despite passing raw
-frame timing. Resolve intra-line deadlines, then certify every custom seam.
+Current next action: Item 63, extract the now-passing fine section schedule as
+a documented .c26 component with compile-time configuration and an example.
+All seven seams of its eight-section fixture, edge/dense/four-palette layouts
+and isolated X=0/159 cases pass. Preserve those comparators during extraction.
+Player colour tables remain a separate timing gate.
 Keep user configuration in .c26 with existing language facilities, not JSON.
 
 [ ] 63. Layers: frames built from cooperating components sharing a vocabulary of

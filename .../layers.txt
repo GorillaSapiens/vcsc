@@ -22,59 +22,74 @@ CURRENT PROBE AND OPEN WORK
 ---------------------------
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,
-object masks and delayed latches, but uses solid player colours and immediate
-COLUPF/COLUBK palettes. Its default profile alternates twelve 16-line sections.
+object masks and delayed latches, but uses solid player colours. Its original
+baked profiles use immediate COLUPF/COLUBK palettes; the fine profiles use four
+compile-time colour feeds. Its default alternates twelve 16-line sections.
 The split_32, split_48 and split_96 profiles use two larger sections, selected
 by a fixed row-end comparison baked into the code. That seven-cycle dispatch
 replaces seven-cycle padding; it adds no scanline cycles or RAM. Only the last
 pair/boundary paths are specialized, not whole renderer instances.
-There is no section-colour lookup table. Ordinary playfield/cache/mask data
+The baked profiles have no section-colour lookup table. Playfield/cache/mask data
 remain; this is not a claim of eliminating all renderer data accesses.
 Production renderers are unchanged. Each larger-layout profile is independently
 discoverable by the unified e2e runner through vcs_all_five_sections_*.test.
 
-The comparator checks 16 moving poses against exact-RGB composites of two
-ordinary golden rasters, requires all five objects to straddle the first seam,
+The comparator checks 16 moving poses against exact-RGB composites of
+ordinary golden rasters, requires all five objects to straddle the selected seam,
 and checks frame timing. Its isolated cases require each object to straddle
 the seam at X=0 and X=159. All profiles use distinct left/right playfield bytes
 and neighbouring rows so timing errors cannot hide behind identical rewrites.
 Branch .same assertions and page anchors are retained.
 The ball follows COLUPF, so its colour changes with its section by hardware.
 
-Next: remove the 16-line boundary restriction, targeting two-scanline-pair
-granularity. Preserve the moving-object and endpoint comparators when promoting
-the proof into a maintained component. Arbitrary section heights, player colour
-tables, score composition and PAL/SECAM remain unproven here.
+Two-scanline-pair granularity now passes. Next: extract a documented component
+with configuration inside .c26 and rerun the existing comparators against it.
+Odd-scanline boundaries, player colour tables, score composition and PAL/SECAM
+remain unproven here.
 
-UNVERIFIED FINE-LAYOUT EXPERIMENT (not a supported renderer)
-----------------------------------------------------------
-The probe's opt-in "fine" profile uses an internal eight-section test fixture.
+CERTIFIED FINE-LAYOUT PROBE (not yet a public component)
+-------------------------------------------------------
+The probe's "fine" profile uses an internal eight-section test fixture.
 There is no external configuration file or user-facing fine-layout API yet.
 The user requires configuration inside .c26, using existing language facilities
 such as compile-time instantiate parameters, not JSON or a separate generator.
-Multiple sections compile into four page-contained colour feeds indexed by the existing
+Multiple sections compile into four page-contained colour feeds indexed by the
+existing
 packed-row X, without a runtime boundary search or additional RAM. This changes
-the intra-line schedule and is NOT the certified baked-only implementation.
+the intra-line schedule and is distinct from the original baked-only schedule.
 
-Reproduce the unfinished experiment from the repository root:
+Generate the passing fine-layout demo from the repository root:
 perl test/vcs_all_five_sections_probe.pl . /tmp/opencode/sections-fine-check fine
 
 The built-in "fine" profile has these eight section heights:
-2, 4, 8, 2, 2, 10, 34, 130. Its boundaries are 2, 6, 14, 16, 18, 28 and 62.
+6, 2, 6, 2, 2, 10, 34, 130. Its boundaries are 6, 8, 14, 16, 18, 28 and 62.
 Independent golden cartridges are generated for every distinct palette, so
 fixture colours are not silently compared to the old hard-coded two palettes.
 
-Current failure: the fine/together experiment passes raw frame timing but fails
-the full exact-RGB raster at pixel (160,31) in captured frame 200. Palette and
-left/right playfield write deadlines conflict in the attempted schedule. Page
-anchors and all .same assertions remain enabled; a link-valid, frame-valid
-schedule is insufficient. Endpoint scenes and all-seam motion certification
-have NOT been completed for fine layouts. No normal runner test enables this
-known-failing profile. Existing alternating/split profiles remain unchanged.
+All seven seams pass individually through vcs_all_five_sections_fine_*.test:
+each requires actual straddling for all five objects together and at X=0/159.
+The fine_edge profile also checks the earlier 2,4,8,2,2,10,34,130 geometry,
+using line six for the straddling assertion: inherited P0 pipeline priming
+leaves the first two visible lines blank, so P0 cannot span the line-two seam.
+The fine_dense profile has 96 two-line sections and checks exact RGB across all
+95 seams, with actual motion/endpoint straddling required at its line-96 seam.
+The fine_palette profile proves four different palettes instead of only two.
 
-Next: resolve the intra-line write phases before adding fine layouts to the
-passing suite or defining a maintained user-facing component. Then exercise
-all new seams with all five objects and isolated endpoints, not just the first.
+The new schedule stages M1 in Y while A holds P1 graphics, then reloads P0 Y
+after the early palette/left-playfield writes. Pair six stages packed ball/M1
+after GRP0; delayed-ball state changes only on the subsequent GRP1 latch.
+Right PF2 rewrites finish at cycle 48 on every line. Normal-pair GRP1/M1 are
+cycles 3/6 and palette stores 13/20; packed/row-boundary GRP1/M1 are 2/5 and
+palette stores 12/19. All .same contracts and page anchors remain enabled.
+The timing harness additionally checks stable GRP1 and palette/PF2 phase vectors
+on representative normal, packed and row-boundary lines across moving frames.
+
+Together cartridges use 3099/4090 ROM bytes and 90/128 total RAM bytes. Four
+48-byte colour feeds are ROM data. Production renderers remain unchanged.
+The fine schedule is currently expressed as probe transformations, not a
+maintained language component. Next: extract it with compile-time .c26 section
+configuration and a buildable example, then certify that exact source with the
+same tests. Do not require users to run the Perl probe to configure a renderer.
 The cached baseline uses 83 renderer RAM bytes versus ordinary all_five's 71;
 do not hide that tradeoff when selecting the implementation.
 

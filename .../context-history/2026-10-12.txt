@@ -103,3 +103,41 @@ raster comparison. Reproduction now uses the named fine profile directly.
 The intended user configuration belongs in .c26, using existing compile-time
 language facilities such as instantiate parameters. No public syntax or API
 is implemented yet; fix the intra-line timing before selecting that interface.
+
+2026-10-12 16:32:20 PDT, Certify fine and multiple section boundaries
+Resolved the fine probe's intra-line conflicts without changing production
+renderers. Stage M1 in Y while A holds P1 graphics, then restore P0 Y after
+early palette writes. Normal right PF2 moves before CPY with equal-time address
+and padding adjustments. Pair six prepares packed ball/M1 after GRP0; delayed
+ball state changes only on the next GRP1 latch. Packed and row-boundary paths
+retain cycle-48 right PF2 rewrites and early colours, including the ball at X=0.
+Normal GRP1/M1 phases are 3/6, colours 13/20; packed/boundary phases are 2/5,
+colours 12/19. Final row page anchors use phase $10 with every .same retained.
+
+Added seven independent tests for boundaries 6,8,14,16,18,28,62 in the eight
+section fixture (heights 6,2,6,2,2,10,34,130). Every seam requires each object
+to actually straddle, both together and isolated at X=0/159, across sixteen
+moving poses. Added fine_edge (original line-two boundary), fine_dense (96
+two-line sections), and fine_palette (four palettes) entries. Each palette has
+its own independently captured golden cartridge. All fine tests also require
+stable GRP1 and colour/PF2 phase vectors at normal/packed/row-handoff lines.
+
+The inherited P0 pipeline leaves the first two visible rows blank; an attempted
+line-two P0 straddling assertion cannot pass even against the ordinary golden
+renderer. fine_edge verifies its entire exact-RGB raster but selects line six
+for actual seam-straddling. Dense captures compare all 95 seams, requiring
+actual straddling at line 96. This is not a claim of moving-object certification
+at every dense-layout seam. The eight-section fixture does certify every seam.
+
+Validation: all fourteen section entries passed the unified runner with fourteen
+workers and unchanged 300-second per-test ceilings (154 scenes). An earlier
+ten-worker invocation hit the tool's 240-second total limit after reporting
+13 passes; reran with a larger outer timeout, not relaxed test expectations.
+Together ROM uses 3099/4090 bytes, total RAM 90/128; cached state remains 83.
+
+User-facing configuration is still unfinished: the proven fine schedule remains
+in the internal Perl probe. Next: extract a documented .c26 component using
+compile-time language configuration, provide an ordinary buildable example,
+and rerun these comparators against that exact component. No JSON input or
+separate user configuration tool. Odd boundaries, colour tables, score and
+PAL/SECAM remain separate acceptance gates. No commits or pushes made.

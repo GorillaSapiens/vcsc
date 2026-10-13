@@ -7,9 +7,8 @@
 # Experimental baked-in sections, not a new public renderer ABI.
 # Reuse the certified cached all-five pipeline and compare moving objects against
 # an exact-RGB composite of two ordinary, independently coloured golden rasters.
-# Opt-in fine layouts are unfinished timing experiments, not supported
-# renderers: they currently fail exact-RGB certification. Default and split_*
-# profiles retain the certified baked schedule. See .../layers.txt.
+# Fine layouts are experimental schedules, not a public renderer API.
+# Default and split_* profiles retain the certified baked schedule.
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -56,13 +55,19 @@ sub replace_once {
    $$text =~ s/\Q$old\E/$new/ or die "probe source marker missing: $label\n";
 }
 
-(@ARGV==2||@ARGV==3) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine]\n";
+(@ARGV>=2&&@ARGV<=4) or die "usage: $0 REPO TMP [alternating|split_32|split_48|split_96|fine|fine_edge|fine_dense|fine_palette] [PROOF_SEAM]\n";
 my$profile=$ARGV[2]//'alternating';
+my$proof_seam=$ARGV[3];
 my%boundaries=(alternating=>undef,split_32=>32,split_48=>48,split_96=>96);
 my$records;
-if($profile eq'fine') {
+if($profile eq'fine'||$profile eq'fine_edge'||$profile eq'fine_dense'||$profile eq'fine_palette') {
    my$i=0;
-   $records=[map{{lines=>$_,colupf=>($i&1?0x46:0x2e),colubk=>($i++&1?0xc2:0x84)}}(2,4,8,2,2,10,34,130)];
+   my@heights=$profile eq'fine_dense'?(2)x96:$profile eq'fine_edge'?(2,4,8,2,2,10,34,130):(6,2,6,2,2,10,34,130);
+   $records=[map{{lines=>$_,colupf=>($i&1?0x46:0x2e),colubk=>($i++&1?0xc2:0x84)}}@heights];
+   if($profile eq'fine_palette') {
+      my@palettes=([0x2e,0x84],[0x46,0xc2],[0x8e,0x26],[0xae,0x64]);
+      for my$n(0..$#$records) { @{$records->[$n]}{qw(colupf colubk)}=@{$palettes[$n%4]}; }
+   }
 }
 exists$boundaries{$profile}||defined$records or die "unknown section profile: $profile\n";
 my$repo=abs_path($ARGV[0]) or die "resolve repo\n";
@@ -189,8 +194,15 @@ sub section_records {
    return$records;
 }
 sub fine_sections {
-   # UNVERIFIED: frame timing alone does not certify the intra-line schedule.
-   # Keep .same contracts and exact-RGB failures; do not publish this as an ABI.
+   # Keep .same contracts and full exact-RGB proof: frame totals alone do not
+   # certify the intra-line schedule. Section feeds use the existing X index.
+   # Final normal-pair phases: GRP1=3, ENAM1=6, COLUPF=13, COLUBK=20,
+   # left PF1/PF2=26/32, right PF2=48. Packed/row-handoff phases are
+   # GRP1=2, ENAM1=5, colours=12/19, left PF1/PF2=25/31, right PF2=48.
+   # Y stages M1 while A holds P1 graphics. Pair 6 stages the packed ball/M1
+   # after GRP0; the ball's delayed latch is unchanged until the next GRP1.
+   # The transformations below retain the intermediate anchor strings used by
+   # the original probe. Extract a documented component before publishing an ABI.
    my($s,$records)=@_; section_records($records);
    my@colours;
    push@colours,([$_->{colupf},$_->{colubk}])x($_->{lines}/2) for@$records;
@@ -255,7 +267,7 @@ sub fine_sections {
       replace_once(\$s,$old,$new,"$c fixed-phase next M0 commit");
    }
    $s =~ s/   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta ENAM1;\n   asm lda.ax (TEMPLATE_sections_bk[01] \+ \d+,x);\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta PF1;\n   asm lda.ax (TEMPLATE_sections_pf[01] \+ \d+,x);\n   asm sta COLUPF;/   asm lda.ax $4;\n   asm sta COLUPF;\n   asm lda.ax $2;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $3;\n   asm sta PF1;/g;
-   $s =~ s/\.align 256, \$90/.align 256, \$08/g;
+   $s =~ s/\.align 256, \$90/.align 256, \$10/g;
    for my$c(qw(A B)) {
       my$right=$c eq'A'?3:10;
       for my$p(1..6) {
@@ -275,6 +287,53 @@ sub fine_sections {
    $s =~ s/   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache \+ (\d+);\n   asm sta PF2;/   asm lda.z TEMPLATE_row_cache + $2;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + $1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $3;\n   asm sta PF2;/g;
    replace_once(\$s,'   asm jmp @TEMPLATE_A_u1;','   asm jmp @TEMPLATE_sections_first;','initial pair entry');
    replace_once(\$s,'   asm @TEMPLATE_A_u1:;',"   asm \@TEMPLATE_sections_first:;\n   asm nop;\n   asm \@TEMPLATE_A_u1:;",'initial pair phase');
+   for my$c(qw(A B)) {
+      my$left=$c eq'A'?0:7;
+      my$m1=$left+5;
+      for my$p(1..6) {
+         replace_once(\$s,"   asm \@TEMPLATE_${c}_u${p}_p1_ready:;\n   asm ldy.z TEMPLATE_object_masks;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks;\n   asm sta GRP1;",
+            "   asm \@TEMPLATE_${c}_u${p}_p1_ready:;\n   asm dec.z TEMPLATE_object_masks;\n   asm ldy.z TEMPLATE_row_cache + $m1;\n   asm sta GRP1;\n   asm sty ENAM1;","$c pair $p stage M1 in Y");
+         my$half=int($p/4); my$index=$p%4;
+         replace_once(\$s,"   asm lda.ax TEMPLATE_sections_bk$half + $index,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + $m1;\n   asm sta ENAM1;",
+            "   asm lda.ax TEMPLATE_sections_bk$half + $index,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;","$c pair $p early M1 commit");
+         replace_once(\$s,"   asm lsr.z TEMPLATE_row_cache + $m1;\n   asm cpy.z TEMPLATE_player0_height;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta.a PF1;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p0_zero;",
+            "   asm lsr.z TEMPLATE_row_cache + $m1;\n   asm ldy.z TEMPLATE_object_masks;\n   asm nop;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm cpy.z TEMPLATE_player0_height;\n   asm lda.z TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm bcs.same \@TEMPLATE_${c}_u${p}_p0_zero;","$c pair $p right PF2 deadline");
+      }
+      replace_once(\$s,"   asm \@TEMPLATE_${c}_u7:;\n   asm dec.z TEMPLATE_object_masks + 1;\n   asm nop;",
+         "   asm \@TEMPLATE_${c}_u7:;\n   asm dec.z TEMPLATE_object_masks + 1;","$c packed entry phase");
+      replace_once(\$s,"   asm sta.z TEMPLATE_row_cache + ".($left+6).";\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";",
+         "   asm sta.z TEMPLATE_row_cache + ".($left+6).";\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";","$c packed P1 right phase");
+      replace_once(\$s,"   asm \@TEMPLATE_${c}_u7_p1_ready:;\n   asm sta GRP1;",
+         "   asm \@TEMPLATE_${c}_u7_p1_ready:;\n   asm ldy.z TEMPLATE_row_cache + $m1;\n   asm sta GRP1;\n   asm sty ENAM1;","$c packed early M1");
+      replace_once(\$s,"   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.z TEMPLATE_row_cache + $m1;\n   asm sta ENAM1;",
+         "   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;","$c packed staged M1 commit");
+      replace_once(\$s,"   asm cpy.z TEMPLATE_player0_height;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm sty.z TEMPLATE_object_masks + 0;",
+         "   asm cpy.z TEMPLATE_player0_height;\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm sty.z TEMPLATE_object_masks + 0;","$c packed P0 right phase");
+      replace_once(\$s,"   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm bcs.same \@TEMPLATE_${c}_boundary_p1_zero;",
+         "   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm nop;\n   asm bcs.same \@TEMPLATE_${c}_boundary_p1_zero;","$c boundary right phase");
+      replace_once(\$s,"   asm sta.z TEMPLATE_row_cache + ".($left+6).";\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";",
+         "   asm sta.z TEMPLATE_row_cache + ".($left+6).";\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";","$c packed P1 exact PF2 phase");
+      replace_once(\$s,"   asm cpy.z TEMPLATE_player0_height;\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm sty.z TEMPLATE_object_masks + 0;",
+         "   asm cpy.z TEMPLATE_player0_height;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm sty.z TEMPLATE_object_masks + 0;","$c packed P0 exact PF2 phase");
+      replace_once(\$s,"   asm sty ENAM1;\n   asm lda.ax TEMPLATE_sections_pf1 + 3,x;\n   asm sta COLUPF;\n   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;",
+         "   asm sty ENAM1;\n   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.ax TEMPLATE_sections_pf1 + 3,x;\n   asm sta COLUPF;","$c packed left PF1 deadline");
+      my$nm0=$c eq'A'?13:6;
+      replace_once(\$s,"   asm bcs.same \@TEMPLATE_${c}_u6_p0_zero;\n   asm lda.iy (TEMPLATE_player0_graphics),y;\n   asm jmp \@TEMPLATE_${c}_u6_p0_ready;\n   asm \@TEMPLATE_${c}_u6_p0_zero:;\n   asm lda #0;\n   asm tay;\n   asm bit.z \$00;\n   asm \@TEMPLATE_${c}_u6_p0_ready:;\n   asm sta GRP0;\n   asm lsr.z TEMPLATE_row_cache + ".($left+4).";\n   asm nop;",
+         "   asm bcc.same \@TEMPLATE_${c}_u6_p0_active;\n   asm lda.z TEMPLATE_object_masks + 2;\n   asm jmp \@TEMPLATE_${c}_u6_p0_ready;\n   asm \@TEMPLATE_${c}_u6_p0_active:;\n   asm lda.iy (TEMPLATE_player0_graphics),y;\n   asm \@TEMPLATE_${c}_u6_p0_ready:;\n   asm sta GRP0;\n   asm lda.zx TEMPLATE_object_masks + 3,x;\n   asm sta ENABL;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $m1;","$c prepare packed ball and M1 in pair 6");
+      replace_once(\$s,"   asm lda.zx TEMPLATE_object_masks + 3,x;\n   asm sta ENABL;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $m1;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + ".($left+6).";\n   asm lda.a TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.z TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm ldy.zx TEMPLATE_object_masks + 6,x;\n   asm sty.z TEMPLATE_row_cache + $nm0;",
+         "   asm lda.z TEMPLATE_row_cache + $m1;\n   asm lsr;\n   asm sta.z TEMPLATE_row_cache + ".($left+6).";\n   asm ldy.zx TEMPLATE_object_masks + 6,x;\n   asm sty.z TEMPLATE_row_cache + $nm0;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.z TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm nop;\n   asm nop;","$c packed staging deadlines");
+      replace_once(\$s,"   asm sty ENAM1;\n   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;\n   asm lda.ax TEMPLATE_sections_pf1 + 3,x;\n   asm sta COLUPF;",
+         "   asm sty ENAM1;\n   asm lda.ax TEMPLATE_sections_pf1 + 3,x;\n   asm sta COLUPF;\n   asm lda.ax TEMPLATE_sections_bk1 + 3,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $left;\n   asm sta PF1;","$c packed ball colour deadline");
+      replace_once(\$s,"   asm ldy.z TEMPLATE_object_masks + 0;\n   asm dey;\n   asm cpy.z TEMPLATE_player0_height;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm sty.z TEMPLATE_object_masks + 0;",
+         "   asm ldy.z TEMPLATE_object_masks + 0;\n   asm dey;\n   asm cpy.z TEMPLATE_player0_height;\n   asm bit.z \$00;\n   asm lda.z TEMPLATE_row_cache + ".($left+2).";\n   asm sta PF2;\n   asm lda.a TEMPLATE_row_cache + ".($left+3).";\n   asm sta PF1;\n   asm sty.z TEMPLATE_object_masks + 0;","$c packed P0 fixed right rewrite");
+      my$nl=$c eq'A'?7:0; my$nm1=$nl+5;
+      replace_once(\$s,"   asm \@TEMPLATE_${c}_boundary_p1_ready:;\n   asm ldy.z TEMPLATE_object_masks + 0;\n   asm dey;\n   asm sty.z TEMPLATE_object_masks + 0;",
+         "   asm \@TEMPLATE_${c}_boundary_p1_ready:;\n   asm dec.z TEMPLATE_object_masks + 0;\n   asm ldy.z TEMPLATE_row_cache + $nm1;","$c next-row M1 staging");
+      replace_once(\$s,"   asm sta GRP1;\n   asm lda.ax TEMPLATE_sections_bk0 + 4,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $nm1;\n   asm sta ENAM1;\n   asm lda.z TEMPLATE_row_cache + $nl;\n   asm sta PF1;\n   asm lda.ax TEMPLATE_sections_pf0 + 4,x;\n   asm sta COLUPF;",
+         "   asm sta GRP1;\n   asm sty ENAM1;\n   asm lda.ax TEMPLATE_sections_pf0 + 4,x;\n   asm sta COLUPF;\n   asm lda.ax TEMPLATE_sections_bk0 + 4,x;\n   asm sta COLUBK;\n   asm lda.z TEMPLATE_row_cache + $nl;\n   asm sta PF1;","$c row-boundary palette deadlines");
+      replace_once(\$s,"   asm lsr.z TEMPLATE_row_cache + $nm1;\n   asm cpy.z TEMPLATE_player0_height;",
+         "   asm lsr.z TEMPLATE_row_cache + $nm1;\n   asm ldy.z TEMPLATE_object_masks + 0;\n   asm cpy.z TEMPLATE_player0_height;","$c restore row-boundary P0 Y");
+   }
    return$s;
 }
 
@@ -291,6 +350,11 @@ $fixture =~ s/game_MISSILE0_X := 50;/game_MISSILE0_X := 85;/;
 $fixture =~ s/game_BALL_X := 80;/game_BALL_X := 148;/;
 $fixture =~ s/game_missile0_height := 5;/game_missile0_height := 7;/;
 $fixture =~ s/game_ball_height := 3;/game_ball_height := 7;/;
+if(defined$records) {
+   # Nonblank edge rows make seam coverage independent of glyph padding.
+   $fixture =~ s/0x66,0x66,0x66,0x00\)/0x66,0x66,0x66,0x3c)/;
+   $fixture =~ s/0x66,0x66,0x7c,0x00\)/0x66,0x66,0x7c,0x7c)/;
+}
 $fixture =~ s/void main\(void\)/uint8_t motion;\nvoid main(void)/;
 $fixture =~ s/game_vblank\(\);/motion := (motion + 1) \& 15;\n      game_player0_y := 8 + motion;\n      game_player1_y := 8 + motion;\n      game_missile0_y := 8 + motion;\n      game_missile1_y := 8 + motion;\n      game_ball_y := 8 + motion;\n      COLUPF := 0x2e;\n      COLUBK := 0x84;\n      game_vblank();/;
 my@cases=(['together',undef,undef]);
@@ -305,6 +369,17 @@ if(defined$records) {
    # section's background from just its playfield colour.
    push@row_palette,(sprintf('%02x:%02x',$_->{colupf},$_->{colubk}))x$_->{lines} for@$records;
    $profile_boundary=$records->[0]{lines};
+   $profile_boundary=6 if$profile eq'fine_edge';
+   $profile_boundary=96 if$profile eq'fine_dense';
+   if(defined$proof_seam) {
+      $proof_seam =~ /\A\d+\z/ or die "proof seam must be an integer\n";
+      my$line=0; my%seams;
+      for my$r(@$records) { $line+=$r->{lines}; $seams{$line}=1 if$line<192; }
+      $seams{$proof_seam} or die "proof seam is not a layout boundary\n";
+      $profile_boundary=$proof_seam;
+   }
+} elsif(defined$proof_seam) {
+   die "proof seam is only available for fine profiles\n";
 }
 for my$layout([$profile,$profile_boundary,defined$records?fine_sections($probe,$records):defined$profile_boundary?two_sections($probe,$profile_boundary):$probe]) {
 my($layout_name,$boundary,$layout_source)=@$layout;
@@ -316,6 +391,7 @@ my$case_tmp=File::Spec->catdir($tmp,$case_name); make_path($case_tmp);
 my$root_tmp=$tmp; $tmp=$case_tmp;
 $fixture=$moving_fixture;
 my$motion_base=($boundary//16)/2;
+$motion_base-- if defined$records;
 $fixture =~ s/ := 8 \+ motion;/ := $motion_base + motion;/g;
 if(defined$isolated) {
    my%names=(P0=>'PLAYER0',P1=>'PLAYER1',M0=>'MISSILE0',M1=>'MISSILE1',BL=>'BALL');
@@ -369,7 +445,17 @@ unless(-x$timing) {
 ok('build timing',$ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
    File::Spec->catfile($repo,qw(test vcs_frame_timing.cpp)),@mos_input,'-o',$timing);
 }
-ok('section frame timing',$timing,$rom{sections},'50','--no-audio','--raw-lines','264');
+my@phase_checks;
+if(defined$records) {
+   # Cover normal pairs, packed pair 7 and the row-cache handoff. Each rule
+   # checks the complete phase vector, including both left/right PF2 writes,
+   # across changing graphics and palettes; no phase drift is tolerated.
+   push@phase_checks,('--require-stable-tia-write-phase','0x1c',$_) for(41,53,55);
+   for my$line(42,54,56) {
+      push@phase_checks,('--require-stable-tia-write-phase',$_,$line) for('0x08','0x09','0x0f');
+   }
+}
+ok('section frame timing',$timing,$rom{sections},'50','--no-audio','--raw-lines','264',@phase_checks);
 
 my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella');
 my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb');
