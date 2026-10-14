@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // Build from the project root:
-// driver/vcsc -I libraries/vcs examples/04_renderers/all_five_sections/all_five_sections_192.c26 -o /tmp/all_five_sections.bin
+// driver/vcsc -I libraries/vcs examples/04_renderers/all_five_sections/no_score/all_five_sections_192.c26 -o /tmp/all_five_sections.bin
 include "vcs.c26"
 include "frame_ntsc.c26"
 

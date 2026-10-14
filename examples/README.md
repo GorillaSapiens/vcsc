@@ -30,6 +30,10 @@ cartridge source plus a README; mapper diagnostics with multiple closely related
 ROMs keep those ROMs together under one leaf where that relationship is part of
 the example contract.
 
+Runnable examples are always leaves: an example directory must not contain
+other runnable examples. Family/group directories provide indexes, not their own
+runnable source or Makefile.
+
 ## Renderer identities
 
 `04_renderers/` names the renderer being demonstrated rather than the old source

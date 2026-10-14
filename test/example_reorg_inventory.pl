@@ -94,6 +94,15 @@ find({
    },
 },$examples);
 
+# Runnable examples must be leaves, never parents of other runnable examples.
+for my $leaf (sort keys %actual_leaves) {
+   my $ancestor=$leaf;
+   while ($ancestor =~ s{/[^/]+\z}{}) {
+      !$actual_leaves{$ancestor}
+         or die "runnable example examples/$ancestor contains nested example examples/$leaf\n";
+   }
+}
+
 for my $leaf (sort keys %actual_leaves) {
    $active_leaves{$leaf}
       or die "unmapped runnable example leaf appeared: examples/$leaf\n";

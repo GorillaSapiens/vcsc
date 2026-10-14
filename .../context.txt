@@ -58,7 +58,9 @@ Source-lineage and workflow invariants
 * Preserve `.../instruction.txt`; it is intentional project guidance.
 * Use the term **renderer**, never **kernel**, for VCSC display implementations.
 * Prefer targeted builds/tests while developing; run the broad suite at a real
-  checkpoint or before handoff. Do not weaken a valid regression to make it pass.
+   checkpoint or before handoff. Do not weaken a valid regression to make it pass.
+* Runnable example directories must be leaves, not parents of other examples.
+  Group directories can index sibling examples but must not themselves be runnable.
 * Before handoff: update only durable/open hot state, append completed work to
   daily history, clean generated residue, test, then package one latest tarball.
 

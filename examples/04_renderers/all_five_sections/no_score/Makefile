@@ -1,6 +1,6 @@
 # This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-ROOT ?= ../../..
+ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 

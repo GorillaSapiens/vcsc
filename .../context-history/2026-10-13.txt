@@ -130,3 +130,19 @@ F8 images were byte-identical to the pixel-certified private fixtures. Cleaned
 the three new examples' generated build outputs before handoff. No commits or
 pushes; unrelated preexisting work was preserved. Remaining lifecycle/placement
 acceptance means broader exact raster proofs, not the timing checks just added.
+2026-10-13 21:05:53 PDT, Make colour-section examples sibling leaves
+User clarified that runnable examples must be complete leaf directories, never
+parents of other runnable examples. Audited all 119 example Makefile directories:
+the new all_five_sections parent was the sole violation, containing runnable
+score_above and score_below children alongside its own no-score cartridge.
+Moved the no-score source, Makefile and README into all_five_sections/no_score.
+The parent now contains only the family index and three sibling example leaves:
+no_score, score_above, score_below. Updated ROOT depth, active documentation paths
+and inventory without changing the cartridge program or logical example count.
+Added a repository-wide ancestor check to example_reorg_inventory.pl so nesting
+any future runnable example under another fails the normal regression suite.
+Documented the leaf-only rule in examples/README.md and current project context.
+Validation: relocated no-score example builds at unchanged 3564 ROM/97 RAM bytes;
+inventory, tree hygiene, branding, component lifecycle and Stella play-contract
+checks pass (five targeted tests). This is a path/layout-only follow-up to the
+previous complete 1002-test validation. No commits or pushes.

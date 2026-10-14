@@ -44,7 +44,7 @@ The ball follows COLUPF, so its colour changes with its section by hardware.
 
 Two-scanline-pair granularity now passes. The extracted component and example
 are libraries/vcs/renderers/all_five_sections_192/all_five_sections_192.c26 and
-examples/04_renderers/all_five_sections/all_five_sections_192.c26. Configuration
+examples/04_renderers/all_five_sections/no_score/all_five_sections_192.c26. Configuration
 uses sectionN_lines/colupf/colubk instantiate parameters inside .c26 (up to eight
 sections, even decimal heights totalling 192). No user generator is needed.
 The score-composable all_five_sections_181 profile now shares the continuous

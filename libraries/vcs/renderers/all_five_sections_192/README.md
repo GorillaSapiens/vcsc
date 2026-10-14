@@ -77,7 +77,7 @@ schedule. Score composition uses the separate 181-line profile linked above.
 
 ## Example and tests
 
-See `examples/04_renderers/all_five_sections/all_five_sections_192.c26`.
+See `examples/04_renderers/all_five_sections/no_score/all_five_sections_192.c26`.
 It has eight sections, four palettes and joystick/Select control of all five objects.
 Build/run instructions are in the example's README.
 
