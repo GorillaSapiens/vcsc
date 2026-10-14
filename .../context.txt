@@ -200,13 +200,18 @@ The fine schedule now passes all seven seams of an eight-section layout, plus
 edge, 96-section and four-palette profiles. Exact RGB, X=0/159 and timing pass.
 The extracted all_five_sections_192 component and public example now build with
 compile-time .c26 section configuration (eight slots). Seam/endpoint tests use
-the actual component; the example passes 420 frames. Next: broaden lifecycle and
+the actual component; the example passes 420 frames. Next: broaden raster lifecycle and
 placement acceptance coverage. Player colour tables remain a separate gate.
 Example glyphs now have eight intentional visible rows (16 hardware scanlines);
-independent glyph-row and negative-control tests pass. The last full suite run
-passed 591 compile and 409 e2e tests (1000 total), before this glyph-data correction.
+independent glyph-row and negative-control tests pass. The latest full suite
+passed 591 compile and 411 e2e tests (1002 total), including the score profiles.
 The sections example now matches all-five interactive controls: left joystick,
 edge-triggered Select cycling through five objects, and Reset. No automatic motion.
+Score-above/below examples now use all_five_sections_181: 176 colourable lines,
+181 including fixed setup/tail, plus an independent 11-line score. Full interactive
+score controls match existing examples. These use 8K F8 and all 128 RAM bytes.
+Independent RGB/seam/straddling, score/object, input and randomized timing tests
+pass in both orders. Renderer schedule is shared; 192-line contracts are preserved.
 User configuration must live inside .c26; JSON input was rejected and removed.
 Player colour tables
 remain a separate timing gate. No public layer ABI is agreed; production renderers

@@ -41,3 +41,11 @@ hardware scanlines. The player-height value is the last row index (7 for 8 rows)
 
 No JSON, Perl generator or extra configuration step is required.
 See `libraries/vcs/renderers/all_five_sections_192/README.md` for the contract.
+
+## Score compositions
+
+[`score_above`](score_above/) and [`score_below`](score_below/) provide the same
+left-joystick/Select controls plus right-joystick score editing as the existing
+interactive score examples. Each has its own Makefile and builds an 8K F8 ROM.
+Those profiles have 176 colourable gameplay lines plus fixed setup/tail and an
+11-line score; this directory's no-score example remains 192 lines and 4K.

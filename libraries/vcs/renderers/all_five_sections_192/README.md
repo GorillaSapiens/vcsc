@@ -9,6 +9,9 @@
 
 # All-five colour sections (NTSC, 192 lines)
 
+For an independent score above or below, use the separate
+[181-line score-composable profile](../all_five_sections_181/README.md).
+
 This separate solid-player-colour profile draws P0, P1, M0, M1 and the ball
 continuously across **up to eight compile-time colour sections**. It does not
 restart object state at a boundary. Existing renderers are unchanged.
@@ -69,8 +72,8 @@ straddle a boundary at line two. The edge-layout raster test checks that seam
 against the ordinary renderer without claiming otherwise.
 
 Only NTSC 192-line operation with solid player colours is supported here.
-Odd boundaries, player colour tables, score composition and PAL/SECAM are not
-certified for this schedule.
+Odd boundaries, player colour tables and PAL/SECAM are not certified for this
+schedule. Score composition uses the separate 181-line profile linked above.
 
 ## Example and tests
 

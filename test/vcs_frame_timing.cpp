@@ -66,6 +66,7 @@ size_t cartridge_size = 0;
 enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE, FC, F0, E0 };
 CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
 unsigned selected_f8_chunk = 1;
+bool f8_superchip = false;
 unsigned selected_f4_chunk = 7;
 unsigned selected_three_chunk = 0;
 unsigned three_bank_count = 4;
@@ -323,7 +324,7 @@ uint8_t timer_value(uint64_t cycle) {
 
 uint8_t peek_memory(uint16_t address) {
    const uint16_t bus = address & 0x1fff;
-   if ((cartridge_mapper == CartridgeTimingMapper::F8 ||
+   if (((cartridge_mapper == CartridgeTimingMapper::F8 && f8_superchip) ||
         cartridge_mapper == CartridgeTimingMapper::F4SC) &&
        (bus & 0x1000)) {
       const uint16_t offset = bus & 0x0fff;
@@ -373,7 +374,7 @@ uint8_t read_bus(uint16_t address) {
       return read_e0_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) {
       const uint16_t offset = address & 0x0fff;
-      if (offset >= 0x0080 && offset <= 0x00ff) {
+      if (f8_superchip && offset >= 0x0080 && offset <= 0x00ff) {
          return superchip_ram[offset - 0x0080];
       }
       return cartridge_image[selected_f8_chunk * kBankSize + offset];
@@ -439,7 +440,7 @@ void write_bus(uint16_t address, uint8_t value) {
        bus >= 0x1400 && bus < 0x1800) {
       threee_ram[threee_ram_bank][bus - 0x1400u] = value;
    }
-   else if ((cartridge_mapper == CartridgeTimingMapper::F8 ||
+    else if (((cartridge_mapper == CartridgeTimingMapper::F8 && f8_superchip) ||
              cartridge_mapper == CartridgeTimingMapper::F4SC) &&
             bus >= 0x1000 && bus <= 0x107f) {
       superchip_ram[address & 0x7f] = value;
@@ -1284,7 +1285,8 @@ int main(int argc, char **argv) {
       // F8/F8SC file chunk 1 is the startup bank ($1FF9).  The 6507 only
       // exposes 13 address bits, so banked code linked at $Dxxx and $Fxxx
       // reaches the same cartridge window; read_bus() applies that mirror.
-      cartridge_mapper = CartridgeTimingMapper::F8;
+       cartridge_mapper = CartridgeTimingMapper::F8;
+       f8_superchip = std::memcmp(signature, "F8SC", 4) == 0;
       map_f8_chunk(1);
    }
    else if (cartridge_size == kBankSize) {

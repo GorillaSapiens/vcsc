@@ -90,9 +90,15 @@ public:
       std::memset(memory_, 0, sizeof(memory_));
       std::ifstream rom(rom_path, std::ios::binary);
       if (!rom) fail("cannot open ROM");
-      rom.read(reinterpret_cast<char *>(memory_ + kRomBase), kRomSize);
-      if (rom.gcount() != static_cast<std::streamsize>(kRomSize))
-         fail("ROM is not exactly 4096 bytes");
+      rom.seekg(0,std::ios::end);
+      const auto size=rom.tellg();
+      rom.seekg(0);
+      if (size == 8192) {
+         f8_=true;
+         rom.read(reinterpret_cast<char *>(banked_rom_.data()),8192);
+      } else if (size == static_cast<std::streamoff>(kRomSize)) {
+         rom.read(reinterpret_cast<char *>(memory_ + kRomBase),kRomSize);
+      } else fail("ROM is not 4K or plain F8");
       cpu_.Reset();
    }
 
@@ -194,6 +200,9 @@ private:
    uint8_t timer_loaded_ = 0;
    bool timer_overrun_ = false;
    uint64_t instructions_ = 0;
+   bool f8_=false;
+   unsigned bank_=1;
+   std::array<uint8_t,8192> banked_rom_{};
 
    static uint8_t read_bus_thunk(uint16_t address) { return active_->read_bus(address); }
    static void write_bus_thunk(uint16_t address, uint8_t value) { active_->write_bus(address, value); }
@@ -225,6 +234,12 @@ private:
    }
 
    uint8_t read_bus(uint16_t address) {
+      const uint16_t bus=address&0x1fff;
+      if (f8_ && (bus&0x1000)) {
+         if (bus==0x1ff8) bank_=0;
+         if (bus==0x1ff9) bank_=1;
+         return banked_rom_[bank_*4096+(bus&0xfff)];
+      }
       if (address == kSwcha) return swcha_;
       if (address == kSwchb) return swchb_;
       if (address == kIntim) {
@@ -236,6 +251,12 @@ private:
    }
 
    void write_bus(uint16_t address, uint8_t value) {
+      const uint16_t bus=address&0x1fff;
+      if (f8_ && (bus&0x1000)) {
+         if (bus==0x1ff8) bank_=0;
+         if (bus==0x1ff9) bank_=1;
+         return;
+      }
       if (address < kRomBase) memory_[address] = value;
       writes_.push_back({address, value});
    }

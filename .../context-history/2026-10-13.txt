@@ -66,3 +66,67 @@ all pass. Scripts account for two startup assertions before completed controls.
 Manual input/timing log is /tmp/opencode/sections-interactive-controls.log.
 This is public-example validation, not an exact golden test coupled to editable
 examples. No renderer source or raster schedule was changed.
+2026-10-13 17:22:19 PDT, Sections with interactive scores
+Added score-above and score-below examples with existing all-five interactive
+semantics: left joystick and edge-triggered Select control objects; right
+joystick selects a decimal score digit and adds/subtracts its weight once per
+deflection, including carry/borrow, wrapping, colour selection and Reset.
+The A/B graphics contain eight intentional rows, not seven plus padding.
+New all_five_sections_181 profile configures up to eight even-height sections
+totalling 176 colourable lines. Fixed positioning/setup and blank tail complete
+181; an independent six-glyph score occupies 11. Per-profile wrappers share
+all_five_sections_common.c26 without changing the existing 192-line schedule.
+Uppercase profile constants are internal and checked by init().
+
+The full interactive examples exceed 4K and use standard 8K F8 cartridges.
+Visible score/raster stay in bank0; preparation and controls execute in bank1.
+banked_vblank:=1 uses a four-byte first-playfield-row mirror in that bank.
+The default standalone component requires no mirror or bankswitching.
+Public examples use 117 RAM bytes plus 11 hardware-stack bytes (128 total),
+so there is no spare RAM. Each example has make/play/clean and documentation.
+Installation manifest and runnable inventory include both profiles/examples.
+
+Validation: vcs_all_five_sections_score.pl builds private 4K scenes and complete
+interactive F8 fixtures. Existing independent score-pixel and all-five object
+oracles pass in both orders, as do controls (including held inputs, BCD arithmetic,
+clamping and Reset) and 420-assertion static/randomized frame timing.
+vcs_all_five_sections_score_raster.pl compares 40 moving poses per order against
+four independently coloured ordinary all-five golden ROMs. Every RGB pixel
+matches, including score/tail, and every object straddles each of the seven
+seams at 6,8,14,16,18,28,62. This caught and corrected an extra first-pair M0
+priming display: the zero mask lane now supplies the same three-cycle load.
+The timing harness previously treated plain F8 as F8SC, hiding ROM $80..$ff
+behind nonexistent RAM. It now enables Superchip only for the F8SC signature.
+The interactive input oracle now supports plain F8 as well as existing 4K ROMs.
+First full-suite attempt reached 590/591 compile passes and found the new play
+targets lacked the required settings warning. Added it and reran the suite.
+During the next run, fixed missing playfield.c26 in the new golden fixture and
+PATH resolution for Stella/Xvfb. All exact automated regressions now consume
+private artwork/controls, not editable public example data, preserving hygiene.
+The full F8 raster test uses independent ordinary-renderer idle golden ROMs and
+checks the complete linked image, including an independent eight-row A/B oracle.
+This exposed the final diagonal playfield's center seam: score-profile terminal
+PF2/PF1 now use absolute cache loads to match the ordinary 181-line schedule.
+The fixed F8 idle images and forty moving private 4K images match every RGB
+pixel in both score orders. Manually rebuilt both public examples and confirmed
+their ROM bytes equal the pixel-certified F8 fixtures byte-for-byte.
+Additional lifecycle timing exercises swap complete graphics pointers and
+randomize player heights, NUSIZ, all X residues and all byte Y values. They pass;
+height seven is restored after pointer-swapping frames. These are timing checks,
+not an assertion of full raster coverage for every arbitrary NUSIZ/height.
+Broader runtime heights/graphics/NUSIZ, other placement layouts and player colour
+tables remain separate acceptance work; no claim of PAL/SECAM or odd seams.
+2026-10-13 17:50:47 PDT, Score sections validation checkpoint
+Full make test TEST_JOBS=8 TEST_TIMINGS=0 passes: 591 compile and 411 e2e tests,
+1002 total, zero failures. Log: /tmp/opencode/sections-score-certified-suite.log.
+Latest strengthened geometry/lifecycle/configuration tests also pass focused
+reruns: 192-line runtime X/Y/heights/NUSIZ and graphics-pointer swaps, height
+restoration, score-profile rejection of invalid heights/internal constants/player
+colours, full F8 RGB composites, and independent eight-row A/B shape checks.
+Public score examples rebuild at bank0=3236/3840 and bank1=952/3840 bytes,
+with 117 object/scratch RAM bytes and 11 hardware-stack bytes, 128 total.
+The no-score example remains 3564/4090 ROM and 97/128 RAM bytes. Both public
+F8 images were byte-identical to the pixel-certified private fixtures. Cleaned
+the three new examples' generated build outputs before handoff. No commits or
+pushes; unrelated preexisting work was preserved. Remaining lifecycle/placement
+acceptance means broader exact raster proofs, not the timing checks just added.

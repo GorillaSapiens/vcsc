@@ -51,4 +51,30 @@ my($rc,$o,$e)=run($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$
 !$rc or die "timing build: $o$e";
 ($rc,$o,$e)=run("$tmp/timing","$tmp/lifecycle.bin",'420','--no-audio','--raw-lines','264');
 !$rc or die "example timing: $o$e";
+open(my$sf,'<',"$tmp/lifecycle.sym") or die$!; my$sym=<$sf>;close$sf;
+sub address {
+   my$name=shift;$sym =~ /^\Q$name\E\s+([0-9a-fA-F]{4})\s*$/m or die "missing $name\n";
+   return hex$1;
+}
+my@state=('--randomize-zp',address('game_object_x'),5,160,733);
+my$seed=911;
+for my$n(qw(game_player0_y game_player1_y game_missile0_y game_missile1_y game_ball_y)) {
+   push@state,'--randomize-zp',address($n),1,256,$seed++;
+}
+for my$n(qw(game_player0_height game_player1_height game_missile0_height game_missile1_height game_ball_height)) {
+   push@state,'--randomize-zp',address($n),1,8,$seed++;
+}
+push@state,'--randomize-zp',address('game_player0_nusiz'),2,256,101;
+($rc,$o,$e)=run("$tmp/timing","$tmp/lifecycle.bin",'420','--no-audio','--raw-lines','264',@state);
+!$rc or die "runtime position/height/NUSIZ timing: $o$e";
+my@graphics=map{address($_)}qw(p0_graphics p1_graphics);my@pointers;
+for my$n(qw(game_player0_graphics game_player1_graphics)) {
+   my$a=address($n);
+   push@pointers,'--frame-sequence',$a,join(',',map{$_&255}@graphics),
+      '--frame-sequence',$a+1,join(',',map{$_>>8}@graphics);
+}
+($rc,$o,$e)=run("$tmp/timing","$tmp/lifecycle.bin",'420','--no-audio','--raw-lines','264',@pointers,
+   '--expect-memory',address('game_player0_height'),7,
+   '--expect-memory',address('game_player1_height'),7);
+!$rc or die "runtime graphics/height restoration: $o$e";
 print "vcs_all_five_sections_component ok\n";

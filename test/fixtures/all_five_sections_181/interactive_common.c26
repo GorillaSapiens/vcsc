@@ -1,0 +1,148 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Private regression artwork and controls; independent of editable examples.
+bank1 page const uint8_t game_prepare_playfield[4] := {
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.)
+};
+page const uint8_t game_playfield[44] := {
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b...X...._.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b....X..._..X....._X.....X._....X...),
+   VCS_PLAYFIELD_ROW(0b.....X.._...X...._.X.....X_.....X..),
+   VCS_PLAYFIELD_ROW(0b......X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.......X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0bX......._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
+};
+page const uint8_t p0_graphics[8] := { 0x66,0x66,0x66,0x7e,0x66,0x66,0x3c,0x18 };
+page const uint8_t p1_graphics[8] := { 0x7c,0x6c,0x66,0x66,0x7c,0x66,0x6c,0x78 };
+alias OBJECT_MAX_Y 87
+alias SELECTED_OBJECT_COUNT 5
+uint8_t selected_object := 0;
+uint8_t select_switch_latched;
+uint8_t selected_score_digit := 0;
+uint8_t right_joystick_latched;
+uint8_t object_y[5];
+bank1 const bcd24_t score_digit_weight[6] := { 1,10,100,1000,10000,100000 };
+
+inline void move_selected_object(void) {
+   uint8_t object := selected_object;
+   if (!(SWCHA & 0x40)) {
+      if (game_object_x[object]) { game_object_x[object]--; }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (game_object_x[object] < 159) { game_object_x[object]++; }
+      }
+   }
+   if (!(SWCHA & 0x10)) {
+      if (object_y[object]) { object_y[object]--; }
+      return;
+   }
+   if (!(SWCHA & 0x20)) {
+      if (object_y[object] < OBJECT_MAX_Y) { object_y[object]++; }
+   }
+}
+
+bank1 void update_controls(void) {
+   if (SWCHB & 0x02) {
+      select_switch_latched := 0;
+   }
+   else {
+      if (!select_switch_latched) {
+         selected_object++;
+         if (selected_object == SELECTED_OBJECT_COUNT) { selected_object := 0; }
+         select_switch_latched := 1;
+      }
+   }
+   move_selected_object();
+   if ((SWCHA & 0x0f) == 0x0f) {
+      right_joystick_latched := 0;
+      return;
+   }
+   if (right_joystick_latched) { return; }
+   right_joystick_latched := 1;
+   if (!(SWCHA & 0x04)) {
+      selected_score_digit++;
+      if (selected_score_digit == 6) { selected_score_digit := 0; }
+   }
+   else {
+      if (SWCHA & 0x08) { goto score_vertical; }
+      selected_score_digit--;
+      if (selected_score_digit & 0x80) { selected_score_digit := 5; }
+   }
+   score_color += 0x10;
+score_vertical:
+   if (!(SWCHA & 0x01)) {
+      score_score += score_digit_weight[selected_score_digit];
+   }
+   else {
+      if (!(SWCHA & 0x02)) {
+         score_score -= score_digit_weight[selected_score_digit];
+      }
+   }
+}
+
+inline void sync_object_y(void) {
+   game_player0_y := object_y[0];
+   game_player1_y := object_y[1];
+   game_missile0_y := object_y[2];
+   game_missile1_y := object_y[3];
+   game_ball_y := object_y[4];
+}
+
+bank1 void prepare_game(void) {
+   sync_object_y();
+   game_vblank();
+}
+
+bank1 void initialize_game(void) {
+   object_y[0] := 18;
+   object_y[1] := 78;
+   object_y[2] := 34;
+   object_y[3] := 62;
+   object_y[4] := 48;
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x21;
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 130;
+   game_MISSILE0_X := 50;
+   game_MISSILE1_X := 110;
+   game_BALL_X := 80;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   score_score := 123456;
+   game_init();
+}
+
+void main(void) {
+   initialize_game();
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   score_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      prepare_game();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+      draw_visible_components();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      if (!(SWCHB & 0x01)) { hard_reset(); }
+      update_controls();
+      vcs_ntsc_end_overscan();
+   }
+}

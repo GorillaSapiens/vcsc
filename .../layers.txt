@@ -47,8 +47,15 @@ are libraries/vcs/renderers/all_five_sections_192/all_five_sections_192.c26 and
 examples/04_renderers/all_five_sections/all_five_sections_192.c26. Configuration
 uses sectionN_lines/colupf/colubk instantiate parameters inside .c26 (up to eight
 sections, even decimal heights totalling 192). No user generator is needed.
-Odd-scanline boundaries, player colour tables, score composition and PAL/SECAM
-remain unproven here.
+The score-composable all_five_sections_181 profile now shares the continuous
+schedule through all_five_sections_common.c26. Its even section heights total
+176 gameplay lines; fixed setup/tail complete 181, composed with an 11-line
+score above or below. Public examples preserve the existing all-five interactive
+score semantics and use 8K F8 banking outside visible drawing. Independent
+ordinary-renderer exact-RGB composites prove four palettes, all seven seams,
+and all-five straddling in both orders across forty moving poses. Input/score
+and static object oracles plus randomized frame-timing tests pass.
+Odd-scanline boundaries, player colour tables and PAL/SECAM remain unproven.
 
 CERTIFIED FINE-LAYOUT PROBE (not yet a public component)
 -------------------------------------------------------

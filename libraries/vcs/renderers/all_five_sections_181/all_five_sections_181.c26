@@ -1,0 +1,59 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+// NTSC score-composable all-five colour sections. See README.md.
+parameter section1_lines := 176;
+parameter section1_colupf := 0x2e;
+parameter section1_colubk := 0x84;
+parameter section2_lines := 0;
+parameter section2_colupf := 0x46;
+parameter section2_colubk := 0xc2;
+parameter section3_lines := 0;
+parameter section3_colupf := 0x2e;
+parameter section3_colubk := 0x84;
+parameter section4_lines := 0;
+parameter section4_colupf := 0x46;
+parameter section4_colubk := 0xc2;
+parameter section5_lines := 0;
+parameter section5_colupf := 0x2e;
+parameter section5_colubk := 0x84;
+parameter section6_lines := 0;
+parameter section6_colupf := 0x46;
+parameter section6_colubk := 0xc2;
+parameter section7_lines := 0;
+parameter section7_colupf := 0x2e;
+parameter section7_colubk := 0x84;
+parameter section8_lines := 0;
+parameter section8_colupf := 0x46;
+parameter section8_colubk := 0xc2;
+parameter SCORE_PROFILE := 1;
+parameter PROFILE_LINES := 181;
+parameter SECTION_LINES := 176;
+parameter PF_BYTES := 44;
+parameter PF_ROWS := 11;
+parameter PRIVATE_BYTES := 68;
+parameter TOTAL_BYTES := 89;
+parameter CACHE_BYTES := 20;
+parameter PAIR_LIMIT := 88;
+parameter MISSILE_LIMIT := 88;
+parameter BALL_BIAS := 1;
+parameter FIRST_CACHE := 7;
+parameter TERMINAL_BASE := 40;
+parameter player0_color := 0x0e;
+parameter player1_color := 0xc8;
+#if TEMPLATE_player0_color < 0 || TEMPLATE_player0_color > 255 || TEMPLATE_player1_color < 0 || TEMPLATE_player1_color > 255
+extern const uint8_t TEMPLATE_bad_player_colour[TEMPLATE_player_colours_must_be_bytes];
+#endif
+// Optional first-row mirror permits VBLANK preparation in another ROM bank.
+parameter banked_vblank := 0;
+page const uint8_t TEMPLATE_solid_player_colors[2] := {
+   TEMPLATE_player0_color,TEMPLATE_player1_color
+};
+include "renderers/all_five_sections_common.c26"
+
+inline void TEMPLATE_validate_profile(void) {
+   asm .if TEMPLATE_SCORE_PROFILE != 1 || TEMPLATE_PROFILE_LINES != 181 || TEMPLATE_SECTION_LINES != 176 || TEMPLATE_PF_BYTES != 44 || TEMPLATE_PF_ROWS != 11 || TEMPLATE_PRIVATE_BYTES != 68 || TEMPLATE_TOTAL_BYTES != 89 || TEMPLATE_CACHE_BYTES != 20 || TEMPLATE_PAIR_LIMIT != 88 || TEMPLATE_MISSILE_LIMIT != 88 || TEMPLATE_BALL_BIAS != 1 || TEMPLATE_FIRST_CACHE != 7 || TEMPLATE_TERMINAL_BASE != 40;
+   asm .error "Internal profile constants must not be overridden";
+   asm .endif;
+   asm .if TEMPLATE_banked_vblank < 0 || TEMPLATE_banked_vblank > 1;
+   asm .error "banked_vblank must be zero or one";
+   asm .endif;
+}

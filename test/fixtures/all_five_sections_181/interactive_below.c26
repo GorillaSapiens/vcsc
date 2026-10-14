@@ -1,0 +1,25 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+include "vcs.c26"
+include "F8/mapper.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+include "fonts/default_decimal.c26"
+instantiate "renderers/all_five_sections_181/all_five_sections_181.c26" as game (
+   banked_vblank:=1,
+   section1_lines:=6, section1_colupf:=0x2e, section1_colubk:=0x84,
+   section2_lines:=2, section2_colupf:=0x46, section2_colubk:=0xc2,
+   section3_lines:=6, section3_colupf:=0x8e, section3_colubk:=0x26,
+   section4_lines:=2, section4_colupf:=0xae, section4_colubk:=0x64,
+   section5_lines:=2, section5_colupf:=0x2e, section5_colubk:=0x84,
+   section6_lines:=10, section6_colupf:=0x46, section6_colubk:=0xc2,
+   section7_lines:=34, section7_colupf:=0x8e, section7_colubk:=0x26,
+   section8_lines:=114, section8_colupf:=0xae, section8_colubk:=0x64
+)
+instantiate "six_glyph_component.c26" as score (mutable_color:=1)
+inline void draw_visible_components(void) {
+   game_draw();
+   vcs_ntsc_component_handoff();
+   score_draw();
+}
+include "interactive_common.c26"

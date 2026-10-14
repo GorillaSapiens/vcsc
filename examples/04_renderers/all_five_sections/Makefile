@@ -11,7 +11,8 @@ all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(VCS_DIR)/vcs.c26 $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/renderers/all_five_sections_192/all_five_sections_192.c26 \
-           $(VCS_DIR)/renderers/all_five_sections_192/palette.c26
+            $(VCS_DIR)/renderers/all_five_sections_192/palette.c26 \
+            $(VCS_DIR)/renderers/all_five_sections_common.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 
