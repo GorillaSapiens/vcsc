@@ -1,0 +1,10 @@
+2026-10-14 08:47:13 PDT, Visual playfield rows in sections example
+User requested the existing visual playfield helpers instead of raw hex bytes.
+Converted the no-score all_five_sections table to twelve VCS_PLAYFIELD_ROW()
+calls using left-to-right X/dot binary pictures, and included playfield.c26.
+The score examples already use that helper, so their source is unchanged.
+Added the helper to the no-score Makefile dependencies and documented the notation.
+Preserved the artwork and all 48 original bytes: the rebuilt 4K ROM is identical
+byte-for-byte to the pre-edit baseline, with unchanged 3564 ROM/97 RAM usage.
+Build, source hygiene, example inventory, eight-row glyph and negative-control
+tests pass. No renderer or timing changes, commits or pushes.

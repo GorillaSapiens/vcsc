@@ -40,6 +40,9 @@ The A and B each have eight intentional glyph rows, drawn across sixteen
 hardware scanlines. The player-height value is the last row index (7 for 8 rows).
 
 No JSON, Perl generator or extra configuration step is required.
+Playfield rows use `VCS_PLAYFIELD_ROW(0b...)` from `playfield.c26`: `X` marks a
+filled cell and `.` an empty cell, written left-to-right. Underscores separate
+eight-cell groups; each macro emits four bytes in the renderer's storage order.
 See `libraries/vcs/renderers/all_five_sections_192/README.md` for the contract.
 
 ## Score compositions
