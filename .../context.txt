@@ -209,6 +209,9 @@ independent glyph-row and negative-control tests pass. The latest full suite
 passed 591 compile and 411 e2e tests (1002 total), including the score profiles.
 The sections example now matches all-five interactive controls: left joystick,
 edge-triggered Select cycling through five objects, and Reset. No automatic motion.
+All three public section examples now use the standard four-frame P0/P1 sprites
+from all_five_181_interactive_common.c26, selected by (X ^ Y) & 3, with eight rows
+per frame. Private A/B renderer fixtures remain unchanged and independently owned.
 Score-above/below examples now use all_five_sections_181: 176 colourable lines,
 181 including fixed setup/tail, plus an independent 11-line score. Full interactive
 score controls match existing examples. These use 8K F8 and all 128 RAM bytes.

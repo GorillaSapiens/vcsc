@@ -20,3 +20,7 @@ the desired leaf directory with `make` and `make play`:
 
 Each leaf contains its own source, Makefile and instructions. No runnable example
 contains another runnable example.
+
+All three use the standard all-five interactive P0/P1 sprites: four eight-row
+frames, selected from each player's X/Y position as in
+`examples/_common/all_five_181_interactive_common.c26`.

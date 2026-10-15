@@ -1,0 +1,87 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Same four-frame artwork as all_five_181_interactive_common.c26.
+// Source rows are bottom-to-top, matching the standard interactive orientation.
+page const uint8_t p0_animation[32] := {
+   game_SPRITE_GLYPH(
+      0b.X....X.,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XX..XX.
+   ),
+   game_SPRITE_GLYPH(
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0bX..XX..X
+   ),
+   game_SPRITE_GLYPH(
+      0b.X....X.,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0bX......X
+   ),
+   game_SPRITE_GLYPH(
+      0bX......X,
+      0b.X.XX.X.,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b..X..X..
+   )
+};
+page const uint8_t p1_animation[32] := {
+   game_SPRITE_GLYPH(
+      0bX.X..X.X,
+      0b.X.XX.X.,
+      0b..X..X..,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b.X.X.X..,
+      0b..XXXX..,
+      0b.X....X.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX......X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b..X.X.X.,
+      0b..XXXX..,
+      0b.X....X.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   )
+};

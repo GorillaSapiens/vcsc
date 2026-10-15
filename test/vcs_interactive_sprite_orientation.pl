@@ -232,29 +232,52 @@ find(sub {
    my $text=read_file($path);
    push @animation_sources,$path if $text =~ /\bp0_animation\s*\[32\]/;
 },File::Spec->catdir($repo,'examples'));
-@animation_sources==15
-   or die "expected 15 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
+@animation_sources==16
+   or die "expected 16 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
 for my $path (@animation_sources) {
    my $text=read_file($path);
    same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),$p0_frames,"$path P0");
    same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),$p1_frames,"$path P1");
+   # Sections share pure artwork; validate both selectors in their callers below.
+   next if $path eq File::Spec->catfile($repo,qw(examples _common all_five_sections_interactive_sprites.c26));
    $text =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
       or die "$path P0 animation selector changed\n";
    $text =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
       or die "$path P1 animation selector changed\n";
 }
 
+for my $caller (
+   [qw(examples 04_renderers all_five_sections no_score all_five_sections_192.c26)],
+   [qw(examples _common all_five_sections_181_interactive_common.c26)],
+) {
+   my $path=File::Spec->catfile($repo,@$caller);
+   my $text=read_file($path);
+   $text =~ /include\s+"[^"\n]*all_five_sections_interactive_sprites\.c26"/
+      or die "$path missing shared standard artwork\n";
+   for my $n (0,1) {
+      my $y=$caller->[1] eq '_common' ? "object_y\\[$n\\]" : "game_player${n}_y";
+      $text =~ /game_player${n}_graphics\s*:=\s*p${n}_animation\s*;/
+         or die "$path P$n animation base changed\n";
+      $text =~ /game_player${n}_graphics\s*\+=\s*\(\(game_PLAYER${n}_X\s*\^\s*$y\)\s*&\s*0x03\)\s*<<\s*3/
+         or die "$path P$n animation selector changed\n";
+   }
+}
+
 sub local_include_closure {
-   my($path,$seen)=@_;
+   my($path,$seen,$source_dir)=@_;
    $seen //= {};
+   $source_dir //= dirname($path);
    my $real=abs_path($path);
    return '' unless defined($real) && !$seen->{$real}++;
    my $text=read_file($real);
    my $closure=$text;
    while ($text =~ /^\s*include\s+"([^"]+)"/mg) {
-      my $candidate=File::Spec->catfile(dirname($real),split(m{/},$1));
-      next unless -f $candidate;
-      $closure.="\n".local_include_closure($candidate,$seen);
+       my $candidate=File::Spec->catfile(dirname($real),split(m{/},$1));
+       # Compiler-local includes may be relative to the cartridge source even
+       # when encountered inside a shared application body.
+       $candidate=File::Spec->catfile($source_dir,split(m{/},$1)) unless -f $candidate;
+       next unless -f $candidate;
+       $closure.="\n".local_include_closure($candidate,$seen,$source_dir);
    }
    return $closure;
 }

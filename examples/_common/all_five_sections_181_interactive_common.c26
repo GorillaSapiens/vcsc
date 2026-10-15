@@ -17,9 +17,7 @@ page const uint8_t game_playfield[44] := {
    VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
    VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
 };
-// Eight intentional rows, in the renderer's highest-index-first order.
-page const uint8_t p0_graphics[8] := { 0x66,0x66,0x66,0x7e,0x66,0x66,0x3c,0x18 };
-page const uint8_t p1_graphics[8] := { 0x7c,0x6c,0x66,0x66,0x7c,0x66,0x6c,0x78 };
+include "../../../_common/all_five_sections_interactive_sprites.c26"
 alias OBJECT_MAX_Y 87
 alias SELECTED_OBJECT_COUNT 5
 uint8_t selected_object := 0;
@@ -100,6 +98,15 @@ bank1 void prepare_game(void) {
    game_vblank();
 }
 
+inline void update_player_animation(void) {
+   // Select next frame's artwork in bank0, where the graphics tables live.
+   // object_y is copied into the renderer by prepare_game() immediately after.
+   game_player0_graphics := p0_animation;
+   game_player0_graphics += ((game_PLAYER0_X ^ object_y[0]) & 0x03) << 3;
+   game_player1_graphics := p1_animation;
+   game_player1_graphics += ((game_PLAYER1_X ^ object_y[1]) & 0x03) << 3;
+}
+
 bank1 void initialize_game(void) {
    object_y[0] := 18;
    object_y[1] := 78;
@@ -130,12 +137,11 @@ bank1 void initialize_game(void) {
 
 void main(void) {
    initialize_game();
-   game_player0_graphics := p0_graphics;
-   game_player1_graphics := p1_graphics;
    score_init();
    while (1) {
       vcs_ntsc_vsync();
       vcs_ntsc_begin_vblank();
+      update_player_animation();
       prepare_game();
       score_vblank();
       vcs_ntsc_end_vblank();

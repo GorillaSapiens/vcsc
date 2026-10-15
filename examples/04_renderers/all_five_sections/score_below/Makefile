@@ -7,6 +7,8 @@ TARGET := $(SOURCE:.c26=.bin)
 
 all: $(TARGET)
 
+$(TARGET): $(ROOT)/examples/_common/all_five_sections_interactive_sprites.c26
+
 $(TARGET): $(SOURCE) $(wildcard $(VCS_DIR)/renderers/all_five_sections*/*.c26) $(VCS_DIR)/renderers/all_five_sections_common.c26 $(VCS_DIR)/six_glyph_component.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(ROOT)/examples/_common/all_five_sections_181_interactive_common.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 8192

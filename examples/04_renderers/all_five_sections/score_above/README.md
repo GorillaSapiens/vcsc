@@ -22,8 +22,9 @@ Run `make`, then `make play` (Stella). This builds an **8K F8** cartridge.
 
 Edit the eight sections directly in the `.c26` instantiation. Their even heights
 total **176 gameplay scanlines**; fixed setup/tail complete the 181-line gameplay
-component, and the score occupies 11 lines. Both players contain eight visible
-glyph rows. There is no automatic motion.
+component, and the score occupies 11 lines. Both players use the same four-frame,
+eight-row sprites and `(X ^ Y) & 3` frame selection as
+`examples/_common/all_five_181_interactive_common.c26`. There is no automatic motion.
 
 The score and raster stay in bank0; controls and VBLANK preparation use bank1.
 The first playfield row is mirrored for preparation in the shared example body.

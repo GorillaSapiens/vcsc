@@ -8,3 +8,35 @@ Preserved the artwork and all 48 original bytes: the rebuilt 4K ROM is identical
 byte-for-byte to the pre-edit baseline, with unchanged 3564 ROM/97 RAM usage.
 Build, source hygiene, example inventory, eight-row glyph and negative-control
 tests pass. No renderer or timing changes, commits or pushes.
+2026-10-14 18:36:53 PDT, Match standard all-five interactive sprites
+User requested the sprites from examples/_common/all_five_181_interactive_common.c26
+in all three colour-section examples. Added one shared sections artwork file with
+the exact four eight-row P0/P1 frames, using the same visual binary glyph notation.
+No-score and both score examples select frames with (X ^ Y) & 3. No-score updates
+graphics during initialization and after controls in overscan. Score examples
+select graphics in bank0 before banked VBLANK preparation, using object_y for the
+upcoming pose; renderer preparation then copies those Y values. No persistent
+state or RAM was added. Controls, heights, sections and renderer source are unchanged.
+Updated Makefile dependencies and example READMEs. Did not change the canonical
+common file or couple exact renderer regressions to editable example artwork;
+the private A/B glyph fixtures and their independent shape oracles remain intact.
+
+Validation: all three examples build. No-score uses 3676/4090 ROM bytes and 97/128
+RAM; each score example uses bank0=3308/3840, bank1=952/3840 and 128/128 RAM.
+Compared all 64 linked animation bytes in each ROM against the canonical macro
+output. Scripted CPU checks cover all four frame offsets and restored height 7
+for both players, plus joystick movement and held Select, in every example.
+Manual Stella pixel proof builds four initial-X variants of each real application:
+both players match their canonical frame, orientation and sixteen visible
+scanlines (eight two-line rows) in all three compositions, all four frames.
+Reproducer: /tmp/opencode/sections-standard-sprites-raster.pl, a private validation
+script only, not a user-facing generator or required application build step.
+Repeated score carry/borrow and wrap input checks also preserve graphics pointers,
+heights and frame timing. Initial full suite: all 591 compile tests passed; 410/411
+e2e tests passed, with only the sprite-orientation inventory assuming all artwork
+definitions contain their selector. Extended that regression for the sixteenth
+artwork definition, explicitly checking both sections callers and their selectors,
+and following compiler-style cartridge-relative includes in the source closure.
+The updated orientation regression passes. Full suite rerun passed all 591 compile
+and 411 e2e tests (1002 total), recorded in
+/tmp/opencode/sections-standard-sprites-suite-final.log. No commits or pushes.
