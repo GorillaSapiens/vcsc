@@ -7,18 +7,18 @@ include "playfield.c26"
 
 // Each visual row is left-to-right; the helper emits four renderer-order bytes.
 page const uint8_t game_playfield[48] := {
-   VCS_PLAYFIELD_ROW(0bX......._...X...._.......X_........),
-   VCS_PLAYFIELD_ROW(0b.X......_....X..._........_X.......),
-   VCS_PLAYFIELD_ROW(0b..X....._.....X.._........_.X......),
-   VCS_PLAYFIELD_ROW(0b...X...._......X._........_..X.....),
-   VCS_PLAYFIELD_ROW(0b....X..._.......X_........_...X....),
-   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...),
-   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
-   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
-   VCS_PLAYFIELD_ROW(0bX......._X......._...X...._.......X),
-   VCS_PLAYFIELD_ROW(0b.X......_.X......_....X..._X.......),
-   VCS_PLAYFIELD_ROW(0b..X....._..X....._.....X.._.X......),
-   VCS_PLAYFIELD_ROW(0b...X...._...X...._......X._..X.....)
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X)
 };
 
 // Edit heights and colours here. Heights are scanlines, not sprite Y units.
