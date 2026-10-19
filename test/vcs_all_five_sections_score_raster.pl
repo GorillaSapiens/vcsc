@@ -50,7 +50,7 @@ sub capture {
          '-bs',(-s$bin==8192?'F8':'4K'),'-framesnap','200-239','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,$bin);die$!}
    $children{$p}=1;my@png;
-   for(1..1200){@png=grep{-s$_}glob("$snap/*.png");last if@png==40;select undef,undef,undef,.025}
+   @png=vcsc_stella_wait_snapshots("$snap/*.png",40);
    terminate($p);@png==40 or die "$name snapshot count ".scalar(@png)." !=40\n";
    my%frames;
    for(@png){/_([0-9A-F]{8})\.png$/ or die "bad snapshot name\n";$frames{hex$1}=[decode_rgb($_)];}

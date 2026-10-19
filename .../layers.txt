@@ -20,6 +20,74 @@ poses. No new public layer ABI is agreed yet.
 
 CURRENT PROBE AND OPEN WORK
 ---------------------------
+Active request: implement all_five_colors_sections, combining independent
+eight-row player colour tables with continuous all-five colour sections and
+no-score/score-above/score-below examples. User explicitly chose stock 128-byte
+RAM: do not introduce a cartridge-RAM dependency or silently drop object state.
+Use page containment and .same/.cross branch contracts for placement timing.
+User also explicitly requires ONE drawing bank: do not move drawing across ROM
+banks or introduce mirrored-sprite requirements to make section placement fit.
+
+test/vcs_all_five_colors_sections_probe.pl is a private feasibility gate, NOT a
+public component. It primes both caches in VBLANK and borrows initial-row refill
+slots for dense seams at 2,4,6,8,10,12. M0 shifts after its commit; CPY P1 follows
+the shift to restore carry. X carries PF colour; BK is immediate. P0's comparison
+moves after the right PF rewrites. Additional profiles prove the packed seam at
+14, row handoff at 16 and a later handoff at 32 after a visible cache refill.
+Packed/row handoffs duplicate tails and move counter work into pads; the packed
+path folds one playfield byte into an immediate operand.
+The late profile uses F8 ROM, with preparation in bank1 and all drawing in bank0.
+The original no-score probes retain 83 renderer bytes and ordinary pointers/heights:
+8K ROM is NOT cartridge RAM. Runtime height/NUSIZ/X/pointer timing tests pass.
+
+Forty moving poses match complete four-palette RGB composites; empty-field
+differences prove actual all-five straddling at each chosen seam (except P0 at
+line 2, which is the inherited priming gap). Isolated edge cases cover every
+object at X=0,13,14,15,16,150,157,159 for the packed, handoff and late layouts.
+Controls run in overscan: another bank call in VBLANK can delay visible entry.
+An independent doubled-row canonical glyph oracle rejects shared golden/probe
+artwork mistakes. Packed-byte and visible-refill corruptions are also rejected.
+Twenty-six focused regressions pass. Public renderers/examples remain unchanged.
+
+Dense later-row seams at 18,20,22,24,26,28 plus handoff 32 now pass with ALL
+next-row refills retained. Seven of eight PF writes use folded immediate bytes;
+the first right PF2 remains cached. Move M0 shift before CPY P1, defer P1's counter
+store until after its graphics and the second left PF writes, shift M1 there,
+then write second right PF2 before forced-absolute CPY P0. Remove the two-cycle
+tail pad. Right PF2 phases remain 49/125 in each 152-cycle pair. Zero-cycle labels
+before generated PF writes prevent peephole removal of equal adjacent immediate
+loads; a uniform-row case specifically tests this. Dense refill corruption fails.
+
+Both score orders now have INITIAL-ROW dense-seam prototypes at 2..12, with
+complete RGB, canonical glyph, actual straddling, isolated edges/residues and
+runtime-state timing checks. The 181-line profile must suppress the final normal
+M0 shift (its packed entry uses the cached bit); mutation is rejected. Bank1
+preparation mirrors PF ROM and the wrapper re-snapshots S AFTER its bank call.
+Colourable origin is component start +4; setup/tail add five lines. Score-below
+currently inherits the terminal gameplay palette behind its score. These are
+fixed-score 123456 proofs, not interactive score/control certification.
+
+Single-bank routing proofs now pass too. No-score routed_dense uses a two-byte
+pointer (85 renderer bytes), enters the specialized B row through a three-cycle
+stub, then resets the pointer to the ordinary B stub. Duplicated P0 active/zero
+tails replace the old join and exit pad with the indirect jump at equal cost.
+An unreachable .same branch constrains both stubs to one page for low-byte-only
+updates; no ROM address is assumed. Draw-entry initialization replaces eight pad
+cycles with ten, removing a later two-cycle pad before the first right PF rewrite.
+The unused initial-A proof body is removed from this generated profile to fit.
+Failing to reset the route loops the specialized row; the CPU oracle rejects it.
+Score-routed variants instead reuse cache +16/+17, whose RESP counts are dead,
+without changing RAM use or the saved S at +20. Forced absolute GRP0 plus
+duplicated P0 tails balances each indirect B-to-A exit. Both orders and isolated
+edge sweeps match ordinary rasters. These are mechanisms, not general placement.
+
+OPEN: general eight-section .c26 configuration/dispatch and placement across all
+rows, score-profile packed/late seams, independent score oracle/control coverage,
+public component extraction, documentation and runnable examples. The old private
+dense-PF failure is superseded by the passing late_dense profile; no public
+combined renderer is installed. Next: generalize routing/placement inside the
+same draw bank, preserving the existing sprite-bank contract and raster oracles.
+
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,
 object masks and delayed latches, but uses solid player colours. Its original

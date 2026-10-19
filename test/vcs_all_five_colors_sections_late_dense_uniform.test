@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ late_dense_uniform
+# phase: e2e
+# timeout: 180
+# expectstdout: vcs_all_five_colors_sections_probe ok
+# expectexit: 0

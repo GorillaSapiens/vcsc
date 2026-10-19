@@ -1,0 +1,187 @@
+2026-10-18 12:03:44 PDT, Dense later seams and both score orders
+User asked to keep going. Solved the private dense later-row schedule, preserving
+stock RAM, player colours, runtime heights/NUSIZ/graphics pointers and all next-row
+cache refills. Branch duplication was investigated but not needed for this pair.
+
+late_dense proves seams 18,20,22,24,26,28 and the existing handoff at 32. Seven PF
+writes fold immutable row bytes to immediate loads; the first right PF2 still
+loads its cache. Move the already-committed M0 shift ahead of CPY P1, delay P1's
+counter store until after GRP1 and second left PF writes, then shift M1 there.
+Second right PF2 precedes a forced-absolute CPY P0. Remove the two-cycle tail pad.
+Both right PF2 phases remain exactly 49/125 in every 152-cycle pair. No missing
+refills, object-state removal, cartridge RAM, or runtime graphics predecoding.
+
+Added late-dense moving/straddling, isolated-edge, uniform-PF, and bad-refill
+regressions. Uniform data exposed compiler peephole removal of adjacent identical
+LDA immediates: zero-cycle unique labels before generated PF writes now enforce
+load retention without disabling optimizations globally. Distinct-byte layouts
+alone cannot certify this schedule. The failing old private dense-PF attempt is
+superseded; the passing schedule is now in the normal-suite probe harness.
+
+Ported the same pair to the 181-line renderer's initial B row in both score
+orders. Keep the established compact scheduler for all later rows. The score
+profile must NOT shift M0 after its sixth normal sample: its packed entry still
+uses that cached bit. A mutation restoring the erroneous shift is rejected.
+The final Ball shift is dead and its five-cycle slot becomes NOP + JMP to the
+existing packed path. Preparation is in ordinary F8 bank1, with a PF ROM mirror;
+the wrapper snapshots S after returning from the bank call, not inside it.
+Colourable output starts four lines into the 181-line component. Score-below
+inherits the terminal palette for its score background in this bounded proof.
+
+Both score orders pass complete four-palette RGB composites over 40 moving poses,
+independent canonical eight-row player geometry, actual all-five straddling and
+isolated X=0,13,14,15,16,150,157,159 sweeps. Runtime X/NUSIZ/heights and alternating
+graphics-pointer CPU timing gates also pass. Score is fixed at 123456; this is
+not a substitute for independent score glyph/control/composition certification.
+
+All nineteen focused combined-colour entries passed together. Existing public
+components, examples and installation entries were unchanged. The combined
+feature is NOT complete: general eight-slot .c26 section placement/dispatch,
+score packed/late seams, independent score/control coverage and public component
+extraction/examples remain. Temporary research scripts under /tmp/opencode are
+not public build requirements. No commits or pushes.
+Final uninterrupted full suite passed 591 compile and 430 e2e tests, 1021 total.
+Log: /tmp/opencode/colors-sections-dense-score-suite.log. Hygiene and history
+format checks passed before that full run as well. No commits or pushes.
+
+2026-10-18 15:20:42 PDT, Single-bank row-routing proofs
+User asked to keep going. Asked whether larger cartridges and split drawing with
+mirrored read-only sprites were acceptable; user explicitly chose ONE drawing
+bank instead. Keep both stock 128-byte RAM and the existing sprite-bank contract.
+Do not silently relax either constraint during public component extraction.
+
+Added routed_dense, routed edge and bad-reset gates. The ordinary initial A row
+now draws/refills normally and takes an indirect exit into specialized B row one.
+That row resets the route to ordinary B for subsequent A exits. Two new no-score
+RAM bytes hold the pointer (85 renderer bytes). P0's active/zero tails duplicate
+the commit/exit sequence, eliminating the old three-cycle join. The five-cycle
+exit pad becomes JMP(indirect), with three-cycle jump stubs balancing the join.
+An unreachable .same branch enforces shared-page stubs, permitting a low-byte
+pointer update without relying on incidental ROM addresses. Pointer initialization
+adds two cycles to the initial eight-cycle pad; a later two-cycle pad before the
+first right PF rewrite is removed. Drop the unreachable original initial-A proof
+body from this generated ROM so everything fits bank0. The negative reset case
+loops the specialized row and is rejected by the simulator instruction limit.
+
+Research failure worth preserving: public asm labels in the caller's inline draw
+reset assembler @label scope and break caller loop labels. Assigning an alias to
+a local label also yielded a section-relative numeric value, not a relocated CPU
+address. The passing route uses only hygienic local labels within draw(). No
+assembler/compiler semantics were changed to work around this issue.
+
+Both score orders now also prove indirect row exits. The router reuses +16/+17
+in the existing row cache after their RESP counts are consumed, leaving saved S
+at +20 untouched and adding NO score-profile RAM. P0 tails are duplicated; a
+forced-absolute GRP0 write balances the two-cycle indirect-jump cost. The pointer
+is initialized in the measured setup pad, not in extra VBLANK work. Full moving
+RGB composites, actual straddling, canonical glyphs, isolated edges/residues and
+runtime state timing pass in both orders. Twenty-six focused tests pass together.
+
+General eight-slot .c26 placement remains OPEN: the current pointer selects one
+bounded specialized row, not arbitrary seam positions across all twelve rows.
+Do not expose it as the requested public feature yet. Next: generalize compact
+row/fragment routing in the ONE draw bank, then prove score packed/late seams and
+independent score/control oracles before wrappers/examples. Public renderers and
+examples were unchanged; no commits or pushes.
+The final uninterrupted full suite passed 591 compile and 437 e2e tests, 1028
+total. Log: /tmp/opencode/colors-sections-routed-suite.log. Hygiene/history checks
+passed as well. No commits or pushes.
+
+2026-10-18 16:07:44 PDT, Diagnostic build timeout under suite load
+User reported intermittent vcs_diagnostic_cartridge_stella.pl failure: the F4SC
+ntsc_driving build exceeded its hard-coded 45-second subprocess limit during a
+parallel full suite. This occurs before Stella starts, not at raster comparison.
+The report alone does not establish compiler deadlock or a particular slow stage.
+
+Separated diagnostic build and digest subprocess budgets. Builds default to 180
+seconds, overridable by positive-integer VCSC_DIAGNOSTIC_BUILD_TIMEOUT; digest
+helpers retain 45 seconds and the outer test retains 1200 seconds. No retry or
+pixel-oracle relaxation. On timeout, terminate then kill the subprocess group,
+not just the driver, preventing compiler/assembler/linker workers from leaking
+into later suite cases. Both child and parent establish the process group to
+cover the pre-exec race. Retain partial stdout/stderr in the timeout diagnostic.
+Normal status and output capture remain unchanged; temporary files auto-unlink.
+
+Added vcs_diagnostic_subprocess_timeout.pl: normal status/output, a delayed
+successful command, timed-out output, and a compiler-like grandchild ignoring
+TERM that must not survive KILL to write its marker. Normal command budgets have
+startup slack instead of fragile subsecond deadlines. Documented the policy in
+test/README.md. The complete twelve-screen diagnostic Stella matrix, CPU test
+and helper regression passed together with four workers. Hygiene initially
+rejected a 30-second test header; corrected it to the project's minimum 45.
+Combined-renderer work is retained, not canceled. No commits or pushes.
+Eight-worker validation passed the modified diagnostic and all compile tests,
+but three unrelated e2e cases failed under load: vcs_3ex_max_diagnostic.pl and
+vcs_all_five_181_unofficial.pl hit runner timeouts; vcs_3f_3e.pl produced no Stella
+snapshot. Did not change those tests or weaken their oracles. Log:
+/tmp/opencode/diagnostic-build-timeout-suite.log. A subsequent uninterrupted
+four-worker run passed 591 compile and 438 e2e tests, 1029 total. Final log:
+/tmp/opencode/diagnostic-build-timeout-suite-final.log. Recommend TEST_JOBS=4 on
+hosts seeing this broader parallel-load sensitivity. No commits or pushes.
+
+2026-10-18 18:33:44 PDT, Emulator isolation and timeout cleanup
+User reported eight failures in a 437-e2e run: old diagnostic 45-second build
+timeout, two example shard timeouts, four missing Stella snapshots, and a heart
+score below/move_right exact-RGB mismatch. The count/message predate the latest
+diagnostic fix, but the wider scheduling problem was not addressed by that fix.
+
+The runner already implements # serial exclusivity by draining all workers,
+running the exclusive case, then resuming parallel work. Most actual Stella
+launchers were NOT marked serial. Added the header to all maintained launchers
+and their .test wrappers, including combined/private section probes that launch
+Stella themselves. Compiler shards retain parallelism; emulator tests now cannot
+overlap them or one another within a runner invocation. Different independently
+started suites are not coordinated. Hygiene checks require both Stella launchers
+and wrappers to retain this scheduling policy. Default TEST_JOBS is now four in
+both Makefiles, overridable explicitly. No snapshot digest/reference was changed.
+
+Runner subprocesses now establish process groups before exec, and outer runner
+timeouts TERM/KILL the group as well as the leader. Previously runner timeouts
+could leave compiler/emulator descendants consuming resources after a failure.
+The separate diagnostic capture helper still has its own bounded build group.
+Added runner_process_group_smoke.pl, nesting a timeout case with a TERM-ignoring
+grandchild whose delayed marker must never appear. Existing serial scheduling
+smoke and the diagnostic helper timeout regression also pass. Documented policy.
+
+All eight named failures pass in focused validation (including the complete
+diagnostic in the full run). An uninterrupted EIGHT-worker full run passes 591
+compile + 439 e2e = 1030 tests: /tmp/opencode/suite-exclusive-stella-8.log.
+The heart-score test additionally passed three consecutive isolated runs without
+altering expected pixels. This does not prove the cause of the user's different
+digest; the original mismatch is not reproduced here and must not be described
+as independently diagnosed or fixed. Timing failures now have structural
+scheduling/cleanup remedies, rather than automatic retries or weakened oracles.
+Combined-renderer work remains pending and retained. No commits or pushes.
+
+2026-10-18 22:15:32 PDT, Parallel tests with longer deadlines
+User reported a 55m32s suite after blanket Stella exclusivity, challenged the
+approach and explicitly requested longer timeouts instead. Restored TEST_JOBS=8
+in both Makefiles. Removed only the blanket # serial additions from the previous
+change, including probe wrappers, and their hygiene enforcement. The three
+preexisting special serial tests remain unchanged. Process-group timeout cleanup
+is retained, as is the diagnostic's separate 180-second compile deadline.
+
+Added vcsc_stella_wait_snapshots to the shared helper. Snapshot callers that used
+short fixed poll counts now have a 60-second deadline, returning as soon as the
+required nonempty files exist. Existing frame numbers, expected counts, digests,
+and error checks are unchanged. Extra snapshots are returned, not silently
+discarded. Missing snapshots still time out; there are no new retries. Probe
+sequence captures also use the helper (formerly 30 seconds). Existing special
+legacy sequence/keyboard capture paths and serial decisions are preserved.
+
+All eight example shard budgets increase 180 to 600 seconds, with matching hygiene
+and documentation contracts. The large 3EX diagnostic also gets 600 seconds; the
+all-five unofficial comparison gets 180 rather than inheriting 45. The new
+stella_snapshot_wait.pl tests immediate-ready return, delayed multi-file capture,
+empty-file rejection, missing-file deadline, and visibility of extra snapshots.
+The focused eight-worker run passed the previously failing emulator tests with
+unchanged heart-score references; an initial hygiene failure still expected the
+old shard budget, corrected to match the new intentional policy.
+
+An uninterrupted eight-worker full suite passes 591 compile + 440 e2e = 1031
+tests in 829.999 seconds (13m50s) on this host. This is not a runtime promise for
+the user's machine. Log: /tmp/opencode/parallel-timeout-suite.log; detailed TSV:
+/tmp/opencode/parallel-timeout-suite.tsv; elapsed record:
+/tmp/opencode/parallel-timeout-suite.time. The user's original heart-score digest
+mismatch remains unreproduced, not explained away by increased deadlines.
+Combined-renderer work is retained and pending. No commits or pushes.

@@ -13,43 +13,55 @@ use File::Spec;
 use File::Temp qw(tempfile);
 use IPC::Open3;
 use Time::HiRes qw(time);
-use POSIX qw(:sys_wait_h);
+use POSIX qw(:sys_wait_h setpgid);
 use Symbol qw(gensym);
 $|=1;
 
 sub slurp_fh { my($f)=@_; local $/; return <$f> // ''; }
 sub capture {
-   my(@c)=@_;
-   my($ofh,$opath)=tempfile(); my($efh,$epath)=tempfile();
+   my($timeout,@c)=@_;
+   my($ofh,$opath)=tempfile(UNLINK=>1); my($efh,$epath)=tempfile(UNLINK=>1);
    my$p=fork(); defined$p or die "fork command: $!\n";
    if(!$p) {
       open(STDIN,'<','/dev/null') or die $!;
-      open(STDOUT,'>&',$ofh) or die $!;
-      open(STDERR,'>&',$efh) or die $!;
-      exec @c; die "exec @c: $!\n";
+       open(STDOUT,'>&',$ofh) or die $!;
+       open(STDERR,'>&',$efh) or die $!;
+       setpgid(0,0)==0 or die "set command process group: $!\n";
+       exec @c; die "exec @c: $!\n";
    }
    close($ofh); close($efh);
-   my$deadline=time()+45; my$status;
+   # Both sides establish the group so timeout cleanup cannot race the exec.
+   # EACCES/ESRCH here are harmless: the child also sets its group before exec.
+   setpgid($p,$p);
+   my$deadline=time()+$timeout; my($status,$timed_out);
    while(1) {
       my$d=waitpid($p,WNOHANG);
       if($d==$p) { $status=$?; last; }
-      if($d==-1) { $status=$?; last; }
-      if(time()>=$deadline) {
-         kill 'TERM',$p; select undef,undef,undef,.1; kill 'KILL',$p; waitpid($p,0);
-         unlink($opath,$epath); die "command timed out after 45 seconds: @c\n";
+       if($d==-1) { next if $!{EINTR}; die "wait command @c: $!\n"; }
+       if(time()>=$deadline) {
+          # The driver forks compiler/assembler/linker processes. Killing just
+          # the driver leaks those workers into the rest of the parallel suite.
+          kill 'TERM',-$p; kill 'TERM',$p;
+          select undef,undef,undef,.1;
+          kill 'KILL',-$p; kill 'KILL',$p;
+          waitpid($p,0); $timed_out=1; last;
       }
       select undef,undef,undef,.05;
    }
    open(my$o,'<:raw',$opath) or die$!; my$so=slurp_fh($o); close$o;
    open(my$e,'<:raw',$epath) or die$!; my$se=slurp_fh($e); close$e;
-   unlink($opath,$epath);
+    unlink($opath,$epath);
+    die "command timed out after $timeout seconds: @c\nstdout:\n$so\nstderr:\n$se\n" if$timed_out;
    return($status>>8,$status&127,$so,$se);
 }
-sub ok { my($label,@c)=@_; my($r,$s,$o,$e)=capture(@c); $r==0&&!$s or die "$label failed rc=$r sig=$s\n@c\n$o$e"; return($o,$e); }
+sub ok_timeout { my($timeout,$label,@c)=@_; my($r,$s,$o,$e)=capture($timeout,@c); $r==0&&!$s or die "$label failed rc=$r sig=$s\n@c\n$o$e"; return($o,$e); }
+sub ok { return ok_timeout(45,@_); }
 sub findexe { my($n)=@_; return abs_path($n) if $n=~m{/}&&-x$n; for(split(/:/,$ENV{PATH}//'')){my$p="$_/$n";return abs_path($p)if-x$p} return undef; }
 sub terminate { my($p)=@_; return unless$p; kill 'TERM',$p; for(1..20){my$d=waitpid($p,WNOHANG);return if$d==$p||$d==-1;select undef,undef,undef,.05} kill 'KILL',$p;waitpid($p,0); }
 
 @ARGV==2 or die "usage: $0 REPO TMP\n";
+my$build_timeout=$ENV{VCSC_DIAGNOSTIC_BUILD_TIMEOUT}//180;
+$build_timeout =~ /\A[1-9][0-9]*\z/ or die "VCSC_DIAGNOSTIC_BUILD_TIMEOUT must be positive integer seconds\n";
 my$repo=abs_path($ARGV[0])or die"resolve repo\n"; my$tmp=$ARGV[1]; make_path($tmp); $tmp=abs_path($tmp);
 my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella')or die"set STELLA or VCSC_STELLA\n";
 require File::Spec->catfile($repo,qw(test stella_test_lib.pl));
@@ -87,7 +99,10 @@ for my$standard (
       my$rom=File::Spec->catfile($tmp,"diagnostic-$name.bin");
       my$reference=File::Spec->catfile($repo,'test','fixtures','diagnostic',"reference_${name}_stella_pinned.png");
       -s$reference or die"missing Stella reference $reference\n";
-      ok("build $name diagnostic",$driver,'-I',$vcs,'-I',$example,'-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",'-DDIAGNOSTIC_TEST_TIA_FREEZE=1',$source,$boot,'-o',$rom);
+       # F4SC builds can exceed the digest helper's 45-second budget when other
+       # compiler-heavy tests compete for CPUs. Keep a separate bounded build
+       # budget; never retry a failed build or relax the raster oracle.
+       ok_timeout($build_timeout,"build $name diagnostic",$driver,'-I',$vcs,'-I',$example,'-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",'-DDIAGNOSTIC_TEST_TIA_FREEZE=1',$source,$boot,'-o',$rom);
 
       # A fresh private X server per case avoids stale SDL/X11 state after
       # repeatedly terminating Stella during the 12-screen matrix.
@@ -123,7 +138,7 @@ for my$standard (
       # the wrong phase still fails; and test.pl runs this concurrently with the
       # other certification runners, so the capture has to hold up under load.
       my@png;
-      for(1..400){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+      @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
       terminate($pid); terminate($xpid);
       # This run's server is gone, so hand the display back.  Without this the
       # reservation outlives the server and a later case skips a number it could

@@ -274,7 +274,7 @@ my $snap_frame=200;
    if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
 # -framesnap has Stella write this frame itself; nothing presses a key.
    my @png;
-   for(1..40){ @png=grep{-s $_} glob(File::Spec->catfile($snap,'*.png')); last if @png==1; select undef,undef,undef,.05; }
+   @png=vcsc_stella_wait_snapshots(File::Spec->catfile($snap,'*.png'),1);
    terminate_child($pid); terminate_child($xpid); @png==1 or die "Stella FA2 produced ".scalar(@png)." snapshots\n";
    ok('grade FA2 Stella frame',$^X,$grade,$png[0],'pass','FA2');
 }

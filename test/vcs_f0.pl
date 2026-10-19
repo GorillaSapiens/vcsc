@@ -198,10 +198,7 @@ if ($stella_mode) {
    select undef,undef,undef,0.35;
    require_ok('snapshot forced-bank0 F0 in Stella',$^X,$keys);
    my @png;
-   for (1..40) {
-      @png=grep { -s $_ } glob(File::Spec->catfile($snap,'*.png'));
-      last if @png==1; select undef,undef,undef,0.05;
-   }
+   @png=vcsc_stella_wait_snapshots(File::Spec->catfile($snap,'*.png'),1);
    terminate_child($pid); terminate_child($xpid);
    @png==1 or die "Stella F0 produced ".scalar(@png)." snapshots\n";
    require_ok('grade forced-bank0 F0 Stella frame',$^X,$grade,$png[0],'pass','F0');

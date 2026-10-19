@@ -70,7 +70,7 @@ SRC
    my$pid=fork(); defined$pid or die"fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$tmp/$standard.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    # -framesnap has Stella write this frame itself; nothing presses a key.
 
-   my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   my@png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); terminate($xpid); @png==1 or die"$standard Stella produced ".scalar(@png)." snapshots\n";
    my($w,$h)=png_dimensions($png[0]); $w==320 && $h==274 or die"$standard snapshot is ${w}x${h}, expected 320x274 PAL/SECAM 50 Hz viewport\n";
 }

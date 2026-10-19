@@ -494,7 +494,7 @@ for my$name(@captures) {
    my$pid=fork(); defined$pid or die "fork Stella\n";
    if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_$name.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    $children{$pid}=1;
-   my@png; for(1..1200){@png=grep{-s$_}glob("$snap/*.png");last if@png==16;select undef,undef,undef,.025}
+   my@png=vcsc_stella_wait_snapshots("$snap/*.png",16);
    terminate($pid); @png==16 or die "$name captured ".scalar(@png)." frames, expected 16\n";
    for my$path(@png) {
       $path =~ /_([0-9A-F]{8})\.png$/ or die "unrecognised framesnap filename: $path\n";

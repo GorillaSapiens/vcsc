@@ -273,10 +273,7 @@ sub run_stella_certification {
          my @key_args=$arg{reset} ? ('--reset') : ();
          require_ok("snapshot $label attempt $attempt",$perl,$keys,@key_args) if !$arg{reset};
          my @png;
-         for (1..40) {
-            @png=grep { -s $_ } glob(File::Spec->catfile($snapdir,'*.png'));
-            last if @png==1; select(undef,undef,undef,0.05);
-         }
+         @png=vcsc_stella_wait_snapshots(File::Spec->catfile($snapdir,'*.png'),1);
          if (@png!=1) {
             $last_grade_error="Stella $label produced ".scalar(@png).
                               " snapshots on attempt $attempt\n";

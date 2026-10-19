@@ -1,0 +1,51 @@
+2026-10-17 14:45:47 PDT, Packed and later-row colour proofs
+User asked to keep going. Extended the private stock-RAM feasibility gate; no
+public renderer, installation entry or runnable example was changed. The work
+is still NOT a complete all_five_colors_sections implementation.
+
+Packed profile adds a seam at line 14: X carries the last packed M1 bit, P1
+active/zero tails are duplicated, and raw P0-counter storage moves into an
+equal-cost boundary pad. One immutable PF byte folds to an immediate through
+the normal compiler. Row-handoff profile adds a seam at 16 by decrementing P0
+in the existing pad and staging M1 through duplicated P1 tails. Later profile
+proves line 32 with the next cache filled during visible drawing, not solely by
+VBLANK priming. Its initial six identical no-refill pairs share one loop to fit
+the draw bank. Preparation moves to bank1 of ordinary F8 ROM; immutable PF data
+is mirrored there. The original 83-byte renderer state and stock RAM remain.
+
+All profiles match exact four-palette ordinary player-colour composites across
+40 moving poses. Empty-field differences require each of all five objects to
+actually straddle every chosen seam (P0 line 2 excluded for inherited priming).
+Added isolated packed/handoff/later edge sweeps over X=0,13,14,15,16,150,157,159.
+Edge controls run in bank1 during overscan: a VBLANK helper plus preparation can
+overrun the visible entry deadline even when the visible kernel is sound.
+Runtime X/NUSIZ/heights and alternating graphics pointers pass 420-frame CPU
+timing gates; pointer tests also require restored heights. No runtime state API
+was removed or replaced with fixed-height/predecoded sprites.
+
+Independent doubled-row canonical P0/P1 geometry now protects against mistakes
+shared by golden and probe renders. This caught reversed private fixture artwork:
+SPRITE_GLYPH reverses its arguments, unlike the raw bottom-to-top animation data
+in the standard interactive examples. Corrected ONLY the generated probe artwork
+to match the standard visible orientation. Both players have eight nonblank rows.
+A shared repeated-row mutation is rejected even though the whole-raster golden
+and probe agree. Separate packed-PF-byte and later-refill corruptions also fail.
+All ten focused combined-colour regression entries pass.
+
+General dense later-row seams remain unsolved. A private baked-PF experiment in
+/tmp/opencode/colors-sections-late-dense.pl retains frame timing but mis-times PF
+pixels. Do not expose it, loosen RGB checks or conflate the line-32 proof with a
+general refill schedule. Both 181-line score compositions still need new proofs;
+there is no public combined component or example yet.
+
+First full run: 591 compile tests passed; 416/417 e2e passed. The unrelated
+vcs_multisprite_stella.pl produced no edge_192 snapshots under parallel load and
+passed an isolated rerun. Log: /tmp/opencode/colors-sections-packed-later-suite.log.
+A lower-parallelism rerun was started; its log is
+/tmp/opencode/colors-sections-packed-later-suite-final.log. No commits or pushes.
+That rerun overlapped development of the independent glyph oracle and consumed
+intermediate fixture versions: six failures were the then-reversed glyphs,
+including corruption controls that stopped at geometry before reaching RGB.
+After fixing fixture orientation, a stable, uninterrupted full run passed all
+591 compile and 421 e2e tests (1012 total). Final validation log:
+/tmp/opencode/colors-sections-stable-suite.log. No commits or pushes.

@@ -40,3 +40,33 @@ and following compiler-style cartridge-relative includes in the source closure.
 The updated orientation regression passes. Full suite rerun passed all 591 compile
 and 411 e2e tests (1002 total), recorded in
 /tmp/opencode/sections-standard-sprites-suite-final.log. No commits or pushes.
+
+2026-10-14 21:13:53 PDT, Start combined player-colour section proof
+User requested all_five_colors_sections with no-score and both score orders.
+They explicitly selected stock 128-byte RAM rather than cartridge RAM. Existing
+section and player-colour schedules spend the same visible slots on different
+colour updates; placement contracts cannot recover those cycles. Did not change
+or weaken the working public renderers, examples, heights or graphics-pointer API.
+
+Added test/vcs_all_five_colors_sections_probe.pl as a bounded, private feasibility
+gate. It derives a one-off initial row from the certified player-colour schedule,
+primes cache B in VBLANK, moves the already-committed M0 shift into refill slots,
+loads section PF into X there, and emits PF/BK changes in the following HBLANK.
+CPY P1 follows the shifted mask to restore the intended carry. P0's comparison
+moves after right-side PF rewrites; a one-cycle addressing change and tail-pad
+removal retain the 152-cycle pair. Packed reads in the one-off row remain forced
+four-cycle absolute accesses while X carries palette values; the successor
+restores row base 4. All page-contained tables and .same contracts remain active.
+The renderer state remains 83 bytes; no cartridge RAM or new renderer state.
+
+Six dense seams at 2,4,6,8,10,12 match complete exact-RGB composites of four
+ordinary player-colour renders across forty coupled moving object poses, and
+200-frame CPU timing passes. The normal-suite probe regression passes. Capture
+directories are fresh so stale PNGs cannot satisfy a new run. Temporary private
+prototypes remain under /tmp/opencode/colors-sections-lookahead*, not user build
+tools. No public combined component or example is claimed: arbitrary rows/refill
+deadlines, packed-pair seams, both score orders, endpoints and independent seam
+coverage still block extraction. The requested feature is NOT complete.
+Focused validation passed five tests: the new probe, existing section component
+lifecycle, existing score profile, source hygiene and history formatting. No full
+suite rerun for this prototype-only checkpoint. No commits or pushes.

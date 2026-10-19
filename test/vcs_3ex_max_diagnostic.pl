@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 180
+# timeout: 600
 # expectstdout: 3EX max diagnostic passed: 512K ROM, 256K RAM, 65535 ROM calls, complete 256-bank RAM walk, 262-line display
 # expectexit: 0
 

@@ -8,6 +8,22 @@ use File::Spec;
 use Fcntl qw(O_CREAT O_EXCL O_WRONLY);
 use Socket qw(PF_UNIX SOCK_STREAM sockaddr_un);
 use Digest::SHA qw(sha256_hex);
+use Time::HiRes ();
+
+# A deadline, not a fixed delay: fast captures return immediately. Give loaded
+# parallel runs time to start/render without retrying or changing the frame.
+sub vcsc_stella_wait_snapshots {
+   my($pattern,$expected,$timeout)=@_;
+   $timeout=60 unless defined$timeout;
+   defined($pattern) && defined($expected) && $expected>0 && $timeout>0
+      or die "vcsc_stella_wait_snapshots requires PATTERN, COUNT and positive timeout\n";
+   my$deadline=Time::HiRes::time()+$timeout;
+   while(1) {
+      my@png=grep{-s$_}glob($pattern);
+      return @png if @png >= $expected || Time::HiRes::time() >= $deadline;
+      Time::HiRes::sleep(.05);
+   }
+}
 
 sub vcsc_stella_private_env {
    my($basedir)=@_;

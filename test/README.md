@@ -21,7 +21,7 @@ Everything under `examples/` is user-facing and deliberately editable. The
 suite smoke-builds all examples through eight `vcs_examples_build_*of8.test`
 shards backed by `vcs_examples_build.pl`; the round-robin split lets the outer
 `test.pl --jobs N` pool compile different examples concurrently without a nested
-worker pool. All eight shard descriptors use the same 180-second ceiling because
+worker pool. All eight shard descriptors use the same 600-second ceiling because
 inserting or removing one sorted example rotates every later round-robin assignment;
 a heavy mapper/diagnostic group must not inherit a shorter timeout merely by moving
 to another shard number. Every ROM produced by those shards is also passed through
@@ -172,6 +172,18 @@ rather than starting their own nested worker pools; the example smoke build and
 score-composition raster matrix follow that pattern. `TEST_JOBS` defaults to 8,
 so normal `make test` runs eight cases in parallel. Use
 `make test TEST_JOBS=1` when a serial run is useful for debugging.
+
+Stella tests normally run in parallel. Snapshot polling uses a shared 60-second
+deadline instead of the old 1.6-to-20-second budgets, returning immediately once
+the requested snapshots exist. This does not delay successful tests, retry a
+capture, change the requested frame, or relax its pixel checks. Existing special
+`# serial` cases remain exclusive; there is no blanket emulator isolation.
+Example-build shards and the large 3EX diagnostic have 600-second outer budgets;
+the all-five unofficial comparison has 180 seconds instead of the default 45.
+Runner timeouts still terminate the test process group, including ordinary
+compiler/emulator descendants, so timed-out builds cannot keep starving later
+tests. `runner_process_group_smoke.pl` verifies that cleanup with a TERM-ignoring
+child; `stella_snapshot_wait.pl` covers the shared snapshot deadline.
 
 The Makefiles also write a separate tab-separated timing report. From the
 repository root, plain `make test` writes `test-times.tsv`; each row records the
@@ -973,6 +985,15 @@ that changes when the maintained font's top-row pixels change. For focused runs,
 `pal_keypad,secam_driving`; the normal test remains all 12 cases. Stella and Xvfb
 are required test dependencies.
 
+Diagnostic ROM builds have a separate 180-second subprocess budget because the
+F4SC compiler/linker work can exceed 45 seconds under parallel-suite load.
+`VCSC_DIAGNOSTIC_BUILD_TIMEOUT` overrides that budget in positive integer seconds;
+digest helpers retain their 45-second limit and the overall test retains its
+1200-second limit. A timed-out command's process group is terminated, and partial
+stdout/stderr is reported. No build is retried and no raster check is relaxed.
+`vcs_diagnostic_subprocess_timeout.pl` tests status/output capture, distinct
+budgets, timeout diagnostics, and cleanup of a compiler-like grandchild.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`
@@ -1461,4 +1482,3 @@ coverage and independently certifies the forced PAL/SECAM Stella viewport.
 `vcs_video_standard_examples_stella.pl` is the required normal-e2e Stella companion for the
 complete PAL/SECAM native-228 renderer matrix and verifies every forced-format
 viewport; the all-five pair additionally retains the independent PF phase oracle.
-

@@ -202,11 +202,19 @@ The fine schedule now passes all seven seams of an eight-section layout, plus
 edge, 96-section and four-palette profiles. Exact RGB, X=0/159 and timing pass.
 The extracted all_five_sections_192 component and public example now build with
 compile-time .c26 section configuration (eight slots). Seam/endpoint tests use
-the actual component; the example passes 420 frames. Next: broaden raster lifecycle and
-placement acceptance coverage. Player colour tables remain a separate gate.
+the actual component; the example passes 420 frames. Active request is now
+all_five_colors_sections: combine player colour tables with sections and all
+three example compositions. User explicitly requires stock 128-byte RAM.
+test/vcs_all_five_colors_sections_probe.pl proves dense initial/later seams,
+packed 14, handoffs 16/32 and single-bank row routing. Both score orders pass
+initial seams and cached-pointer routing without extra RAM. User requires ONE
+draw bank; no mirrored sprites. Twenty-six PRIVATE gates pass. General .c26
+placement, score packed/late seams and extraction remain. See layers.txt.
 Example glyphs now have eight intentional visible rows (16 hardware scanlines);
 independent glyph-row and negative-control tests pass. The latest full suite
-passed 591 compile and 411 e2e tests (1002 total), including the score profiles.
+passed 591 compile and 440 e2e tests (1031 total), including the score profiles.
+Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
+Runner timeouts clean child groups.
 The sections example now matches all-five interactive controls: left joystick,
 edge-triggered Select cycling through five objects, and Reset. No automatic motion.
 All three public section examples now use the standard four-frame P0/P1 sprites

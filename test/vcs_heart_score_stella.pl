@@ -101,7 +101,7 @@ for my $half (0,1) {
       my $pid=fork(); defined$pid or die "fork Stella\n";
       if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${score}_${half}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
       ok("snapshot heart score $label",$perl,$keys,'--fast');
-      my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+      my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
       terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for score $label\n";
       my($actual,$ae)=ok("digest heart score $label",$perl,$digest,$png[0]);
       $ae eq '' or die $ae; chomp $actual;
@@ -125,7 +125,7 @@ for my $lines (0..11) {
    my $pid=fork(); defined$pid or die "fork Stella\n";
    if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_lines_${lines}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    ok("snapshot heart line markers $lines",$perl,$keys,'--fast');
-   my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for line markers $lines\n";
    my($actual,$ae)=ok("digest heart line markers $lines",$perl,$digest,$png[0]);
    $ae eq '' or die $ae; chomp $actual;
@@ -193,7 +193,7 @@ for my $kind (qw(above below)) {
       # P0 needs 115 frames to reach the public X=159 clamp.  Measured on this
       # fixture, 120 through 250 all produce the pinned raster and 100 does not,
       # so the margin above the requirement is real but not unbounded.
-      my @png; for(1..400){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+      my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
       terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
       my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
       $ae eq '' or die $ae; chomp $value; $actual=$value;
@@ -230,7 +230,7 @@ for my $case (@below_low) {
    my $pid=fork(); defined$pid or die "fork Stella\n";
    if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_below_low_${score}_${half}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    ok("snapshot bottom composition $label",$perl,$keys,'--fast');
-   my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for bottom composition $label\n";
    my($actual,$ae)=ok("digest bottom composition $label",$perl,$digest,
       '--mask-rows','0-197','--mask-rows','204-227',$png[0]);

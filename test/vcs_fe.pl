@@ -233,11 +233,7 @@ my $snap_frame=200;
    }
    # -framesnap has Stella write this frame itself; nothing presses a key.
    my @png;
-   for (1..40) {
-      @png=grep { -s $_ } glob(File::Spec->catfile($snap,'*.png'));
-      last if @png==1;
-      select undef,undef,undef,0.05;
-   }
+   @png=vcsc_stella_wait_snapshots(File::Spec->catfile($snap,'*.png'),1);
    terminate_child($pid); terminate_child($xpid);
    @png==1 or die "Stella FE produced ".scalar(@png)." snapshots\n";
    require_ok('grade FE Stella frame',$^X,$grade,$png[0],'pass','FE');

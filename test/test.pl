@@ -12,6 +12,7 @@ use Text::ParseWords qw(shellwords);
 use Time::HiRes qw(sleep time);
 use Storable qw(nstore retrieve);
 use IO::Handle ();
+use POSIX qw(setpgid);
 
 $| = 1; # turns on autoflush
 binmode STDOUT, ':encoding(UTF-8)';
@@ -356,12 +357,17 @@ sub run_cmd_with_timeout {
    die "[$FAIL] fork failed: $!\n" if !defined $pid;
 
    if ($pid == 0) {
+      setpgid(0, 0) == 0 or die "set test process group: $!\n";
       open(STDOUT, '>', $out_path) or die "open stdout failed: $!\n";
       open(STDERR, '>', $err_path) or die "open stderr failed: $!\n";
       exec @$cmd;
       die "exec failed for @$cmd: $!\n";
    }
 
+   # The child also establishes its group before exec; the parent closes the
+   # fork/exec race. A runner timeout must stop compiler and emulator children,
+   # not leave them consuming CPUs after their test has been reported failed.
+   setpgid($pid, $pid);
    my $timed_out = 0;
    my ($exit_code, $signal) = (0, 0);
    eval {
@@ -375,9 +381,11 @@ sub run_cmd_with_timeout {
    if ($@) {
       if ($@ eq "TIMEOUT\n") {
          $timed_out = 1;
-         kill 'TERM', $pid;
+          kill 'TERM', -$pid;
+          kill 'TERM', $pid;
          select(undef, undef, undef, 0.2);
-         kill 'KILL', $pid;
+          kill 'KILL', -$pid;
+          kill 'KILL', $pid;
          waitpid($pid, 0);
          $exit_code = $? >> 8;
          $signal = $? & 127;

@@ -105,7 +105,7 @@ sub snapshot {
    my$pid=fork(); defined$pid or die"fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$tmp/$name.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    select undef,undef,undef,.35;
    ok("snapshot $name",$perl,$keys);
-   my@png; for(1..60){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+   my@png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); @png==1 or die"$name Stella produced ".scalar(@png)." snapshots\n";
    return png_image_digest($png[0]);
 }

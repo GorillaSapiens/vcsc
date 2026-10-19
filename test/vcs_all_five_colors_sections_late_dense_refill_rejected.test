@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ late_dense_bad_refill
+# phase: e2e
+# timeout: 180
+# expectstderr: RGB mismatch
+# expectexit: 255

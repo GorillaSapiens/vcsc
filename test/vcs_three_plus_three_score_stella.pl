@@ -52,7 +52,7 @@ my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-p
 my $pid=fork(); defined$pid or die "fork Stella\n";
 if(!$pid){open(STDOUT,'>:raw',"$tmp/stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
 # -framesnap has Stella write this frame itself; nothing presses a key.
-my @png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
+my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
 terminate($pid); terminate($xpid); @png==1 or die "Stella produced ".scalar(@png)." snapshots\n";
 my($actual,$ae)=ok('actual digest',$perl,$digest,$png[0]); my($wanted,$we)=ok('reference digest',$perl,$digest,$reference);
 $ae eq ''&&$we eq '' or die $ae.$we; $actual eq $wanted or die "three-plus-three Stella raster differs: actual=$actual reference=$wanted";
