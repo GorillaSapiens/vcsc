@@ -1001,7 +1001,9 @@ all-five controls/Select/clamps/Reset, frame timing under randomized runtime
 state, equal-colour timing, and all four independently pinned eight-row sprite
 frames. `vcs_all_five_colors_sections_example_stella.pl` compares its gameplay
 pixels with an independent four-palette composite of ordinary player-colour
-renderers. The `preview`, `preview_edges`, and `preview_uniform` probe descriptors
+renderers. Its eight fixed band heights are 16,16,16,16,32,32,32,32, with two
+alternating visual playfield patterns. The `preview`, `preview_edges`,
+`preview_late_edges`, and `preview_uniform` probe descriptors
 exercise the frozen preview renderer through the moving exact-RGB, glyph,
 straddling, refill and isolated-edge oracles. These tests do not claim arbitrary
 section-height support or score-preview certification. The editable public

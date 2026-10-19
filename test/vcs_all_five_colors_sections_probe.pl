@@ -14,7 +14,7 @@ use Cwd qw(abs_path);
 use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
-my($repo,$tmp,$profile,$edges)=@ARGV;
+my($repo,$tmp,$profile,$edges,$proof_seam)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
 my$bad_refill=$profile eq 'late_bad_refill';
@@ -23,6 +23,8 @@ my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
 my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform';
 my$preview=$profile eq 'preview'||$profile eq 'preview_uniform';
+$proof_seam //= 16;
+(!$preview||grep{$_==$proof_seam}(16,32,48,64,96,128,160)) or die 'unsupported preview proof seam';
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
@@ -311,6 +313,13 @@ if($preview) {
 save("$tmp/component.c26",$component);
 
 my$source=slurp("$repo/test/fixtures/all_five_player_color_192/smoke.c26");
+if($preview) {
+   # The spread-out preview folds the example's two alternating PF patterns.
+   # Keep this fixture explicit rather than claiming arbitrary per-row PF data.
+   my@rows=map{$uniform?(255,255,255,255):$_%2?(0x36,0x81,0x18,0xa5):(0x81,0x18,0x42,0x24)}0..11;
+   my$pf='page const uint8_t game_playfield[48] := {'.join(',',@rows).'};';
+   $source =~ s/page const uint8_t game_playfield\[48\] := \{.*?\};/$pf/s or die 'preview playfield fixture';
+}
 $source =~ s/0x81,0x18,0x18,0x81/0x69,0x96,0x3c,0xc3/g;
 $source =~ s/0x69,0x96,0x3c,0xc3/0xff,0xff,0xff,0xff/ if$uniform;
 $source =~ s/game_BALL_X := 80;/game_BALL_X := 8;/ or die 'isolated ball window';
@@ -328,12 +337,16 @@ for my$name(qw(player0 player1 missile0 missile1 ball)) {
 $source =~ s/void main\(void\)/uint8_t motion;\nvoid main(void)/ or die 'motion state';
 my$updates=join('',map{"      game_${_}_y := motion;\n"}qw(player0 player1 missile0 missile1 ball));
 $source =~ s/(      game_vblank\(\);)/      motion++;\n      if (motion == 40) { motion := 0; }\n$updates$1/ or die 'motion update';
+if($preview&&!$edges) {
+   # Forty captured poses cover a complete 32-step lap through all 96 Y units.
+   $source =~ s/motion\+\+;\n      if \(motion == 40\) \{ motion := 0; \}/motion += 3;\n      if (motion >= 96) { motion -= 96; }/ or die 'spread motion';
+}
 $source =~ s/(      game_vblank\(\);)/      COLUPF := 0x2e;\n      COLUBK := 0x84;\n$1/ or die 'palette reset';
 if($edges) {
    # Exercise each object in isolation at both physical edges and the RESP
    # residue transitions. Controls run in overscan, as in the public examples;
    # putting another bank call in VBLANK can move visible entry by one line.
-   my$pose=$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
+   my$pose=$preview?int($proof_seam/2)-2:$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
    $source =~ s/void main\(void\)/bank1 page const uint8_t edge_positions[8] := {0,13,14,15,16,150,157,159};\nuint8_t edge;\nvoid main(void)/ or die 'edge table';
    for my$n(qw(player0 player1 missile0 missile1 ball)) {
       $source =~ s/game_${n}_y := motion;/game_${n}_y := 200;/ or die 'edge isolation';
@@ -458,7 +471,7 @@ for my$name(qw(player0 player1 missile0 missile1 ball)) {
 save("$tmp/empty.c26",$empty);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/empty.c26",'-o',"$tmp/empty.bin");
 my$background=capture('empty',"$tmp/empty.bin");
-my@seams=$edges ? () : $score_order ? (2,4,6,8,10,12) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
+my@seams=$edges ? () : $preview ? (16,32,48,64,96,128,160) : $score_order ? (2,4,6,8,10,12) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
 my(%crossed,%complete_glyph);
 for my$f(200..239) {
    my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
@@ -496,7 +509,7 @@ for my$f(200..239) {
       }
    }
    for my$line(2..($score_order?$h-$first-1:191)) {
-      my$n=$score_order ? ($line<12?int($line/2)%4:2) : $profile eq 'late_dense' ? ($line<18?0:$line<28?int(($line-16)/2)%4:$routed||$line<32?2:3) : $later ? ($line<32?0:3) : $line<12 ? int($line/2)%4 : (($profile eq 'packed'&&$line>=14)||($profile eq 'handoff'&&$line>=16) ? 3 : 2);
+      my$n=$preview ? ($line<64?int($line/16)%4:int(($line-64)/32)%4) : $score_order ? ($line<12?int($line/2)%4:2) : $profile eq 'late_dense' ? ($line<18?0:$line<28?int(($line-16)/2)%4:$routed||$line<32?2:3) : $later ? ($line<32?0:3) : $line<12 ? int($line/2)%4 : (($profile eq 'packed'&&$line>=14)||($profile eq 'handoff'&&$line>=16) ? 3 : 2);
       substr($expected,($first+$line)*$w*3,$w*3)=substr($gold[$n]{$f}[2],($first+$line)*$w*3,$w*3);
    }
    my($aw,$ah,$got)=@{$actual->{$f}};$aw==$w&&$ah==$h or die 'image geometry';

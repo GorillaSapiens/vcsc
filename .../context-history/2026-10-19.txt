@@ -62,3 +62,25 @@ example shards/disassembler round trips and five new preview gates. Final log:
 /tmp/opencode/colors-sections-preview-certified.log; timings:
 /tmp/opencode/colors-sections-preview-certified.tsv. Cleaned the preview's generated
 build outputs before packaging. No commits or pushes.
+
+Spread-out preview follow-up:
+User requested bands spread over the display (suggested 2,4,8,16,32,48,64,18).
+Delivered a bounded fixed-layout alternative with heights 16,16,16,16,32,32,32,32;
+seams 16,32,48,64,96,128,160. Exact suggested fine geometry is still unproved.
+Eight editable palette pairs now feed page-contained 48-byte tables indexed by
+the existing row X. Both row-boundary paths write palettes; duplicated P0/P1 tails,
+deferred counters, absolute stores and explicit .same/.cross phase contracts keep
+the ordinary object/PF write phases. No route pointer is needed. The boundary PF
+writes fold two alternating visual row aliases into immediates: this is a deliberate
+preview limitation, NOT support for arbitrary twelve-row playfields. Both aliases
+are editable in .c26. Public and frozen private sources were updated together.
+All five initial positions now spread across the display. Animation bytes and
+independent ordinary-renderer RGB oracles are unchanged. Moving probes use a
+32-pose lap across all 96 Y positions, checking every seam; isolated edge sweeps
+cover first and last seams. Uniform-data, controls/randomized/equal-colour timing,
+independent animation and static interactive composites pass. Final uninterrupted
+eight-worker suite: 591 compile + 446 e2e = 1037 passed, zero failures. Logs/timings:
+/tmp/opencode/colors-sections-spread-final.{log,tsv}. The prior run's sole failure
+was the old assembly manifest entry; reviewed and updated it before this rerun.
+Leaf build: bank0 2805/3840, bank1 1002/3840; RAM 100/128 including eleven stack
+bytes. General geometry and combined-score examples remain OPEN. No commits/pushes.

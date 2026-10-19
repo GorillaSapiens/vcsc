@@ -114,7 +114,7 @@ public:
       advance(kLeftRight, kIdle);
       require(memory_[object_x_] == 20, "P0 did not move right by one pixel");
        advance(kLeftUp, kIdle);
-       const uint8_t initial_y = std::string(profile_.name) == "all5_colors_sections_preview" ? 7 : 18;
+       const uint8_t initial_y = std::string(profile_.name) == "all5_colors_sections_preview" ? 6 : 18;
        require(memory_[y_[0]] == initial_y - 1, "P0 did not move up by one scanline");
        advance(kLeftDown, kIdle);
        require(memory_[y_[0]] == initial_y, "P0 did not move down by one scanline");
@@ -435,7 +435,7 @@ private:
          const bool preview = std::string(profile_.name) == "all5_colors_sections_preview";
          const std::array<uint8_t,5> x = preview ? std::array<uint8_t,5>{{20,60,85,110,148}}
                                                : std::array<uint8_t,5>{{20,130,50,110,80}};
-         const std::array<uint8_t,5> y = preview ? std::array<uint8_t,5>{{7,7,7,7,7}}
+         const std::array<uint8_t,5> y = preview ? std::array<uint8_t,5>{{6,14,30,46,78}}
                                                : std::array<uint8_t,5>{{18,78,34,62,48}};
          for (size_t i = 0; i < 5; ++i) {
             require(memory_[object_x_ + i] == x[i], (prefix + "object X changed").c_str());

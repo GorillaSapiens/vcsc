@@ -44,7 +44,7 @@ for my$n(qw(game_player0_height game_player1_height game_missile0_height game_mi
 run("$tmp/timing",$bin,'420','--no-audio','--released-inputs','--raw-lines','264',@runtime);
 my$flat=slurp($source);
 $flat =~ s#"(component|sprites).c26"#"$fixture/$1.c26"#g;
-$flat =~ s/(section[1-7]_colu(?:pf|bk):=)0x[0-9a-f]+/${1}0x0e/g;
+$flat =~ s/(section[1-8]_colu(?:pf|bk):=)0x[0-9a-f]+/${1}0x0e/g;
 open(my$flat_file,'>',"$tmp/flat.c26") or die$!;print{$flat_file}$flat;close$flat_file;
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/flat.c26",'-o',"$tmp/flat.bin");
 run("$tmp/timing","$tmp/flat.bin",'420','--no-audio','--released-inputs','--raw-lines','264');

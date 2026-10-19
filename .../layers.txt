@@ -74,8 +74,10 @@ duplicated P0 tails balances each indirect B-to-A exit. Both orders and isolated
 edge sweeps match ordinary rasters. These are mechanisms, not general placement.
 
 Runnable preview: examples/04_renderers/all_five_colors_sections/no_score/.
-It has seven editable palettes but FIXED seams at 18,20,22,24,26,28. Joystick,
-Select, Reset and four eight-row animation frames work; stock RAM use is 102/128.
+It has eight editable palettes and FIXED heights 16,16,16,16,32,32,32,32 (seams
+16,32,48,64,96,128,160). Joystick, Select, Reset and four eight-row animation
+frames work; stock RAM use is 100/128. PF rows repeat two editable visual aliases;
+boundary writes fold these patterns into immediates, NOT arbitrary per-row PF data.
 Its ordinary F8 ROM draws only in bank0. The example is byte-identical to its
 frozen certified fixture; editable examples remain smoke-built independently.
 This is NOT a general installed component. OPEN: arbitrary eight-slot geometry,

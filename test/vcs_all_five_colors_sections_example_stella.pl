@@ -83,7 +83,7 @@ my@visible=grep{substr($rgb,($_*$w+20)*3,3)eq$background}0..$h-1;
 @visible==192 or die 'ordinary renderer visible extent is not 192';
 my$first=$visible[0];my$expected=$rgb;
 for my$line(0..191) {
-   my$n=$line<18?0:$line<28?int(($line-16)/2)%4:2;
+   my$n=$line<64?int($line/16)%4:int(($line-64)/32)%4;
    substr($expected,($first+$line)*$w*3,$w*3)=substr($references[$n][2],($first+$line)*$w*3,$w*3);
 }
 # The terminal section's background persists in the blank tail until VBLANK.

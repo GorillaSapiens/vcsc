@@ -1,31 +1,28 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// Frozen interactive fixture. Public examples stay independently editable.
+// Frozen spread-out interactive fixture. Public examples stay independently editable.
 // Fixed-layout combined-colour preview; see README.md. Build with make.
 include "vcs.c26"
 include "frame_ntsc.c26"
 include "F8/mapper.c26"
 include "playfield.c26"
 
-// Each visual row is left-to-right; the helper emits four renderer-order bytes.
+// Edit these two visual patterns. The preview repeats them down the display.
+// Its boundary schedule folds these alternating rows into immediate PF writes.
+alias PREVIEW_EVEN_ROW VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..)
+alias PREVIEW_ODD_ROW VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X)
 page const uint8_t game_playfield[48] := {
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
-   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
-   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
-   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
-   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
-   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
-   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X)
+   PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
+   PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
+   PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
+   PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
+   PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
+   PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW
 };
 
 // Independent bottom-to-top player row colours; all five objects stay live.
 page const uint8_t game_player0_colors[8] := {0x0e,0x2e,0x4e,0x6e,0x8e,0xae,0xce,0xee};
 page const uint8_t game_player1_colors[8] := {0xee,0xce,0xae,0x8e,0x6e,0x4e,0x2e,0x0e};
-// This preview deliberately retains the certified fixed seams at 18..28.
+// Heights: 16,16,16,16,32,32,32,32; seams: 16,32,48,64,96,128,160.
 instantiate "component.c26" as game (
    section1_colupf:=0x2e, section1_colubk:=0x84,
    section2_colupf:=0x46, section2_colubk:=0xc2,
@@ -33,7 +30,8 @@ instantiate "component.c26" as game (
    section4_colupf:=0xae, section4_colubk:=0x64,
    section5_colupf:=0x2e, section5_colubk:=0x84,
    section6_colupf:=0x46, section6_colubk:=0xc2,
-   section7_colupf:=0x8e, section7_colubk:=0x26
+   section7_colupf:=0x8e, section7_colubk:=0x26,
+   section8_colupf:=0xae, section8_colubk:=0x64
 )
 
 include "sprites.c26"
@@ -129,11 +127,11 @@ bank1 void initialize_game(void) {
    game_MISSILE0_X := 85;
    game_MISSILE1_X := 110;
    game_BALL_X := 148;
-   game_player0_y := 7;
-   game_player1_y := 7;
-   game_missile0_y := 7;
-   game_missile1_y := 7;
-   game_ball_y := 7;
+    game_player0_y := 6;
+    game_player1_y := 14;
+    game_missile0_y := 30;
+    game_missile1_y := 46;
+    game_ball_y := 78;
    // The inherited player-height convention is the last row index: 7 means 8.
    game_player0_height := 7;
    game_player1_height := 7;
