@@ -46,6 +46,8 @@ bucket it came from:
 - `all_five_unofficial/` — matched unofficial-opcode all-five peer; its Makefiles
   visibly opt in with `-Wa,--illegals`.
 - `all_five_player_color/` — all-five renderer with independent P0/P1 row colors.
+- [`all_five_colors_sections/`](04_renderers/all_five_colors_sections/) — experimental
+  no-score interactive preview combining player row colours with fixed colour sections.
 - [`all_five_sections/`](04_renderers/all_five_sections/) — solid-colour all-five
   renderer with up to eight language-configured vertical colour sections.
 - `multisprite/` — maintained parameterized multisprite renderer.

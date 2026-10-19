@@ -118,3 +118,4 @@ new	standards_enhanced_multisprite_asymmetric_ntsc	-	05_video_standards/enhanced
 new	all_five_sections	-	04_renderers/all_five_sections/no_score	Makefile
 new	all_five_sections_score_above	-	04_renderers/all_five_sections/score_above	Makefile
 new	all_five_sections_score_below	-	04_renderers/all_five_sections/score_below	Makefile
+new	all_five_colors_sections_preview	-	04_renderers/all_five_colors_sections/no_score	Makefile

@@ -1,0 +1,64 @@
+2026-10-19 10:00:28 PDT, Combined-colour runnable preview
+User accepted the parallel timeout fix and asked whether there was a working
+combined-colour example; if not, continue. There was no runnable combined example,
+only private ROMs. Created an explicitly EXPERIMENTAL fixed-layout no-score leaf:
+examples/04_renderers/all_five_colors_sections/no_score/. It has a Makefile,
+instructions, editable independent eight-entry P0/P1 colour tables, seven editable
+section palettes in .c26, joystick movement, Select cycling and Reset. It uses
+ordinary 8K F8 with 102/128 RAM bytes including eleven hardware-stack bytes.
+Bank0 uses 3500/3840 bytes; bank1 uses 992/3840. No cartridge RAM, extra drawing
+bank, mirrored sprites, or user source-generation step was introduced.
+
+The checked-in example-local renderer derives from the passing routed_dense
+schedule. Metadata now correctly includes its two routing bytes (85 renderer
+RAM bytes). Geometry is still fixed at 18,20,22,24,26,28; this does NOT satisfy
+general eight-slot geometry and must not be advertised as the completed feature.
+The seven palette parameters lower through C26 assignments, with zero-cycle
+labels preserving repeated immediate loads even when neighbouring colours match.
+Raw asm parameter substitution of 0xNN values was rejected by the assembler;
+using constant C26 assignments preserves the measured two-instruction schedule.
+
+Independent artwork checks caught two integration hazards before handoff. The
+preview uses explicit bottom-to-top raw eight-row arrays, avoiding accidental
+SPRITE_GLYPH argument reversal. Sprites must be pinned bank0: bank1 initialization
+and controls otherwise attract automatically placed arrays, silently invalidating
+runtime pointers in the drawing bank. Keep animation-pointer updates in bank0
+main/overscan, not bank1 controls, to avoid contradictory bank-placement pins.
+Pin all four frames independently, rather than trusting shared candidate/golden
+source data. Existing public sprite files and installed renderers were untouched.
+
+Added a no-score preview profile to the existing CPU interactive matrix. It
+requires the preview's intentional starting positions and retains all previous
+profiles' expectations. All-five movement, Select edge/hold/rearm, clamps, Reset
+and frame budgets pass. The example test also randomizes X/Y/height/NUSIZ and
+checks equal PF/BK palette timing. Three preview probe descriptors reuse moving
+exact-RGB, glyph, straddling, isolated-edge and uniform-PF oracles. A separate
+Stella test checks the static interactive scene against a four-palette composite
+of independent ordinary player-colour renderers, without editing pixel references.
+
+Exact tests consume frozen private component/sprite/interactive fixtures, as
+required by repository policy: editable examples must not invalidate golden
+harnesses when users change colours or artwork. No hygiene exception was added.
+The normal example shards discover and smoke-build the public leaf. At handoff,
+the editable example and certified fixture produce byte-identical ROMs, SHA256
+b10f347198db831e1cfe08bc5bf6320632a6a21fe60f9891e21d73c5b7432da4.
+
+Focused new tests and hygiene pass. Initial broad compile validation caught the
+new Makefile's missing pre-Stella settings warning; added the standard warning.
+General placement, combined score examples and their independent score/control
+proofs remain OPEN. Do not weaken the one-bank/128-byte constraints to finish.
+No commits or pushes.
+
+Broad validation then caught the required example integration registrations:
+assembly review allowlist (1871 beam-critical statements, exact SHA256), runnable
+leaf inventory (twelve new leaves rather than eleven), standard animation source
+inventory (seventeen rather than sixteen, with exact raw-frame support and caller
+selector validation), and README FIGlet banners. Registered the new preview in
+each existing contract without removing any previous expectation. Shortened
+superseded completed hot-state prose to retain the 64 KiB total context budget.
+All seven focused registration/hygiene/history checks pass. The final uninterrupted
+eight-worker full suite passes 591 compile + 445 e2e = 1036 tests, including all
+example shards/disassembler round trips and five new preview gates. Final log:
+/tmp/opencode/colors-sections-preview-certified.log; timings:
+/tmp/opencode/colors-sections-preview-certified.tsv. Cleaned the preview's generated
+build outputs before packaging. No commits or pushes.

@@ -55,6 +55,17 @@ sub same_frames {
    }
 }
 
+sub animation_frames {
+   my($text,$name)=@_;
+   my$block=initializer($text,$name,32);
+   return frames($block,'game_SPRITE_GLYPH') if $block =~ /game_SPRITE_GLYPH/;
+   my@values=split /,/, $block;
+   for(@values){s{//.*$}{}mg;s/\s+//g;}
+   @values=grep{length}@values;
+   @values==32 or die "$name raw animation does not have four eight-row frames\n";
+   return [map{[@values[$_*8..$_*8+7]]}0..3];
+}
+
 sub plain_values {
    my($block)=@_;
    my @v=split /,/, $block;
@@ -232,14 +243,15 @@ find(sub {
    my $text=read_file($path);
    push @animation_sources,$path if $text =~ /\bp0_animation\s*\[32\]/;
 },File::Spec->catdir($repo,'examples'));
-@animation_sources==16
-   or die "expected 16 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
+@animation_sources==17
+   or die "expected 17 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
 for my $path (@animation_sources) {
    my $text=read_file($path);
-   same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),$p0_frames,"$path P0");
-   same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),$p1_frames,"$path P1");
+   same_frames(animation_frames($text,'p0_animation'),$p0_frames,"$path P0");
+   same_frames(animation_frames($text,'p1_animation'),$p1_frames,"$path P1");
    # Sections share pure artwork; validate both selectors in their callers below.
    next if $path eq File::Spec->catfile($repo,qw(examples _common all_five_sections_interactive_sprites.c26));
+   next if $path eq File::Spec->catfile($repo,qw(examples _common all_five_colors_sections_preview_sprites.c26));
    $text =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
       or die "$path P0 animation selector changed\n";
    $text =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
@@ -248,11 +260,12 @@ for my $path (@animation_sources) {
 
 for my $caller (
    [qw(examples 04_renderers all_five_sections no_score all_five_sections_192.c26)],
+   [qw(examples 04_renderers all_five_colors_sections no_score all_five_colors_sections_192.c26)],
    [qw(examples _common all_five_sections_181_interactive_common.c26)],
 ) {
    my $path=File::Spec->catfile($repo,@$caller);
    my $text=read_file($path);
-   $text =~ /include\s+"[^"\n]*all_five_sections_interactive_sprites\.c26"/
+   $text =~ /include\s+"[^"\n]*(?:all_five_sections_interactive|all_five_colors_sections_preview)_sprites\.c26"/
       or die "$path missing shared standard artwork\n";
    for my $n (0,1) {
       my $y=$caller->[1] eq '_common' ? "object_y\\[$n\\]" : "game_player${n}_y";

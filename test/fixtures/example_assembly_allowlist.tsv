@@ -1,4 +1,5 @@
 # path	asm-statements	sha256	policy	regressions	reason
+examples/_common/all_five_colors_sections_preview.c26	1871	181d4dce05f38ccd700c6e57538ac364fca3438c7a8bf3a425f7db94bd2cf03d	beam-critical	-	Cycle-exact cached all-five drawing, row colours, fixed section seams, and explicitly constrained single-bank routing form this experimental display renderer.
 examples/01_basics/blank_screen/blank_screen.c26	33	818ebce36561d5717675e55d370963c335efb48252051ea9d6a2ee4192e94c7a	beam-critical	-	Cycle-exact VSYNC, VBLANK, WSYNC, and visible scanline sequencing is the point of this lowest-level hardware example.
 examples/07_diagnostics/6507_fingerprint/fingerprint.c26	48	c0fecfb5eadcabac41a95ff55f8f3ab4dd7e73718a7ecd948ccbb89fec8e9de4	hardware-idiom	-	ARR probes deliberately exercise unofficial 6507 silicon behavior and the simulator self-test exit uses the emulator trap ABI.
 examples/06_games/paddleball/paddleball.c26	160	7019a95cce1b5ae05c228d0e8b9873f822608cf8ea005da95cce263699c5922d	beam-critical	-	Cycle-exact TIA positioning, playfield updates, object enables, paddle sampling, and scanline handoff form the Paddleball display renderer.

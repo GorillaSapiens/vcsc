@@ -21,8 +21,9 @@ my$bad_refill=$profile eq 'late_bad_refill';
 my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
-my$uniform=$profile eq 'late_dense_uniform';
-my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset';
+my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform';
+my$preview=$profile eq 'preview'||$profile eq 'preview_uniform';
+my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 $profile='score_above' if$bad_score_m0;
@@ -302,6 +303,10 @@ if($score_order) {
       my$new=$prefix.$active.$tail."   asm \@TEMPLATE_B_c_boundary_p0_zero:;\n".$zero.$tail;
       $component =~ s/\Q$old\E/$new/ or die 'score routed boundary replacement';
    }
+}
+if($preview) {
+   # Frozen counterpart of the preview, not just its generated ancestor.
+   $component=slurp("$repo/test/fixtures/all_five_colors_sections_preview/component.c26");
 }
 save("$tmp/component.c26",$component);
 

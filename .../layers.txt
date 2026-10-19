@@ -5,18 +5,10 @@ A workstream for section-dependent playfield and background colours.
 
 CURRENT USER GOAL (authoritative)
 ---------------------------------
-The desired result is the existing all_five or all-five/player-colour renderer
-with different COLUPF and COLUBK in different vertical sections. Table-driven
-stripes were shelved; baking sections into code is a candidate intended to be
-easier to explain and verify, not a settled implementation choice.
-
-Reuse of the certified object pipeline should be investigated before building
-a new positioning/drawing system. Stacking sections must not restart sprites,
-introduce blank separator scanlines, or change the selected profile's frame
-timing. Player-colour-table behaviour must be preserved if that is the selected
-baseline. The user confirmed compile-time section boundaries and explicitly
-requires all five objects to move smoothly across them, including straddling
-poses. No new public layer ABI is agreed yet.
+Combine independent player row colours with COLUPF/COLUBK sections. All five
+objects must move continuously across seams, without restarts or separator
+scanlines. Configure geometry inside .c26, not through a user-facing generator.
+Reuse the certified object pipeline; do not drop its runtime controls.
 
 CURRENT PROBE AND OPEN WORK
 ---------------------------
@@ -47,7 +39,7 @@ object at X=0,13,14,15,16,150,157,159 for the packed, handoff and late layouts.
 Controls run in overscan: another bank call in VBLANK can delay visible entry.
 An independent doubled-row canonical glyph oracle rejects shared golden/probe
 artwork mistakes. Packed-byte and visible-refill corruptions are also rejected.
-Twenty-six focused regressions pass. Public renderers/examples remain unchanged.
+The installed public renderers remain unchanged; a fixed-layout preview exists.
 
 Dense later-row seams at 18,20,22,24,26,28 plus handoff 32 now pass with ALL
 next-row refills retained. Seven of eight PF writes use folded immediate bytes;
@@ -81,12 +73,14 @@ without changing RAM use or the saved S at +20. Forced absolute GRP0 plus
 duplicated P0 tails balances each indirect B-to-A exit. Both orders and isolated
 edge sweeps match ordinary rasters. These are mechanisms, not general placement.
 
-OPEN: general eight-section .c26 configuration/dispatch and placement across all
-rows, score-profile packed/late seams, independent score oracle/control coverage,
-public component extraction, documentation and runnable examples. The old private
-dense-PF failure is superseded by the passing late_dense profile; no public
-combined renderer is installed. Next: generalize routing/placement inside the
-same draw bank, preserving the existing sprite-bank contract and raster oracles.
+Runnable preview: examples/04_renderers/all_five_colors_sections/no_score/.
+It has seven editable palettes but FIXED seams at 18,20,22,24,26,28. Joystick,
+Select, Reset and four eight-row animation frames work; stock RAM use is 102/128.
+Its ordinary F8 ROM draws only in bank0. The example is byte-identical to its
+frozen certified fixture; editable examples remain smoke-built independently.
+This is NOT a general installed component. OPEN: arbitrary eight-slot geometry,
+score packed/late seams, score/control certification and combined score examples.
+Next: generalize compact routing within one draw bank; preserve all pixel oracles.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,

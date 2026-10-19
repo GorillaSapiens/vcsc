@@ -994,6 +994,19 @@ stdout/stderr is reported. No build is retried and no raster check is relaxed.
 `vcs_diagnostic_subprocess_timeout.pl` tests status/output capture, distinct
 budgets, timeout diagnostics, and cleanup of a compiler-like grandchild.
 
+The combined-colour **fixed-layout preview** lives at
+`examples/04_renderers/all_five_colors_sections/no_score/`.
+`vcs_all_five_colors_sections_example.pl` builds its frozen private counterpart and verifies
+all-five controls/Select/clamps/Reset, frame timing under randomized runtime
+state, equal-colour timing, and all four independently pinned eight-row sprite
+frames. `vcs_all_five_colors_sections_example_stella.pl` compares its gameplay
+pixels with an independent four-palette composite of ordinary player-colour
+renderers. The `preview`, `preview_edges`, and `preview_uniform` probe descriptors
+exercise the frozen preview renderer through the moving exact-RGB, glyph,
+straddling, refill and isolated-edge oracles. These tests do not claim arbitrary
+section-height support or score-preview certification. The editable public
+example remains smoke-built by the ordinary example shards, like other examples.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

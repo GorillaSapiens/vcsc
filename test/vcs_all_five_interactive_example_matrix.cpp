@@ -63,6 +63,7 @@ struct Profile {
 
 Profile parse_profile(const std::string &name) {
    if (name == "all5_192") return {"all5_192", 95, false, false, false, false};
+   if (name == "all5_colors_sections_preview") return {"all5_colors_sections_preview", 95, false, false, false, false};
    if (name == "all5_above") return {"all5_above", 87, true, false, false, false};
    if (name == "all5_below") return {"all5_below", 87, true, false, false, false};
    if (name == "all5_color181_above") return {"all5_color181_above", 87, true, false, false, true};
@@ -112,10 +113,11 @@ public:
       require(memory_[object_x_] == 19, "P0 did not move left by one pixel");
       advance(kLeftRight, kIdle);
       require(memory_[object_x_] == 20, "P0 did not move right by one pixel");
-      advance(kLeftUp, kIdle);
-      require(memory_[y_[0]] == 17, "P0 did not move up by one scanline");
-      advance(kLeftDown, kIdle);
-      require(memory_[y_[0]] == 18, "P0 did not move down by one scanline");
+       advance(kLeftUp, kIdle);
+       const uint8_t initial_y = std::string(profile_.name) == "all5_colors_sections_preview" ? 7 : 18;
+       require(memory_[y_[0]] == initial_y - 1, "P0 did not move up by one scanline");
+       advance(kLeftDown, kIdle);
+       require(memory_[y_[0]] == initial_y, "P0 did not move down by one scanline");
 
       for (uint8_t object = 1; object < 5; ++object) {
          advance(kIdle, kSelect);
@@ -430,8 +432,11 @@ private:
    void require_initial(const char *which) const {
       const std::string prefix = std::string(which) + " ";
       if (!profile_.score_only) {
-         const std::array<uint8_t,5> x{{20,130,50,110,80}};
-         const std::array<uint8_t,5> y{{18,78,34,62,48}};
+         const bool preview = std::string(profile_.name) == "all5_colors_sections_preview";
+         const std::array<uint8_t,5> x = preview ? std::array<uint8_t,5>{{20,60,85,110,148}}
+                                               : std::array<uint8_t,5>{{20,130,50,110,80}};
+         const std::array<uint8_t,5> y = preview ? std::array<uint8_t,5>{{7,7,7,7,7}}
+                                               : std::array<uint8_t,5>{{18,78,34,62,48}};
          for (size_t i = 0; i < 5; ++i) {
             require(memory_[object_x_ + i] == x[i], (prefix + "object X changed").c_str());
             require(memory_[y_[i]] == y[i], (prefix + "object Y changed").c_str());
@@ -468,7 +473,7 @@ Machine *Machine::active_ = nullptr;
 int main(int argc, char **argv) {
    if (argc != 15) {
       std::fprintf(stderr,
-         "usage: %s ROM all5_192|all5_above|all5_below|all5_color181_above|all5_color181_below|all5_dual|all5_3x3_above|all5_3x3_below|score_only object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
+         "usage: %s ROM all5_192|all5_colors_sections_preview|all5_above|all5_below|all5_color181_above|all5_color181_below|all5_dual|all5_3x3_above|all5_3x3_below|score_only object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
          argv[0]);
       return 2;
    }
