@@ -148,3 +148,84 @@ bank1 845/3840, 116/128 RAM (105 object bytes + eleven hardware-stack bytes).
 Full eight-worker suite passed: 591 compile + 458 e2e = 1049, zero failures.
 Log/timings: /tmp/opencode/colors-sections-score-packed.{log,tsv}. Seven focused
 gates also pass with golden scores retaining independent original preparation.
+
+Score-below later placement and dynamic-score follow-up (user: keep going):
+Resolved the score-below seam-18 placement gate WITHOUT relaxing any branches or
+adding a drawing bank. Use a separate bank0 score function so its .same/.cross
+placement is independent of the gameplay function. The gameplay tail calls it
+BEFORE its final WSYNC, and the helper performs that WSYNC before the normal
+three-cycle handoff and score drawing. It starts the overscan timer before RTS,
+absorbing return overhead in the deadline. Calling after the gameplay WSYNC
+instead shifts score output by six cycles; the new tail_call_rejected mutation
+must fail the independent RGB oracle. An ordinary post-return wrapper is WRONG.
+
+The private gameplay component therefore draws the score and begins overscan
+before returning in this score-below profile. This is a COUPLED composition proof,
+not a drop-in public all_five_player_color_181 replacement: its inherited bare
+181-line component metadata cannot describe the combined operation. Installed
+renderers and example-local preview are unchanged. A public extraction MUST
+publish honest combined/handoff contracts or recover independent composition.
+The score function has its own placement; no $e6 anchor is needed in this profile.
+Above still uses its unexecuted $e6 anchor and ordinary score-first composition.
+
+New below-packed-late and isolated-edge gates pass. Latest below probe uses
+bank0 3690/3840, bank1 824/3840, RAM 116/128 (105 data + eleven stack bytes).
+Added changing-score profiles in both orders: motion selects 0,9,99,999,9999,
+99999,999999,123456, exercising all digits and leading zeroes in forty captured
+poses. The candidate folds score updates into bank1 pointer preparation; golden
+renders call a separate updater and retain the original score component's
+preparation. Both orders pass whole-image RGB, actual all-five straddling, glyph
+and runtime timing checks. These assign values, NOT joystick-driven score-control
+or arithmetic carry-rollover certification. Fine geometry and score examples
+remain OPEN. Five new focused gates pass. Full eight-worker suite running:
+/tmp/opencode/colors-sections-score-tail.{log,tsv}.
+
+Score-tail/dynamic full suite completed: 591 compile + 463 e2e = 1054 passing,
+eight workers. Continued private fine-height scheduling in
+/tmp/opencode/colors-sections-fine-spread.pl, then extracted its internal test
+transformation to test/fixtures/all_five_colors_sections_preview/fine_spread.pl.
+The requested heights 2,4,8,16,32,48,64,18 now pass central movement whole-image
+RGB, canonical eight-row glyphs, actual straddling and runtime timing. Only
+seam phases 2,6,14 are implemented, not every even boundary. No public changes.
+Four 48-byte page-contained ROM palette feeds use row X. Packed pair borrows S
+for row X and X for packed M1. Save real S AFTER bank1 preparation, initialize
+S=0 before first u1, update with TXS at A/B handoffs, restore real S at terminal.
+No calls or hardware-stack accesses inside visible drawing. All branch contracts
+retained, A/B unexecuted alignment phase $39. Pair1/3 move M0 shift before CPY
+P1, decrement P0 early, force absolute ENABL and CPY P0 for timing. Packed P1
+active/zero tails duplicated; background store precedes graphics, playfield
+colour follows M1; TSX restores row X BETWEEN second right PF2 and PF1 writes.
+Use cached right PF bytes at sensitive midpoint phases. Zero-cycle barriers
+required on every folded PF write, including B boundary; uniform case caught it.
+Mutation prefetching packed PF +2 rather than +3 fails RGB at identical timing.
+
+KNOWN NEW BLOCKER: central proof alone misses P1 at the far right. Early edge
+sweeps 6/14 pass but 30/62/110/174 fail frame215 X308 at seam-17. Frame215
+isolates P1 at an extreme RESP residue; packed COLUP1 changes ~four cycles before
+ordinary renderer and recolours previous line's right tail. Do not alter golden
+or timing checks or expose this candidate in the example. Failing runs retained
+under /tmp/vcsc_generic_{NAxK,OcvR,N76s,u6G8}; reproduce with probe profile
+fine_spread 1 30 (or 62/110/174). Later edge test files were exploratory additions
+and removed rather than declaring them passing/expected failures. Existing pixel
+oracles still reject those invocations. New registered gates: central, uniform,
+bad-feed rejection, early edge6 and edge14. Full suite running with eight workers:
+/tmp/opencode/colors-sections-fine-spread.{log,tsv}.
+
+Additional fine-spread central layout 18,4,8,16,32,48,48,18 passes, checking
+later normal-pair phase2/6 palette changes rather than only packed phase14.
+Its isolated edge18/22 invocations fail at visible13 as well: the packed P1
+colour hazard is present even when there is no palette boundary at that pair.
+Keep that distinction in future fixes. One additional registered central gate;
+the two exploratory failing edge tests were removed. Fine-spread measurement:
+bank0 2681/3840, bank1 613/3840, RAM 96/128 (87 data + nine hardware stack).
+
+First fine-spread broad run: 591 compile passed; 467/468 e2e passed. Only failure
+was hot-document aggregate size 65615 > 65536, observed before the context text
+was compressed. Standalone hygiene now passes. Final complete eight-worker run
+includes the additional later-layout central gate and uses:
+/tmp/opencode/colors-sections-fine-spread-final.{log,tsv}.
+
+Final fine-spread rerun PASS: 591 compile + 469 e2e = 1060 tests, zero failures,
+eight workers. Includes all six new fine-spread gates and the fixed hot-record
+budget. Known later packed-P1 edge limitation remains open; public example is
+unchanged. Packaging via make tar; all work remains uncommitted/unpushed.

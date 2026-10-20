@@ -50,15 +50,15 @@ tail pad. Right PF2 phases remain 49/125 in each 152-cycle pair. Zero-cycle labe
 before generated PF writes prevent peephole removal of equal adjacent immediate
 loads; a uniform-row case specifically tests this. Dense refill corruption fails.
 
-Both score orders prove initial dense seams 2..12 and packed seam 14; score-above
-also proves later seam 18. RGB, glyph, straddling, isolated edges and runtime
-timing checks pass. These remain PRIVATE fixed-score proofs. The 181-line profile
+Both score orders prove initial dense seams 2..12, packed 14 and later 18, plus
+changing scores 0..999999 against original score preparation. RGB, glyph,
+straddling, edges and timing pass. These remain PRIVATE composition proofs. The 181-line profile
 must suppress the final normal
 M0 shift (its packed entry uses the cached bit); mutation is rejected. Bank1
 preparation mirrors PF ROM and the wrapper re-snapshots S AFTER its bank call.
 Colourable origin is component start +4; setup/tail add five lines. Score-below
 currently inherits the terminal gameplay palette behind its score. These are
-fixed-score 123456 proofs, not interactive score/control certification.
+composition proofs, not interactive score/control certification.
 
 Single-bank routing proofs now pass too. No-score routed_dense uses a two-byte
 pointer (85 renderer bytes), enters the specialized B row through a three-cycle
@@ -84,8 +84,30 @@ Its ordinary F8 ROM draws only in bank0. The example is byte-identical to its
 frozen certified fixture; editable examples remain smoke-built independently.
 Sprite orientation fixed: use SPRITE_GLYPH per frame, not top-down raw ROM rows.
 This is NOT a general installed component. OPEN: fine two-line eight-slot geometry,
-score-below later placement, score/control certification and combined score examples.
+score/control certification, general composition contracts and score examples.
 Next: generalize compact routing within one draw bank; preserve all pixel oracles.
+
+Private fine_spread profile (NOT edge-complete): the requested
+2,4,8,16,32,48,64,18 heights pass central-moving whole-raster RGB, independent
+glyph, all-five straddling and runtime timing checks. It uses four page-contained
+48-byte palette feeds, immediate alternating PF patterns, and only bank0 drawing.
+Only offsets 2,6,14 are handled, NOT arbitrary geometry. Uniform PF passes with
+barriers on all folded writes. Early edge sweeps 6/14 pass. Later sweeps
+at 30/62/110/174 FAIL: frame 215, X=308, visible seam-17 (P1 near right edge).
+The packed path writes COLUP1 about four cycles before the original renderer,
+changing the right-edge tail of the preceding line. Do NOT expose this layout
+in the runnable example until those exact comparisons pass. Reproduce:
+perl test/vcs_all_five_colors_sections_probe.pl . <existing-temp-dir> fine_spread 1 30
+Pixel/timing checks remain strict.
+S temporarily holds row X; TSX restores it after M1/palette work and TXS updates
+it at row boundaries. Real S is saved AFTER bank1 preparation and restored on
+the terminal path; do not add calls during drawing. A/B unexecuted page anchors
+are $39. New mutation changes packed PF prefetch +3 to +2 at identical timing
+and must fail RGB. Helper: test/fixtures/...preview/fine_spread.pl.
+An alternate 18,4,8,16,32,48,48,18 layout also passes central movement, exercising
+later phases 2/6. Its isolated 18/22 probes fail too: the packed P1 colour hazard
+occurs whenever a sprite crosses that row pair, not only at a palette seam.
+Measured: bank0 2681/3840, bank1 613/3840, RAM 96/128 (87 data + nine stack).
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,

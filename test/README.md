@@ -1013,12 +1013,25 @@ general two-line geometry or score composition. The editable public
 example remains smoke-built by the ordinary example shards, like other examples.
 
 Private `vcs_all_five_colors_sections_score_*packed*` probes certify seam 14 in
-both score orders and seam 18 in score-above, including isolated edge sweeps.
+both score orders and seam 18 in both orders, including isolated edge sweeps.
 They retain one drawing bank and stock RAM. Score-pointer preparation runs in
 bank1 using a RAM-held bank0 font address; golden renders retain the original
 score preparation and ordinary gameplay kernel. The late-M1 mutation must fail
-the RGB oracle. These fixed-123456 proofs do not certify interactive score
-controls, arbitrary section placement, or the unresolved score-below late layout.
+the RGB oracle. The `score_*dynamic` cases cycle eight score values from 0 to
+999999 and compare with the original score preparation. Score-below's private
+coupled composition calls a bank0 score function before the final gameplay
+WSYNC; that function performs the sync and starts overscan before returning.
+The post-WSYNC call mutation must fail RGB comparison. These probes do not
+certify interactive score controls, arbitrary section placement, or a drop-in
+public gameplay component's standalone handoff contract.
+
+The private `fine_spread` experiment checks the requested
+`2,4,8,16,32,48,64,18` heights with central moving objects, uniform playfield
+bytes, a wrong packed-palette-feed mutation, and early isolated seams 6/14.
+It is deliberately NOT installed in the example: later packed-seam edge sweeps
+still fail at P1's right-edge colour tail. See `.../layers.txt` for reproduction.
+Its helper transforms the ordinary renderer only inside the test harness; it
+is not a user-facing generator or certification of arbitrary two-line heights.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a

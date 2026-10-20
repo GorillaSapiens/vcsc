@@ -6,7 +6,7 @@
 # expectexit: 0
 
 # Feasibility gate, NOT a public renderer or a general section implementation.
-# Dense/packed/later seams, score composition, and bounded row-aligned geometry.
+# Dense/packed/later seams, score composition, and bounded geometry experiments.
 # Keep the established public renderer, heights, pointers and RAM unchanged.
 use strict;
 use warnings;
@@ -21,11 +21,13 @@ my$bad_refill=$profile eq 'late_bad_refill';
 my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
-my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform';
-my$preview=$profile eq 'preview'||$profile eq 'preview_uniform';
+my$fine_spread=$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed';
+my$bad_fine_feed=$profile eq 'fine_spread_bad_feed';
+my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform';
+my$preview=$profile eq 'preview'||$profile eq 'preview_uniform'||$fine_spread;
 $proof_seam //= 16;
-my@preview_heights=split /,/,($geometry//'16,16,16,16,32,32,32,32');
-@preview_heights==8 && !grep{!/^\d+$/||$_%16}@preview_heights or die 'invalid preview test geometry';
+my@preview_heights=split /,/,($geometry//($fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
+@preview_heights==8 && !grep{!/^\d+$/||$_%($fine_spread?2:16)}@preview_heights or die 'invalid preview test geometry';
 my(@preview_seams,%seen);my$end=0;
 for(@preview_heights){$end+=$_;push@preview_seams,$end if$end>0&&$end<192&&!$seen{$end}++;}
 $end==192&&$preview_heights[0]>0 or die 'invalid preview test extent';
@@ -39,9 +41,15 @@ my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$pre
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
+my$bad_score_tail_call=$profile eq 'score_below_packed_late_bad_call';
+my$score_dynamic=$profile eq 'score_above_packed_late_dynamic'||$profile eq 'score_below_packed_late_dynamic';
+$profile='score_above_packed_late' if$profile eq 'score_above_packed_late_dynamic';
+$profile='score_below_packed_late' if$profile eq 'score_below_packed_late_dynamic';
 $profile='score_above_packed_late' if$bad_score_late_m1;
-my$score_late=$profile eq 'score_above_packed_late';
+$profile='score_below_packed_late' if$bad_score_tail_call;
+my$score_late=$profile eq 'score_above_packed_late'||$profile eq 'score_below_packed_late';
 $profile='score_above_packed' if$profile eq 'score_above_packed_late';
+$profile='score_below_packed' if$profile eq 'score_below_packed_late';
 my$score_packed=$profile eq 'score_above_packed'||$profile eq 'score_below_packed';
 $profile='score_above' if$profile eq 'score_above_packed';
 $profile='score_below' if$profile eq 'score_below_packed';
@@ -380,10 +388,16 @@ if($score_packed) {
    }
    # Both specialized exits jump over this unexecuted phase anchor. The
    # compact renderer and successor score retain all branch-page contracts.
-   my$anchor=$score_late?"   asm .align 256, \$e6;\n":'';
+   my$anchor=$score_late&&$score_order eq 'above'?"   asm .align 256, \$e6;\n":'';
    $component =~ s/(   asm \@TEMPLATE_A_c_u1:;)/$new$anchor$1/ or die 'score packed insertion';
    # Prime next-row M0 before borrowing X. Saved S and all RAM stay unchanged.
    $component =~ s/(   asm stx.z TEMPLATE_row_cache \+ 20;\n\}\n\nrequire inline void TEMPLATE_draw)/   asm stx.z TEMPLATE_row_cache + 20;\n   asm lda.z TEMPLATE_object_masks + 6;\n   asm sta.z TEMPLATE_row_cache + 6;\n}\n\nrequire inline void TEMPLATE_draw/ or die 'score packed priming';
+   if($score_late&&$score_order eq 'below'&&!$bad_score_tail_call) {
+      $component="bank0 void draw_probe_score_tail(void);\n".$component;
+      # Enter the helper BEFORE the final gameplay WSYNC. Its leading WSYNC
+      # absorbs JSR, preserving the existing line count and score entry phase.
+      $component =~ s/   asm sta WSYNC;\n\}\n\nrequire inline void TEMPLATE_overscan/   draw_probe_score_tail();\n}\n\nrequire inline void TEMPLATE_overscan/ or die 'score tail terminal call';
+   }
 }
 if($preview) {
    # Frozen counterpart of the preview, not just its generated ancestor.
@@ -391,6 +405,18 @@ if($preview) {
    for my$n(1..8) {
       $component =~ s/(parameter section${n}_lines := )\d+;/$1$preview_heights[$n-1];/ or die 'preview height parameter';
    }
+}
+if($fine_spread) {
+   # Private sparse-phase schedule, not a general geometry implementation.
+   # It changes palettes at row offsets 2,6,14; row boundaries retain colour.
+   # KNOWN FAILURE: later packed-seam P1 right-edge residues (see layers.txt).
+   # S holds row X only during drawing; no calls or stack accesses are allowed.
+   for my$seam(@preview_seams) {
+      grep{$_==$seam%16}(2,6,14) or die 'unsupported fine spread phase';
+   }
+   my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/fine_spread.pl";
+   ref$build eq 'CODE' or die "fine spread helper: $@ $!";
+   $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed);
 }
 save("$tmp/component.c26",$component);
 
@@ -471,15 +497,23 @@ if($score_order) {
        my$helper="const uint8_t *probe_font;\nbcd24_t score_score := 0;\nbank1 void prepare_probe_score(void) {".$prepare."\n}\n";
        $source =~ s/void main\(void\)/$helper\nvoid main(void)/ or die 'banked score pointer helper';
        $source =~ s/score_init\(\);/score_init();\n   probe_font := score_font;\n   prepare_probe_score();/ or die 'banked score initialization';
-       # Golden renders use this same preparation but retain the ordinary
-       # gameplay drawing kernel and their independent score renderer.
+       # The candidate is copied below, then the golden is switched back to
+       # ordinary score preparation and the independent gameplay kernel.
        $source =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if!$edges;
     }
     $source =~ s/(      game_vblank\(\);)/$1\n      score_vblank();/ or die 'score vblank';
     $source =~ s/score_vblank\(\);/score_vblank();\n      prepare_probe_score();/ or die 'banked score preparation call' if$score_packed;
    $source =~ s/(      game_overscan\(\);)/$1\n      score_overscan();/ or die 'score overscan';
-   my$draw=$score_order eq 'above'?"      score_draw();\n      vcs_ntsc_component_handoff();\n      game_draw();":"      game_draw();\n      vcs_ntsc_component_handoff();\n      score_draw();";
-   $source =~ s/      game_draw\(\);/$draw/ or die 'score drawing';
+    my$draw=$score_order eq 'above'?"      score_draw();\n      vcs_ntsc_component_handoff();\n      game_draw();":"      game_draw();\n      vcs_ntsc_component_handoff();\n      score_draw();";
+    $source =~ s/      game_draw\(\);/$draw/ or die 'score drawing';
+    if($score_dynamic) {
+       my@values=(0,9,99,999,9999,99999,999999,123456);
+       my$update="bank1 void update_probe_score(void) {\n   switch (motion & 7) {\n";
+       $update.=join('',map{"      case $_: score_score := $values[$_]; break;\n"}0..7);
+       $update.="   }\n}\n";
+       $source =~ s/void main\(void\)/$update\nvoid main(void)/ or die 'dynamic score helper';
+       $source =~ s/(      game_vblank\(\);)/      update_probe_score();\n$1/ or die 'dynamic score call';
+    }
     $probe=$source;
     $probe =~ s#renderers/all_five_player_color_181/all_five_player_color_181.c26#$tmp/component.c26# or die 'score component include';
     if($score_packed) {
@@ -494,6 +528,15 @@ if($score_order) {
    $probe =~ s#renderers/all_five_player_color_192/all_five_player_color_192.c26#$tmp/component.c26# or die 'component include';
 }
 if($score_packed) {
+   if($score_dynamic) {
+      # Candidate score controls and pointer preparation share bank1. Keep
+      # the golden's separately called updater and original preparation.
+      my($update)=$probe =~ /bank1 void update_probe_score\(void\) \{(.*?)\n\}/s;
+      defined$update or die 'dynamic candidate score updater';
+      $probe =~ s/bank1 void update_probe_score\(void\) \{.*?\n\}\n//s or die 'fold dynamic score helper';
+      $probe =~ s/      update_probe_score\(\);\n// or die 'fold dynamic score call';
+      $probe =~ s/(bank1 void prepare_probe_score\(void\) \{)/$1$update\n/ or die 'dynamic candidate preparation';
+   }
    my($initial)=$probe =~ /void main\(void\) \{\n(.*?)(?=   game_player0_graphics := )/s;
    defined$initial or die 'score packed initialization';
    $probe =~ s/void main\(void\) \{\n\Q$initial\E/bank1 void initialize_probe_objects(void) {\n$initial}\nvoid main(void) {\n   initialize_probe_objects();\n/ or die 'score packed banked initialization';
@@ -509,6 +552,17 @@ if($score_packed) {
       $probe =~ s/\Q$move\E// or die 'score packed move pose';
       $probe =~ s/bank1 void finish_probe_gameplay\(void\) \{ game_overscan\(\); \}/bank1 void advance_probe_pose(void) {\n$move}\nbank1 void finish_probe_gameplay(void) { game_overscan(); advance_probe_pose(); }/ or die 'score packed overscan pose';
       $probe =~ s/(   prepare_probe_score\(\);\n)(   while)/$1   advance_probe_pose();\n$2/ or die 'score packed first pose';
+   }
+   if($score_late&&$score_order eq 'below') {
+      # The gameplay terminal calls this helper before its final WSYNC. Start
+      # overscan before returning so RTS is absorbed by the timer deadline.
+      # This is another function in bank0, never a second drawing bank.
+      my$tail="      vcs_ntsc_component_handoff();\n      score_draw();\n      vcs_ntsc_begin_overscan();";
+      my$call=$bad_score_tail_call?'      draw_probe_score_tail();':'';
+      $probe =~ s/\Q$tail\E/$call/ or die 'score tail composition';
+      my$sync=$bad_score_tail_call?'':"      asm sta WSYNC;\n";
+      my$wrapper="bank0 void draw_probe_score_tail(void) {\n$sync$tail\n}\n";
+      $probe =~ s/void main\(void\)/$wrapper\nvoid main(void)/ or die 'score tail function';
    }
 }
 $probe =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if$later&&!$edges&&!$score_packed;
