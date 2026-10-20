@@ -207,12 +207,12 @@ all_five_colors_sections: combine player colour tables with sections and all
 three example compositions. User explicitly requires stock 128-byte RAM.
 test/vcs_all_five_colors_sections_probe.pl proves dense initial/later seams,
 packed 14, handoffs 16/32 and single-bank row routing. Both score orders pass
-initial seams and cached-pointer routing without extra RAM. User requires ONE
+packed 14; score-above also passes 18 (private proofs). User requires ONE
 draw bank; no mirrored sprites. A fixed-seam no-score interactive preview now
 lives in examples/04_renderers/all_five_colors_sections/no_score/ (100/128 RAM).
-Its eight fixed heights are 16,16,16,16,32,32,32,32; two visual PF aliases repeat.
+Heights now accept 16-line increments totaling 192; two visual PF aliases repeat.
 General geometry and combined score examples remain unfinished. See layers.txt.
-Spread-out suite: 591 compile + 446 e2e passed (1037 total), eight workers.
+Packed/late score suite: 591 compile + 458 e2e passed (1049), eight workers.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.
 Section controls: joystick, edge-triggered Select cycling, Reset; no auto motion.

@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // Interactive experimental preview: build and run from this leaf directory.
-// Fixed-layout combined-colour preview; see README.md. Build with make.
+// Row-aligned combined-colour preview; see README.md. Build with make.
 include "vcs.c26"
 include "frame_ntsc.c26"
 include "F8/mapper.c26"
@@ -22,8 +22,10 @@ page const uint8_t game_playfield[48] := {
 // Independent bottom-to-top player row colours; all five objects stay live.
 page const uint8_t game_player0_colors[8] := {0x0e,0x2e,0x4e,0x6e,0x8e,0xae,0xce,0xee};
 page const uint8_t game_player1_colors[8] := {0xee,0xce,0xae,0x8e,0x6e,0x4e,0x2e,0x0e};
-// Heights: 16,16,16,16,32,32,32,32; seams: 16,32,48,64,96,128,160.
+// Default seams: 16,32,48,64,96,128,160. Heights: multiples of 16, totaling 192.
 instantiate "../../../_common/all_five_colors_sections_preview.c26" as game (
+   section1_lines:=16, section2_lines:=16, section3_lines:=16, section4_lines:=16,
+   section5_lines:=32, section6_lines:=32, section7_lines:=32, section8_lines:=32,
    section1_colupf:=0x2e, section1_colubk:=0x84,
    section2_colupf:=0x46, section2_colubk:=0xc2,
    section3_colupf:=0x8e, section3_colubk:=0x26,

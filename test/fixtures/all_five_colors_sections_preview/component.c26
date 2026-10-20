@@ -1,7 +1,15 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// Frozen spread-out preview: heights 16,16,16,16,32,32,32,32.
+// Frozen row-aligned preview: default heights 16,16,16,16,32,32,32,32.
 // The playfield repeats its first two rows; edit the two visual row aliases in the
 // example, not individual later copies. This is not a general section renderer.
+parameter section1_lines := 16;
+parameter section2_lines := 16;
+parameter section3_lines := 16;
+parameter section4_lines := 16;
+parameter section5_lines := 32;
+parameter section6_lines := 32;
+parameter section7_lines := 32;
+parameter section8_lines := 32;
 parameter section1_colupf := 0x2e;
 parameter section1_colubk := 0x84;
 parameter section2_colupf := 0x46;
@@ -25,8 +33,29 @@ enum TEMPLATE_preview_palette {
    TEMPLATE_INITIAL_COLUPF := TEMPLATE_section1_colupf,
    TEMPLATE_INITIAL_COLUBK := TEMPLATE_section1_colubk
 };
-page const uint8_t TEMPLATE_sections_pf[48] := {TEMPLATE_section1_colupf,TEMPLATE_section1_colupf,TEMPLATE_section1_colupf,TEMPLATE_section1_colupf,TEMPLATE_section2_colupf,TEMPLATE_section2_colupf,TEMPLATE_section2_colupf,TEMPLATE_section2_colupf,TEMPLATE_section3_colupf,TEMPLATE_section3_colupf,TEMPLATE_section3_colupf,TEMPLATE_section3_colupf,TEMPLATE_section4_colupf,TEMPLATE_section4_colupf,TEMPLATE_section4_colupf,TEMPLATE_section4_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section5_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section6_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section7_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf,TEMPLATE_section8_colupf};
-page const uint8_t TEMPLATE_sections_bk[48] := {TEMPLATE_section1_colubk,TEMPLATE_section1_colubk,TEMPLATE_section1_colubk,TEMPLATE_section1_colubk,TEMPLATE_section2_colubk,TEMPLATE_section2_colubk,TEMPLATE_section2_colubk,TEMPLATE_section2_colubk,TEMPLATE_section3_colubk,TEMPLATE_section3_colubk,TEMPLATE_section3_colubk,TEMPLATE_section3_colubk,TEMPLATE_section4_colubk,TEMPLATE_section4_colubk,TEMPLATE_section4_colubk,TEMPLATE_section4_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section5_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section6_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section7_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk,TEMPLATE_section8_colubk};
+alias TEMPLATE_END1 TEMPLATE_section1_lines
+alias TEMPLATE_END2 (TEMPLATE_END1 + TEMPLATE_section2_lines)
+alias TEMPLATE_END3 (TEMPLATE_END2 + TEMPLATE_section3_lines)
+alias TEMPLATE_END4 (TEMPLATE_END3 + TEMPLATE_section4_lines)
+alias TEMPLATE_END5 (TEMPLATE_END4 + TEMPLATE_section5_lines)
+alias TEMPLATE_END6 (TEMPLATE_END5 + TEMPLATE_section6_lines)
+alias TEMPLATE_END7 (TEMPLATE_END6 + TEMPLATE_section7_lines)
+alias TEMPLATE_END8 (TEMPLATE_END7 + TEMPLATE_section8_lines)
+alias TEMPLATE_AT(line,a,b,c,d,e,f,g,h) ((line) < TEMPLATE_END1 ? (a) : (line) < TEMPLATE_END2 ? (b) : (line) < TEMPLATE_END3 ? (c) : (line) < TEMPLATE_END4 ? (d) : (line) < TEMPLATE_END5 ? (e) : (line) < TEMPLATE_END6 ? (f) : (line) < TEMPLATE_END7 ? (g) : (h))
+alias TEMPLATE_PF(pf_line) TEMPLATE_AT(pf_line,TEMPLATE_section1_colupf,TEMPLATE_section2_colupf,TEMPLATE_section3_colupf,TEMPLATE_section4_colupf,TEMPLATE_section5_colupf,TEMPLATE_section6_colupf,TEMPLATE_section7_colupf,TEMPLATE_section8_colupf)
+alias TEMPLATE_PF4(pf_start) TEMPLATE_PF(pf_start),TEMPLATE_PF(pf_start),TEMPLATE_PF(pf_start),TEMPLATE_PF(pf_start)
+page const uint8_t TEMPLATE_sections_pf[48] := {
+   TEMPLATE_PF4(0),TEMPLATE_PF4(16),TEMPLATE_PF4(32),TEMPLATE_PF4(48),
+   TEMPLATE_PF4(64),TEMPLATE_PF4(80),TEMPLATE_PF4(96),TEMPLATE_PF4(112),
+   TEMPLATE_PF4(128),TEMPLATE_PF4(144),TEMPLATE_PF4(160),TEMPLATE_PF4(176)
+};
+alias TEMPLATE_BK(bk_line) TEMPLATE_AT(bk_line,TEMPLATE_section1_colubk,TEMPLATE_section2_colubk,TEMPLATE_section3_colubk,TEMPLATE_section4_colubk,TEMPLATE_section5_colubk,TEMPLATE_section6_colubk,TEMPLATE_section7_colubk,TEMPLATE_section8_colubk)
+alias TEMPLATE_BK4(bk_start) TEMPLATE_BK(bk_start),TEMPLATE_BK(bk_start),TEMPLATE_BK(bk_start),TEMPLATE_BK(bk_start)
+page const uint8_t TEMPLATE_sections_bk[48] := {
+   TEMPLATE_BK4(0),TEMPLATE_BK4(16),TEMPLATE_BK4(32),TEMPLATE_BK4(48),
+   TEMPLATE_BK4(64),TEMPLATE_BK4(80),TEMPLATE_BK4(96),TEMPLATE_BK4(112),
+   TEMPLATE_BK4(128),TEMPLATE_BK4(144),TEMPLATE_BK4(160),TEMPLATE_BK4(176)
+};
 const uint8_t TEMPLATE_even_pf0 := TEMPLATE_playfield[0];
 const uint8_t TEMPLATE_odd_pf0 := TEMPLATE_playfield[4];
 const uint8_t TEMPLATE_even_pf1 := TEMPLATE_playfield[1];
@@ -129,6 +158,15 @@ uint8_t TEMPLATE_object_masks[48];
 uint8_t TEMPLATE_row_cache[14];
 
 require inline void TEMPLATE_init(void) {
+   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 192;
+   asm .error "Preview section heights must total 192 scanlines";
+   asm .endif;
+   asm .if TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0 || TEMPLATE_section8_lines < 0;
+   asm .error "Section one must be nonempty and other heights nonnegative";
+   asm .endif;
+   asm .if {TEMPLATE_section1_lines | TEMPLATE_section2_lines | TEMPLATE_section3_lines | TEMPLATE_section4_lines | TEMPLATE_section5_lines | TEMPLATE_section6_lines | TEMPLATE_section7_lines | TEMPLATE_section8_lines} & 15;
+   asm .error "Preview section heights must be multiples of 16 scanlines";
+   asm .endif;
 }
 
 bank1 page const uint8_t TEMPLATE_prepare_playfield[48] := {

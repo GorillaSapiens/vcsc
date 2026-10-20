@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// Four standard eight-row frames stored directly bottom-to-top.
-// Do not wrap these already reversed rows in SPRITE_GLYPH again.
+// Standard frames in visual top-to-bottom order; the macro reverses ROM rows.
 bank0 page const uint8_t p0_animation[32] := {
+   game_SPRITE_GLYPH(
    0b.X....X.,
       0bX.X..X.X,
       0bX.XXXX.X,
@@ -9,7 +9,8 @@ bank0 page const uint8_t p0_animation[32] := {
       0bXX.XX.XX,
       0b.XXXXXX.,
       0b..XXXX..,
-      0b.XX..XX.,
+       0b.XX..XX.),
+   game_SPRITE_GLYPH(
    0b..X..X..,
       0b.X.XX.X.,
       0bX.XXXX.X,
@@ -17,7 +18,8 @@ bank0 page const uint8_t p0_animation[32] := {
       0bXX.XX.XX,
       0b.XXXXXX.,
       0b.X.XX.X.,
-      0bX..XX..X,
+       0bX..XX..X),
+   game_SPRITE_GLYPH(
    0b.X....X.,
       0bX.X..X.X,
       0bX.XXXX.X,
@@ -25,7 +27,8 @@ bank0 page const uint8_t p0_animation[32] := {
       0bXX.XX.XX,
       0b.XXXXXX.,
       0b.X.XX.X.,
-      0bX......X,
+       0bX......X),
+   game_SPRITE_GLYPH(
    0bX......X,
       0b.X.XX.X.,
       0bX.XXXX.X,
@@ -33,9 +36,10 @@ bank0 page const uint8_t p0_animation[32] := {
       0bXX.XX.XX,
       0b.XXXXXX.,
       0b..XXXX..,
-      0b..X..X..
+       0b..X..X..)
 };
 bank0 page const uint8_t p1_animation[32] := {
+   game_SPRITE_GLYPH(
    0bX.X..X.X,
       0b.X.XX.X.,
       0b..X..X..,
@@ -43,29 +47,32 @@ bank0 page const uint8_t p1_animation[32] := {
       0bXX.XX.XX,
       0bXXXXXXXX,
       0b.XX..XX.,
-      0b..XXXX..,
+       0b..XXXX..),
+   game_SPRITE_GLYPH(
    0b.X.X.X..,
-      0b..XXXX..,
+       0b..XXXX..,
       0b.X....X.,
       0bXXXXXXXX,
       0bXX.XX.XX,
       0bXXXXXXXX,
       0b.XX..XX.,
-      0b..XXXX..,
+       0b..XXXX..),
+   game_SPRITE_GLYPH(
    0b..X..X..,
       0b.X.XX.X.,
-      0bX......X,
-      0bXXXXXXXX,
-      0bXX.XX.XX,
-      0bXXXXXXXX,
-      0b.XX..XX.,
-      0b..XXXX..,
-   0b..X.X.X.,
+       0bX......X,
+       0bXXXXXXXX,
+       0bXX.XX.XX,
+       0bXXXXXXXX,
+       0b.XX..XX.,
+       0b..XXXX..),
+   game_SPRITE_GLYPH(
+    0b..X.X.X.,
       0b..XXXX..,
       0b.X....X.,
       0bXXXXXXXX,
       0bXX.XX.XX,
       0bXXXXXXXX,
       0b.XX..XX.,
-      0b..XXXX..
+       0b..XXXX..)
 };

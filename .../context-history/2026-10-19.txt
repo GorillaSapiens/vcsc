@@ -84,3 +84,67 @@ eight-worker suite: 591 compile + 446 e2e = 1037 passed, zero failures. Logs/tim
 was the old assembly manifest entry; reviewed and updated it before this rerun.
 Leaf build: bank0 2805/3840, bank1 1002/3840; RAM 100/128 including eleven stack
 bytes. General geometry and combined-score examples remain OPEN. No commits/pushes.
+
+Upright sprites and row-aligned geometry follow-up:
+User noticed the preview players were inverted. Confirmed: the raw arrays were
+the standard SPRITE_GLYPH arguments, NOT already bottom-to-top as earlier notes
+incorrectly claimed. Wrapped each frame in game_SPRITE_GLYPH in public and frozen
+artwork. Corrected the independent ROM oracle to reverse each eight-row visual
+frame, and fixed raw-array normalization in the source orientation inventory.
+New orientation_rejected mutation strips all eight macros and must fail the
+independent ROM check, even though the shared raster composite would agree.
+This supersedes earlier orientation claims and invalidates the old artwork hash.
+
+Continued geometry work: preview now accepts section1_lines..section8_lines in
+.c26. Nonnegative multiples of 16 must total 192 and slot one is nonempty.
+Compile-time selectors emit the same two page-contained 48-byte palette feeds;
+the default geometry's draw schedule, bank usage and RAM are unchanged. This is
+NOT arbitrary two-line placement; packed/fine geometry and combined score work
+remain OPEN. The repeating two-row playfield constraint is unchanged.
+The geometry gate checks 14 layouts with eight independent palettes, page bounds,
+one-section/empty-slot cases and invalid-input diagnostics. Moving RGB/glyph/
+straddling probes certify changed geometry, empty slots, and isolated final seam
+176. All 14 focused gates pass, including CPU controls/randomized/equal-colour
+timing, Stella composite, global source orientation and hygiene. Full eight-worker
+suite passed: 591 compile + 451 e2e = 1042 tests, zero failures. Log/timings:
+/tmp/opencode/colors-sections-upright-rows.{log,tsv}. Public and frozen fixture
+ROMs are byte-identical; bank0 2805/3840, bank1 1002/3840, RAM 100/128.
+
+Packed/late score proof follow-up (user: keep going):
+Added private score_above_packed and score_below_packed profiles: initial dense
+2..12 plus packed 14 pass whole-image RGB, canonical glyph, actual all-five
+straddling, isolated edges, randomized runtime state and pointer/height checks.
+The one-off B packed pair borrows X for final M1, duplicates P1 tails and defers
+raw P0 counter storage. Boundary LDX #0 + STY counter + zero-page LSR replace
+the old CPX/untaken branch/absolute LSR in exactly ten cycles. Next-row M0 is
+primed in VBLANK, preserving saved S and module RAM.
+
+Drawing-bank capacity required moving initialization, cleanup, and motion updates
+to bank1. Frame-zero pose is explicitly advanced before the loop, preserving
+all forty captured poses. Score uses the existing external_pointers mode with
+ordinary bank1 preparation through a two-byte RAM font-base pointer. Do NOT
+move immediate font relocations into bank1: the linker pins that helper to bank0.
+No drawing or font/sprite mirrors were added. Golden scores use ORIGINAL pointer
+preparation, not the new helper, so arithmetic/address bugs cannot be shared.
+The probes remain fixed-score 123456; independent interactive score controls
+and final 128-byte interactive composition are still unproved.
+
+Score-above additionally proves later seam 18 after packed 14. Specialize only
+the first compact A pair; fold immutable current-row PF bytes, decrement P0 in
+the old refill slot, move LDX #2 before the right PF rewrite, and duplicate P0
+tails to pay for the jump into the shared two-pair loop. Stage row-two M1 during
+six otherwise dead packed-prefix cycles, NOT in VBLANK: cache +12 still holds
+live row-zero M1 during score/gameplay setup, and early priming corrupts it.
+A bad +8 instead of +9 M1 load is rejected by the RGB oracle. An unexecuted
+.align 256,$e6 phase anchor retains all original .same/.cross contracts.
+
+Score-below with seam 18 remains UNPROVED: relaxed branches fit ROM but the
+fully constrained placement does not. No branch timing contract was weakened.
+Exploratory failures remain under /tmp/opencode/score-packed-late-below-v*;
+no score-below late descriptor or advertised support was added. General even
+geometry and score examples remain open. Seven new gates and four established
+score gates pass focused validation. Latest above-late probe: bank0 3678/3840,
+bank1 845/3840, 116/128 RAM (105 object bytes + eleven hardware-stack bytes).
+Full eight-worker suite passed: 591 compile + 458 e2e = 1049, zero failures.
+Log/timings: /tmp/opencode/colors-sections-score-packed.{log,tsv}. Seven focused
+gates also pass with golden scores retaining independent original preparation.

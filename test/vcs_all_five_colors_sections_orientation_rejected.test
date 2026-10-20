@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_example.pl @REPO@ @TMP@ inverted
+# phase: e2e
+# timeout: 180
+# expectstderr: p0_animation artwork differs from the standard eight-row frames
+# expectexit: 255

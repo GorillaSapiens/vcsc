@@ -8,7 +8,7 @@ use strict;
 use warnings;
 use IPC::Open3;
 use Symbol qw(gensym);
-my($repo,$tmp)=@ARGV;
+my($repo,$tmp,$mutation)=@ARGV;
 sub slurp { open(my$f,'<',$_[0]) or die$!;local$/;return <$f>; }
 sub run {
    my$err=gensym;my$p=open3(my$i,my$o,$err,@_);close$i;
@@ -18,6 +18,18 @@ sub run {
 }
 my$fixture="$repo/test/fixtures/all_five_colors_sections_preview";
 my$source="$fixture/interactive.c26";
+if(defined$mutation) {
+   $mutation eq 'inverted' or die 'unknown artwork mutation';
+   my$art=slurp("$fixture/sprites.c26");
+   my$count=($art =~ s/game_SPRITE_GLYPH\((.*?)\)/$1/sg);
+   $count==8 or die 'orientation mutation must cover all eight frames';
+   open(my$f,'>',"$tmp/inverted_sprites.c26")or die$!;print{$f}$art;close$f;
+   my$s=slurp($source);
+   $s =~ s#"sprites.c26"#"$tmp/inverted_sprites.c26"#;
+   $s =~ s#"component.c26"#"$fixture/component.c26"#;
+   $source="$tmp/inverted.c26";
+   open(my$f,'>',$source)or die$!;print{$f}$s;close$f;
+}
 my$bin="$tmp/preview.bin";
 my$out=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",$source,'-o',$bin);
 -s$bin==8192 or die 'preview must be ordinary 8K F8';
@@ -48,9 +60,8 @@ $flat =~ s/(section[1-8]_colu(?:pf|bk):=)0x[0-9a-f]+/${1}0x0e/g;
 open(my$flat_file,'>',"$tmp/flat.c26") or die$!;print{$flat_file}$flat;close$flat_file;
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/flat.c26",'-o',"$tmp/flat.bin");
 run("$tmp/timing","$tmp/flat.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
-# Independently pin all four raw frames: SPRITE_GLYPH reverses its arguments,
-# whereas these ROM arrays are already bottom-to-top. Prevent a shared reversal
-# or blank eighth row from masquerading as a good renderer comparison.
+# Independently pin visual top-to-bottom artwork, then reverse each frame for
+# the descending ROM row index. Never reverse the entire four-frame animation.
 open(my$f,'<:raw',$bin) or die$!;local$/;my$rom=<$f>;close$f;
 my@art=(
    ['p0_animation',[0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66,
@@ -62,7 +73,8 @@ my@art=(
       0x24,0x5a,0x81,0xff,0xdb,0xff,0x66,0x3c,
       0x2a,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c]]);
 for my$entry(@art) {
-   substr($rom,4096+(address($entry->[0])&4095),32) eq pack('C*',@{$entry->[1]})
+   my@storage=map{reverse @{$entry->[1]}[$_*8..$_*8+7]}0..3;
+   substr($rom,4096+(address($entry->[0])&4095),32) eq pack('C*',@storage)
       or die "$entry->[0] artwork differs from the standard eight-row frames";
 }
 print "combined-colour interactive preview ok\n";

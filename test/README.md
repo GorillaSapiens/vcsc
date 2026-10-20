@@ -994,20 +994,31 @@ stdout/stderr is reported. No build is retried and no raster check is relaxed.
 `vcs_diagnostic_subprocess_timeout.pl` tests status/output capture, distinct
 budgets, timeout diagnostics, and cleanup of a compiler-like grandchild.
 
-The combined-colour **fixed-layout preview** lives at
+The combined-colour **row-aligned preview** lives at
 `examples/04_renderers/all_five_colors_sections/no_score/`.
 `vcs_all_five_colors_sections_example.pl` builds its frozen private counterpart and verifies
 all-five controls/Select/clamps/Reset, frame timing under randomized runtime
 state, equal-colour timing, and all four independently pinned eight-row sprite
 frames. `vcs_all_five_colors_sections_example_stella.pl` compares its gameplay
 pixels with an independent four-palette composite of ordinary player-colour
-renderers. Its eight fixed band heights are 16,16,16,16,32,32,32,32, with two
+renderers. Its eight default band heights are 16,16,16,16,32,32,32,32, with two
 alternating visual playfield patterns. The `preview`, `preview_edges`,
 `preview_late_edges`, and `preview_uniform` probe descriptors
 exercise the frozen preview renderer through the moving exact-RGB, glyph,
-straddling, refill and isolated-edge oracles. These tests do not claim arbitrary
-section-height support or score-preview certification. The editable public
+straddling, refill and isolated-edge oracles. The `preview_rows*` cases certify
+changed heights, empty slots, and the last row boundary at 176. The geometry test
+checks all eight palette feeds independently, one-section layouts, page containment
+and invalid-height rejection. These tests certify 16-line increments only, not
+general two-line geometry or score composition. The editable public
 example remains smoke-built by the ordinary example shards, like other examples.
+
+Private `vcs_all_five_colors_sections_score_*packed*` probes certify seam 14 in
+both score orders and seam 18 in score-above, including isolated edge sweeps.
+They retain one drawing bank and stock RAM. Score-pointer preparation runs in
+bank1 using a RAM-held bank0 font address; golden renders retain the original
+score preparation and ordinary gameplay kernel. The late-M1 mutation must fail
+the RGB oracle. These fixed-123456 proofs do not certify interactive score
+controls, arbitrary section placement, or the unresolved score-below late layout.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a

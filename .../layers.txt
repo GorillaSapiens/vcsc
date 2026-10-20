@@ -50,9 +50,10 @@ tail pad. Right PF2 phases remain 49/125 in each 152-cycle pair. Zero-cycle labe
 before generated PF writes prevent peephole removal of equal adjacent immediate
 loads; a uniform-row case specifically tests this. Dense refill corruption fails.
 
-Both score orders now have INITIAL-ROW dense-seam prototypes at 2..12, with
-complete RGB, canonical glyph, actual straddling, isolated edges/residues and
-runtime-state timing checks. The 181-line profile must suppress the final normal
+Both score orders prove initial dense seams 2..12 and packed seam 14; score-above
+also proves later seam 18. RGB, glyph, straddling, isolated edges and runtime
+timing checks pass. These remain PRIVATE fixed-score proofs. The 181-line profile
+must suppress the final normal
 M0 shift (its packed entry uses the cached bit); mutation is rejected. Bank1
 preparation mirrors PF ROM and the wrapper re-snapshots S AFTER its bank call.
 Colourable origin is component start +4; setup/tail add five lines. Score-below
@@ -74,14 +75,16 @@ duplicated P0 tails balances each indirect B-to-A exit. Both orders and isolated
 edge sweeps match ordinary rasters. These are mechanisms, not general placement.
 
 Runnable preview: examples/04_renderers/all_five_colors_sections/no_score/.
-It has eight editable palettes and FIXED heights 16,16,16,16,32,32,32,32 (seams
-16,32,48,64,96,128,160). Joystick, Select, Reset and four eight-row animation
+It has eight editable palettes and row-aligned height parameters, defaulting to
+16,16,16,16,32,32,32,32 (seams 16,32,48,64,96,128,160). Nonnegative multiples of
+16 must total 192; slot one is nonempty. Joystick, Select, Reset and four eight-row animation
 frames work; stock RAM use is 100/128. PF rows repeat two editable visual aliases;
 boundary writes fold these patterns into immediates, NOT arbitrary per-row PF data.
 Its ordinary F8 ROM draws only in bank0. The example is byte-identical to its
 frozen certified fixture; editable examples remain smoke-built independently.
-This is NOT a general installed component. OPEN: arbitrary eight-slot geometry,
-score packed/late seams, score/control certification and combined score examples.
+Sprite orientation fixed: use SPRITE_GLYPH per frame, not top-down raw ROM rows.
+This is NOT a general installed component. OPEN: fine two-line eight-slot geometry,
+score-below later placement, score/control certification and combined score examples.
 Next: generalize compact routing within one draw bank; preserve all pixel oracles.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule

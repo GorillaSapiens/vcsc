@@ -63,7 +63,8 @@ sub animation_frames {
    for(@values){s{//.*$}{}mg;s/\s+//g;}
    @values=grep{length}@values;
    @values==32 or die "$name raw animation does not have four eight-row frames\n";
-   return [map{[@values[$_*8..$_*8+7]]}0..3];
+    # Normalize raw ROM rows to the macro's visual top-to-bottom argument order.
+    return [map{[reverse @values[$_*8..$_*8+7]]}0..3];
 }
 
 sub plain_values {

@@ -6,7 +6,7 @@
 # expectexit: 0
 
 # Feasibility gate, NOT a public renderer or a general section implementation.
-# Dense first-row seams, packed and row handoffs, and a later cache-refilled row.
+# Dense/packed/later seams, score composition, and bounded row-aligned geometry.
 # Keep the established public renderer, heights, pointers and RAM unchanged.
 use strict;
 use warnings;
@@ -14,7 +14,7 @@ use Cwd qw(abs_path);
 use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
-my($repo,$tmp,$profile,$edges,$proof_seam)=@ARGV;
+my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
 my$bad_refill=$profile eq 'late_bad_refill';
@@ -24,10 +24,27 @@ my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
 my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform';
 my$preview=$profile eq 'preview'||$profile eq 'preview_uniform';
 $proof_seam //= 16;
-(!$preview||grep{$_==$proof_seam}(16,32,48,64,96,128,160)) or die 'unsupported preview proof seam';
+my@preview_heights=split /,/,($geometry//'16,16,16,16,32,32,32,32');
+@preview_heights==8 && !grep{!/^\d+$/||$_%16}@preview_heights or die 'invalid preview test geometry';
+my(@preview_seams,%seen);my$end=0;
+for(@preview_heights){$end+=$_;push@preview_seams,$end if$end>0&&$end<192&&!$seen{$end}++;}
+$end==192&&$preview_heights[0]>0 or die 'invalid preview test extent';
+(!$preview||!$edges||grep{$_==$proof_seam}@preview_seams) or die 'unsupported preview proof seam';
+sub preview_palette {
+   my$line=shift;my$end=0;
+   for my$n(0..7){$end+=$preview_heights[$n];return$n%4 if$line<$end;}
+   die 'preview line outside display';
+}
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
+my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
+$profile='score_above_packed_late' if$bad_score_late_m1;
+my$score_late=$profile eq 'score_above_packed_late';
+$profile='score_above_packed' if$profile eq 'score_above_packed_late';
+my$score_packed=$profile eq 'score_above_packed'||$profile eq 'score_below_packed';
+$profile='score_above' if$profile eq 'score_above_packed';
+$profile='score_below' if$profile eq 'score_below_packed';
 $profile='score_above' if$bad_score_m0;
 my$score_routed=$profile eq 'score_above_routed'||$profile eq 'score_below_routed';
 my$score_order=$profile eq 'score_above'||$profile eq 'score_above_routed'?'above':$profile eq 'score_below'||$profile eq 'score_below_routed'?'below':'';
@@ -306,9 +323,74 @@ if($score_order) {
       $component =~ s/\Q$old\E/$new/ or die 'score routed boundary replacement';
    }
 }
+if($score_packed) {
+   # Only the initial packed B pair and its exit are specialized. Subsequent
+   # compact rows retain their stack/cache choreography and use the same bank.
+   my($packed)=$component =~ /(   asm \@TEMPLATE_B_c_u7:;.*?)(?=   \/\/ Row 10 is terminal)/s;
+   defined$packed or die 'score packed body';
+   my($before,$active,$zero,$tail,$boundary)=$packed =~ /\A(.*?   asm bcs.same \@TEMPLATE_B_c_u7_p1_zero;\n)(.*?)   asm jmp \@TEMPLATE_B_c_u7_p1_ready;\n   asm \@TEMPLATE_B_c_u7_p1_zero:;\n(.*?)   asm bit.z \$00;\n   asm \@TEMPLATE_B_c_u7_p1_ready:;\n(.*?)(   asm \@TEMPLATE_B_c_boundary:;.*)\z/s;
+   defined$boundary or die 'score packed split';
+   $before =~ s/   asm lda.zx TEMPLATE_object_masks \+ 3,x;/   asm lda.z TEMPLATE_object_masks + 3;/ or die 'score packed source';
+   $before =~ s/(   asm lsr;\n)(   asm lsr;\n   asm sta.z TEMPLATE_row_cache \+ 13;)/$1   asm tax;\n$2/ or die 'score packed M1';
+   $before =~ s/   asm ldy.zx TEMPLATE_object_masks \+ 6,x;\n// or die 'score packed preload';
+   $before =~ s/   asm sty.z TEMPLATE_row_cache \+ 6;/   asm bit.z \$00;\n   asm bit.z \$00;/ or die 'score packed phase';
+   $tail =~ s/   asm lda.zx TEMPLATE_object_masks \+ 3,x;\n   asm lsr;\n   asm sta ENAM1;/   asm stx ENAM1;\n   asm lda #174;\n   asm sta COLUPF;\n   asm lda #100;\n   asm sta COLUBK;/ or die 'score packed palette';
+   $tail =~ s/   asm lda.z TEMPLATE_row_cache \+ 7;\n   asm sta PF1;/   PF1 := TEMPLATE_score_pf0;/ or die 'score packed PF';
+   $tail =~ s/   asm sty.z TEMPLATE_object_masks \+ 0;\n// or die 'score packed P0';
+   $tail =~ s/(   asm lda #0;\n)   asm tay;/$1   asm nop;/ or die 'score packed raw Y';
+   $boundary =~ s/   asm cpx #40;\n   asm beq.cross \@TEMPLATE_terminal_boundary;\n   asm lsr.a TEMPLATE_row_cache \+ 4;/   asm ldx #0;\n   asm sty.z TEMPLATE_object_masks + 0;\n   asm lsr.z TEMPLATE_row_cache + 4;/ or die 'score packed exit budget';
+   my$zt=$tail;$zt =~ s/\@TEMPLATE_B_c_u7_/\@TEMPLATE_B_c_u7_zero_/g;
+   my$new=$before.$active.$tail."   asm jmp \@TEMPLATE_B_c_boundary;\n   asm \@TEMPLATE_B_c_u7_p1_zero:;\n".$zero.$zt."   asm jmp \@TEMPLATE_B_c_boundary;\n".$boundary;
+   $new =~ s/\@TEMPLATE_B_c_/\@TEMPLATE_score_packed_/g;
+   $component =~ s/   asm jmp \@TEMPLATE_B_c_u7;/   asm jmp \@TEMPLATE_score_packed_u7;/ or die 'score packed entry';
+   if($score_late) {
+      # Cache +12 is live row-zero M1 during setup and cannot be primed in
+      # VBLANK. Packed M1 now lives in X, so these six dead padding cycles
+      # can stage row-two M1 after the old cache's final use instead.
+      $new =~ s/   asm bit.z \$00;\n   asm bit.z \$00;/   asm lda.z TEMPLATE_object_masks + 9;\n   asm sta.z TEMPLATE_row_cache + 12;/ or die 'score later M1 staging';
+      $new =~ s/   asm lda.z TEMPLATE_object_masks \+ 9;/   asm lda.z TEMPLATE_object_masks + 8;/ or die 'score later M1 mutation' if$bad_score_late_m1;
+      my($pair)=$component =~ /(   asm \@TEMPLATE_A_c_u1:;.*?)(?=   \/\/ A pairs 2\.\.3:)/s;
+      defined$pair or die 'score later pair';
+      $pair =~ s/   asm lda\.(?:z|a) TEMPLATE_row_cache \+ ([0-3]);\n   asm sta (PF[12]);/'   '.$2.' := TEMPLATE_late_pf'.$1.';'/ge;
+      $pair =~ s/   asm sty.z TEMPLATE_object_masks \+ 1;\n// or die 'score later P1';
+      $pair =~ s/(   asm cpy.z TEMPLATE_player1_height;)/   asm lsr.z TEMPLATE_row_cache + 6;\n$1/ or die 'score later M0';
+      $pair =~ s/   asm lda.zx TEMPLATE_object_masks \+ 5,x;\n   asm sta.z TEMPLATE_row_cache \+ 12;/   asm dec.z TEMPLATE_object_masks + 0;\n   asm nop;/ or die 'score later early P0';
+      $pair =~ s/   PF2 := TEMPLATE_late_pf2;/   asm lda.z TEMPLATE_row_cache + 2;\n   asm sta PF2;/ or die 'score later right phase';
+      $pair =~ s/(   asm sta ENAM1;.*?)   asm lsr.z TEMPLATE_row_cache \+ 6;\n/$1/s or die 'score later old M0';
+      $pair =~ s/(   asm sta ENAM1;.*?)   asm lsr.z TEMPLATE_row_cache \+ 5;\n/$1/s or die 'score later old M1';
+      $pair =~ s/(   asm sta ENAM1;)/$1\n   asm lda #46;\n   asm sta COLUPF;\n   asm lda #132;\n   asm sta COLUBK;/ or die 'score later palette';
+      $pair =~ s/(   asm sta COLUBK;.*?   PF2 := TEMPLATE_late_pf1;)/$1\n   asm lsr.z TEMPLATE_row_cache + 5;\n   asm sty.z TEMPLATE_object_masks + 1;/s or die 'score later deferred stores';
+      $pair =~ s/(   asm ldy.z TEMPLATE_object_masks \+ 0;)\n   asm dey;\n   asm sty.z TEMPLATE_object_masks \+ 0;/$1/ or die 'score later old P0';
+      $pair =~ s/   asm cpy.z TEMPLATE_player0_height;\n   PF2 := TEMPLATE_late_pf2;/   PF2 := TEMPLATE_late_pf2;\n   asm cpy.a TEMPLATE_player0_height;/ or die 'score later compare';
+      # The early decrement frees five cycles only AFTER the right PF writes.
+      # Move LDX there and spend three cycles before PF2; duplicated P0 tails
+      # remove the three-cycle join and pay for the jump into the shared loop.
+      $pair =~ s/   asm ldx #2;\n// or die 'score later loop count';
+      $pair =~ s/(   asm ldy.z TEMPLATE_object_masks \+ 0;)/$1\n   asm ldx #2;\n   asm bit.z \$00;/ or die 'score later right padding';
+      my$barrier=0;$pair =~ s/(   PF[12] := TEMPLATE_late_pf\d;)/'   asm @TEMPLATE_late_barrier_'.($barrier++).":;\n".$1/ge;
+      $pair =~ s/\@TEMPLATE_A_c_u1/\@TEMPLATE_score_late_u1/g;
+      my($p,$a,$z,$commit)=$pair =~ /\A(.*?   asm bcs.same \@TEMPLATE_score_late_u1_p0_zero;\n)(.*?)   asm jmp \@TEMPLATE_score_late_u1_p0_ready;\n   asm \@TEMPLATE_score_late_u1_p0_zero:;\n(.*?)   asm bit.z \$00;\n   asm \@TEMPLATE_score_late_u1_p0_ready:;\n(.*)\z/s;
+      defined$commit or die 'score later P0 tails';
+      $commit.="   asm jmp \@TEMPLATE_A_c_loop;\n";
+      $pair=$p.$a.$commit."   asm \@TEMPLATE_score_late_u1_p0_zero:;\n".$z.$commit;
+      $new =~ s/   asm jmp \@TEMPLATE_A_c_u1;/   asm jmp \@TEMPLATE_score_late_u1;/ or die 'score later entry';
+      $new.=$pair;
+      my$defs=join('',map{"const uint8_t TEMPLATE_late_pf$_ := TEMPLATE_playfield[".(4+$_)."];\n"}0..3);
+      $component=$defs.$component;
+   }
+   # Both specialized exits jump over this unexecuted phase anchor. The
+   # compact renderer and successor score retain all branch-page contracts.
+   my$anchor=$score_late?"   asm .align 256, \$e6;\n":'';
+   $component =~ s/(   asm \@TEMPLATE_A_c_u1:;)/$new$anchor$1/ or die 'score packed insertion';
+   # Prime next-row M0 before borrowing X. Saved S and all RAM stay unchanged.
+   $component =~ s/(   asm stx.z TEMPLATE_row_cache \+ 20;\n\}\n\nrequire inline void TEMPLATE_draw)/   asm stx.z TEMPLATE_row_cache + 20;\n   asm lda.z TEMPLATE_object_masks + 6;\n   asm sta.z TEMPLATE_row_cache + 6;\n}\n\nrequire inline void TEMPLATE_draw/ or die 'score packed priming';
+}
 if($preview) {
    # Frozen counterpart of the preview, not just its generated ancestor.
    $component=slurp("$repo/test/fixtures/all_five_colors_sections_preview/component.c26");
+   for my$n(1..8) {
+      $component =~ s/(parameter section${n}_lines := )\d+;/$1$preview_heights[$n-1];/ or die 'preview height parameter';
+   }
 }
 save("$tmp/component.c26",$component);
 
@@ -374,17 +456,62 @@ if($score_order) {
    $source =~ s#renderers/all_five_player_color_192/all_five_player_color_192.c26#renderers/all_five_player_color_181/all_five_player_color_181.c26#g;
    $source =~ s/(include "frame_ntsc.c26")/$1\ninclude "fonts\/default_decimal.c26"/ or die 'score font';
    $source =~ s/(instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181.c26" as game)/$1\ninstantiate "six_glyph_component.c26" as score/ or die 'score instantiation';
-   $source =~ s/(   game_init\(\);)/$1\n   score_score := 123456;\n   score_init();/ or die 'score init';
-   $source =~ s/(      game_vblank\(\);)/$1\n      score_vblank();/ or die 'score vblank';
+    $source =~ s/(   game_init\(\);)/$1\n   score_score := 123456;\n   score_init();/ or die 'score init';
+    if($score_packed) {
+       # Keep pointer preparation in ordinary bank1 ROM, but pass the real
+       # bank0 font address instead of mirroring drawing data or pinning a
+       # bank1 helper to a bank0 symbol through an immediate relocation.
+       $source =~ s/instantiate "six_glyph_component.c26" as score/instantiate "six_glyph_component.c26" as score (external_pointers:=1)/ or die 'external score pointers';
+       my$score=slurp("$repo/libraries/vcs/six_glyph_component.c26");
+       my($prepare)=$score =~ /#if TEMPLATE_compact_font && TEMPLATE_glyph_rows == 8\nstatic inline void TEMPLATE_prepare_pointers\(void\) \{(.*?)\n\}\n#else/s;
+       defined$prepare or die 'score pointer preparation';
+       $prepare =~ s/TEMPLATE_/score_/g;
+       $prepare =~ s/#<score_font/probe_font/g;
+       $prepare =~ s/#>score_font/probe_font+1/g;
+       my$helper="const uint8_t *probe_font;\nbcd24_t score_score := 0;\nbank1 void prepare_probe_score(void) {".$prepare."\n}\n";
+       $source =~ s/void main\(void\)/$helper\nvoid main(void)/ or die 'banked score pointer helper';
+       $source =~ s/score_init\(\);/score_init();\n   probe_font := score_font;\n   prepare_probe_score();/ or die 'banked score initialization';
+       # Golden renders use this same preparation but retain the ordinary
+       # gameplay drawing kernel and their independent score renderer.
+       $source =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if!$edges;
+    }
+    $source =~ s/(      game_vblank\(\);)/$1\n      score_vblank();/ or die 'score vblank';
+    $source =~ s/score_vblank\(\);/score_vblank();\n      prepare_probe_score();/ or die 'banked score preparation call' if$score_packed;
    $source =~ s/(      game_overscan\(\);)/$1\n      score_overscan();/ or die 'score overscan';
    my$draw=$score_order eq 'above'?"      score_draw();\n      vcs_ntsc_component_handoff();\n      game_draw();":"      game_draw();\n      vcs_ntsc_component_handoff();\n      score_draw();";
    $source =~ s/      game_draw\(\);/$draw/ or die 'score drawing';
-   $probe=$source;
-   $probe =~ s#renderers/all_five_player_color_181/all_five_player_color_181.c26#$tmp/component.c26# or die 'score component include';
+    $probe=$source;
+    $probe =~ s#renderers/all_five_player_color_181/all_five_player_color_181.c26#$tmp/component.c26# or die 'score component include';
+    if($score_packed) {
+       # The golden score MUST keep its original pointer preparation. Sharing
+       # the banked helper would conceal a font-address/digit-order mistake.
+       $source =~ s/instantiate "six_glyph_component.c26" as score \(external_pointers:=1\)/instantiate "six_glyph_component.c26" as score/ or die 'ordinary golden score';
+       $source =~ s/const uint8_t \*probe_font;\nbcd24_t score_score := 0;\nbank1 void prepare_probe_score\(void\) \{.*?\n\}\n//s or die 'remove golden banked score helper';
+       $source =~ s/   probe_font := score_font;\n   prepare_probe_score\(\);\n// or die 'ordinary golden score initialization';
+       $source =~ s/      prepare_probe_score\(\);\n// or die 'ordinary golden score preparation';
+    }
 } else {
    $probe =~ s#renderers/all_five_player_color_192/all_five_player_color_192.c26#$tmp/component.c26# or die 'component include';
 }
-$probe =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if$later&&!$edges;
+if($score_packed) {
+   my($initial)=$probe =~ /void main\(void\) \{\n(.*?)(?=   game_player0_graphics := )/s;
+   defined$initial or die 'score packed initialization';
+   $probe =~ s/void main\(void\) \{\n\Q$initial\E/bank1 void initialize_probe_objects(void) {\n$initial}\nvoid main(void) {\n   initialize_probe_objects();\n/ or die 'score packed banked initialization';
+   my($heights)=$probe =~ /(   game_player0_height := .*?   game_init\(\);\n)/s;
+   defined$heights or die 'score packed initial heights';
+   $probe =~ s/\Q$heights\E// or die 'score packed move heights';
+   $probe =~ s/(bank1 void initialize_probe_objects\(void\) \{\n.*?)(\n\})/$1\n$heights$2/s or die 'score packed banked heights';
+   $probe =~ s/void main\(void\)/bank1 void finish_probe_gameplay(void) { game_overscan(); }\nvoid main(void)/ or die 'score packed banked cleanup';
+   $probe =~ s/(      vcs_ntsc_begin_overscan\(\);\n)      game_overscan\(\);/$1      finish_probe_gameplay();/ or die 'score packed cleanup call';
+   if(!$edges) {
+      my($move)=$probe =~ /(      motion\+\+;.*?)(?=      COLUPF := )/s;
+      defined$move or die 'score packed pose update';
+      $probe =~ s/\Q$move\E// or die 'score packed move pose';
+      $probe =~ s/bank1 void finish_probe_gameplay\(void\) \{ game_overscan\(\); \}/bank1 void advance_probe_pose(void) {\n$move}\nbank1 void finish_probe_gameplay(void) { game_overscan(); advance_probe_pose(); }/ or die 'score packed overscan pose';
+      $probe =~ s/(   prepare_probe_score\(\);\n)(   while)/$1   advance_probe_pose();\n$2/ or die 'score packed first pose';
+   }
+}
+$probe =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if$later&&!$edges&&!$score_packed;
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");
 -s"$tmp/probe.bin"==($later||$edges?8192:4096) or die 'unexpected probe ROM size';
@@ -471,7 +598,7 @@ for my$name(qw(player0 player1 missile0 missile1 ball)) {
 save("$tmp/empty.c26",$empty);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/empty.c26",'-o',"$tmp/empty.bin");
 my$background=capture('empty',"$tmp/empty.bin");
-my@seams=$edges ? () : $preview ? (16,32,48,64,96,128,160) : $score_order ? (2,4,6,8,10,12) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
+my@seams=$edges ? () : $preview ? @preview_seams : $score_order ? (2,4,6,8,10,12,$score_packed?14:(),$score_late?18:()) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
 my(%crossed,%complete_glyph);
 for my$f(200..239) {
    my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
@@ -509,7 +636,7 @@ for my$f(200..239) {
       }
    }
    for my$line(2..($score_order?$h-$first-1:191)) {
-      my$n=$preview ? ($line<64?int($line/16)%4:int(($line-64)/32)%4) : $score_order ? ($line<12?int($line/2)%4:2) : $profile eq 'late_dense' ? ($line<18?0:$line<28?int(($line-16)/2)%4:$routed||$line<32?2:3) : $later ? ($line<32?0:3) : $line<12 ? int($line/2)%4 : (($profile eq 'packed'&&$line>=14)||($profile eq 'handoff'&&$line>=16) ? 3 : 2);
+      my$n=$preview ? preview_palette($line) : $score_order ? ($line<12?int($line/2)%4:$score_late&&$line>=18?0:$score_packed&&$line>=14?3:2) : $profile eq 'late_dense' ? ($line<18?0:$line<28?int(($line-16)/2)%4:$routed||$line<32?2:3) : $later ? ($line<32?0:3) : $line<12 ? int($line/2)%4 : (($profile eq 'packed'&&$line>=14)||($profile eq 'handoff'&&$line>=16) ? 3 : 2);
       substr($expected,($first+$line)*$w*3,$w*3)=substr($gold[$n]{$f}[2],($first+$line)*$w*3,$w*3);
    }
    my($aw,$ah,$got)=@{$actual->{$f}};$aw==$w&&$ah==$h or die 'image geometry';
