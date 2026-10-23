@@ -87,27 +87,106 @@ This is NOT a general installed component. OPEN: fine two-line eight-slot geomet
 score/control certification, general composition contracts and score examples.
 Next: generalize compact routing within one draw bank; preserve all pixel oracles.
 
-Private fine_spread profile (NOT edge-complete): the requested
-2,4,8,16,32,48,64,18 heights pass central-moving whole-raster RGB, independent
-glyph, all-five straddling and runtime timing checks. It uses four page-contained
-48-byte palette feeds, immediate alternating PF patterns, and only bank0 drawing.
-Only offsets 2,6,14 are handled, NOT arbitrary geometry. Uniform PF passes with
-barriers on all folded writes. Early edge sweeps 6/14 pass. Later sweeps
-at 30/62/110/174 FAIL: frame 215, X=308, visible seam-17 (P1 near right edge).
-The packed path writes COLUP1 about four cycles before the original renderer,
-changing the right-edge tail of the preceding line. Do NOT expose this layout
-in the runnable example until those exact comparisons pass. Reproduce:
-perl test/vcs_all_five_colors_sections_probe.pl . <existing-temp-dir> fine_spread 1 30
-Pixel/timing checks remain strict.
-S temporarily holds row X; TSX restores it after M1/palette work and TXS updates
-it at row boundaries. Real S is saved AFTER bank1 preparation and restored on
-the terminal path; do not add calls during drawing. A/B unexecuted page anchors
-are $39. New mutation changes packed PF prefetch +3 to +2 at identical timing
-and must fail RGB. Helper: test/fixtures/...preview/fine_spread.pl.
-An alternate 18,4,8,16,32,48,48,18 layout also passes central movement, exercising
-later phases 2/6. Its isolated 18/22 probes fail too: the packed P1 colour hazard
-occurs whenever a sprite crosses that row pair, not only at a palette seam.
-Measured: bank0 2681/3840, bank1 613/3840, RAM 96/128 (87 data + nine stack).
+Private fine_spread profile: requested 2,4,8,16,32,48,64,18 now passes central
+RGB, independent eight-row glyphs, all-five straddling, uniform PF and ALL edge
+sweeps 6/14/30/62/110/174. Alternate 18,4,8,16,32,48,48,18 passes central and
+18/22 edge sweeps. The former packed P1 right-edge failure is FIXED, not waived.
+Only offsets 2,6,14 are handled, NOT general even geometry. Eight independent
+slot palettes now also pass both central layouts and packed/tail edge30/174.
+Public example remains unchanged.
+
+Mechanism: replace pair6's DEAD final BL-cache shift5 +NOP2 with NOP2 +JMP5.
+Pair2/4 prefetch a packed route from one page-contained 96-byte ASM table.
+Immediate BK/PF tails preserve COLUP1's HBLANK phase and share A/B boundaries;
+terminal has its own route even with a repeated palette. Cached P1 colour0
+funds the backward zero-path join. Shared-boundary GRP0 and early PF/counter
+padding preserve right-PF timing; absolute COLUP0 preserves its colour phase.
+Full schedule details are in context-history/2026-10-19.txt.
+S carries row X; save real S AFTER bank1 preparation, restore at the terminal.
+No visible calls, mirrored sprites, fixed-height graphics caches or cartridge RAM.
+Bank1 gets initialization/cleanup, bank0 retains all drawing and sprite pointers.
+Measured isolated probe: bank0 3195/3840, bank1 950/3840, RAM109/128 including
+nine stack bytes. Placement anchors are explicit; all .same/.cross remain.
+
+Nineteen focused gates pass: twelve geometry/edge/uniform/wrong-route gates,
+two changing-control cases (30/174) and an early-COLUP1 mutation. Controls vary
+both graphics pointers between different glyphs, player heights0..7, other
+heights and both NUSIZ modes across isolated edge poses; full RGB still matches
+ordinary renders. Empty ROM independently locates 192 visible lines when NUSIZ
+copies cover the usual sample column. A 420-frame check independently requires
+motion19 and restored heights3/1. Old fixed-height checks remain 7/7 elsewhere.
+Early-COLUP1 mutation preserves scanline cycles but MUST fail RGB at right edge.
+Four eight-palette gates compare against eight independent ordinary ROMs. Their
+larger variant sets exposed wasteful fixed page anchors; compact phase packing
+now uses legal phase ranges for 667-byte normal/126-byte packed bodies, with
+final-link .same contracts authoritative. Eight-colour alternate central probe:
+bank0 3458/3840, bank1 723/3840, RAM97/128 (88 data + nine stack). No extra RAM
+was needed for eight palettes. Geometry remains private, not a user generator.
+Helper: test/fixtures/all_five_colors_sections_preview/fine_spread.pl.
+Latest private fine_rts gates add phases4/8: first layout 2,2,2,2,6,16,32,130
+and later layout20,4,14,2,14,40,48,50 pass eight-palette central RGB, edge4/8
+and later edge20/24. Uniform, changing-control edge30 and wrong-route rejection
+pass too. Total focused gates29 including RIOT mirroring. Full suite after the
+RTS/RAM-oracle additions: 591 compile +492 e2e =1083 passed, zero failures,
+eight workers. Log/timings: /tmp/opencode/colors-sections-rts.{log,tsv}.
+
+RTS consumes a prefilled 24-byte return vector in physical RIOT RAM. Fold all
+remaining fixed PF-cache reads at exact cycles and remap six live mask lanes
+to cache0..5; the old eight PF lanes plus sixteen new bytes form cache6..29.
+Real S is saved after preparation; the initial eight-cycle draw pad sets S to
+vector-1 and X=0. Pair6 stashes row X, then RTS replaces seven dead tail cycles
+with six; forced-absolute packed-entry COLUP0 absorbs the one-cycle difference.
+Packed paths restore X from RAM, and boundary exits no longer set S to row X.
+Terminal restores real S. All runtime pointers/heights/NUSIZ remain.
+The private proof's route equates are section-relative, so preparation adds
+relocated main to each offset; it is explicitly main-bound, NOT a public ABI.
+Eight-palette later-edge cartridge: bank0 3616/3840, bank1 950/3840, RAM124/128
+(115 data +nine hardware stack). Score-safe RAM composition remains UNPROVED.
+
+test/vcs_frame_timing.cpp formerly modeled zero page and hardware stack as
+different RAM. Correct RIOT canonicalization now shares all A12=0,A9=0,A7=1
+mirrors, preserving raw bus addresses for mapper hooks/traces. New five-case
+vcs_riot_ram_mirror.pl fails with result0 on the old model, passes with result5
+on the corrected model. Actual Stella whole-image RGB also certifies RTS paths;
+no pixel or scanline checks were weakened to admit them.
+Private fine_rts_late now proves phases10/12 by moving next-BL refill5->2 and
+next-M1 refill6->4. It explicitly REJECTS conflicting palette phases4/8; no
+general even-geometry claim. Pair4 also carries row-X save; pair6's RTS tail
+uses zero-page CPY to absorb its extra cycle, packed entry reverts COLUP0 to
+zero-page. All branch/page contracts remain. Nine new gates pass: central,
+edges10/12/26/28, controls12, uniform PF, wrong route and conflicting geometry.
+Helper fine_late.pl composes the original RTS schedule; original4/8 gates pass.
+Local commit873488ad records RIOT/F8 oracle correction; user allows local
+commits, no push. Further progress is in context-history/2026-10-22.txt.
+Latest full suite:591 compile +501 e2e =1092 passed, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-late-refill.{log,tsv}.
+Mixed A/B scheduling now selects early/late independently per row parity;
+both early-A/late-B and reverse pass central/edge/controls/uniform/mutations.
+Same-parity phase4/8 versus10/12 conflicts remain explicitly rejected.
+Dense FIRST-row schedule now handles all seven seams2..14 simultaneously with
+eight palettes. The already-primed next cache makes first-row refills dead;
+one specialised 688-byte normal body updates all palette phases, then dispatches
+through a distinct packed route. Later rows retain live refills. All seven
+edges, controls12, uniform, palette mutation and later-layout refusal pass.
+No sprite tables duplicated; no new RAM. Dense controls use bank0 3666/3840,
+bank1 950/3840, RAM124/128 including nine stack bytes. Mixed central uses
+3495/3840,723/3840,RAM112/128. Twenty-one new gates pass; full suite pending.
+Helpers fine_late.pl adaptive mode and fine_dense_first.pl remain PRIVATE.
+Private fine_boundary now integrates palette handoffs at row boundaries with
+early/late fine phases. Ten new gates pass: central, edges16/32/176, mixed
+central/edge28, controls16, uniform, wrong boundary feed and eight-palette rows.
+Frozen preview boundary code is adapted to the six live RTS mask lanes. Raw
+P0 store, P1 decrement/store and X increments are rescheduled to preserve right
+PF2/PF1 cycles45/52 and COLUP1 active/zero cycles64/67. Zero uses cachedcolour0;
+all .same/.cross contracts and folding barriers remain. No extra RAM.
+Parities without phase14 seams share one packed body with equal-byte/equal-cycle
+dead colour slots; terminal remains distinct. Compact183-byte boundary anchors
+keep eight-palette row layouts in bank0. Rows proof:2854/3840+723/3840,RAM112;
+mixed proof:3365/3840+723/3840,RAM112 (including nine stack bytes).
+Boundary full suite:591 compile +532 e2e =1123 passed, zero failures, eight
+workers. Log/timings:/tmp/opencode/colors-sections-boundary.{log,tsv}.
+Next: resolve same-row/later-row conflicts, extract configurable .c26
+with honest composition contracts, and certify interactive score variants.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,

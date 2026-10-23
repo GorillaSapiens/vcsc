@@ -212,8 +212,8 @@ draw bank; no mirrored sprites. A fixed-seam no-score interactive preview now
 lives in examples/04_renderers/all_five_colors_sections/no_score/ (100/128 RAM).
 Heights now accept 16-line increments totaling 192; two visual PF aliases repeat.
 General geometry and combined score examples remain unfinished. See layers.txt.
-Suite: 1060 passing, eight workers. Fine-spread passes central RGB/edges6/14;
-later packed P1 edges FAIL. Example unchanged; see layers.
+Full suite1123 passed, eight workers, including row-boundary gates.
+Mixed A/B, dense first row and boundary palettes pass; general geometry OPEN.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.
 Section controls: joystick, edge-triggered Select cycling, Reset; no auto motion.

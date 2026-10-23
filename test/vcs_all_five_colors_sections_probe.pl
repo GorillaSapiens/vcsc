@@ -21,12 +21,20 @@ my$bad_refill=$profile eq 'late_bad_refill';
 my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
-my$fine_spread=$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed';
-my$bad_fine_feed=$profile eq 'fine_spread_bad_feed';
-my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform';
+my$fine_dense=$profile=~/^fine_rts_dense(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_boundary=$profile=~/^fine_rts_boundary(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_mixed=$fine_boundary||$profile=~/^fine_rts_mixed(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_late=$fine_dense||$fine_mixed||$profile=~/^fine_rts_late(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_rts=$fine_late||$profile=~/^fine_rts(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_controls=$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls';
+my$fine_eight=$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/&&!$fine_controls);
+my$bad_fine_p1=$profile eq 'fine_spread_bad_p1';
+my$fine_spread=$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
+my$bad_fine_feed=$profile eq 'fine_spread_bad_feed'||$profile eq 'fine_rts_bad_feed'||$profile eq 'fine_rts_late_bad_feed'||$profile eq 'fine_rts_mixed_bad_feed'||$profile eq 'fine_rts_dense_bad_feed'||$profile eq 'fine_rts_boundary_bad_feed';
+my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_rts_uniform'||$profile eq 'fine_rts_late_uniform'||$profile eq 'fine_rts_mixed_uniform'||$profile eq 'fine_rts_dense_uniform'||$profile eq 'fine_rts_boundary_uniform';
 my$preview=$profile eq 'preview'||$profile eq 'preview_uniform'||$fine_spread;
 $proof_seam //= 16;
-my@preview_heights=split /,/,($geometry//($fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
+my@preview_heights=split /,/,($geometry//($fine_boundary?'16,2,2,2,2,6,16,146':$fine_dense?'2,2,2,2,2,2,2,178':$fine_mixed?'4,22,2,2,16,32,48,66':$fine_late?'2,4,4,2,2,8,8,162':$fine_rts?'2,2,2,2,6,16,32,130':$fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
 @preview_heights==8 && !grep{!/^\d+$/||$_%($fine_spread?2:16)}@preview_heights or die 'invalid preview test geometry';
 my(@preview_seams,%seen);my$end=0;
 for(@preview_heights){$end+=$_;push@preview_seams,$end if$end>0&&$end<192&&!$seen{$end}++;}
@@ -34,7 +42,7 @@ $end==192&&$preview_heights[0]>0 or die 'invalid preview test extent';
 (!$preview||!$edges||grep{$_==$proof_seam}@preview_seams) or die 'unsupported preview proof seam';
 sub preview_palette {
    my$line=shift;my$end=0;
-   for my$n(0..7){$end+=$preview_heights[$n];return$n%4 if$line<$end;}
+    for my$n(0..7){$end+=$preview_heights[$n];return$n%($fine_eight?8:4) if$line<$end;}
    die 'preview line outside display';
 }
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
@@ -92,6 +100,7 @@ $component =~ s/(   asm lda.z TEMPLATE_player0_y;)/$prime$1/ or die 'prime bound
 my($body)=$component =~ /(   asm \@TEMPLATE_A_u1:;.*?)   \/\/ B pair 1: fixed 152-cycle cached pair\./s;
 defined$body or die 'initial row boundary';
 my@pal=([0x2e,0x84],[0x46,0xc2],[0x8e,0x26],[0xae,0x64]);
+push@pal,([0x16,0xb4],[0x66,0x34],[0xd6,0x04],[0xf6,0x74]) if$fine_eight;
 for my$n(1..6) {
    my$next=$n+1;
    my$end=$n<6 ? "   asm \@TEMPLATE_A_u$next:;" : '   // A pair 7 consumes';
@@ -409,14 +418,19 @@ if($preview) {
 if($fine_spread) {
    # Private sparse-phase schedule, not a general geometry implementation.
    # It changes palettes at row offsets 2,6,14; row boundaries retain colour.
-   # KNOWN FAILURE: later packed-seam P1 right-edge residues (see layers.txt).
    # S holds row X only during drawing; no calls or stack accesses are allowed.
    for my$seam(@preview_seams) {
-      grep{$_==$seam%16}(2,6,14) or die 'unsupported fine spread phase';
+      grep{$_==$seam%16}($fine_boundary?(0,2,4,6,8,10,12,14):$fine_late?(2,4,6,8,10,12,14):$fine_rts?(2,4,6,8,14):(2,6,14)) or die 'unsupported fine spread phase';
    }
-   my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/fine_spread.pl";
+   my$helper=$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
+   my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/$helper.pl";
    ref$build eq 'CODE' or die "fine spread helper: $@ $!";
-   $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed);
+   $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed);
+   if($bad_fine_p1) {
+      # Reproduce the old early-COLUP1 bug without changing line cycles.
+      $component =~ s/   asm sty.z TEMPLATE_object_masks \+ 1;\n(?=   asm cpy.z TEMPLATE_player1_height;\n   asm bcs.same \@TEMPLATE_fine_A_3_u7_p1_zero;)// or die 'fine early P1 mutation';
+      $component =~ s/(   asm \@TEMPLATE_fine_A_3_u7_p1_ready:;\n   asm sta GRP1;)/$1\n   asm sty.z TEMPLATE_object_masks + 1;/ or die 'fine late P1 counter';
+   }
 }
 save("$tmp/component.c26",$component);
 
@@ -454,7 +468,8 @@ if($edges) {
    # Exercise each object in isolation at both physical edges and the RESP
    # residue transitions. Controls run in overscan, as in the public examples;
    # putting another bank call in VBLANK can move visible entry by one line.
-   my$pose=$preview?int($proof_seam/2)-2:$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
+    my$pose=$preview?int($proof_seam/2)-2:$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
+    $pose=0 if$preview&&$pose<0; # Seam2 must straddle the top, not wrap to Y255.
    $source =~ s/void main\(void\)/bank1 page const uint8_t edge_positions[8] := {0,13,14,15,16,150,157,159};\nuint8_t edge;\nvoid main(void)/ or die 'edge table';
    for my$n(qw(player0 player1 missile0 missile1 ball)) {
       $source =~ s/game_${n}_y := motion;/game_${n}_y := 200;/ or die 'edge isolation';
@@ -474,6 +489,31 @@ if($edges) {
    $source =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ or die 'edge mapper';
    $component=bank_preparation($component) if!$later;
    save("$tmp/component.c26",$component);
+}
+if($fine_controls) {
+   $edges or die 'fine control fixture requires isolated poses';
+   my$controls=<<'CONTROLS';
+bank0 page const uint8_t alternate_p0[8] := {0x81,0x42,0x24,0x18,0x18,0x24,0x42,0x81};
+bank0 page const uint8_t alternate_p1[8] := {0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff};
+bank0 void update_probe_controls(void) {
+   if (motion & 1) {
+      game_player0_graphics := alternate_p0;
+      game_player1_graphics := alternate_p1;
+   } else {
+      game_player0_graphics := p0_graphics;
+      game_player1_graphics := p1_graphics;
+   }
+   game_player0_height := motion & 7;
+   game_player1_height := (motion >> 1) & 7;
+   game_missile0_height := (motion & 7) + 1;
+   game_missile1_height := ((motion >> 1) & 7) + 1;
+   game_ball_height := (motion & 3) + 1;
+   game_PLAYER0_NUSIZ := 0x20 | (motion & 7);
+   game_PLAYER1_NUSIZ := 0x20 | ((motion >> 1) & 7);
+}
+CONTROLS
+   $source =~ s/void main\(void\)/$controls\nvoid main(void)/ or die 'fine control helper';
+   $source =~ s/(      update_probe_pose\(\);)/$1\n      update_probe_controls();/ or die 'fine control update';
 }
 my$probe=$source;
 if($score_order) {
@@ -565,6 +605,17 @@ if($score_packed) {
       $probe =~ s/void main\(void\)/$wrapper\nvoid main(void)/ or die 'score tail function';
    }
 }
+if($fine_spread) {
+   my($initial)=$probe =~ /void main\(void\) \{\n(.*?)(?=   game_player0_graphics := )/s;
+   defined$initial or die 'fine initialization';
+   $probe =~ s/void main\(void\) \{\n\Q$initial\E/bank1 void initialize_probe_objects(void) {\n$initial}\nvoid main(void) {\n   initialize_probe_objects();\n/ or die 'fine banked initialization';
+   my($heights)=$probe =~ /void main\(void\) \{.*?(   game_player0_height := .*?   game_init\(\);\n)/s;
+   defined$heights or die 'fine initial heights';
+   $probe =~ s/\Q$heights\E// or die 'fine move heights';
+   $probe =~ s/(bank1 void initialize_probe_objects\(void\) \{\n.*?)(\n\})/$1\n$heights$2/s or die 'fine banked heights';
+   $probe =~ s/void main\(void\)/bank1 void finish_probe_gameplay(void) { game_overscan(); }\nvoid main(void)/ or die 'fine banked cleanup';
+   $probe =~ s/(      vcs_ntsc_begin_overscan\(\);\n)      game_overscan\(\);/$1      finish_probe_gameplay();/ or die 'fine cleanup call';
+}
 $probe =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if$later&&!$edges&&!$score_packed;
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");
@@ -588,9 +639,11 @@ for my$n(qw(game_player0_graphics game_player1_graphics)) {
    push@graphics,'--frame-sequence',$a,join(',',map{$_&255}@p),
       '--frame-sequence',$a+1,join(',',map{$_>>8}@p);
 }
+my@restored_heights=$fine_controls?(3,1):(7,7);
 run("$tmp/timing","$tmp/probe.bin",'420','--no-audio','--released-inputs','--raw-lines','264',@graphics,
-   '--expect-memory',address('game_player0_height'),7,
-   '--expect-memory',address('game_player1_height'),7);
+   '--expect-memory',address('game_player0_height'),$restored_heights[0],
+   '--expect-memory',address('game_player1_height'),$restored_heights[1],
+   $fine_controls?('--expect-memory',address('motion'),19):());
 
 require "$repo/test/stella_test_lib.pl";
 my$helpers=slurp("$repo/test/stella_png_sequence.pl");
@@ -632,7 +685,7 @@ sub capture {
    return\%frames;
 }
 my@gold;
-for my$n(0..3) {
+for my$n(0..$#pal) {
    my$s=$source;
    $s =~ s/COLUPF := 0x2e;/COLUPF := $pal[$n][0];/g;
    $s =~ s/COLUBK := 0x84;/COLUBK := $pal[$n][1];/g;
@@ -655,10 +708,13 @@ my$background=capture('empty',"$tmp/empty.bin");
 my@seams=$edges ? () : $preview ? @preview_seams : $score_order ? (2,4,6,8,10,12,$score_packed?14:(),$score_late?18:()) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
 my(%crossed,%complete_glyph);
 for my$f(200..239) {
-   my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
-   $count{substr($rgb,($_*$w+20)*3,3)}++ for 0..$h-1;
-   my($bg)=sort{$count{$b}<=>$count{$a}}keys%count;
-   my@visible=grep{substr($rgb,($_*$w+20)*3,3)eq$bg}0..$h-1;
+    my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
+    # Repeated NUSIZ copies can cover the usual border sample. For the
+    # control matrix locate the same 192 lines in the independent empty ROM.
+    my$extent=$fine_controls?$background->{$f}[2]:$rgb;
+    $count{substr($extent,($_*$w+20)*3,3)}++ for 0..$h-1;
+    my($bg)=sort{$count{$b}<=>$count{$a}}keys%count;
+    my@visible=grep{substr($extent,($_*$w+20)*3,3)eq$bg}0..$h-1;
    ($score_order?@visible>=176:@visible==192) or die 'visible extent';
    my$first=$visible[0]+($score_order?($score_order eq 'above'?15:4):0);my$expected=$rgb;
    if(!$edges) {

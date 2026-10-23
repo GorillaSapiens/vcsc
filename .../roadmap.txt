@@ -18,12 +18,9 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, broaden lifecycle/state and placement coverage for
-the extracted all_five_sections_192 component. Its .c26 example now builds and
-uses compile-time section parameters without an external generator.
-All seven seams of its eight-section fixture, edge/dense/four-palette layouts
-and isolated X=0/159 cases pass. Preserve those comparators during extraction.
-Player colour tables remain a separate timing gate.
+Current next action: Item 63, resolve same-row conflicts and extract combined code,
+then extract configurable .c26 and interactive combined-score examples.
+Preserve private pixel gates; the main-bound RTS proof is not a public ABI.
 Keep user configuration in .c26 with existing language facilities, not JSON.
 
 [ ] 63. Layers: frames built from cooperating components sharing a vocabulary of
@@ -41,9 +38,10 @@ Keep user configuration in .c26 with existing language facilities, not JSON.
           certified renderer does not depend on finishing that separate probe.
         * Section boundaries are compile-time constants, confirmed by the user.
           All five objects must move and span them without restarting.
-        * The current probe uses solid player colours and the certified cached
-          all-five machinery. General geometry/API and player colour tables
-          are not yet implemented; do not infer them from the probe.
+        * General geometry/eight palettes must retain pointers, heights and
+          NUSIZ within 128-byte RAM and one drawing bank, without sprite mirrors.
+        * Certify score handoffs and interactive arithmetic/controls; private
+          assigned-score proofs alone do not suffice.
 
 [ ] 57. Add playfield/color stripes as an explicit renderer capability.
 

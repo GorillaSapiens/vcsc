@@ -1,0 +1,160 @@
+2026-10-22 09:51:59 PDT, Prove late refill phases10/12
+User says keep going and explicitly authorizes local commits, without push.
+Committed validated RIOT RAM alias/F8-vs-F8SC oracle correction and independent
+mirror regression as873488ad. No push attempted. Other prior renderer/example
+and harness changes remain in the worktree pending scoped commits.
+
+NEW passing private fine_rts_late schedule proves phases10/12. It composes the
+existing RTS helper then moves next-row BL refill from pair5 to pair2, and M1
+refill from pair6 to pair4. Their palette slots4/8 become unavailable: helper
+explicitly rejects layouts containing those conflicting phases. This is honest
+sparse-phase progress, NOT arbitrary even geometry or finished extraction.
+Pair2/4 keep live seven-cycle mask refills, pair5/6 gain the normal fine palette
+update schedule. Pair4 carries row-X save previously in6. Pair6 replaces its
+five-cycle dead BL shift with RTS6 and changes absolute CPY to zero-page,
+absorbing that cycle. Pair6 now takes152 rather than151 cycles, so packed-entry
+COLUP0 reverts to zero-page (previous compensating extra cycle removed).
+Strict right-edge RGB checks pass, including both players at edge poses.
+
+Normal bodies687 bytes, packed126. New normal allowed phases10..35,41..62,
+68..79,95..106,122..135,155..175,181..197,213..223,239..250; packed0..132 and
+149..195. Shared boundary ranges unchanged. These choose explicit unexecuted
+alignment anchors only; every actual test retains .same/.cross/page contracts.
+No new RAM, extra drawing bank, sprite mirror, fixed-height cache or cart RAM.
+The main-relative private route equates and two fixed alternating PF aliases
+remain limitations inherited from the original proof.
+
+First eight-palette geometry2,4,4,2,2,8,8,162 passes central RGB; isolated seams
+10/12 pass. Later18,4,4,2,2,8,8,146 passes isolated26/28. Controls at12 vary
+graphics pointers/heights/NUSIZ and pass; uniform PF and wrong-route mutation
+pass their gates. A conflicting early-phase geometry is rejected explicitly.
+Nine new gates plus original edge4/8 ran together at eight workers:11/11 pass.
+Maintained helper:test/fixtures/all_five_colors_sections_preview/fine_late.pl.
+Temporary exploration:/tmp/opencode/phase10-{helper,check}.pl; merged gates use
+maintained sources, not those temporary scripts. Prior full suite1083 passed.
+Remaining: reconcile conflicting early/late refills, row-boundary palette
+handoffs, honest configurable .c26 extraction and interactive score composition.
+
+Local commitcd6e3633 records the combined-colour proof baseline, frozen raster
+fixtures, row-aligned runnable preview and new late-refill gates, with explicit
+unfinished-scope commit text. Some earlier solid-colour/public-example and
+parallel-harness work remains uncommitted, not discarded. No push attempted.
+Representative late isolated-edge proof:/tmp/opencode/phase10-3779/ uses
+bank0 2884/3840, bank1 950/3840, RAM124/128 including nine hardware-stack bytes.
+Low ROM use reflects the small packed-route variant set in this layout, not a
+guarantee for every eight-slot geometry. No extra RAM versus earlier RTS.
+New full suite running at eight workers:
+/tmp/opencode/colors-sections-late-refill.{log,tsv}.
+
+2026-10-22 10:08:12 PDT, Validate late-refill full suite
+Full suite PASS:591 compile +501 e2e =1092 tests, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-late-refill.{log,tsv}.
+This certifies the separate early/late private schedules and conflict rejection,
+not arbitrary even geometry. Combined score examples remain unfinished.
+
+2026-10-22 21:24:11 PDT, Mix row phases and prove dense row zero
+User says keep going. Added adaptive mode to fine_late.pl: select early/late
+schedule independently for A/B row parity. Early-A/late-B geometry
+4,22,2,2,16,32,48,66 and reverse10,2,8,4,22,32,48,66 pass full central RGB.
+Edge4/28/24, changing-control28, uniform PF, wrong route and explicit conflicting
+same-parity refusal pass: nine new gates. Prior late schedule semantics remain
+unchanged. Same-parity conflicts are still open, not silently accepted.
+
+NEW fine_dense_first.pl handles ALL SEVEN seams2/4/6/8/10/12/14 simultaneously
+in row zero, eight independent palettes, geometry2,2,2,2,2,2,2,178. Both caches
+are primed before draw, so next-BL/M1 refills are dead ONLY for the first row.
+Clone A normal body once (688 bytes), substitute fine palette pairs for5/6,
+initialise packed_row=0 before drawing, then dispatch through a distinct packed
+route D with the same final palette. Later A rows retain original live refills
+and packed timing. No extra RAM, sprite-table duplication or drawing bank.
+Pair6 uses RTS6 and zero-page CPY as in late scheduling; D's entry COLUP0 is
+zero-page, while ordinary A packed routes keep their compensating absolute
+store. Every cloned zero-cycle barrier gets a unique name; none were dropped.
+
+First central/edges4/8/10/12 passed, then full focused matrix found two issues.
+Seam2 edge fixture generated pose=-1, wrapping Y to255 and making the ordinary
+golden player empty. Clamp preview poses to0 at the top, retain independent
+nonempty/straddle checks, and seam2 now passes. This is a fixture position fix,
+not a relaxed raster comparison. Dense controls initially exceeded bank0 with
+inherited anchors: relaxed diagnostic measured actual bodies, then fixed compact
+anchors retained ALL .same/.cross checks on real builds. Dense normal starts$dd;
+ordinary A$94, packed A$43/D$c2, B$42, packed B$00/terminal$7f, shared boundaries
+$fe/$76/final$ee. Normal lengths688/687, packed127/126, shared120/120. No changes
+to assembler/linker policy and no removal of timing annotations.
+
+Twelve dense gates now pass: central, ALL seven isolated seams, changing
+controls12, uniform, wrong packed-PF mutation, and later-row layout rejection.
+Dense proof requires every actual section seam within first14 lines; it does
+NOT claim arbitrary later dense geometry. Wrong-route feeds normally select
+the same final palette in this layout, so mutation changes D's packed PF
+immediate directly at identical instruction timing. Controls retain varied
+runtime graphics pointers, heights and NUSIZ. Empty-ROM extent and independent
+glyph/straddle oracles are unchanged; hardware-stack RAM remains stock.
+
+Maintained-source retained controls:/tmp/opencode/fine-dense-controls/ uses
+bank0 3666/3840, bank1 950/3840, RAM124/128 (115 data +nine hardware stack).
+Mixed central:/tmp/opencode/fine-mixed-ab/ uses3495/3840,723/3840,RAM112/128.
+Twenty-one new gates pass (nine mixed+twelve dense), original selected late
+gates remain passing. Prior full suite1092; new full suite not yet claimed.
+OPEN: same-parity conflicting early/late seams, later dense rows, row-boundary
+palettes, honest configurable extraction, interactive score-above/below and
+their final stock-RAM composition. Public row-aligned example unchanged.
+
+2026-10-22 22:02:17 PDT, Compose row-boundary palette handoffs
+User says keep going. Mixed/dense full suite completed PASS:591 compile +522
+e2e =1113 tests, zero failures, eight workers. Log/timings:
+/tmp/opencode/colors-sections-mixed-dense.{log,tsv}. Continued implementation.
+
+NEW fine_boundary.pl composes mixed fine scheduling with row-boundary palette
+handoffs. Imports ONLY frozen test/fixtures/...preview/component.c26, never
+editable user example code. Reuses its A handoff shape for both A/B directions;
+terminal remains separate. Map live masks A M0/nextBL/nextM1 to cache2/3/4,
+B to5/0/1. Fine boundary palette reads use plane0+4 at row X (next row line0).
+Public raw pointers/heights/NUSIZ remain; no additional RAM or drawing bank.
+
+First prototype added the deferred packed GRP0/P0 counter store and folded PF
+loads. It failed preceding-row PF2 at X168: right PF2 was three cycles late.
+Moving P1 counter store alone fixed PF2 but left PF1 late. Move P1 DEY/STY past
+right PF2, insert NOP2 before PF2, DEY2 between PF2/PF1; right PF phases become
+45/52 exactly. Moving an INX beyond next-row right PF1 and removing final NOP2
+keeps the entire handoff152 cycles. Active P1 counter store belongs AFTER
+COLUP1: otherwise that colour is three cycles late and the ordinary renderer's
+right-edge P1 tail differs at X268. Zero path stores raw Y first, reads cached
+colour0 (three cycles versus LDY0+ROM's six), and restores cost with BIT3 after
+graphics zero. This preserves COLUP1 phases64 active/67 zero, not just line
+counts. Delayed ball/GRP1 pixels compare exactly; no oracle relaxations.
+
+Eight-palette row-aligned layout initially exceeded ROM with redundant packed
+variants. When a parity has NO phase14 seam, its packed palette stores are
+dead: replace EACH five-cycle/four-byte immediate-LDA+store with LDA#0+BITzp,
+also five cycles/four bytes. Keep zero-cycle barriers and branch offsets; share
+one nonterminal packed body across its row colours by aliasing private route
+equates. Do NOT merge B terminal, whose real-S restore path is different.
+Parities that have phase14 seams retain distinct actual palette writes.
+Some inherited boundary anchors then failed .same because the frozen handoff
+is183 bytes (not prototype182). Actual legal ranges0..82/92..144/216..255,
+both boundaries183, final exit follows. Repack normal/packed/shared anchors
+without changing inherited .same/.cross or page contracts. No linker changes.
+
+Ten new gates PASS: default16,2,2,2,2,6,16,146 central; edge16; B edge32 with
+2,4,8,18,2,4,8,146; mixed early-A/late-B4,12,10,2,2,16,32,114 central/edge28;
+changing-controls16; uniform; wrong PF boundary index+3 versus+4; eight distinct
+palettes at16,16,16,16,32,32,32,32; final isolated boundary176 with
+16,16,16,16,32,32,48,16. All use ordinary full-RGB/glyph/straddle/runtime oracles.
+Retained maintained-source proofs:/tmp/opencode/fine-boundary-rows/ uses
+bank0 2854/3840,bank1 723/3840,RAM112/128; fine-boundary-mixed/ uses3365/3840,
+723/3840,RAM112/128 including nine stack bytes. Experimental
+/tmp/opencode/boundary-{helper,check}.pl are NOT maintained acceptance sources.
+
+OPEN: same-parity early/late conflicts, dense later rows, honest configurable
+component extraction and interactive score compositions with final RAM proof.
+Boundary palettes themselves are no longer an unimplemented feature in the
+private combined RTS schedule. Public example remains intentionally unchanged.
+
+2026-10-22 22:24:54 PDT, Validate combined boundary schedule
+Full suite PASS after boundary composition:591 compile +532 e2e =1123 tests,
+zero failures, eight workers. Log/timings:
+/tmp/opencode/colors-sections-boundary.{log,tsv}.
+Local implementation commitdf5bf4a4 preserves exact PF/P1 phases and adds ten
+boundary gates. No push attempted. Remaining scope is still same-parity
+geometry conflicts, later dense rows, public extraction and interactive scores.

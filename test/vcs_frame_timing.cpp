@@ -322,7 +322,16 @@ uint8_t timer_value(uint64_t cycle) {
    return static_cast<uint8_t>(255 - (after_underflow & 255));
 }
 
+uint16_t canonical_riot_ram_address(uint16_t address) {
+   // A12=0, A9=0, A7=1 selects the RIOT's 128 RAM bytes. A8/A10/A11
+   // are not decoded: in particular $0180..$01ff is the SAME storage as
+   // $0080..$00ff, not a separate hardware-stack allocation.
+   return (address & 0x1280u) == 0x0080u
+      ? static_cast<uint16_t>(0x80u | (address & 0x7fu)) : address;
+}
+
 uint8_t peek_memory(uint16_t address) {
+   address = canonical_riot_ram_address(address);
    const uint16_t bus = address & 0x1fff;
    if (((cartridge_mapper == CartridgeTimingMapper::F8 && f8_superchip) ||
         cartridge_mapper == CartridgeTimingMapper::F4SC) &&
@@ -402,7 +411,7 @@ uint8_t read_bus(uint16_t address) {
       }
       return timer_value(virtual_cycles);
    }
-   return memory_image[address];
+   return memory_image[canonical_riot_ram_address(address)];
 }
 
 void write_bus(uint16_t address, uint8_t value) {
@@ -452,7 +461,7 @@ void write_bus(uint16_t address, uint8_t value) {
             !(cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F4SC && (address & 0x1000)) &&
             address < kRomBase) {
-      memory_image[address] = value;
+      memory_image[canonical_riot_ram_address(address)] = value;
    }
    writes.push_back({address, value});
 }

@@ -1028,8 +1028,45 @@ public gameplay component's standalone handoff contract.
 The private `fine_spread` experiment checks the requested
 `2,4,8,16,32,48,64,18` heights with central moving objects, uniform playfield
 bytes, a wrong packed-palette-feed mutation, and early isolated seams 6/14.
-It is deliberately NOT installed in the example: later packed-seam edge sweeps
-still fail at P1's right-edge colour tail. See `.../layers.txt` for reproduction.
+Packed-seam edge sweeps at 30/62/110/174 and alternate-layout sweeps at 18/22 now
+pass too. Packed tails use prefetched bank0 routes and immediate palettes;
+the dead pair6 BL shift supplies the dispatch cycles. Changing-control gates
+vary graphics pointers, heights and NUSIZ at seams30/174. The early-P1-colour
+mutation must fail full RGB without changing line cycles. The experiment is
+still NOT installed: phases4/8/10/12 remain open. The four `fine_eight*` gates
+add eight independent slot palettes, both central geometries and packed/tail
+edge sweeps, comparing against eight separately rendered ordinary ROMs.
+See `.../layers.txt` for mechanism and scope.
+
+The private `fine_rts*` gates add offsets4/8 using a 24-byte return vector in
+stock RIOT RAM, reclaiming the eight no-longer-needed PF-cache lanes. Both
+eight-palette geometries, early/later isolated edges, uniform PF, changing
+controls and wrong-route rejection are checked. This main-bound proof is not
+an installed component; offsets10/12 and general handoffs remain unfinished.
+`vcs_riot_ram_mirror.pl` independently verifies zero-page/stack/high RAM aliases
+and PHA/PLA in the timing CPU model. Raw mapper bus addresses remain unchanged.
+
+`fine_rts_late` moves next-BL/M1 refills to unused palette slots4/8, proving
+offsets10/12 with eight independent palettes. Nine gates cover central RGB,
+edge10/12/26/28, controls, uniform PF, wrong routes and conflict rejection.
+This schedule explicitly rejects palette boundaries4/8; it is NOT the missing
+general geometry implementation. The separate early-phase schedule is retained.
+
+`fine_rts_mixed` selects early/late schedules independently for A/B row parity.
+Both orientations pass; same-parity refill/palette conflicts are still rejected.
+`fine_rts_dense` handles all seven seams2..14 in the FIRST row simultaneously,
+using the already-primed next mask cache. It adds one normal-row code body, not
+sprite tables or RAM. Seven edge sweeps, controls, uniform PF and palette
+mutation are checked; later-row layouts are explicitly refused. These remain
+private proofs, not a general geometry implementation or public component ABI.
+
+`fine_rts_boundary` composes mixed fine phases with row-boundary palettes.
+Ten gates cover both handoff orders, final boundary176, mixed central/edges,
+runtime controls, uniform PF, wrong feed and all row-aligned slot palettes.
+The frozen preview handoff is rescheduled for RTS mask lanes, preserving right
+PF and active/zero P1 colour phases. Parities without phase14 seams share packed
+tails through exact-cycle/byte dead-colour slots. Same-parity early/late
+conflicts remain unsupported; this is not the extracted public component.
 Its helper transforms the ordinary renderer only inside the test harness; it
 is not a user-facing generator or certification of arbitrary two-line heights.
 

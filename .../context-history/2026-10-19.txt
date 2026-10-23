@@ -229,3 +229,161 @@ Final fine-spread rerun PASS: 591 compile + 469 e2e = 1060 tests, zero failures,
 eight workers. Includes all six new fine-spread gates and the fixed hot-record
 budget. Known later packed-P1 edge limitation remains open; public example is
 unchanged. Packaging via make tar; all work remains uncommitted/unpushed.
+
+2026-10-19 20:26:21 PDT, Fix packed P1 edges in one drawing bank
+User asks whether context-history is being updated and says keep working.
+Confirmed no commits have been made by this agent. Previous handoffs recorded
+the same remaining blocker, not completion. This entry records an actual fix.
+
+FIXED the private fine-spread packed P1 right-edge fault. All twelve focused
+geometry gates pass, including formerly failing 30/62/110/174 and alternate
+18/22 edge sweeps, central moving RGB, uniform PF and wrong-route rejection.
+Added two changing-control gates: different runtime graphics pointers, player
+heights0..7, missile/ball heights and all NUSIZ values at isolated edge poses.
+Both pass full RGB against ordinary renderers. A mutation moving packed P1's
+counter store after GRP1 recreates early COLUP1 at unchanged scanline cycles;
+it fails RGB as required. FIFTEEN focused gates now pass, not a new full-suite
+claim. Public example/installed components unchanged; no commit or push.
+
+Abandoned stack-prefetched-background prototype is saved only under
+/tmp/opencode/fine-spread-stack-background-prototype.pl. It could preserve P1
+colour phase but missed the first left PF1 deadline by one cycle; do not revive
+it as passing. Correct design replaces DEAD pair6 BL-cache shift5 + NOP2 with
+NOP2 + indirect JMP5. Pair7 obtains BL from packed ROM and never consumes that
+shifted cache value. Normal pair2/4 dead PF refills load route low/high bytes.
+One 96-byte page-aligned ASM table contains two 48-byte address planes indexed
+by row X. All drawing remains bank0. Only four palettes are currently represented.
+
+Palette-specific packed bodies are 126 bytes each and share A/B boundary tails.
+The zero-P1 body precedes its entry, reads cached colour0, commits M1 and jumps
+to the common GRP1 at equal cost to the active path. BK/PF become immediate
+stores; retain zero-cycle barriers even for equal values. Preserve original
+COLUP1 phase; force absolute COLUP0 to retain P0 colour phase. Defer P0 raw-counter
+store to common boundary. JMP there replaces GRP0; common boundary commits GRP0
+three cycles into HBLANK, then absorbs overhead through early PF/counter pads.
+Right PF timings remain exact. B terminal gets a distinct packed route, even
+when palette repeats earlier. Shared terminal restores real S before closing
+the last row. S otherwise carries row X; no drawing-time calls/stack accesses.
+
+Placement anchors: A_u1=$62, B_u1=$fc, A variants alternate $00/$7e, B variants
+alternate $97/$15; shared A/B/terminal anchors $93/$06/$7a. Diagnostic relaxed
+build was used ONLY to calculate allowed phases; every passing gate compiles
+with all inherited .same/.cross contracts enabled. Init/cleanup moved bank1;
+graphics pointer writes stay bank0 to avoid contradictory pins. Latest isolated
+probe: bank0 3195/3840, bank1 950/3840, RAM109/128 (100 data + nine stack).
+
+Control oracle: repeated NUSIZ copies can obscure column20, so ONLY the new
+control profile takes the visible extent from independent empty-ROM captures;
+still requires exactly192 lines. Standard glyph/source-orientation oracles are
+unchanged. Frame420 independently requires motion19 and restored heights3/1
+for the new dynamic control program; all original fixed-height profiles retain
+their existing 7/7 restoration assertions. Runtime randomization/pointer harness
+checks also remain. No cache fixes sprite height or substitutes mirrored ROM.
+
+OPEN: phases4/8/10/12, eight independent palettes, component extraction and
+interactive combined score examples. A suggested next mechanism is eliminating
+route-prefetch dependence without consuming live next-row mask refill cycles;
+do not simply spend those slots on palette stores. User wants implementation,
+not another archive-only checkpoint. Focused artefacts:
+/tmp/opencode/fine-spread-fix-v2/ (passing former edge30),
+/tmp/opencode/fine-spread-debug/ (diagnostics, not all passing sources).
+
+2026-10-19 20:36:07 PDT, Prove eight independent fine-spread palettes
+Extended the fixed P1-edge scheduler from four reused palettes to eight distinct
+slot palettes. All four new gates pass: requested-layout central movement,
+edge30, edge174 and alternate-layout central movement. Each capture compares
+against EIGHT separately rendered ordinary ROMs, not four reused feeds. The
+existing fifteen focused gates remain passing. Nineteen focused gates total.
+
+Eight-colour alternate geometry initially exceeded placement capacity because
+fixed anchors wasted space as variant counts changed. Replaced alternating
+fixed anchors with compact legal-phase selection: normal bodies667 bytes,
+packed bodies126, shared boundaries115/116. Normal legal ranges and packed
+0..132/151..196 were derived from listing branches; final .same/.cross contracts
+remain enabled on every actual test build. Prefer the next legal phase with
+minimal padding, then explicitly .align to it. Normal A still starts $62; other
+phases depend on variant count. No compiler change, runtime search or RAM added.
+
+Eight-colour alternate central probe uses bank0 3458/3840, bank1 723/3840,
+RAM97/128 including nine stack bytes. Passing retained fixture:
+/tmp/opencode/fine-spread-eight-alt/. Differences from larger isolated-probe RAM
+are test-control state and helper locals, not reduced object API. All graphics
+still draw in bank0; no mirrors, cartridge RAM or fixed-height graphics cache.
+Remaining implementation scope is phases4/8/10/12, honest configurable .c26
+extraction and interactive score compositions. User-facing example unchanged.
+
+2026-10-19 21:07:38 PDT, Prove fine phases4/8 with stock-RAM RTS
+Prior packed-route full suite completed: 591 compile +482 e2e =1073 passed,
+zero failures, eight workers. Continued implementation rather than packaging.
+Nine new fine_rts gates plus the independent RIOT mirror test pass; with the
+nineteen prior focused geometry/control gates that is29 focused passing gates.
+RTS first geometry2,2,2,2,6,16,32,130 exercises all phases2/4/6/8/14. Later
+geometry20,4,14,2,14,40,48,50 exercises phase4/8 outside row zero. Both compare
+eight independent palettes. Edge4/8 and20/24, uniform PF, changing-controls
+edge30, and wrong-route mutation all pass full RGB and runtime timing.
+
+Mechanism: use the physical RIOT hardware-stack mirror as a 24-byte return
+vector. Fold ALL remaining reads of the two fixed PF aliases at EXACT cycles:
+old load/store6 => immediate2 + absolute store4; seven => immediate2 + NOP2 +
+store3; eight => immediate2 + NOP2 + absolute store4. Preserve zero-cycle labels.
+Normalize bare row_cache references as +0 too. Remap six live BL/M1/M0 lanes
+to0..5 and old PF lanes to6..13, expand cache14->30; routes use contiguous6..29.
+This adds16 cache bytes, drops two-byte route pointer and adds row-X byte:
+net+15 RAM, still stock. Pair6 folds three PF reads to fund STX row-X, then
+RTS6 replaces dead shift5+NOP2. Packed entry's forced-absolute COLUP0 adds the
+one missing cycle without moving its commit. Restore X from saved row RAM,
+not S; remove packed-selector absolute COLUP0/extra inactive pad accordingly.
+Boundary TXS becomes NOP. Initial draw pad8 becomes LDX vector-1/TXS/LDX0/NOP.
+Real S is saved after banked preparation and restored in terminal HBLANK.
+
+Prefill routes in VBLANK with24 immediate address-minus-one bytes. Local code
+labels cannot be referenced across inline scopes; global LABELS would reset
+assembler scope and break the compiler's while-loop labels. Use global EQUATES
+of local targets instead, which do NOT reset scope. These equates are numeric
+section-relative offsets, not relocated addresses: explicitly add relocated
+main in the private proof's initializer. This is a MAIN-BOUND PROOF, not a
+general public ABI; extraction must parameterize or own the containing codebase.
+No fixed ROM addresses, mirrored sprites, fixed-height graphics cache or cart RAM.
+
+Legal phase packing for RTS: normal687 bytes, packed127, boundaries120/120;
+normal ranges6..34,40..60,66..82,98..108,124..132,148..149,155..175,181..197,
+213..223,239..246. Packed0..131/148..194. Boundaries0..147/153..203/214..255.
+Normal A starts$94. All final .same/.cross and palette page contracts enabled.
+The helper now accepts an internal RTS-mode flag; original fine_spread path is
+retained independently. Fixed alternating PF aliases are explicit fixture data;
+this is NOT arbitrary twelve-row PF support or a user-facing generator.
+
+New CPU-oracle issue discovered, reproduced and fixed: test/vcs_frame_timing.cpp
+formerly had separate memory_image[$00xx] and memory_image[$01xx]. Real 2600
+RIOT RAM aliases zero page and hardware stack, so a prefilled return vector
+would execute correctly in Stella but jump to zero in the timing CPU. Added
+canonical_riot_ram_address with decode (addr &0x1280)==0x0080. Canonicalize only
+storage reads/writes and passive peek; keep RAW addresses for mapper observers,
+input sequences and bus traces. New ROM independently checks zero->stack,
+stack->zero, high mirrors, PHA->zero and zero->PLA. Old model yields result0,
+fixed yields5, with passive high-alias checks too. This correction is required
+hardware fidelity, not a relaxed timing/pixel oracle. Corrected harness also
+passes focused dynamic-score and score packed-late gates in BOTH score orders.
+
+Verified retained merged-source later-edge cartridge:
+/tmp/opencode/fine-rts-verified/; bank0 3616/3840, bank1 950/3840, RAM124/128
+(115 data +nine hardware stack bytes). Central profiles use112/128. Extra
+control state explains the difference; do not claim score-safe RAM composition
+yet. Experimental scripts remain /tmp/opencode/fine-spread-rts-{check,prototype}.pl;
+maintained helper/test profiles now contain the passing implementation. A huge
+runaway-debug trace was reduced to its first5000 lines; no user files removed.
+
+OPEN: phases10/12, integrate palette changes at row boundaries, configurable
+component extraction, interactive score-above/below, and their final stock-RAM
+composition. Existing public example remains row-aligned and unchanged. Next
+full suite should use /tmp/opencode/colors-sections-rts.{log,tsv} at eight workers.
+
+2026-10-19 21:28:01 PDT, RTS full-suite validation
+Full suite PASS after RTS scheduling and corrected RIOT RAM aliases:
+591 compile +492 e2e =1083 tests, zero failures, eight workers.
+Log/timings: /tmp/opencode/colors-sections-rts.{log,tsv}.
+Roadmap current-action text now matches the actual remaining work: phases10/12,
+row-boundary palette handoffs, honest configurable extraction and interactive
+combined-score composition. It no longer incorrectly describes the current
+probe as solid-player-colour only. No implementation completion claim: public
+preview unchanged, score-safe combined RAM still unproved. All work uncommitted.
