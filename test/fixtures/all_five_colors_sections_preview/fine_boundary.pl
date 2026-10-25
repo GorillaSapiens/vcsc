@@ -74,12 +74,14 @@ return sub {
       for my$pad(0..255){my$phase=($cursor+$pad)%256;return$phase if grep{$phase>=$_->[0]&&$phase<=$_->[1]}@$ranges;}
       die 'boundary phase packing';
    };
-   my@early=([6,34],[40,60],[66,82],[98,108],[124,132],[148,149],[155,175],[181,197],[213,223],[239,246]);
-   my@late=([10,35],[41,62],[68,79],[95,106],[122,135],[155,175],[181,197],[213,223],[239,250]);
+   my$layout=do "$repo/test/fixtures/all_five_colors_sections_preview/fine_layout.pl";
+   die$@ if$@;ref$layout eq 'CODE' or die 'boundary layout helper';
    my$cursor;
    for my$side(qw(A B)){
-      my$late=$phases{$side}{10}||$phases{$side}{12};
-      my$normal=$side eq 'A'?($late?0x9b:0x94):$choose->($cursor,$late?\@late:\@early);
+      my$late=$phases{$side}{12};
+      my($body)=$c =~ /(   asm \@TEMPLATE_${side}_u1:;.*?)(?=   \/\/ $side pair 7)/s;
+      defined$body or die 'boundary normal body';
+      my$normal=$choose->($side eq 'A'?0x94:$cursor,$layout->($body));
       my$hex=sprintf('%02x',$normal);
       $c =~ s/   asm \.align 256, \$[\da-f]+;\n(?=(?:   \/\/[^\n]*\n)?   asm \@TEMPLATE_${side}_u1:;)/   asm .align 256, \$$hex;\n/ or die 'boundary normal anchor';
       $cursor=$normal+687;

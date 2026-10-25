@@ -1053,7 +1053,12 @@ This schedule explicitly rejects palette boundaries4/8; it is NOT the missing
 general geometry implementation. The separate early-phase schedule is retained.
 
 `fine_rts_mixed` selects early/late schedules independently for A/B row parity.
-Both orientations pass; same-parity refill/palette conflicts are still rejected.
+Both orientations pass. Adaptive mode relocates each displaced BL/M1 refill to
+an unused pair1..4 across the entire parity; fixed donor2/4 conflicts no longer
+force rejection. Layout anchors come from a strict private byte model, with
+actual assembler `.same`/`.cross` contracts unchanged. Seven adaptive gates
+cover formerly rejected geometry, both relocated donors, edges, boundary
+palettes, runtime controls and reverse parity. Exhausted donor slots still fail.
 `fine_rts_dense` handles all seven seams2..14 in the FIRST row simultaneously,
 using the already-primed next mask cache. It adds one normal-row code body, not
 sprite tables or RAM. Seven edge sweeps, controls, uniform PF and palette
@@ -1065,8 +1070,8 @@ Ten gates cover both handoff orders, final boundary176, mixed central/edges,
 runtime controls, uniform PF, wrong feed and all row-aligned slot palettes.
 The frozen preview handoff is rescheduled for RTS mask lanes, preserving right
 PF and active/zero P1 colour phases. Parities without phase14 seams share packed
-tails through exact-cycle/byte dead-colour slots. Same-parity early/late
-conflicts remain unsupported; this is not the extracted public component.
+tails through exact-cycle/byte dead-colour slots. Adaptive refill placement also
+composes with these handoffs; this is not the extracted public component.
 Its helper transforms the ordinary renderer only inside the test harness; it
 is not a user-facing generator or certification of arbitrary two-line heights.
 

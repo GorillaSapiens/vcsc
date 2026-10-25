@@ -18,7 +18,8 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, resolve same-row conflicts and extract combined code,
+Current next action: Item 63, resolve exhausted refill slots/later dense rows,
+extract combined code,
 then extract configurable .c26 and interactive combined-score examples.
 Preserve private pixel gates; the main-bound RTS proof is not a public ABI.
 Keep user configuration in .c26 with existing language facilities, not JSON.

@@ -1,4 +1,4 @@
-# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_rts_mixed 0 4 4,6,2,2,8,8,48,114
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_rts_mixed 0 4 2,2,2,2,2,2,2,178
 # phase: e2e
 # timeout: 90
 # expectstderr: mixed refill conflicts in A rows

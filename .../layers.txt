@@ -162,7 +162,9 @@ Latest full suite:591 compile +501 e2e =1092 passed, zero failures, eight worker
 Log/timings:/tmp/opencode/colors-sections-late-refill.{log,tsv}.
 Mixed A/B scheduling now selects early/late independently per row parity;
 both early-A/late-B and reverse pass central/edge/controls/uniform/mutations.
-Same-parity phase4/8 versus10/12 conflicts remain explicitly rejected.
+Adaptive mode now relocates BL/M1 refills to any free pair1..4 across a parity,
+instead of requiring fixed donors2/4. Same-parity4/8/10/12 combinations pass;
+the parity must still have enough unused early slots for all displaced refills.
 Dense FIRST-row schedule now handles all seven seams2..14 simultaneously with
 eight palettes. The already-primed next cache makes first-row refills dead;
 one specialised 688-byte normal body updates all palette phases, then dispatches
@@ -185,7 +187,13 @@ keep eight-palette row layouts in bank0. Rows proof:2854/3840+723/3840,RAM112;
 mixed proof:3365/3840+723/3840,RAM112 (including nine stack bytes).
 Boundary full suite:591 compile +532 e2e =1123 passed, zero failures, eight
 workers. Log/timings:/tmp/opencode/colors-sections-boundary.{log,tsv}.
-Next: resolve same-row/later-row conflicts, extract configurable .c26
+Seven new adaptive gates pass, including formerly rejected4,6,2,2,8,8,48,114,
+both displaced donors, boundary palettes, controls and reverse parity. Strict
+private byte-layout helper chooses anchors for687-byte bodies; final assembler
+.same/.cross contracts remain unchanged. No new RAM or mirrored sprite data.
+Adaptive full suite:591 compile +539 e2e =1130 passed, zero failures, eight
+workers. Log/timings:/tmp/opencode/colors-sections-adaptive.{log,tsv}.
+Next: resolve slot-exhausted/later-row conflicts, extract configurable .c26
 with honest composition contracts, and certify interactive score variants.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
