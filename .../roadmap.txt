@@ -18,7 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, resolve exhausted refill slots/later dense rows,
+Current next action: Item 63, generalize mixed-row geometry and terminal seams,
 extract combined code,
 then extract configurable .c26 and interactive combined-score examples.
 Preserve private pixel gates; the main-bound RTS proof is not a public ABI.

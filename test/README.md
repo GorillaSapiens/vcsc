@@ -1075,6 +1075,22 @@ composes with these handoffs; this is not the extracted public component.
 Its helper transforms the ordinary renderer only inside the test harness; it
 is not a user-facing generator or certification of arbitrary two-line heights.
 
+`fine_rts_dense_later` proves all seven even seams inside one later A/B-parity
+row (A34..46/162..174 and B18..30/146..158 are certified). Two mask bytes primed
+during blanking
+replace that row's live refills; a specialised boundary copies them back into
+the ordinary successor cache at the original player/right-PF phases. On A,
+BL's left PF1/PF2 commits are one cycle earlier inside HBLANK. B's existing
+six-cycle BL shift funds the copy with no PF change. Exact RGB checks both.
+Dead PF-cache primes are removed, and ordinary palette writes use equal-cycle
+PHA/PLA pads at already-consumed return-vector positions. Dense palette reads
+fold to equal-size/cycle immediates. Independent blocks are packed with explicit
+anchors from the strict byte model; final `.same`/`.cross` remain mandatory.
+Twenty-eight gates cover every seam, both parity orientations, later positions,
+runtime controls, uniform PF, wrong successor mask and geometry refusal.
+The controls proof uses126/128 RAM, including the existing nine stack bytes,
+and one drawing bank. Terminal row11 and mixed-row layouts remain refused.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

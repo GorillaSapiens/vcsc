@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_rts_mixed 0 4 4,4,2,2,2,16,48,114
+# phase: e2e
+# timeout: 240
+# expectstdout: vcs_all_five_colors_sections_probe ok
+# expectexit: 0

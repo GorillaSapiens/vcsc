@@ -212,8 +212,9 @@ draw bank; no mirrored sprites. A fixed-seam no-score interactive preview now
 lives in examples/04_renderers/all_five_colors_sections/no_score/ (100/128 RAM).
 Heights now accept 16-line increments totaling 192; two visual PF aliases repeat.
 General geometry and combined score examples remain unfinished. See layers.txt.
-Full suite1130 passed, eight workers, including adaptive refill gates.
-Adaptive unused-slot refills pass seven new gates; dense later rows still OPEN.
+Full suite1144 passed, eight workers, including later-dense gates.
+Later dense A/B rows pass28 gates, RAM126/128, one drawing bank.
+Terminal/mixed-row geometry, public extraction and combined scores OPEN.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.
 Section controls: joystick, edge-triggered Select cycling, Reset; no auto motion.

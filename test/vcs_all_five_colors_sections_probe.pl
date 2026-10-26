@@ -21,20 +21,21 @@ my$bad_refill=$profile eq 'late_bad_refill';
 my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
-my$fine_dense=$profile=~/^fine_rts_dense(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_dense_later=$profile=~/^fine_rts_dense_later(?:_uniform|_controls|_bad_feed)?$/;
+my$fine_dense=$fine_dense_later||$profile=~/^fine_rts_dense(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_boundary=$profile=~/^fine_rts_boundary(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_mixed=$fine_boundary||$profile=~/^fine_rts_mixed(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_late=$fine_dense||$fine_mixed||$profile=~/^fine_rts_late(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_rts=$fine_late||$profile=~/^fine_rts(?:_uniform|_controls|_bad_feed)?$/;
-my$fine_controls=$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls';
+my$fine_controls=$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls'||$profile eq 'fine_rts_dense_later_controls';
 my$fine_eight=$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/&&!$fine_controls);
 my$bad_fine_p1=$profile eq 'fine_spread_bad_p1';
 my$fine_spread=$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
-my$bad_fine_feed=$profile eq 'fine_spread_bad_feed'||$profile eq 'fine_rts_bad_feed'||$profile eq 'fine_rts_late_bad_feed'||$profile eq 'fine_rts_mixed_bad_feed'||$profile eq 'fine_rts_dense_bad_feed'||$profile eq 'fine_rts_boundary_bad_feed';
-my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_rts_uniform'||$profile eq 'fine_rts_late_uniform'||$profile eq 'fine_rts_mixed_uniform'||$profile eq 'fine_rts_dense_uniform'||$profile eq 'fine_rts_boundary_uniform';
+my$bad_fine_feed=$profile eq 'fine_spread_bad_feed'||$profile eq 'fine_rts_bad_feed'||$profile eq 'fine_rts_late_bad_feed'||$profile eq 'fine_rts_mixed_bad_feed'||$profile eq 'fine_rts_dense_bad_feed'||$profile eq 'fine_rts_boundary_bad_feed'||$profile eq 'fine_rts_dense_later_bad_feed';
+my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_rts_uniform'||$profile eq 'fine_rts_late_uniform'||$profile eq 'fine_rts_mixed_uniform'||$profile eq 'fine_rts_dense_uniform'||$profile eq 'fine_rts_boundary_uniform'||$profile eq 'fine_rts_dense_later_uniform';
 my$preview=$profile eq 'preview'||$profile eq 'preview_uniform'||$fine_spread;
 $proof_seam //= 16;
-my@preview_heights=split /,/,($geometry//($fine_boundary?'16,2,2,2,2,6,16,146':$fine_dense?'2,2,2,2,2,2,2,178':$fine_mixed?'4,22,2,2,16,32,48,66':$fine_late?'2,4,4,2,2,8,8,162':$fine_rts?'2,2,2,2,6,16,32,130':$fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
+my@preview_heights=split /,/,($geometry//($fine_dense_later?'34,2,2,2,2,2,2,146':$fine_boundary?'16,2,2,2,2,6,16,146':$fine_dense?'2,2,2,2,2,2,2,178':$fine_mixed?'4,22,2,2,16,32,48,66':$fine_late?'2,4,4,2,2,8,8,162':$fine_rts?'2,2,2,2,6,16,32,130':$fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
 @preview_heights==8 && !grep{!/^\d+$/||$_%($fine_spread?2:16)}@preview_heights or die 'invalid preview test geometry';
 my(@preview_seams,%seen);my$end=0;
 for(@preview_heights){$end+=$_;push@preview_seams,$end if$end>0&&$end<192&&!$seen{$end}++;}
@@ -422,7 +423,7 @@ if($fine_spread) {
    for my$seam(@preview_seams) {
       grep{$_==$seam%16}($fine_boundary?(0,2,4,6,8,10,12,14):$fine_late?(2,4,6,8,10,12,14):$fine_rts?(2,4,6,8,14):(2,6,14)) or die 'unsupported fine spread phase';
    }
-   my$helper=$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
+   my$helper=$fine_dense_later?'fine_dense_later':$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
    my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/$helper.pl";
    ref$build eq 'CODE' or die "fine spread helper: $@ $!";
    $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed);

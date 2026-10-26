@@ -1,0 +1,115 @@
+2026-10-24 22:26:03 PDT, Relocate conflicting mask refills
+User says keep going after asking what the remaining limitations mean.
+Replaced fixed2/4 donor choice in fine_late.pl adaptive mode with unused-slot
+allocation across each A/B parity. BL pair5 and M1 pair6 refill bodies may move
+to any unused pair1..4. Donor must be free across ALL rows sharing that parity,
+not just a single row. Prefer original2/4 where possible. Palette body moves to
+the vacated pair with corrected plane/index; pair6 keeps RTS using CPYzp instead
+of CPYabs to absorb its extra cycle. Relocated M1 refill retains LSR5/NOP2.
+Packed COLUP0 compensation changes only if M1/pair6 actually moved, not merely
+because BL/pair5 moved. No additional RAM, draw bank or sprite copies.
+
+New PRIVATE fine_layout.pl strictly models normal-row statement byte lengths,
+local branch offsets and same/cross page relationships. Unknown statements,
+external branches, long branches and changed687-byte body size fail explicitly.
+It chooses compact explicit anchors instead of assuming one early/late offset
+table covers every refill permutation. Actual assembler .same/.cross contracts
+remain the authority and are not removed. fine_boundary.pl uses the same model
+and bases packed-tail size on moved pair6 only.
+
+Seven new gates PASS: formerly rejected4,6,2,2,8,8,48,114 central/edge12;
+4,4,2,2,2,16,48,114 central/edge12 (BL donor1 and M1 donor3);
+4,4,2,2,2,2,32,144 boundary central and edge12 runtime controls;
+reverse parity16,4,4,2,2,2,2,160 boundary central.
+Existing conflict rejection now uses2,2,2,2,2,2,2,178, which genuinely exhausts
+donor slots in the ordinary mixed schedule; specialised dense-first still owns
+that separate acceptance case. This is not weakening the old refusal: its
+exact old input now has positive full-RGB/glyph/straddle coverage.
+Focused run23 gates PASS, then all seven adaptive gates PASS.
+Retained both-donor input in /tmp/opencode/fine-adaptive-conflict/probe.c26
+builds bank0 3155/3840, bank1 723/3840, RAM112/128 including nine stack bytes.
+An attempted second capture in that already-used directory was correctly
+refused by the harness; maintained tests ran in fresh directories and passed.
+Expanded full suite running with eight workers:
+/tmp/opencode/colors-sections-adaptive.{log,tsv}.
+
+OPEN: parity-wide exhausted refill slots, dense arbitrary later rows, public
+.c26 extraction, independent interactive score examples and final score RAM
+composition. Current public example remains unchanged. No claim of general
+even geometry. Next: separate row-local pressure from parity-union pressure
+and find a schedule for live refills during later dense rows.
+
+2026-10-24 22:46:19 PDT, Validate adaptive refill placement
+Full suite PASS:591 compile +539 e2e =1130 tests, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-adaptive.{log,tsv}.
+Implementation committed locally as bc57de11; nothing pushed. Remaining scope
+is exhausted refill slots, dense later rows, public extraction and combined
+interactive score examples. No general-geometry claim.
+
+2026-10-24 23:44:08 PDT, Prove dense seams in later A rows
+User says keep going. New PRIVATE fine_dense_later.pl proves seven seams inside
+a single later A-parity16-line row. Maintained default geometry:
+34,2,2,2,2,2,2,146; alternate162,2,2,2,2,2,2,18. All seven34..46 edge sweeps
+and central alternate162..174 pass, including a separate edge174 gate.
+Geometry guard accepts only row2/4/6/8/10 with all seven seams2..14 in that row;
+other layouts explicitly fail. Only rows2/10 have maintained raster coverage.
+
+Mechanism: keep ordinary current mask cache, preload successor BL/M1 in two
+new bytes during blanking, and let the specialised dense body spend its former
+refill slots on palette updates. Its packed tail uses the compensated P0 phase
+from the first-row dense proof. A distinct preceding B packed route enters a
+specialised B boundary: LDX#rowX + STXabs packed_row replaces three INX with
+the same six cycles; last INX becomes NOP. This preserves right PF and records
+the dense row index without reserving any draw-time refill slot for STX.
+Only the selected prior/dense row pair is redirected in the existing24-byte
+return vector. Other rows keep ordinary packed/normal schedules.
+
+First successor-boundary prototype used LSR A/STA to replace both cached
+shifts. M1 is still live in A immediately after ENAM1 and this works exactly;
+BL is overwritten by intervening left PF writes, causing RGB failure at line52.
+Correct version preloads shifted BL in blanking, stages raw bit0 directly from
+the original successor object mask, then copies the shifted byte in six cycles.
+STAzp instead of STAabs for preceding left PF1 saves its extra cycle: both
+left PF commits move one cycle earlier inside HBLANK. All later phases remain
+identical. M1 uses LSR A2+STAzp3 instead of LSRzp5 at exactly the original phase.
+Wrong BL-copy source is mutation-tested and rejected by the whole-RGB oracle.
+
+An added blanking shift exposed worst-case randomized timer underflow. The
+inherited eight PF-cache primes target reclaimed return-vector lanes that are
+overwritten before drawing; removing those56 dead cycles funds both new mask
+primes. Original graphics pointers/heights/NUSIZ and real-S save are preserved.
+No deadlines, cycle or raster oracles were relaxed.
+
+Bank capacity required honest dead-work removal and compact placement. Dense
+row palette-table reads become equal-size/equal-cycle immediate LDA+NOP. No
+ordinary row contains a palette seam, so its redundant colour writes become
+PHA3/PLA4 pads, two bytes instead of five per seven-cycle slot. S points at the
+consumed previous route high byte; before the first RTS it points at the dead
+next-M0 cache lane, refreshed by packed pair7 before use. A/S are restored and
+no future return-vector entry is touched. This saves48 normal-body bytes and
+removes all four now-unused48-byte palette tables. Ordinary packed tails also
+share equal-cost dead-colour slots; terminal and two redirected D tails stay
+distinct. No sprite tables are duplicated.
+
+Extended strict private fine_layout.pl to accept explicit expected block sizes,
+immediate palette statements and zero-byte route equates. All branch/page
+contracts remain assembler-enforced. Bounded256-state independent-block packing
+chooses compact anchors; preferring first anchor near setup's end avoids an
+otherwise wasted prefix page. Normal bodies663 bytes, dense688, packed126/127,
+ordinary boundaries120, specialised boundaries122. Blocks all end RTS/JMP;
+terminal stays last. Attempting to move relocated-main vector initialization
+to bank1 correctly failed contradictory bank pins; that experiment was removed.
+
+Fourteen NEW gates PASS: central, central162, edge174, edges34/36/38/40/42/44/46,
+controls44, uniform, wrong successor feed and unsupported odd-row geometry.
+Focused24 gates PASS including existing first-dense, adaptive and boundary
+coverage. Retained maintained-source controls proof:
+/tmp/opencode/fine-dense-later-controls/ uses bank0 3716/3840,bank1 978/3840,
+RAM126/128 including nine stack bytes. The relaxed diagnostic there is NOT a
+certification source; probe.c26/component.c26/capacity.bin retain all contracts.
+Full suite running with eight workers:
+/tmp/opencode/colors-sections-dense-later.{log,tsv}.
+
+OPEN: odd-parity and multiple dense rows, arbitrary mixed geometry, public
+configurable .c26 extraction, independent interactive score examples and final
+score RAM composition. No general geometry claim. Public example unchanged.

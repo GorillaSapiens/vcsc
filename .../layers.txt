@@ -193,7 +193,25 @@ private byte-layout helper chooses anchors for687-byte bodies; final assembler
 .same/.cross contracts remain unchanged. No new RAM or mirrored sprite data.
 Adaptive full suite:591 compile +539 e2e =1130 passed, zero failures, eight
 workers. Log/timings:/tmp/opencode/colors-sections-adaptive.{log,tsv}.
-Next: resolve slot-exhausted/later-row conflicts, extract configurable .c26
+Private fine_dense_later now proves all seven seams in one later A/B row:
+A34..46/162..174; B18..30/146..158. Two successor mask bytes are preloaded.
+A specialised boundary copies shifted BL/M1 into the ordinary successor cache
+without sprite gaps; A BL left PF commits move one cycle earlier inside HBLANK;
+B's inherited six-cycle shift funds its copy with no PF changes. All following
+player/right PF phases stay unchanged. Eight dead PF primes are
+removed to fund the new blanking work. Ordinary palette writes become exact
+seven-cycle PHA/PLA pads on consumed return-vector slots; only the dense row
+writes folded immediate palettes. No sprite copies or extra draw bank.
+Strict byte-layout contracts and compact independent-block packing keep the
+controls proof at3716/3840 bank0,978/3840 bank1,RAM126/128 including nine stack
+bytes. Both A/B controls use this budget. Fourteen additional B gates pass;
+focused29 pass. Latest completed full suite1144 passed; expanded suite running:
+/tmp/opencode/colors-sections-dense-odd.{log,tsv}.
+Single later rows1..10 accepted; terminal row11 and mixed-row layouts refused.
+Terminal190 experiment failed reference M1 straddling (inherited preparation
+limit95); investigate that clipping without weakening pixel/straddle oracles.
+General even geometry remains unproved. Public preview unchanged.
+Next: generalize mixed-row/terminal geometry, extract configurable .c26
 with honest composition contracts, and certify interactive score variants.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule

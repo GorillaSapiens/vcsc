@@ -1,0 +1,48 @@
+2026-10-25 00:05:29 PDT, Validate dense later-row schedule
+Full suite PASS:591 compile +553 e2e =1144 tests, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-dense-later.{log,tsv}.
+Implementation committed locally as006db7d8; nothing pushed. Later A-row dense
+seams34..46 and162..174 are certified with controls at126/128 RAM and one
+drawing bank. Odd-parity/multiple dense rows, general geometry, public .c26
+extraction and combined interactive score examples remain unfinished.
+
+2026-10-25 16:10:49 PDT, Extend dense rows to B parity
+User says keep going. Generalised fine_dense_later.pl from A-only to either
+row parity. Current/next BL lanes become0/3 or3/0, with next M1 at BL+1.
+Extract/rename the correct normal and boundary bodies; compensate packed P0
+entry for the actual dense side, not hardcoded A. Prior boundary's static X
+save and the two-row return-vector redirect work unchanged in either order.
+
+B's successor boundary already spends six cycles on LSRabs BL. Replace that
+directly with LDAzp shiftedprime/STAzp cache, also six cycles. Unlike A, do NOT
+move B left PF commits: all original B PF/player phases remain unchanged.
+Both specialised boundaries remain122 bytes, dense normal688, packed126.
+When row1 is dense no ordinary B tail uses palette0; keep its final-palette
+body, replace its dead palette writes, and rename it0 rather than discarding
+it and aliasing a nonexistent body. Actual .same/.cross/page contracts remain.
+
+Fourteen NEW B gates PASS: central18,2,2,2,2,2,2,162; all seven edge sweeps
+18/20/22/24/26/28/30; controls28; uniform; wrong successor mask; central
+146,2,2,2,2,2,2,34; edge158 and controls158. Full focused29 PASS, including all
+previous A later gates and the first-row dense refusal. Maintained controls
+proof:/tmp/opencode/fine-dense-odd-controls/ uses bank0 3716/3840,bank1 978/3840,
+RAM126/128 including nine stack bytes, same as A. No new RAM, sprite copies,
+draw bank or user-facing generator. Public preview unchanged.
+
+Explored terminal row11 (178,2,2,2,2,2,2,2) without successor primes. Full-RGB
+and isolated controls190 passed, but central acceptance FAILED independent
+nonempty/straddle check: P0 never straddled188 with the normal0..95 motion
+range. Public player Y is its lower edge; extending only this experiment's
+motion range to104 then exposed M1 never straddled190 in the ordinary reference.
+Original all_five_player_color_192 preparation explicitly caps missiles at95
+(Ball96), so a passing edge RGB comparison alone cannot certify all-five190.
+Removed the terminal schedule, motion-range experiment and its new tests;
+production renderer and all pixel/nonempty/straddle oracles remain unchanged.
+The maintained geometry refusal now uses terminal178 instead of formerly
+refused18, which now has full positive raster coverage. No terminal certification
+claim. Follow up on inherited last-pair missile clipping before terminal proof.
+
+Expanded full suite running with eight workers:
+/tmp/opencode/colors-sections-dense-odd.{log,tsv}.
+OPEN: terminal row and mixed-row general geometry, honest configurable .c26
+extraction, independent interactive score examples and final RAM composition.
