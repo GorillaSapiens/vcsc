@@ -43,11 +43,15 @@ sub decode_rgb {
    my $c=$channels{$ct}; my $rowbytes=$w*$c;
    my $raw=uncompress($idat); defined($raw) or die "$path has invalid compressed data\n";
    length($raw)==($rowbytes+1)*$h or die "$path has unexpected scanline bytes\n";
-   my @prev=(0)x$rowbytes; my $pos=0; my $rgb='';
+    my @palette_rgb=unpack('(a3)*',$palette);
+    my @prev=(0)x$rowbytes; my $pos=0; my $rgb='';
    for my $y (0..$h-1) {
       my $filter=ord(substr($raw,$pos++,1));
       my @row=unpack('C*',substr($raw,$pos,$rowbytes)); $pos+=$rowbytes;
-      for my $x (0..$#row) {
+       $filter<=4 or die "$path uses unknown PNG filter $filter\n";
+       # Stella's indexed snapshots use filter0. Do not walk every byte just
+       # to discover that no reconstruction is needed; keep all other filters.
+       if ($filter!=0) { for my $x (0..$#row) {
          my $left=$x >= $c ? $row[$x-$c] : 0;
          my $up=$prev[$x];
          my $ul=$x >= $c ? $prev[$x-$c] : 0;
@@ -55,14 +59,16 @@ sub decode_rgb {
          elsif ($filter==2) { $row[$x]=($row[$x]+$up)&255; }
          elsif ($filter==3) { $row[$x]=($row[$x]+int(($left+$up)/2))&255; }
          elsif ($filter==4) { $row[$x]=($row[$x]+paeth($left,$up,$ul))&255; }
-         elsif ($filter!=0) { die "$path uses unknown PNG filter $filter\n"; }
-      }
-      for my $x (0..$w-1) {
+       }}
+       # Slice/join expands the entire indexed row in C instead of issuing
+       # one Perl substr/concatenation per pixel. RGB rows need one pack only.
+       if ($ct==3) { $rgb.=join('',@palette_rgb[@row]); }
+       elsif ($ct==2) { $rgb.=pack('C*',@row); }
+       else { for my $x (0..$w-1) {
          my $i=$x*$c;
          if ($ct==0 || $ct==4) { $rgb.=pack('C3',($row[$i])x3); }
-         elsif ($ct==3) { my $p=$row[$i]*3; $rgb.=substr($palette,$p,3); }
-         else { $rgb.=pack('C3',@row[$i,$i+1,$i+2]); }
-      }
+          else { $rgb.=pack('C3',@row[$i,$i+1,$i+2]); }
+       }}
       @prev=@row;
    }
    return($w,$h,$rgb);

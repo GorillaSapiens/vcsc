@@ -1,5 +1,7 @@
 # runner: perl @TEST_ROOT@/vcs_all_five_sections_probe.pl @REPO@ @TMP@ fine_palette
 # phase: e2e
-# timeout: 300
+# timeout: 600
+# Eleven poses each build/capture five ROMs (four palettes plus sections):
+# 55 ROMs/880 snapshots versus 33 ROMs/528 snapshots in two-palette profiles.
 # expectstdout: vcs_all_five_sections_probe ok
 # expectexit: 0

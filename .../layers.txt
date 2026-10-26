@@ -205,7 +205,7 @@ writes folded immediate palettes. No sprite copies or extra draw bank.
 Strict byte-layout contracts and compact independent-block packing keep the
 controls proof at3716/3840 bank0,978/3840 bank1,RAM126/128 including nine stack
 bytes. Both A/B controls use this budget. Fourteen additional B gates pass;
-focused29 pass. Latest completed full suite1158 passed, eight workers.
+focused29 pass. Latest completed full suite1172 passed, eight workers.
 Single later rows1..11 now accepted. Terminal row11 uses the existing real-S
 restore/WSYNC path with no successor boundary or two-byte prime. Twelve terminal
 gates pass: central178..190, every edge, controls190, uniform, palette mutation
@@ -215,11 +215,16 @@ both missiles at lines190/191 without changing drawing phases or RAM. Independen
 CPU-mask check requires row11 packed byte$0c; old endpoint yields$00 and fails.
 Fine edge poses now cross seams (public Y is the lower edge), and every isolated
 object must show pixels above AND below the seam; old blank-to-blank poses fail.
-Only inherited P0/seam2 priming exemption remains. Initial full suite591 compile
-and580 e2e passed; one P1 mutation gate no longer hit active P1 at its mutated row
-after pose correction. Move that negative gate30->14; it now rejects the timing
-mutation under the same crossing/pixel checks. Full rerun pending:
-/tmp/opencode/colors-sections-terminal-rerun.{log,tsv}.
+Only inherited P0/seam2 priming exemption remains. P1 negative gate now sweeps
+14 (active mutated tail), not30. The55-ROM/880-snapshot four-palette gate has a
+600-second overall budget; per-capture60 seconds/eight workers/pixel checks
+unchanged. Full rerun1172 passed (591 compile+581 e2e):
+/tmp/opencode/colors-sections-terminal-budget.{log,tsv}.
+Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
+in bulk. Exact source-sample regression covers all supported types/filters;
+no captures/checks removed. Prior full suite predates new test discovery.
+Clean full run pending:
+/tmp/opencode/colors-sections-png-fast.{log,tsv}.
 General even geometry remains unproved. Public preview unchanged.
 Next: generalize mixed-row geometry, extract configurable .c26
 with honest composition contracts, and certify interactive score variants.

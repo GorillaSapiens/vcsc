@@ -1105,6 +1105,12 @@ missiles (`$0c`) for Y95. The old endpoint95 produces `$00`; its mutation must
 fail. Endpoint96 correctly encodes visible pair95, allowing actual missile
 pixels through lines190/191 instead of clipping the last two gameplay lines.
 
+The shared `stella_png_sequence.pl` decoder skips byte reconstruction for
+unfiltered rows and expands indexed/RGB rows in bulk, preserving exact RGB.
+`stella_png_decoder.pl` checks all five supported colour types against original
+source samples for every PNG filter and mixed-filter rows, plus filter rejection.
+This reduces host-side raster overhead without reducing captured frame counts.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

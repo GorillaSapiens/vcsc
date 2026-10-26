@@ -117,3 +117,67 @@ Initial log:/tmp/opencode/colors-sections-terminal.log. Do NOT call that
 initial run1172 passing tests: it had1171 passes and one failed negative gate.
 Full eight-worker rerun pending:
 /tmp/opencode/colors-sections-terminal-rerun.{log,tsv}.
+
+2026-10-25 18:42:04 PDT, Budget four-palette raster workload
+Terminal rerun completed591 compile PASS,580 e2e PASS,one e2e timed out.
+P1 timing mutation now passed. The only failure was the separate solid-colour
+vcs_all_five_sections_fine_palette.test hitting its300-second total deadline.
+Sibling two-palette tests took roughly217..226 seconds under the same eight-
+worker load, per /tmp/opencode/colors-sections-terminal-rerun.tsv.
+The script iterates11 poses. Two-palette profiles build/capture33 ROMs and528
+snapshots; fine_palette has four independent palettes plus sections,55 ROMs
+and880 snapshots. Its unchanged300-second budget did not reflect that workload.
+Raised ONLY fine_palette.test's total budget to600 and documented that ratio
+in the test. Per-snapshot shared60-second deadlines, eight workers, process-
+group cleanup, exact RGB and phase assertions remain unchanged. No retries,
+serialization or reduced captures. Targeted fine_palette now PASS.
+Full eight-worker rerun pending:
+/tmp/opencode/colors-sections-terminal-budget.{log,tsv}.
+Do not claim1172 fully passed until that run is checked. Latest fully passing
+suite is still1158; both subsequent1172-test runs each had one different
+failure, addressed in separate local fixes.
+
+2026-10-25 19:14:53 PDT, Remove redundant PNG decoding work
+User reports four-palette timeout on /home/gorilla/vcsc:580 e2e pass/one timeout,
+full suite44m4.855s real/156m43.826s user/7m11.523s sys. Asked them to check
+the local test's timeout directive to distinguish an older300-second archive
+from current600; no reply yet, so do not assume600 timed out on their host.
+Investigated actual decoding work rather than raising budgets again.
+
+Shared test/stella_png_sequence.pl formerly looped over every byte for filter0
+(doing no reconstruction), then every indexed pixel for palette substr/append.
+Actual Stella sample is320x228,indexed type3,all228 rows filter0. Skip the byte
+loop for filter0 and expand the complete indexed row with palette slice/join;
+RGB type2 rows use one pack per row. Other filters and grayscale/alpha paths
+remain supported. All RGB pixels, transparency handling and snapshots retain
+their existing semantics; no host palette or normalization substitution.
+
+New stella_png_decoder.pl generates30 synthetic PNGs: types0/2/3/4/6, each with
+uniform filters0..4 and a mixed-filter image. Original sample rows supply exact
+expected RGB independently of decoding. Separate predictor implementation
+constructs filtered input, including wraparound and Paeth ties. Also checks
+invalid filter5 rejection. All PASS.
+
+Benchmark:40 decodes of one retained real Stella image through both decoders,
+3.0621s versus0.3509s, BOTH digest320x228
+102de15e474f8b7853685f51714d7f200e510d5bff792acf2ee0a15105ffe749.
+Baseline retained only for local diagnostic at
+/tmp/opencode/stella_png_sequence.before.pl. Do not restore it as current code.
+Complete fine_palette gate now PASS in87.053931 seconds here, unchanged55 ROMs
+and880 snapshots. New synthetic regression PASS in0.054816 seconds. Timings:
+/tmp/opencode/png-fast-palette.tsv. Kept600-second total, shared60-second
+snapshot deadlines, eight-worker scheduling and all RGB/phase/straddle checks.
+
+Full colors-sections-terminal-budget run was launched before this decoder
+change and before new test discovery. Await its completion notification, then
+perform a clean full-suite checkpoint including the new decoder regression.
+Do not claim1173 passed from the earlier581-e2e discovery set. General mixed-
+row geometry, public extraction and combined score examples remain OPEN.
+
+2026-10-25 19:17:28 PDT, Validate terminal budget and rerun PNG suite
+Full budget rerun PASS:591 compile +581 e2e =1172 tests, zero failures, eight
+workers. Log/timings:/tmp/opencode/colors-sections-terminal-budget.{log,tsv}.
+New decoder test was not in that discovery set. Started a clean full checkpoint
+including it:/tmp/opencode/colors-sections-png-fast.{log,tsv},eight workers.
+Targeted decoder/palette checks already passed. Do not claim1173 until clean
+completion is verified. Remaining renderer acceptance scope unchanged.
