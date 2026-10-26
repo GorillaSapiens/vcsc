@@ -1089,7 +1089,21 @@ anchors from the strict byte model; final `.same`/`.cross` remain mandatory.
 Twenty-eight gates cover every seam, both parity orientations, later positions,
 runtime controls, uniform PF, wrong successor mask and geometry refusal.
 The controls proof uses126/128 RAM, including the existing nine stack bytes,
-and one drawing bank. Terminal row11 and mixed-row layouts remain refused.
+and one drawing bank. Terminal row11 also works, using the original real-S
+restore/WSYNC path without successor bytes or boundary; controls use124/128 RAM.
+Twelve terminal gates cover central178..190, every edge, runtime controls,
+uniform PF, wrong palette and the old non-crossing edge pose. Terminal central
+motion includes Y above95 so the player's lower edge can cross seam190.
+All fine-phase edge sweeps place objects across the seam and independently
+require pixels on both sides for each isolated object (except inherited P0
+priming at seam2). Full-RGB equality alone cannot certify two blank regions.
+Mixed-row general geometry remains unproved.
+
+`vcs_all_five_player_color_192_last_pair.pl` independently runs preparation up
+to a CPU stop point and requires row11's packed mask byte to contain both
+missiles (`$0c`) for Y95. The old endpoint95 produces `$00`; its mutation must
+fail. Endpoint96 correctly encodes visible pair95, allowing actual missile
+pixels through lines190/191 instead of clipping the last two gameplay lines.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a

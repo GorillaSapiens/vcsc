@@ -205,13 +205,23 @@ writes folded immediate palettes. No sprite copies or extra draw bank.
 Strict byte-layout contracts and compact independent-block packing keep the
 controls proof at3716/3840 bank0,978/3840 bank1,RAM126/128 including nine stack
 bytes. Both A/B controls use this budget. Fourteen additional B gates pass;
-focused29 pass. Latest completed full suite1144 passed; expanded suite running:
-/tmp/opencode/colors-sections-dense-odd.{log,tsv}.
-Single later rows1..10 accepted; terminal row11 and mixed-row layouts refused.
-Terminal190 experiment failed reference M1 straddling (inherited preparation
-limit95); investigate that clipping without weakening pixel/straddle oracles.
+focused29 pass. Latest completed full suite1158 passed, eight workers.
+Single later rows1..11 now accepted. Terminal row11 uses the existing real-S
+restore/WSYNC path with no successor boundary or two-byte prime. Twelve terminal
+gates pass: central178..190, every edge, controls190, uniform, palette mutation
+and old non-crossing pose rejection. Controls:3520/3840+910/3840,RAM124/128.
+Original missile preparation endpoint95 omitted packed bit95; endpoint96 fixes
+both missiles at lines190/191 without changing drawing phases or RAM. Independent
+CPU-mask check requires row11 packed byte$0c; old endpoint yields$00 and fails.
+Fine edge poses now cross seams (public Y is the lower edge), and every isolated
+object must show pixels above AND below the seam; old blank-to-blank poses fail.
+Only inherited P0/seam2 priming exemption remains. Initial full suite591 compile
+and580 e2e passed; one P1 mutation gate no longer hit active P1 at its mutated row
+after pose correction. Move that negative gate30->14; it now rejects the timing
+mutation under the same crossing/pixel checks. Full rerun pending:
+/tmp/opencode/colors-sections-terminal-rerun.{log,tsv}.
 General even geometry remains unproved. Public preview unchanged.
-Next: generalize mixed-row/terminal geometry, extract configurable .c26
+Next: generalize mixed-row geometry, extract configurable .c26
 with honest composition contracts, and certify interactive score variants.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule

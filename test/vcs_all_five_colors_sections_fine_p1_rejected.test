@@ -1,4 +1,4 @@
-# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_spread_bad_p1 1 30
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_spread_bad_p1 1 14
 # phase: e2e
 # timeout: 180
 # expectstderr: RGB mismatch

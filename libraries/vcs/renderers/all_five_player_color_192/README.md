@@ -53,3 +53,7 @@ Y sweep, asymmetric/reflected playfield output, patterned P0/P1 colors, isolated
 M0/M1/Ball output, and delayed-Ball/P1 boundary interactions.  Stella comparisons
 match the established `player_color (lines:=192)` and `all_five (lines:=192)`
 rasters pixel-for-pixel in their common feature sets.
+
+Both missile masks include pair 95 (visible lines 190–191). The independent
+`test/vcs_all_five_player_color_192_last_pair.pl` checks the CPU-produced packed
+mask byte; a mutation restoring the old endpoint limit must fail that check.

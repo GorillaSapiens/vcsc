@@ -46,3 +46,74 @@ Expanded full suite running with eight workers:
 /tmp/opencode/colors-sections-dense-odd.{log,tsv}.
 OPEN: terminal row and mixed-row general geometry, honest configurable .c26
 extraction, independent interactive score examples and final RAM composition.
+
+2026-10-25 16:33:23 PDT, Validate dense odd-parity handoffs
+Full suite PASS:591 compile +567 e2e =1158 tests, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-dense-odd.{log,tsv}.
+Implementation committed locally as35513603; nothing pushed. Both later-row
+parities now have maintained dense seam/control proofs within126/128 RAM and
+one drawing bank. Terminal/mixed-row geometry, public extraction and combined
+interactive score examples remain unfinished.
+
+2026-10-25 17:33:26 PDT, Restore last-pair missiles and dense terminal
+User says keep going. Added independent CPU preparation check before changing
+the original renderer: missiles at Y95/height3 must set row11 packed M1/M0 bits,
+byte$0c. Test FAILED on unchanged renderer with byte$00. In
+all_five_player_color_192.c26, change missile inclusive endpoint95 to96: bit
+index95 is encoded from endpoint96 after the builder subtracts one. The new
+test now passes; a maintained mutation restoring95 still fails expected$0c,
+got$00. This is not comparison to another renderer or shared mask decoding.
+No drawing instructions, RAM or public pointer/control contracts change.
+Original required Stella equivalence suite also passes its common cases.
+
+Re-enabled terminal dense row11,178,2,2,2,2,2,2,2. No successor row is drawn,
+so omit its two preload bytes and successor boundary. Clone the actual terminal
+packed route, retain real-S restore/final WSYNC and compensate dense P0 phase.
+Remove unused ordinary T body after redirecting row11 to dense D; preceding A
+boundary still saves known rowX and enters the dense normal body. Palette
+mutation changes the dense terminal PF immediate at identical timing.
+Central poses extend0..103 only for terminal geometry: public player Y is the
+lower edge, so0..95 never straddles188/190 fully. All existing whole-RGB,
+canonical-glyph, nonempty and all-five straddle checks now pass, including M1
+at190 after the endpoint fix. No straddle exemption added.
+
+Also corrected fine-phase isolated edge poses from seam/2-2 to seam/2+1.
+Old poses ended above the seam; full-RGB equality could compare two blanks
+there. New gate collects actual reference pixels on both sides for each of the
+five isolated object groups, relative to the independent empty ROM. Frame1
+uses setup, later overscans increment the forty-pose counter; expected group
+is floor(((frame-1)%40)/8). The inherited P0/seam2 priming exemption remains.
+A new bad-pose profile restores the old pose and MUST fail nonempty crossing
+at190, even though whole-image RGB still matches. Non-fine preview/score poses
+are unchanged. This strengthens existing fine edge tests, not just terminal.
+
+Fourteen NEW gates PASS: independent last-mask/old-limit mutation, terminal
+central, edge178/180/182/184/186/188/190, controls190, uniform, wrong palette and
+old non-crossing pose. Geometry refusal now uses18,0,4,2,2,2,2,162 (outside the
+single dense-row contract), not formerly refused terminal geometry. A broad
+118-test focused run reached36 passing tests before the tool's300-second
+deadline; no failure had appeared, but do NOT claim that run completed.
+The complete14 new-gate run passed. Earlier focused controls/boundary/first-row
+checks also passed under new crossing poses. Expanded full suite running with
+eight workers:/tmp/opencode/colors-sections-terminal.{log,tsv}.
+
+Maintained-source retained proof:/tmp/opencode/fine-dense-terminal-controls/
+uses bank0 3520/3840,bank1 910/3840,RAM124/128 including nine stack bytes.
+No cartridge RAM, mirrored graphics or second draw bank. Public combined
+preview stays row-aligned; extracted general renderer and interactive scores
+remain OPEN, alongside mixed-row geometry and final score RAM composition.
+
+2026-10-25 18:02:43 PDT, Keep P1 mutation on an active crossing
+Full terminal suite completed591 compile PASS,580 e2e PASS,one e2e FAIL.
+Failure was fine_p1_rejected: mutated renderer returned success instead of
+expected RGB mismatch. New correct crossing pose for seam30 is Y16, which
+leaves P1 inactive in the specific mutated A-row0 packed tail at line14.
+The old seam30 poseY13 had exercised that tail while P1 was active, but did
+not cross seam30 itself. The mutation is unchanged; move its isolated sweep
+to seam14, whose corrected crossing poseY8 keeps P1 active at row0's tail.
+Expected RGB mismatch is restored, with no special pose or oracle relaxation.
+Both targeted P1 mutation and terminal old-pose rejection PASS together.
+Initial log:/tmp/opencode/colors-sections-terminal.log. Do NOT call that
+initial run1172 passing tests: it had1171 passes and one failed negative gate.
+Full eight-worker rerun pending:
+/tmp/opencode/colors-sections-terminal-rerun.{log,tsv}.

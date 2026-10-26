@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_player_color_192_last_pair.pl @REPO@ @TMP@ 1
+# phase: e2e
+# timeout: 90
+# expectstderr: expected $0c, got $00
+# expectexit: 1

@@ -21,7 +21,8 @@ my$bad_refill=$profile eq 'late_bad_refill';
 my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
-my$fine_dense_later=$profile=~/^fine_rts_dense_later(?:_uniform|_controls|_bad_feed)?$/;
+my$bad_fine_pose=$profile eq 'fine_rts_dense_later_bad_pose';
+my$fine_dense_later=$profile=~/^fine_rts_dense_later(?:_uniform|_controls|_bad_feed|_bad_pose)?$/;
 my$fine_dense=$fine_dense_later||$profile=~/^fine_rts_dense(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_boundary=$profile=~/^fine_rts_boundary(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_mixed=$fine_boundary||$profile=~/^fine_rts_mixed(?:_uniform|_controls|_bad_feed)?$/;
@@ -427,8 +428,10 @@ if($fine_spread) {
    my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/$helper.pl";
    ref$build eq 'CODE' or die "fine spread helper: $@ $!";
    $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed);
-   if($bad_fine_p1) {
-      # Reproduce the old early-COLUP1 bug without changing line cycles.
+    if($bad_fine_p1) {
+       # Reproduce the old early-COLUP1 bug without changing line cycles.
+       # Sweep seam14: its crossing pose keeps P1 active in this A-row tail.
+       # Seam30's corrected pose leaves row0 inactive and cannot expose it.
       $component =~ s/   asm sty.z TEMPLATE_object_masks \+ 1;\n(?=   asm cpy.z TEMPLATE_player1_height;\n   asm bcs.same \@TEMPLATE_fine_A_3_u7_p1_zero;)// or die 'fine early P1 mutation';
       $component =~ s/(   asm \@TEMPLATE_fine_A_3_u7_p1_ready:;\n   asm sta GRP1;)/$1\n   asm sty.z TEMPLATE_object_masks + 1;/ or die 'fine late P1 counter';
    }
@@ -463,13 +466,23 @@ $source =~ s/(      game_vblank\(\);)/      motion++;\n      if (motion == 40) {
 if($preview&&!$edges) {
    # Forty captured poses cover a complete 32-step lap through all 96 Y units.
    $source =~ s/motion\+\+;\n      if \(motion == 40\) \{ motion := 0; \}/motion += 3;\n      if (motion >= 96) { motion -= 96; }/ or die 'spread motion';
+   # Player Y is its lower edge: terminal seams188/190 need poses beyond95.
+   # Include clipped-below-screen poses, preserving the independent full-glyph
+   # and all-five-object straddle checks rather than waiving terminal seams.
+   if($fine_dense_later&&$preview_heights[0]==178){
+      $source =~ s/motion >= 96\) \{ motion -= 96;/motion >= 104) { motion -= 104;/ or die 'terminal dense motion';
+   }
 }
 $source =~ s/(      game_vblank\(\);)/      COLUPF := 0x2e;\n      COLUBK := 0x84;\n$1/ or die 'palette reset';
 if($edges) {
    # Exercise each object in isolation at both physical edges and the RESP
    # residue transitions. Controls run in overscan, as in the public examples;
    # putting another bank call in VBLANK can move visible entry by one line.
-    my$pose=$preview?int($proof_seam/2)-2:$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
+     # Fine-phase sweeps must cross the seam, not finish above it. Public Y
+     # is the lower edge; one pair below the seam spans both sides, including
+     # terminal190 after clipping. Keep the older non-fine fixture poses.
+     my$pose=$preview?int($proof_seam/2)+($fine_spread?1:-2):$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
+     $pose-=3 if$bad_fine_pose; # Old non-crossing pose must fail presence gate.
     $pose=0 if$preview&&$pose<0; # Seam2 must straddle the top, not wrap to Y255.
    $source =~ s/void main\(void\)/bank1 page const uint8_t edge_positions[8] := {0,13,14,15,16,150,157,159};\nuint8_t edge;\nvoid main(void)/ or die 'edge table';
    for my$n(qw(player0 player1 missile0 missile1 ball)) {
@@ -707,7 +720,7 @@ save("$tmp/empty.c26",$empty);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/empty.c26",'-o',"$tmp/empty.bin");
 my$background=capture('empty',"$tmp/empty.bin");
 my@seams=$edges ? () : $preview ? @preview_seams : $score_order ? (2,4,6,8,10,12,$score_packed?14:(),$score_late?18:()) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
-my(%crossed,%complete_glyph);
+my(%crossed,%complete_glyph,%edge_crossed);
 for my$f(200..239) {
     my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
     # Repeated NUSIZ copies can cover the usual border sample. For the
@@ -717,7 +730,21 @@ for my$f(200..239) {
     my($bg)=sort{$count{$b}<=>$count{$a}}keys%count;
     my@visible=grep{substr($extent,($_*$w+20)*3,3)eq$bg}0..$h-1;
    ($score_order?@visible>=176:@visible==192) or die 'visible extent';
-   my$first=$visible[0]+($score_order?($score_order eq 'above'?15:4):0);my$expected=$rgb;
+    my$first=$visible[0]+($score_order?($score_order eq 'above'?15:4):0);my$expected=$rgb;
+    if($edges&&$fine_spread){
+       # First frame uses setup coordinates; subsequent overscans increment
+       # the forty-pose counter. Each eight-frame group isolates one object.
+       # Require physical pixels on both sides, not equality of two blanks.
+       my$name=(qw(P0 P1 M0 M1 BL))[int((($f-1)%40)/8)];my@on;
+       for my$lines([$first+$proof_seam-2,$first+$proof_seam-1],[$first+$proof_seam,$first+$proof_seam+1]){
+          my$visible=0;
+          for my$y(@$lines){for my$x(0..$w-1){my$p=($y*$w+$x)*3;
+             $visible=1 if substr($rgb,$p,3)ne substr($background->{$f}[2],$p,3);
+          }}
+          push@on,$visible;
+       }
+       $edge_crossed{$name}=1 if$on[0]&&$on[1];
+    }
    if(!$edges) {
       # Independent top-to-bottom artwork, not decoded from the fixture or
       # inferred from another renderer. The whole-raster oracle below then
@@ -778,4 +805,8 @@ for my$seam(@seams){for my$name(qw(P0 P1 M0 M1 BL)){
    $crossed{"$name/$seam"} or die "$name never straddled seam $seam\n";
 }}
 if(!$edges){$complete_glyph{$_} or die "$_ never displayed a complete canonical glyph\n" for qw(P0 P1);}
+if($edges&&$fine_spread){for my$name(qw(P0 P1 M0 M1 BL)){
+   next if$name eq 'P0'&&$proof_seam==2; # inherited P0 priming, as above
+   $edge_crossed{$name} or die "$name never crossed seam $proof_seam in edge sweep\n";
+}}
 print "vcs_all_five_colors_sections_probe ok\n";

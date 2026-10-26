@@ -5,10 +5,11 @@ return sub {
    my($repo,$heights,$pal,$bad)=@_;
    my$last=7%scalar(@$pal);
    my$row=int($heights->[0]/16);
-   $row>=1&&$row<=10&&$heights->[0]==$row*16+2
+   $row>=1&&$row<=11&&$heights->[0]==$row*16+2
       &&!(grep{$heights->[$_]!=2}1..6)
       &&$heights->[7]==192-$row*16-14 or die "unsupported later dense geometry\n";
    my$side=$row%2?'B':'A';my$prior=$side eq 'A'?'B':'A';
+   my$terminal_dense=$row==11;
    my$current_bl=$side eq 'A'?0:3;my$next_bl=$side eq 'A'?3:0;my$next_m1=$next_bl+1;
    my$base=do "$repo/test/fixtures/all_five_colors_sections_preview/fine_spread.pl";
    die$@ if$@;ref$base eq 'CODE' or die 'later dense base';
@@ -18,13 +19,15 @@ return sub {
    # work to fund the two live successor-mask primes at worst-case heights.
    my$dead=$c =~ s/   asm lda.a TEMPLATE_prepare_playfield(?: \+ [0-7])?;\n   asm sta.z TEMPLATE_row_cache \+ (?:[6-9]|1[0-3]);\n//g;
    $dead==8 or die 'later dense dead PF prime count';
-   $c="uint8_t TEMPLATE_dense_next_bl;\nuint8_t TEMPLATE_dense_next_m1;\n".$c;
-   my$prime='';for my$spec(['bl',0],['m1',1]){
-      $prime.='   asm lda.z TEMPLATE_object_masks + '.(($row+1)*4+$spec->[1]).";\n";
-      $prime.="   asm lsr;\n" if$spec->[0]eq'bl';
-      $prime.="   asm sta.z TEMPLATE_dense_next_$spec->[0];\n";
+   if(!$terminal_dense){
+      $c="uint8_t TEMPLATE_dense_next_bl;\nuint8_t TEMPLATE_dense_next_m1;\n".$c;
+      my$prime='';for my$spec(['bl',0],['m1',1]){
+         $prime.='   asm lda.z TEMPLATE_object_masks + '.(($row+1)*4+$spec->[1]).";\n";
+         $prime.="   asm lsr;\n" if$spec->[0]eq'bl';
+         $prime.="   asm sta.z TEMPLATE_dense_next_$spec->[0];\n";
+      }
+      $c =~ s/(   asm sta.z TEMPLATE_packed_p1_zero;)/$1\n$prime/ or die 'later dense prime';
    }
-   $c =~ s/(   asm sta.z TEMPLATE_packed_p1_zero;)/$1\n$prime/ or die 'later dense prime';
    my($normal)=$c =~ /(   asm \@TEMPLATE_${side}_u1:;.*?)(?=   \/\/ $side pair 7)/s;
    defined$normal or die 'later dense normal';my$dense=$normal;
    for my$spec([2,5],[4,6]){
@@ -75,20 +78,26 @@ return sub {
    # its shifted byte in blanking, stage raw bit0 from the original mask, then
    # copy in six cycles. On A, left PF1/PF2 move one cycle earlier inside
    # HBLANK by using STAzp instead of STAabs; all following phases are unchanged.
-   $after =~ s/   asm lda.z TEMPLATE_row_cache \+ $next_bl;/   asm lda.z TEMPLATE_object_masks + @{[($row+1)*4]};/ or die 'later dense BL stage';
-   if($side eq 'A'){
-      $after =~ s/   asm sta.a PF1;/   asm sta PF1;/ or die 'later dense BL pad';
+   if(!$terminal_dense){
+      $after =~ s/   asm lda.z TEMPLATE_row_cache \+ $next_bl;/   asm lda.z TEMPLATE_object_masks + @{[($row+1)*4]};/ or die 'later dense BL stage';
+      if($side eq 'A'){
+         $after =~ s/   asm sta.a PF1;/   asm sta PF1;/ or die 'later dense BL pad';
+      }
+      # B already budgets LSRabs6, exactly the six-cycle copy. A's LSRzp5
+      # needs the one-cycle left-PF saving above; do not shift B's left PF.
+      $after =~ s/   asm lsr\.(?:z|a) TEMPLATE_row_cache \+ $next_bl;/   asm lda.z TEMPLATE_dense_next_bl;\n   asm sta.z TEMPLATE_row_cache + $next_bl;/ or die 'later dense BL copy';
+      # M1 is shifted immediately after its commit, while A still holds its raw
+      # mask: LSR A2 + STAzp3 exactly replaces LSRzp5.
+      $after =~ s/   asm lda.z TEMPLATE_row_cache \+ $next_m1;/   asm lda.z TEMPLATE_dense_next_m1;/ or die 'later dense M1 stage';
+      $after =~ s/   asm lsr.z TEMPLATE_row_cache \+ $next_m1;/   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $next_m1;/ or die 'later dense M1 copy';
+      $after =~ s/TEMPLATE_dense_next_bl/TEMPLATE_dense_next_m1/ if$bad;
+   }else{
+      # No following row is drawn: retain the terminal real-S restore/WSYNC
+      # route, with no successor boundary, preload bytes or phantom row12.
+      $after='';
    }
-   # B already budgets LSRabs6, exactly the six-cycle copy. A's LSRzp5
-   # needs the one-cycle left-PF saving above; do not shift B's left PF.
-   $after =~ s/   asm lsr\.(?:z|a) TEMPLATE_row_cache \+ $next_bl;/   asm lda.z TEMPLATE_dense_next_bl;\n   asm sta.z TEMPLATE_row_cache + $next_bl;/ or die 'later dense BL copy';
-   # M1 is shifted immediately after its commit, while A still holds its raw
-   # mask: LSR A2 + STAzp3 exactly replaces LSRzp5.
-   $after =~ s/   asm lda.z TEMPLATE_row_cache \+ $next_m1;/   asm lda.z TEMPLATE_dense_next_m1;/ or die 'later dense M1 stage';
-   $after =~ s/   asm lsr.z TEMPLATE_row_cache \+ $next_m1;/   asm lsr;\n   asm sta.z TEMPLATE_row_cache + $next_m1;/ or die 'later dense M1 copy';
-   $after =~ s/TEMPLATE_dense_next_bl/TEMPLATE_dense_next_m1/ if$bad;
    my$extra='';
-   for my$spec([$side,$last,'D',"dense_${side}_boundary"],[$prior,0,'D',"dense_${prior}_boundary"]){
+   for my$spec([$side,$terminal_dense?'T':$last,'D',"dense_${side}_boundary"],[$prior,0,'D',"dense_${prior}_boundary"]){
       my($packed_side,$key,$newkey,$target)=@$spec;
       my($packed)=$c =~ /(   asm \@TEMPLATE_fine_${packed_side}_${key}_u7_p1_zero:;.*?)(?=   asm \.align 256, \$[\da-f]+;)/s;
       defined$packed or die 'later dense packed';
@@ -96,6 +105,7 @@ return sub {
       $packed =~ s/\@TEMPLATE_(fine_barrier|rts_fold)_/\@TEMPLATE_dense_${packed_side}_${1}_/g;
       $packed =~ s/\@TEMPLATE_${packed_side}_boundary/\@TEMPLATE_$target/g;
       $packed =~ s/(   asm lda.ay TEMPLATE_player0_colors,y;\n)   asm sta.a COLUP0;/$1   asm sta COLUP0;/ or die 'later dense packed phase' if$packed_side eq $side;
+      $packed =~ s/COLUPF := \d+;/COLUPF := $pal->[0][0];/ or die 'terminal dense mutation' if$terminal_dense&&$bad&&$packed_side eq $side;
       $extra.="   asm .align 256, \$00;\n".$packed;
    }
    # Redirect exactly the preceding row and the dense row in the return vector.
@@ -110,7 +120,7 @@ return sub {
       my@packed=$c =~ /(   asm \.align 256, \$[\da-f]+;\n   asm \@TEMPLATE_fine_${packed_side}_(?:0|$last|T)_u7_p1_zero:;.*?)(?=   asm \.align 256, \$[\da-f]+;)/sg;
       my$have_zero=grep{/fine_${packed_side}_0_u7_p1_zero/}@packed;
       for my$p(@packed){my($key)=$p =~ /fine_${packed_side}_(0|$last|T)_u7_p1_zero/;
-         if($key eq "$last"&&$have_zero){
+         if(($key eq "$last"&&$have_zero)||($terminal_dense&&$key eq 'T')){
             $c =~ s/\Q$p\E// or die 'later dense packed remove';
             $c =~ s/TEMPLATE_fine_addr_${packed_side}_$last\b/TEMPLATE_fine_addr_${packed_side}_0/g;
          }else{my$n=$p;$n =~ s/   COLU(?:PF|BK) := \d+;/   asm lda #0;\n   asm bit.z \$00;/g;
@@ -123,7 +133,8 @@ return sub {
          $c =~ s/TEMPLATE_fine_(addr_)?${packed_side}_$last/'TEMPLATE_fine_'.(defined$1?$1:'').$packed_side.'_0'/ge;
       }
    }
-   $c =~ s/(   asm \.align 256, \$[\da-f]+;\n   asm \@TEMPLATE_A_boundary:;)/   asm .align 256, \$00;\n$dense$extra   asm .align 256, \$00;\n$before   asm .align 256, \$00;\n$after$1/ or die 'later dense insert';
+   my$after_block=length$after?"   asm .align 256, \$00;\n$after":'';
+   $c =~ s/(   asm \.align 256, \$[\da-f]+;\n   asm \@TEMPLATE_A_boundary:;)/   asm .align 256, \$00;\n$dense$extra   asm .align 256, \$00;\n$before$after_block$1/ or die 'later dense insert';
    my$layout=do "$repo/test/fixtures/all_five_colors_sections_preview/fine_layout.pl";
    die$@ if$@;ref$layout eq 'CODE' or die 'later dense layout';
    my(@blocks,$terminal);

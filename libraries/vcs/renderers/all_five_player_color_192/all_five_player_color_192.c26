@@ -126,8 +126,8 @@ require inline void TEMPLATE_vblank(void) {
    asm ldy.z TEMPLATE_ball_height;
    asm ldx #0;
    asm jsr @prepare_one;
-   // Missiles use the original one-pair bias and 0..95 preparation limit.
-   asm lda #95;
+   // Missiles use one-pair bias: inclusive endpoint96 encodes visible pair95.
+   asm lda #96;
    asm sta.z TEMPLATE_object_masks + 31;
    asm lda.z TEMPLATE_missile1_y;
    asm clc;

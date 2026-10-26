@@ -1,4 +1,4 @@
-# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_rts_dense_later 0 16 178,2,2,2,2,2,2,2
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ fine_rts_dense_later 0 16 18,0,4,2,2,2,2,162
 # phase: e2e
 # timeout: 90
 # expectstderr: unsupported later dense geometry
