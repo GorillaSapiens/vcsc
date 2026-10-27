@@ -44,6 +44,9 @@ parameter glyph_rows := 8;
 parameter external_pointers := 0;
 // Fixed white is free; set this to one only when the application changes color.
 parameter mutable_color := 0;
+// Zero avoids a DATA startup copier in tightly packed banked applications;
+// those applications set the visible colour explicitly during initialization.
+parameter initial_color := 0x0e;
 
 // Optional compile-time two-channel paddle sampling. The application supplies
 // TEMPLATE_paddle_sample0/1 hooks before instantiation. Sampling is placed only
@@ -104,7 +107,7 @@ uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
 #endif
 #if TEMPLATE_mutable_color
-recommend uint8_t TEMPLATE_color := 0x0e;
+recommend uint8_t TEMPLATE_color := TEMPLATE_initial_color;
 #endif
 
 #if !TEMPLATE_external_pointers && TEMPLATE_glyph_rows != 8

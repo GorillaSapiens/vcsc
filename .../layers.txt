@@ -12,6 +12,18 @@ Reuse the certified object pipeline; do not drop its runtime controls.
 
 CURRENT PROBE AND OPEN WORK
 ---------------------------
+Runnable combined score previews now live in
+examples/04_renderers/all_five_colors_sections/score_{above,below}/.
+Supported geometry is exactly2,2,2,2,2,2,2,162; other heights are rejected.
+Eight palettes and eleven visual PF rows are configured in .c26. Joystick,
+Select, Reset, four-frame upright artwork and edge-triggered BCD editing pass
+targeted controls/timing/RGB checks. Stock RAM122/128 including eleven stack
+bytes, ordinary F8, one drawing bank, no mirrored sprites. Above uses normal
+score handoff; below owns score/overscan in a documented coupled terminal.
+General geometry and an independent below ABI are still unfinished; do not
+advertise the fixed preview as a general public renderer. Frozen score fixtures
+own exact regressions; editable example leaves are separately smoke-built.
+
 Active request: implement all_five_colors_sections, combining independent
 eight-row player colour tables with continuous all-five colour sections and
 no-score/score-above/score-below examples. User explicitly chose stock 128-byte
@@ -60,19 +72,9 @@ Colourable origin is component start +4; setup/tail add five lines. Score-below
 currently inherits the terminal gameplay palette behind its score. These are
 composition proofs, not interactive score/control certification.
 
-Single-bank routing proofs now pass too. No-score routed_dense uses a two-byte
-pointer (85 renderer bytes), enters the specialized B row through a three-cycle
-stub, then resets the pointer to the ordinary B stub. Duplicated P0 active/zero
-tails replace the old join and exit pad with the indirect jump at equal cost.
-An unreachable .same branch constrains both stubs to one page for low-byte-only
-updates; no ROM address is assumed. Draw-entry initialization replaces eight pad
-cycles with ten, removing a later two-cycle pad before the first right PF rewrite.
-The unused initial-A proof body is removed from this generated profile to fit.
-Failing to reset the route loops the specialized row; the CPU oracle rejects it.
-Score-routed variants instead reuse cache +16/+17, whose RESP counts are dead,
-without changing RAM use or the saved S at +20. Forced absolute GRP0 plus
-duplicated P0 tails balances each indirect B-to-A exit. Both orders and isolated
-edge sweeps match ordinary rasters. These are mechanisms, not general placement.
+Private routing mechanisms use page-constrained stubs and balanced duplicated
+P0 tails, not assumed ROM addresses. Score routes reuse dead RESP cache lanes;
+real S is at cache+20. Routing proofs are not a general placement contract.
 
 Runnable preview: examples/04_renderers/all_five_colors_sections/no_score/.
 It has eight editable palettes and row-aligned height parameters, defaulting to
@@ -83,8 +85,8 @@ boundary writes fold these patterns into immediates, NOT arbitrary per-row PF da
 Its ordinary F8 ROM draws only in bank0. The example is byte-identical to its
 frozen certified fixture; editable examples remain smoke-built independently.
 Sprite orientation fixed: use SPRITE_GLYPH per frame, not top-down raw ROM rows.
-This is NOT a general installed component. OPEN: fine two-line eight-slot geometry,
-score/control certification, general composition contracts and score examples.
+This is NOT a general installed component. OPEN: general fine two-line eight-slot
+geometry and independent composition contracts beyond the bounded score previews.
 Next: generalize compact routing within one draw bank; preserve all pixel oracles.
 
 Private fine_spread profile: requested 2,4,8,16,32,48,64,18 now passes central
@@ -223,11 +225,18 @@ unchanged. Full rerun1172 passed (591 compile+581 e2e):
 Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
 in bulk. Exact source-sample regression covers all supported types/filters;
 no captures/checks removed. Prior full suite predates new test discovery.
-Clean full run pending:
-/tmp/opencode/colors-sections-png-fast.{log,tsv}.
+Stable-tree full suite:591 compile+582 e2e =1173 passed, zero failures, eight
+workers. Log/timings:/tmp/opencode/colors-sections-png-stable.{log,tsv}.
 General even geometry remains unproved. Public preview unchanged.
-Next: generalize mixed-row geometry, extract configurable .c26
-with honest composition contracts, and certify interactive score variants.
+Next: complete expanded full-suite validation for the delivered bounded score
+previews, then generalize mixed-row geometry and extract configurable .c26 with
+honest independent composition contracts.
+Five new score gates plus two existing score-control/component gates pass;
+Latest expanded run:591 compile+583 e2e pass,four stale source/banner gates fail.
+All new score gates pass. Updated source contracts for initial_color's unchanged
+0x0e default and restored leaf FIGlet banners. Five targeted gates pass, including
+new default-initializer ROM equivalence against the original literal form.
+Stable full rerun pending:/tmp/opencode/colors-sections-score-final.{log,tsv}.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,

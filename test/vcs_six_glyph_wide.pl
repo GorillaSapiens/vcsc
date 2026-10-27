@@ -71,7 +71,7 @@ $source =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
    or die "wide component lost mutable color support\n";
 $source =~ /VDELP0 := 1;.*VDELP1 := 1;/s
    or die "wide component lost the delayed-player pipeline\n";
-sha256_hex(read_file($centered)) eq '376edca688aab74d8342b6ba566662b68bc5017f5b4fcb769275f2dcfb9338af'
+sha256_hex(read_file($centered)) eq '4fb77d9427935f0c7059466a98dea2f5b7a57c49aa72c07e08d39975ad79cb3b'
    or die "centered six-glyph component changed while adding the wide profile\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$fixture,'-o',$bin);

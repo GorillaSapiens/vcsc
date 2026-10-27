@@ -49,6 +49,8 @@ sub preview_palette {
 }
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
+my$example_score=$profile=~/^example_score_(above|below)$/?$1:'';
+$profile="score_${example_score}_packed" if$example_score;
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
 my$bad_score_tail_call=$profile eq 'score_below_packed_late_bad_call';
@@ -436,6 +438,10 @@ if($fine_spread) {
       $component =~ s/(   asm \@TEMPLATE_fine_A_3_u7_p1_ready:;\n   asm sta GRP1;)/$1\n   asm sty.z TEMPLATE_object_masks + 1;/ or die 'fine late P1 counter';
    }
 }
+if($example_score){
+   $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/component.c26");
+   $component =~ s/parameter score_below := 0;/parameter score_below := 1;/ if$example_score eq 'below';
+}
 save("$tmp/component.c26",$component);
 
 my$source=slurp("$repo/test/fixtures/all_five_player_color_192/smoke.c26");
@@ -607,7 +613,7 @@ if($score_packed) {
       $probe =~ s/bank1 void finish_probe_gameplay\(void\) \{ game_overscan\(\); \}/bank1 void advance_probe_pose(void) {\n$move}\nbank1 void finish_probe_gameplay(void) { game_overscan(); advance_probe_pose(); }/ or die 'score packed overscan pose';
       $probe =~ s/(   prepare_probe_score\(\);\n)(   while)/$1   advance_probe_pose();\n$2/ or die 'score packed first pose';
    }
-   if($score_late&&$score_order eq 'below') {
+    if(($score_late||$example_score)&&$score_order eq 'below') {
       # The gameplay terminal calls this helper before its final WSYNC. Start
       # overscan before returning so RTS is absorbed by the timer deadline.
       # This is another function in bank0, never a second drawing bank.
@@ -616,7 +622,8 @@ if($score_packed) {
       $probe =~ s/\Q$tail\E/$call/ or die 'score tail composition';
       my$sync=$bad_score_tail_call?'':"      asm sta WSYNC;\n";
       my$wrapper="bank0 void draw_probe_score_tail(void) {\n$sync$tail\n}\n";
-      $probe =~ s/void main\(void\)/$wrapper\nvoid main(void)/ or die 'score tail function';
+       $probe =~ s/void main\(void\)/$wrapper\nvoid main(void)/ or die 'score tail function';
+       $probe =~ s/draw_probe_score_tail/draw_combined_score_tail/g if$example_score;
    }
 }
 if($fine_spread) {

@@ -50,6 +50,10 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `six_glyph_left_component.c26` ... mutable-color variant justified at X=0..47; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
 - `six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
+
+  With mutable colour, `initial_color` defaults to `$0e`. Tightly packed banked
+  applications may choose `initial_color:=0` and set the visible colour in their
+  initialization routine, avoiding a nonzero-DATA startup copier.
 - `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
 - `heart_score_component.c26` ... fixed-footprint 0..11 heart meter with half-heart steps derived from Thomas Jentzsch's 11-Invaders renderer; seven-line default profile, optional compile-time top/bottom playfield line markers, 12-pixel heart pitch, exact full/half left-prefix geometry
 - `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers

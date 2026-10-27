@@ -1111,6 +1111,19 @@ unfiltered rows and expands indexed/RGB rows in bulk, preserving exact RGB.
 source samples for every PNG filter and mixed-filter rows, plus filter rejection.
 This reduces host-side raster overhead without reducing captured frame counts.
 
+Combined score previews have frozen regression sources in
+`fixtures/all_five_colors_sections_score/`; editable score-above/below leaves are
+separately smoke-built by `vcs_examples_build.pl`.
+`vcs_all_five_colors_sections_score_examples.pl` checks
+all-five movement/Select/Reset and edge-triggered BCD editing, runtime heights,
+NUSIZ, arbitrary coordinates, upright four-frame ROM artwork, page containment,
+stock RAM and geometry rejection. The two `score_example_*_raster` gates check
+moving RGB/glyphs and nonempty straddles against ordinary gameplay and ordinary
+score pointer preparation. `score_live` checks the complete frozen interactive
+driver with eight independent palettes against ordinary gameplay rasters;
+`score_live_tail_rejected` detects the score-below terminal's six-cycle error.
+Supported score geometry is only `2,2,2,2,2,2,2,162`, not arbitrary even heights.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

@@ -1,0 +1,4 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Fixed-layout experimental combined-colour score-above example.
+alias SCORE_BELOW 0
+include "../../../_common/all_five_colors_sections_score_interactive.c26"

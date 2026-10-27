@@ -181,3 +181,133 @@ New decoder test was not in that discovery set. Started a clean full checkpoint
 including it:/tmp/opencode/colors-sections-png-fast.{log,tsv},eight workers.
 Targeted decoder/palette checks already passed. Do not claim1173 until clean
 completion is verified. Remaining renderer acceptance scope unchanged.
+
+2026-10-25 19:36:58 PDT, Validate stable decoder metadata
+PNG-inclusive full run completed591 compile PASS,581 e2e PASS,one hygiene FAIL.
+Only failure: source_tree_hygiene saw stella_png_decoder.pl timeout30 while the
+suite ran, before it was corrected to the repository minimum45 and committed
+in0bdbb09e. Decoder test itself passed. Current source has timeout45; targeted
+hygiene passed before that commit. This was an in-flight metadata race, not a
+raster or PNG failure. Do not claim1173 passes from that interrupted snapshot.
+Log/timings:/tmp/opencode/colors-sections-png-fast.{log,tsv}. Four-palette gate
+passed under full eight-worker load in110.734146 seconds; decoder0.059768s.
+Prepare all metadata/history and hygiene first, then launch a stable-tree full
+rerun:/tmp/opencode/colors-sections-png-stable.{log,tsv}. Do not edit source
+or test metadata until that completion notification. Latest fully passing suite
+remains1172; new decoder acceptance requires this final full checkpoint.
+
+2026-10-25 20:04:08 PDT, Validate bulk PNG stable-tree suite
+Stable-tree full suite PASS:591 compile +582 e2e =1173 tests, zero failures,
+eight workers. Includes terminal seams, strengthened fine-edge presence checks,
+active P1 mutation, four-palette workload budget and new exact PNG regression.
+Log/timings:/tmp/opencode/colors-sections-png-stable.{log,tsv}.
+No source or test metadata was edited during this validation run. Local only;
+nothing pushed. Mixed-row general geometry, public configurable extraction,
+independent combined-score examples and final score RAM composition stay OPEN.
+
+2026-10-25 21:58:35 PDT, Deliver bounded combined score previews
+User asks how many more turns until combined score examples; assistant admits
+private-proof detour and proposes delivering bounded examples immediately.
+User:do it. Delivered independent runnable score_above/score_below leaves under
+examples/04_renderers/all_five_colors_sections/, with Makefiles and controls
+documentation. Left joystick moves any of five selected objects; Select cycles,
+Reset hard-resets. Right joystick selects six decimal places and adds/subtracts
+BCD weights, edge-triggered with neutral release; horizontal selection changes
+score colour. Standard four-frame, eight-intentional-row upright artwork is
+stored ONCE in a page-contained64-byte bank0 array, no mirrored sprites.
+
+Example-shared .c26 schedule extracted from proven packed score profile. To
+fund interactive/animation composition, use only dense first-row seams2..14,
+not the additional private later18 schedule. Supported heights are EXACTLY
+2,2,2,2,2,2,2,162,176 colourable lines plus setup/tail for181. Height parameters
+exist but other layouts fail explicitly, rather than silently retaining baked
+geometry. All eight PF/background palettes are independent parameters, using
+high-level constant assignments with assembly barrier labels to preserve cycles
+even for equal colours. Eleven PF rows use visual VCS_PLAYFIELD_ROW macros.
+No user-facing generators. This is an experimental example-shared schedule,
+NOT the general extracted renderer ABI. No arbitrary geometry claim.
+
+Preparation, control state and score-pointer construction live in bank1; all
+gameplay/score drawing and font/artwork live in bank0. Animation pointers must
+be selected BEFORE gameplay prepares its first cached glyph. Banked wrapper
+changes the stack frame: save application's real S AFTER prepare_game returns
+in main; saving inside the wrapper left deeper S and the independent timing
+test stopped reaching frames. The corrected real-S restoration passes controls
+and randomized timing. Above uses the ordinary score/handoff/gameplay order.
+Below deliberately couples final gameplay WSYNC, handoff, score draw and
+overscan-start through draw_combined_score_tail. No independent below ABI is
+claimed; below omits inherited misleading independent draw contract enum.
+
+Mutable score's nonzero default colour selected the DATA startup runtime and
+exhausted bank0 with four-frame assets. Added six_glyph_component initial_color
+parameter, default0x0e unchanged. Previews use initial_color0 then set colour0x0e
+explicitly in bank1 initialization, avoiding the unnecessary DATA copier.
+One animation-base RAM pointer supports both players, second starts at+32.
+Final measured budgets for actual runnable leaves:
+above bank0 3598/3840,below3602/3840,bank1 both1355/3840;
+RAM both122/128,111 object bytes plus11 hardware-stack bytes. Ordinary8K F8,
+one drawing bank and no cartridge RAM.
+
+Five new targeted gates PASS. Generic example-build shards independently smoke
+editable leaves; score_examples runs frozen controls matrix,420-frame/random X/Y/heights/NUSIZ
+timing, independent canonical four-frame ROM-byte/page checks and invalid-height
+rejection. score_example_above/below_raster run extracted frozen schedules
+against ordinary181 gameplay and independent ordinary score preparation,
+preserving full RGB/glyph/nonempty all-five central straddles2..14. score_live
+checks the full frozen application driver using EIGHT distinct palettes against
+ordinary gameplay rasters. score_live_tail_rejected moves below's final WSYNC
+before its function call: expected six-cycle score shift MUST fail exact RGB.
+Frozen fixtures are separate from editable common/example sources; existing
+private/prod raster/straddle oracles unchanged. All existing runtime heights,
+graphics pointers and NUSIZ state retained.
+
+Updated renderer index, leaf docs, test docs, assembly allowlist and example
+inventory for two new leaves/two beam-critical common sources. Earlier unrelated
+uncommitted solid-colour examples/harness work remains untouched and must not
+be swept into this implementation commit. Expanded full-suite checkpoint still
+required; last completed full suite1173. Keep eight workers, shared60-second
+snapshot deadlines, exact pixel comparisons and process-group timeout cleanup.
+Remaining work: general mixed-row geometry/public extraction and independent
+below composition, not another private-proof prerequisite for runnable scores.
+Targeted seven-test run PASS (five new plus existing player-colour181/public
+score controls). Hygiene, assembly allowlist, example inventory and history
+format PASS. New leaf Makefiles build actual sources at measured122/128 RAM;
+generated leaf outputs cleaned before packaging. Expanded eight-worker full
+suite checkpoint:/tmp/opencode/colors-sections-score-examples.{log,tsv}.
+Preserve pre-existing user metadata changes: index only this turn's added two
+assembly sources/two leaf inventory entries and relative count increments.
+Working-tree counts still include earlier uncommitted sources/leaves. Do not
+reset those metadata files after the scoped implementation commit.
+
+2026-10-25 22:07:39 PDT, Isolate combined score Stella launches
+Initial expanded full checkpoint stopped in compile phase:590 PASS,one FAIL,
+example_stella_play_contract.pl. New Makefiles omitted local-basedir/userdir
+Stella launch isolation. Changed ONLY the two new play recipes to the existing
+example convention, including warning and explicit CURDIR-basedir/userdir.
+Targeted launch-contract check PASS. No raster/input/score assertions changed.
+Initial log:/tmp/opencode/colors-sections-score-examples.log. E2e was not run
+by that failed full invocation, so do not claim1178 passes. Five new score
+gates and two existing focused score tests previously passed together.
+Full eight-worker rerun pending:
+/tmp/opencode/colors-sections-score-examples-rerun.{log,tsv}.
+
+2026-10-25 22:30:20 PDT, Certify score initializer compatibility
+Expanded rerun completed591 compile PASS,583 e2e PASS,four e2e FAIL. All five
+new score gates passed, including live eight-palette RGB and late-tail mutation.
+Failures:multicolor_examples and six_glyph_component source contracts still
+required literal0x0e initializer; six_glyph_wide pinned centered source's old
+SHA; branding required standard FIGlet banners in both new leaf READMEs.
+Updated source checks to require initial_color DEFAULT0x0e AND parameter-based
+mutable initializer, deliberately refreshed centered source digest, and added
+standard banners. Existing wide-source literal contract remains unchanged.
+No runtime/rendering assertion was weakened or removed.
+
+Extended score_examples with direct full-ROM equivalence: compile the private
+poison/centered mutable-colour fixture using current default, then compile with
+a temporary component restoring the original literal0x0e initializer and no
+new parameter. Entire binaries MUST match. This passes, proving the default
+runtime layout/output did not change merely to satisfy source regexes.
+Targeted five PASS:score_examples, multicolor_examples,six_glyph_component,
+six_glyph_wide,branding. Initial full run had1174 passes/four failures, NOT1178
+passes. Last fully passing full suite remains1173. Stable eight-worker full
+rerun pending:/tmp/opencode/colors-sections-score-final.{log,tsv}.

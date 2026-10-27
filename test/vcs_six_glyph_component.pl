@@ -86,7 +86,8 @@ $source =~ /parameter\s+compact_font\s*:=\s*1/
    && $source =~ /uint16_t\s+TEMPLATE_pointers\[4\]/
    && $source =~ /uint16_t\s+TEMPLATE_pointers\[6\]/
    && $source =~ /uint8_t\s+TEMPLATE_row/
-   && $source =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := 0x0e;/s
+   && $source =~ /parameter initial_color := 0x0e;/
+   && $source =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := TEMPLATE_initial_color;/s
    or die "centered component lost compact/full-pointer or mutable-color modes\n";
 for my $variant ([$component,'centered'],[$left_component,'left'],[$right_component,'right']) {
    my ($path,$name)=@$variant;

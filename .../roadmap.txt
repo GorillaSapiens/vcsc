@@ -18,8 +18,9 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, generalize mixed-row geometry and extract a
-configurable .c26 combined renderer with interactive combined-score examples.
+Current next action: Item 63, validate the delivered fixed-layout interactive
+combined-score previews, then generalize mixed-row geometry/public extraction.
+Score-below preview is explicitly coupled, not an independent composition ABI.
 Preserve private pixel gates; the main-bound RTS proof is not a public ABI.
 Keep user configuration in .c26 with existing language facilities, not JSON.
 

@@ -1,0 +1,4 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Fixed-layout preview: gameplay owns the timed score/overscan terminal.
+alias SCORE_BELOW 1
+include "../../../_common/all_five_colors_sections_score_interactive.c26"

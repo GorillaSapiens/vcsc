@@ -26,7 +26,8 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $color_component=read_file(File::Spec->catfile($vcs,'six_glyph_component.c26'));
 $color_component =~ /parameter\s+mutable_color\s*:=\s*0/
-   && $color_component =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := 0x0e;/s
+   && $color_component =~ /parameter initial_color := 0x0e;/
+   && $color_component =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := TEMPLATE_initial_color;/s
    && $color_component =~ /asm sta RESP0;\s*asm sta RESP1;\s*#if TEMPLATE_mutable_color\s*asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
    && $color_component =~ /asm sta NUSIZ1;\s*#if TEMPLATE_mutable_color\s*.*?asm ldy TEMPLATE_offsets\+1;\s*asm bit\.z TEMPLATE_offsets;\s*asm nop;\s*#else/s
    or die "mutable-color score mode lost its color or positioning contract\n";

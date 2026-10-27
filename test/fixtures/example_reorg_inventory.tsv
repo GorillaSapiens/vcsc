@@ -1,4 +1,6 @@
 # kind	logical_id	old_leaf	target_leaf	marker
+new	all_five_colors_sections_score_above	-	04_renderers/all_five_colors_sections/score_above	Makefile
+new	all_five_colors_sections_score_below	-	04_renderers/all_five_colors_sections/score_below	Makefile
 existing	01_basic__01_blank_screen	01_basic/01_blank_screen	01_basics/blank_screen	Makefile
 existing	01_basic__02_blank_noasm	01_basic/02_blank_noasm	01_basics/blank_noasm	Makefile
 existing	01_basic__03_ode_to_joy	01_basic/03_ode_to_joy	01_basics/ode_to_joy	Makefile
