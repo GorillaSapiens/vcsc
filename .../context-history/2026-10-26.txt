@@ -1,0 +1,21 @@
+2026-10-26 17:42:15 PDT, Validate combined score previews
+User says continue after the server restarted and cancelled the previous full
+validation invocation. Restarted make test TEST_JOBS=8 without editing source
+or test metadata during execution. COMPLETE PASS:591 compile +587 e2e =1178
+tests, zero failures. Includes both runnable score-example smoke builds, all
+five new combined-score gates, existing score/control/raster regressions, and
+default initializer binary equivalence. No retries, serialization, reduced
+captures or pixel-oracle exceptions were introduced for this validation.
+Log:/tmp/opencode/colors-sections-score-restart.log.
+Timings:/tmp/opencode/colors-sections-score-restart.tsv.
+
+This supersedes the pending/cancelled colors-sections-score-final invocation;
+the cancelled run itself is not a passing checkpoint. Both score previews use
+122/128 RAM, one drawing bank and ordinary8K F8 without mirrored sprite tables.
+Supported heights remain exactly2,2,2,2,2,2,2,162 with eight independent palettes
+and explicit rejection of unsupported geometry. Above uses the ordinary score
+handoff; below still uses a documented coupled score/overscan terminal, not an
+independent public composition ABI. Interactive controls, four-frame upright
+artwork and BCD scoring are delivered. General mixed-row geometry and public
+extraction remain unfinished; do not put the delivered examples behind another
+private-proof prerequisite. Existing unrelated uncommitted work is preserved.

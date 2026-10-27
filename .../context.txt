@@ -211,9 +211,8 @@ Heights now accept 16-line increments totaling 192; two visual PF aliases repeat
 Combined score-above/below previews now runnable, fixed2,2,2,2,2,2,2,162 heights;
 independent palettes, four-frame sprites, BCD controls, RAM122/128. Below is an
 explicitly coupled terminal, not an independent handoff. See layers.txt.
-Full suite1173 passed, eight workers, including bulk PNG decoder regression.
-General mixed-row geometry and public extraction remain OPEN. New score gates
-pass targeted; expanded full-suite checkpoint pending.
+Full suite1178 passed, eight workers, including all five new score-preview gates.
+General mixed-row geometry and public extraction remain OPEN.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.
 Section controls: joystick, edge-triggered Select cycling, Reset; no auto motion.

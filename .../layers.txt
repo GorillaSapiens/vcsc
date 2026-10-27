@@ -225,18 +225,13 @@ unchanged. Full rerun1172 passed (591 compile+581 e2e):
 Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
 in bulk. Exact source-sample regression covers all supported types/filters;
 no captures/checks removed. Prior full suite predates new test discovery.
-Stable-tree full suite:591 compile+582 e2e =1173 passed, zero failures, eight
-workers. Log/timings:/tmp/opencode/colors-sections-png-stable.{log,tsv}.
-General even geometry remains unproved. Public preview unchanged.
-Next: complete expanded full-suite validation for the delivered bounded score
-previews, then generalize mixed-row geometry and extract configurable .c26 with
-honest independent composition contracts.
-Five new score gates plus two existing score-control/component gates pass;
-Latest expanded run:591 compile+583 e2e pass,four stale source/banner gates fail.
-All new score gates pass. Updated source contracts for initial_color's unchanged
-0x0e default and restored leaf FIGlet banners. Five targeted gates pass, including
-new default-initializer ROM equivalence against the original literal form.
-Stable full rerun pending:/tmp/opencode/colors-sections-score-final.{log,tsv}.
+Stable full suite:591 compile+587 e2e =1178 passed, zero failures, eight workers.
+Includes five new combined-score gates and default-initializer ROM equivalence.
+Log/timings:/tmp/opencode/colors-sections-score-restart.{log,tsv}.
+General even geometry remains unproved. No-score preview stays row-aligned;
+score previews support only2,2,2,2,2,2,2,162. Below remains explicitly coupled.
+Next: generalize mixed-row geometry and extract configurable .c26 with honest
+independent composition contracts, preserving the runnable score examples.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,
