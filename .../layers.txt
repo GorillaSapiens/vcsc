@@ -18,10 +18,10 @@ Supported geometry is exactly2,2,2,2,2,2,2,162; other heights are rejected.
 Eight palettes and eleven visual PF rows are configured in .c26. Joystick,
 Select, Reset, four-frame upright artwork and edge-triggered BCD editing pass
 targeted controls/timing/RGB checks. Stock RAM122/128 including eleven stack
-bytes, ordinary F8, one drawing bank, no mirrored sprites. Above uses normal
-score handoff; below owns score/overscan in a documented coupled terminal.
-General geometry and an independent below ABI are still unfinished; do not
-advertise the fixed preview as a general public renderer. Frozen score fixtures
+bytes, ordinary F8, one drawing bank, no mirrored sprites. Both orders now use
+normal independent handoffs; below no longer owns score/overscan or a callback.
+General geometry/public extraction are still unfinished; do not advertise the
+fixed preview as a general public renderer. Frozen score fixtures
 own exact regressions; editable example leaves are separately smoke-built.
 
 Active request: implement all_five_colors_sections, combining independent
@@ -225,11 +225,14 @@ unchanged. Full rerun1172 passed (591 compile+581 e2e):
 Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
 in bulk. Exact source-sample regression covers all supported types/filters;
 no captures/checks removed. Prior full suite predates new test discovery.
-Stable full suite:591 compile+587 e2e =1178 passed, zero failures, eight workers.
-Includes five new combined-score gates and default-initializer ROM equivalence.
-Log/timings:/tmp/opencode/colors-sections-score-restart.{log,tsv}.
+Stable full suite:591 compile+591 e2e =1182 passed, zero failures, eight workers.
+Includes independent-below gates, older coupled regressions and initializer ROM
+equivalence. Log/timings:/tmp/opencode/colors-sections-score-independent.{log,tsv}.
 General even geometry remains unproved. No-score preview stays row-aligned;
-score previews support only2,2,2,2,2,2,2,162. Below remains explicitly coupled.
+score previews support only2,2,2,2,2,2,2,162. Below now returns independently;
+four new controls/live/moving-RGB/missing-handoff gates pass, along with two old
+gates in a six-test focused run. Both actual leaves use3598/3840 draw ROM and
+122/128 RAM. All expanded gates pass in the full checkpoint above.
 Next: generalize mixed-row geometry and extract configurable .c26 with honest
 independent composition contracts, preserving the runnable score examples.
 

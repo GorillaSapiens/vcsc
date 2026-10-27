@@ -13,7 +13,9 @@ use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mutation)=@ARGV;
-defined($mutation)&&$mutation ne 'late_tail' and die 'unknown live mutation';
+defined($mutation)&&$mutation ne 'late_tail'&&$mutation ne 'independent'&&$mutation ne 'independent_bad_handoff' and die 'unknown live mode';
+my$independent=defined($mutation)&&$mutation=~/^independent/;
+my$driver_file=$independent?'independent':'interactive';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub save {open(my$f,'>',$_[0])or die$!;print{$f}$_[1];close$f or die$!;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;my$o2=<$o>//'';my$e2=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$o2$e2";}
@@ -45,14 +47,17 @@ sub capture {
    my%frames;for(@png){/_([0-9A-F]{8})\.png$/ or die 'frame name';$frames{hex$1}=[decode_rgb($_)];}return\%frames;
 }
 for my$order(qw(above below)){
-   next if defined($mutation)&&$order eq 'above';
-   my$s=slurp("$repo/test/fixtures/all_five_colors_sections_score/interactive.c26");
+   next if defined($mutation)&&$mutation ne 'independent'&&$order eq 'above';
+   my$s=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
    $s=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
    # All eight sections have independent palettes, not four repeated aliases.
    $s=~s/(score_below:=[01])\)/$1,section5_colupf:=0x6e,section5_colubk:=0x12,section6_colupf:=0xce,section6_colubk:=0x72,section7_colupf:=0xde,section7_colubk:=0x92,section8_colupf:=0xfe,section8_colubk:=0xb2)/g;
    $s='alias SCORE_BELOW '.($order eq 'below'?1:0)."\n".$s;
    my$gold_source=$s;
-   if(defined$mutation){
+   if(defined($mutation)&&$mutation eq 'independent_bad_handoff'){
+      $s=~s/(#if SCORE_BELOW\n)       vcs_ntsc_component_handoff\(\);/$1/ or die 'missing handoff mutation';
+   }
+   if(defined($mutation)&&$mutation eq 'late_tail'){
       my$component=slurp("$repo/test/fixtures/all_five_colors_sections_score/component.c26");
       $component=~s/   draw_combined_score_tail\(\);/   asm sta WSYNC;\n   draw_combined_score_tail();/ or die 'late terminal mutation';
       save("$tmp/late.c26",$component);
@@ -65,7 +70,7 @@ for my$order(qw(above below)){
    $gold=~s/   game_vblank\(\);\n// or die 'unbank golden preparation';
    $gold=~s/(       prepare_game\(\);)/$1\n       game_vblank();/ or die 'golden preparation call';
    $gold=~s/       game_set_initial_palette\(\);/       COLUPF := 0x2e;\n       COLUBK := 0x84;/ or die 'golden palette';
-   if($order eq 'below'){
+   if($order eq 'below'&&!$independent){
       $gold=~s/(       game_draw\(\);)/$1\n       vcs_ntsc_component_handoff();\n       score_draw();\n       vcs_ntsc_begin_overscan();/ or die 'golden below handoff';
    }
    my@pal=([46,132],[70,194],[142,38],[174,100],[110,18],[206,114],[222,146],[254,178]);my@gold;

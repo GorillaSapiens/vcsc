@@ -1,0 +1,229 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Frozen independent-return score composition driver.
+include "vcs.c26"
+include "F8/mapper.c26"
+include "frame_ntsc.c26"
+include "playfield.c26"
+include "fonts/default_decimal.c26"
+
+page const uint8_t game_playfield[44] := {
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
+   VCS_PLAYFIELD_ROW(0b.XX.X..X_.XX.X..X_..XXXX.._XX....XX),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0b.XX.X..X_.XX.X..X_..XXXX.._XX....XX),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0b.XX.X..X_.XX.X..X_..XXXX.._XX....XX),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0b.XX.X..X_.XX.X..X_..XXXX.._XX....XX),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0b.XX.X..X_.XX.X..X_..XXXX.._XX....XX),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X)
+};
+page const uint8_t game_player0_colors[8] := {
+   0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e,0x3e
+};
+page const uint8_t game_player1_colors[8] := {
+   0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
+};
+#if SCORE_BELOW
+instantiate "component.c26" as game (score_below:=0)
+#else
+instantiate "component.c26" as game (score_below:=0)
+#endif
+instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
+
+// Four upright eight-row frames, stored together in one contained page.
+page const uint8_t animations[64] := {
+   game_SPRITE_GLYPH(0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66),
+   game_SPRITE_GLYPH(0x24,0x5a,0xbd,0xff,0xdb,0x7e,0x5a,0x99),
+   game_SPRITE_GLYPH(0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x5a,0x81),
+   game_SPRITE_GLYPH(0x81,0x5a,0xbd,0xff,0xdb,0x7e,0x3c,0x24),
+   game_SPRITE_GLYPH(0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c),
+   game_SPRITE_GLYPH(0x54,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c),
+   game_SPRITE_GLYPH(0x24,0x5a,0x81,0xff,0xdb,0xff,0x66,0x3c),
+   game_SPRITE_GLYPH(0x2a,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c)
+};
+
+uint8_t selected_object;
+uint8_t selected_digit;
+uint8_t select_latched;
+uint8_t score_latched;
+bank1 const bcd24_t digit_weights[6] := {1,10,100,1000,10000,100000};
+const uint8_t *probe_font;
+uint8_t *animation0;
+bcd24_t score_score := 0;
+bank1 void prepare_game(void) {
+   game_player0_graphics := animation0;
+   game_player0_graphics += ((game_PLAYER0_X ^ game_player0_y) & 3) << 3;
+   game_player1_graphics := animation0;
+   game_player1_graphics += 32 + (((game_PLAYER1_X ^ game_player1_y) & 3) << 3);
+   game_vblank();
+}
+bank1 void prepare_probe_score(void) {
+   // Digits 1/2: only digit*8 is needed because score_font is page-contained.
+   asm lda score_score+2;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm sta score_offsets;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta score_offsets+1;
+
+   // Digits 3/4 retain complete pointers.
+   asm lda score_score+1;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc probe_font;
+   asm sta score_pointers;
+   asm lda probe_font+1;
+   asm adc #0;
+   asm sta score_pointers+1;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc probe_font;
+   asm sta score_pointers+2;
+   asm lda probe_font+1;
+   asm adc #0;
+   asm sta score_pointers+3;
+
+   // Digits 5/6 retain complete pointers.
+   asm lda score_score;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc probe_font;
+   asm sta score_pointers+4;
+   asm lda probe_font+1;
+   asm adc #0;
+   asm sta score_pointers+5;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc probe_font;
+   asm sta score_pointers+6;
+   asm lda probe_font+1;
+   asm adc #0;
+   asm sta score_pointers+7;
+}
+
+
+bank1 void initialize_probe_objects(void) {
+    score_color := 0x0e;
+   VBLANK := 2;
+   COLUBK := 0x84;
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 130;
+   game_MISSILE0_X := 50;
+   game_MISSILE1_X := 110;
+    game_BALL_X := 80;
+    game_player0_y := 18;
+    game_player1_y := 78;
+    game_missile0_y := 34;
+    game_missile1_y := 62;
+    game_ball_y := 48;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   game_init();
+
+}
+// Y fields are intentionally independent and not duplicated in an application
+// array: this leaves the score, controls and bank-call stack in stock RIOT RAM.
+alias MOVE_Y(y) if (!(SWCHA & 0x10)) { if (y) { y--; } } else { if (!(SWCHA & 0x20)) { if (y < 87) { y++; } } }
+bank1 void update_controls(void) {
+   if (!(SWCHB & 1)) { hard_reset(); }
+   if (SWCHB & 2) { select_latched := 0; }
+   else {
+      if (!select_latched) {
+         selected_object++;
+         if (selected_object == 5) { selected_object := 0; }
+         select_latched := 1;
+      }
+   }
+   if (!(SWCHA & 0x40)) {
+      if (game_object_x[selected_object]) { game_object_x[selected_object]--; }
+   } else {
+      if (!(SWCHA & 0x80)) {
+         if (game_object_x[selected_object] < 159) { game_object_x[selected_object]++; }
+      }
+   }
+   switch (selected_object) {
+      case 0: MOVE_Y(game_player0_y) break;
+      case 1: MOVE_Y(game_player1_y) break;
+      case 2: MOVE_Y(game_missile0_y) break;
+      case 3: MOVE_Y(game_missile1_y) break;
+      case 4: MOVE_Y(game_ball_y) break;
+   }
+   if ((SWCHA & 15) == 15) { score_latched := 0; return; }
+   if (score_latched) { return; }
+   score_latched := 1;
+   if (!(SWCHA & 4)) {
+      selected_digit++;
+      if (selected_digit == 6) { selected_digit := 0; }
+      score_color += 0x10;
+   } else {
+      if (!(SWCHA & 8)) {
+         if (selected_digit) { selected_digit--; } else { selected_digit := 5; }
+         score_color += 0x10;
+      }
+   }
+   if (!(SWCHA & 1)) { score_score += digit_weights[selected_digit]; }
+   else { if (!(SWCHA & 2)) { score_score -= digit_weights[selected_digit]; } }
+}
+bank1 void finish_probe_gameplay(void) { game_overscan(); update_controls(); }
+void main(void) {
+    initialize_probe_objects();
+   score_score := 123456;
+   score_init();
+    probe_font := score_font;
+    animation0 := animations;
+    prepare_probe_score();
+   while (1) {
+      vcs_ntsc_vsync();
+       vcs_ntsc_begin_vblank();
+       game_set_initial_palette();
+       prepare_game();
+       // Save the application's real S after the banked preparation wrapper
+       // returns, not the bank1 call's deeper stack frame.
+       asm tsx;
+       asm stx.z game_row_cache + 20;
+      score_vblank();
+      prepare_probe_score();
+      vcs_ntsc_end_vblank();
+#if !SCORE_BELOW
+       score_draw();
+       vcs_ntsc_component_handoff();
+#endif
+       game_draw();
+#if SCORE_BELOW
+       vcs_ntsc_component_handoff();
+       score_draw();
+#endif
+       vcs_ntsc_begin_overscan();
+      finish_probe_gameplay();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

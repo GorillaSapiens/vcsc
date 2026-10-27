@@ -19,8 +19,8 @@ Heights are configurable in 16-line increments.
 Runnable combined-colour score previews are now available:
 
 - [`score_above`](score_above/): independent eleven-line score before gameplay.
-- [`score_below`](score_below/): score after gameplay through an explicitly
-  coupled timed terminal (not an independent component handoff).
+- [`score_below`](score_below/): independent eleven-line score after gameplay
+  through the ordinary component handoff.
 
 Both have left-joystick movement, Select cycling through all five objects,
 Reset, four-frame upright artwork, independent player row colours, and

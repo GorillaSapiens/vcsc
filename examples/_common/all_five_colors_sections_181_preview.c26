@@ -2,7 +2,6 @@
 // Experimental fixed-layout score preview, NOT the general renderer ABI.
 // Colour seams at 2,4,6,8,10,12,14 of the 176 colourable lines.
 // Preparation is bank1; all graphics, score and gameplay drawing are bank0.
-parameter score_below := 0;
 parameter section1_lines := 2;
 parameter section2_lines := 2;
 parameter section3_lines := 2;
@@ -27,9 +26,6 @@ parameter section7_colupf := 0x8e;
 parameter section7_colubk := 0x26;
 parameter section8_colupf := 0xae;
 parameter section8_colubk := 0x64;
-#if TEMPLATE_score_below
-bank0 void draw_combined_score_tail(void);
-#endif
 bank1 page const uint8_t TEMPLATE_prepare_playfield[44] := {TEMPLATE_playfield[0],TEMPLATE_playfield[1],TEMPLATE_playfield[2],TEMPLATE_playfield[3],TEMPLATE_playfield[4],TEMPLATE_playfield[5],TEMPLATE_playfield[6],TEMPLATE_playfield[7],TEMPLATE_playfield[8],TEMPLATE_playfield[9],TEMPLATE_playfield[10],TEMPLATE_playfield[11],TEMPLATE_playfield[12],TEMPLATE_playfield[13],TEMPLATE_playfield[14],TEMPLATE_playfield[15],TEMPLATE_playfield[16],TEMPLATE_playfield[17],TEMPLATE_playfield[18],TEMPLATE_playfield[19],TEMPLATE_playfield[20],TEMPLATE_playfield[21],TEMPLATE_playfield[22],TEMPLATE_playfield[23],TEMPLATE_playfield[24],TEMPLATE_playfield[25],TEMPLATE_playfield[26],TEMPLATE_playfield[27],TEMPLATE_playfield[28],TEMPLATE_playfield[29],TEMPLATE_playfield[30],TEMPLATE_playfield[31],TEMPLATE_playfield[32],TEMPLATE_playfield[33],TEMPLATE_playfield[34],TEMPLATE_playfield[35],TEMPLATE_playfield[36],TEMPLATE_playfield[37],TEMPLATE_playfield[38],TEMPLATE_playfield[39],TEMPLATE_playfield[40],TEMPLATE_playfield[41],TEMPLATE_playfield[42],TEMPLATE_playfield[43]};
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
@@ -48,13 +44,12 @@ bank1 page const uint8_t TEMPLATE_prepare_playfield[44] := {TEMPLATE_playfield[0
 // 16-line playfield rows plus the measured score-handoff setup/tail for exactly
 // 181 visible scanlines. It composes with one independent 11-line score.
 //
-// This score-above version owns no score/font, VSYNC, VBLANK or timer. draw() returns on
+// This version owns no score/font, VSYNC, VBLANK or timer. draw() returns on
 // the boundary after the 181st visible line; overscan() clears gameplay state
 // and restores application player heights.
 
 // The machine-readable visible handoff fields below are defined in
 // renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
-#if !TEMPLATE_score_below
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := 181,
    TEMPLATE_DRAW_ENTRY_CYCLE := 3,
@@ -76,7 +71,6 @@ enum TEMPLATE_contract {
    TEMPLATE_PUBLIC_RAM_BYTES := 21,
    TEMPLATE_MODULE_RAM_BYTES := 88
 };
-#endif
 
 alias TEMPLATE_OBJECT_PLAYER0 0
 alias TEMPLATE_OBJECT_PLAYER1 1
@@ -2148,11 +2142,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta VDELBL;
    asm sta VDELP0;
    asm sta VDELP1;
-#if TEMPLATE_score_below
-   draw_combined_score_tail();
-#else
    asm sta WSYNC;
-#endif
 }
 
 require inline void TEMPLATE_overscan(void) {

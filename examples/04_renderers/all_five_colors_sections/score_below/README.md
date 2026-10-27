@@ -17,11 +17,19 @@ Controls, configuration and the supported fixed layout are the same as
 [`score_above`](../score_above/). RAM **122/128**, including eleven stack bytes;
 ordinary 8K F8 ROM and one drawing bank, with no mirrored graphics.
 
-**Coupled terminal:** gameplay calls `draw_combined_score_tail()` before its
-final WSYNC. That helper completes the timed handoff, draws the score and starts
-overscan before returning. Do not add another handoff, score draw or overscan
-start after `game_draw()`. Moving the helper after the final WSYNC shifts score
-pixels six cycles and is rejected by an exact-RGB mutation test.
+Gameplay returns after its final WSYNC. The application then performs the normal
+component handoff, draws the independent eleven-line score, and starts overscan:
 
-This runnable NTSC preview is not an independent score-below component ABI.
+```vcsc
+game_draw();
+vcs_ntsc_component_handoff();
+score_draw();
+vcs_ntsc_begin_overscan();
+```
+
+There is no gameplay-owned score callback or overscan start. Omitting the handoff
+is rejected by an exact-RGB mutation test. The older coupled-terminal fixture
+remains regression-tested but is no longer used by this runnable example.
+
+This remains a fixed-layout NTSC preview, not a general combined renderer.
 Supported heights are exactly `2,2,2,2,2,2,2,162`; other layouts are rejected.

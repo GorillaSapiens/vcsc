@@ -8,7 +8,9 @@ use strict;
 use warnings;
 use IPC::Open3;
 use Symbol qw(gensym);
-my($repo,$tmp)=@ARGV;
+my($repo,$tmp,$mode)=@ARGV;
+defined($mode)&&$mode ne 'independent' and die 'unknown composition mode';
+my$driver_file=defined($mode)?'independent':'interactive';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;
    my$out=<$o>//'';my$err=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$out$err";return$out;}
@@ -19,7 +21,7 @@ for my$pair(['timing','vcs_frame_timing.cpp'],['controls','vcs_all_five_interact
 }
 for my$order(qw(above below)){
    # Editable leaves are independently covered by vcs_examples_build.pl.
-   my$fixture=slurp("$repo/test/fixtures/all_five_colors_sections_score/interactive.c26");
+   my$fixture=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
    $fixture=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
    open(my$f,'>',"$tmp/$order.c26")or die$!;print{$f}'alias SCORE_BELOW '.($order eq 'below'?1:0)."\n$fixture";close$f;
    my$bin="$tmp/$order.bin";my$out=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/$order.c26",'-o',$bin);

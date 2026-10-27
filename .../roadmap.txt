@@ -20,7 +20,7 @@ not selected another workstream.
 
 Current next action: Item 63, generalize mixed-row geometry/public extraction
 beyond the validated fixed-layout interactive combined-score previews.
-Score-below preview is explicitly coupled, not an independent composition ABI.
+Both bounded score previews now use ordinary independent component handoffs.
 Preserve private pixel gates; the main-bound RTS proof is not a public ABI.
 Keep user configuration in .c26 with existing language facilities, not JSON.
 

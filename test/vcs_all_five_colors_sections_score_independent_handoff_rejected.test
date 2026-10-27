@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_score_live.pl @REPO@ @TMP@ independent_bad_handoff
+# phase: e2e
+# timeout: 300
+# expectstderr: below live RGB mismatch
+# expectexit: 255

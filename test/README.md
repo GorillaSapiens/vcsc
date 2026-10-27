@@ -1123,6 +1123,11 @@ score pointer preparation. `score_live` checks the complete frozen interactive
 driver with eight independent palettes against ordinary gameplay rasters;
 `score_live_tail_rejected` detects the score-below terminal's six-cycle error.
 Supported score geometry is only `2,2,2,2,2,2,2,162`, not arbitrary even heights.
+The current score-below example uses a normal gameplay return followed by an
+independent score handoff, not the older callback. Its frozen `independent.c26`
+driver has four additional gates: controls/random timing, eight-palette live
+RGB, moving/glyph/straddle RGB, and omitted-handoff rejection. Older coupled
+fixtures and their late-tail mutation remain checked as historical regressions.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a

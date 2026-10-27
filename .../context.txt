@@ -209,9 +209,9 @@ User requires ONE draw bank; no mirrored sprites. A no-score interactive preview
 lives in examples/04_renderers/all_five_colors_sections/no_score/ (100/128 RAM).
 Heights now accept 16-line increments totaling 192; two visual PF aliases repeat.
 Combined score-above/below previews now runnable, fixed2,2,2,2,2,2,2,162 heights;
-independent palettes, four-frame sprites, BCD controls, RAM122/128. Below is an
-explicitly coupled terminal, not an independent handoff. See layers.txt.
-Full suite1178 passed, eight workers, including all five new score-preview gates.
+independent palettes, four-frame sprites, BCD controls, RAM122/128. Both score
+orders now use ordinary independent handoffs; no below callback. See layers.txt.
+Full suite1182 passed, eight workers, including four new independent-below gates.
 General mixed-row geometry and public extraction remain OPEN.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.

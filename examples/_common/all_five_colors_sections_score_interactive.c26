@@ -25,11 +25,7 @@ page const uint8_t game_player0_colors[8] := {
 page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
-#if SCORE_BELOW
-instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (score_below:=1)
-#else
-instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (score_below:=0)
-#endif
+instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game
 instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
 
 // Four upright eight-row frames, stored together in one contained page.
@@ -193,16 +189,6 @@ bank1 void update_controls(void) {
    else { if (!(SWCHA & 2)) { score_score -= digit_weights[selected_digit]; } }
 }
 bank1 void finish_probe_gameplay(void) { game_overscan(); update_controls(); }
-#if SCORE_BELOW
-// Coupled terminal, NOT an independent component handoff: called by gameplay
-// before its final WSYNC. Returning first would move score pixels six cycles.
-bank0 void draw_combined_score_tail(void) {
-   asm sta WSYNC;
-   vcs_ntsc_component_handoff();
-   score_draw();
-   vcs_ntsc_begin_overscan();
-}
-#endif
 void main(void) {
     initialize_probe_objects();
    score_score := 123456;
@@ -227,9 +213,11 @@ void main(void) {
        vcs_ntsc_component_handoff();
 #endif
        game_draw();
-#if !SCORE_BELOW
-       vcs_ntsc_begin_overscan();
+#if SCORE_BELOW
+       vcs_ntsc_component_handoff();
+       score_draw();
 #endif
+       vcs_ntsc_begin_overscan();
       finish_probe_gameplay();
       score_overscan();
       vcs_ntsc_end_overscan();

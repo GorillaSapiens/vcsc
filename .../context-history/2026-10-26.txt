@@ -19,3 +19,52 @@ independent public composition ABI. Interactive controls, four-frame upright
 artwork and BCD scoring are delivered. General mixed-row geometry and public
 extraction remain unfinished; do not put the delivered examples behind another
 private-proof prerequisite. Existing unrelated uncommitted work is preserved.
+
+2026-10-26 18:29:31 PDT, Decouple bounded score-below handoff
+User says keep going. Removed the score-below callback dependency from the
+runnable bounded preview. Both score orders now use the same renderer with a
+normal terminal WSYNC and return; the application calls the ordinary component
+handoff, draws score and starts overscan. The renderer no longer declares or
+calls draw_combined_score_tail and no longer has a score_below parameter. Both
+orders expose the measured181-line entry/return contract. No arbitrary geometry
+claim:heights remain exactly2,2,2,2,2,2,2,162.
+
+The earlier six-cycle failure was the packed-later/callback placement, not proof
+that this smaller dense-first-row schedule requires coupling. Removing the
+unnecessary return-line JSR and keeping score inline after the normal handoff
+passes exact RGB in this layout. Both actual leaf builds now use bank0
+3598/3840,bank1 1355/3840,RAM122/128 including11 stack bytes; no cartridge RAM,
+extra drawing bank or mirrored sprites. Fixed geometry, palettes, artwork,
+controls, runtime heights/pointers and NUSIZ remain unchanged.
+
+Preserved the original coupled frozen driver/component and late-tail mutation
+as historical regressions. Added an independently owned frozen independent.c26
+driver selecting the existing frozen renderer's normal-return path. Four new
+gates:independent_controls checks both orders through full input/BCD/reset and
+randomized420-frame timing plus artwork/geometry/default-initializer checks;
+independent_live compares complete frames with eight distinct palettes against
+ordinary gameplay; independent_raster compares moving sprites/glyphs/nonempty
+seam straddles against ordinary gameplay and independent score preparation;
+independent_handoff_rejected removes the application's below handoff and MUST
+fail exact RGB. No golden, raster, branch or straddle assertion was weakened.
+Six focused gates PASS (all four new, old late-tail mutation and original score
+controls). Both editable leaves separately build at the budgets above.
+
+Updated example docs, assembly allowlist digest, hot context and roadmap. No
+general public renderer ABI is claimed; remaining work is broader/mixed-row
+geometry and public extraction, not a callback prerequisite for bounded score
+examples. Expanded eight-worker full suite pending:
+/tmp/opencode/colors-sections-score-independent.{log,tsv}.
+
+2026-10-26 18:48:15 PDT, Validate independent score-below suite
+Full suite PASS:591 compile +591 e2e =1182 tests, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-score-independent.{log,tsv}.
+No source or test metadata edits during execution. Includes four new independent
+handoff gates and preserves old coupled/late-tail regressions. Both runnable
+score orders now use the normal181-line gameplay return followed/preceded by
+the independent eleven-line score; below no longer owns score/overscan via a
+callback. Stock RAM122/128,one drawing bank,ordinary8K F8 remain proven.
+Remaining acceptance:broader/mixed-row geometry and general public extraction.
+Preserve existing unrelated uncommitted changes. Commit only this work and
+its one assembly-allowlist entry; earlier pending inventory/allowlist changes
+must not be swept into the implementation commit. Nothing pushed.
