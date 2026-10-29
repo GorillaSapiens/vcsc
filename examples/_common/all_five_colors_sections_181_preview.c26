@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// Experimental fixed-layout score preview, NOT the general renderer ABI.
-// Colour seams at 2,4,6,8,10,12,14 of the 176 colourable lines.
+// Experimental bounded-layout score preview, NOT the general renderer ABI.
+// Even colour seams within lines2..14 of the 176 colourable lines.
 // Preparation is bank1; all graphics, score and gameplay drawing are bank0.
 parameter section1_lines := 2;
 parameter section2_lines := 2;
@@ -26,6 +26,16 @@ parameter section7_colupf := 0x8e;
 parameter section7_colubk := 0x26;
 parameter section8_colupf := 0xae;
 parameter section8_colubk := 0x64;
+alias TEMPLATE_END1 TEMPLATE_section1_lines
+alias TEMPLATE_END2 (TEMPLATE_END1 + TEMPLATE_section2_lines)
+alias TEMPLATE_END3 (TEMPLATE_END2 + TEMPLATE_section3_lines)
+alias TEMPLATE_END4 (TEMPLATE_END3 + TEMPLATE_section4_lines)
+alias TEMPLATE_END5 (TEMPLATE_END4 + TEMPLATE_section5_lines)
+alias TEMPLATE_END6 (TEMPLATE_END5 + TEMPLATE_section6_lines)
+alias TEMPLATE_END7 (TEMPLATE_END6 + TEMPLATE_section7_lines)
+alias TEMPLATE_SELECT(line,a,b,c,d,e,f,g,h) ((line) < TEMPLATE_END1 ? (a) : (line) < TEMPLATE_END2 ? (b) : (line) < TEMPLATE_END3 ? (c) : (line) < TEMPLATE_END4 ? (d) : (line) < TEMPLATE_END5 ? (e) : (line) < TEMPLATE_END6 ? (f) : (line) < TEMPLATE_END7 ? (g) : (h))
+alias TEMPLATE_PF_AT(line) TEMPLATE_SELECT(line,TEMPLATE_section1_colupf,TEMPLATE_section2_colupf,TEMPLATE_section3_colupf,TEMPLATE_section4_colupf,TEMPLATE_section5_colupf,TEMPLATE_section6_colupf,TEMPLATE_section7_colupf,TEMPLATE_section8_colupf)
+alias TEMPLATE_BK_AT(line) TEMPLATE_SELECT(line,TEMPLATE_section1_colubk,TEMPLATE_section2_colubk,TEMPLATE_section3_colubk,TEMPLATE_section4_colubk,TEMPLATE_section5_colubk,TEMPLATE_section6_colubk,TEMPLATE_section7_colubk,TEMPLATE_section8_colubk)
 bank1 page const uint8_t TEMPLATE_prepare_playfield[44] := {TEMPLATE_playfield[0],TEMPLATE_playfield[1],TEMPLATE_playfield[2],TEMPLATE_playfield[3],TEMPLATE_playfield[4],TEMPLATE_playfield[5],TEMPLATE_playfield[6],TEMPLATE_playfield[7],TEMPLATE_playfield[8],TEMPLATE_playfield[9],TEMPLATE_playfield[10],TEMPLATE_playfield[11],TEMPLATE_playfield[12],TEMPLATE_playfield[13],TEMPLATE_playfield[14],TEMPLATE_playfield[15],TEMPLATE_playfield[16],TEMPLATE_playfield[17],TEMPLATE_playfield[18],TEMPLATE_playfield[19],TEMPLATE_playfield[20],TEMPLATE_playfield[21],TEMPLATE_playfield[22],TEMPLATE_playfield[23],TEMPLATE_playfield[24],TEMPLATE_playfield[25],TEMPLATE_playfield[26],TEMPLATE_playfield[27],TEMPLATE_playfield[28],TEMPLATE_playfield[29],TEMPLATE_playfield[30],TEMPLATE_playfield[31],TEMPLATE_playfield[32],TEMPLATE_playfield[33],TEMPLATE_playfield[34],TEMPLATE_playfield[35],TEMPLATE_playfield[36],TEMPLATE_playfield[37],TEMPLATE_playfield[38],TEMPLATE_playfield[39],TEMPLATE_playfield[40],TEMPLATE_playfield[41],TEMPLATE_playfield[42],TEMPLATE_playfield[43]};
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
@@ -36,7 +46,7 @@ bank1 page const uint8_t TEMPLATE_prepare_playfield[44] := {TEMPLATE_playfield[0
 //
 // Instantiate with:
 //
-//     instantiate "renderers/all_five_player_color_181/all_five_player_color_181.c26" as game
+//     instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game
 //
 // Include vcs.c26 first.  Each instance requires page-contained immutable
 // INSTANCE_playfield[44], INSTANCE_player0_colors[8], and
@@ -132,8 +142,11 @@ uint8_t TEMPLATE_object_masks[46];
 uint8_t TEMPLATE_row_cache[21];
 
 require inline void TEMPLATE_init(void) {
-   asm .if TEMPLATE_section1_lines != 2 || TEMPLATE_section2_lines != 2 || TEMPLATE_section3_lines != 2 || TEMPLATE_section4_lines != 2 || TEMPLATE_section5_lines != 2 || TEMPLATE_section6_lines != 2 || TEMPLATE_section7_lines != 2 || TEMPLATE_section8_lines != 162;
-   asm .error "Combined score preview supports only heights 2,2,2,2,2,2,2,162";
+   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 162 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
+   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and all seams within14";
+   asm .endif;
+   asm .if {TEMPLATE_section1_lines | TEMPLATE_section2_lines | TEMPLATE_section3_lines | TEMPLATE_section4_lines | TEMPLATE_section5_lines | TEMPLATE_section6_lines | TEMPLATE_section7_lines | TEMPLATE_section8_lines} & 1;
+   asm .error "Combined score preview requires even section heights";
    asm .endif;
 }
 inline void TEMPLATE_set_initial_palette(void) {
@@ -679,9 +692,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   COLUPF := TEMPLATE_section2_colupf;
+   COLUPF := TEMPLATE_PF_AT(2);
    asm @TEMPLATE_palette2_barrier:;
-   COLUBK := TEMPLATE_section2_colubk;
+   COLUBK := TEMPLATE_BK_AT(2);
    asm @TEMPLATE_score_pf_barrier_1_3:;
    PF1 := TEMPLATE_score_pf0;
    asm @TEMPLATE_score_pf_barrier_1_4:;
@@ -743,9 +756,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   COLUPF := TEMPLATE_section3_colupf;
+   COLUPF := TEMPLATE_PF_AT(4);
    asm @TEMPLATE_palette3_barrier:;
-   COLUBK := TEMPLATE_section3_colubk;
+   COLUBK := TEMPLATE_BK_AT(4);
    asm @TEMPLATE_score_pf_barrier_2_3:;
    PF1 := TEMPLATE_score_pf0;
    asm @TEMPLATE_score_pf_barrier_2_4:;
@@ -807,9 +820,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   COLUPF := TEMPLATE_section4_colupf;
+   COLUPF := TEMPLATE_PF_AT(6);
    asm @TEMPLATE_palette4_barrier:;
-   COLUBK := TEMPLATE_section4_colubk;
+   COLUBK := TEMPLATE_BK_AT(6);
    asm @TEMPLATE_score_pf_barrier_3_3:;
    PF1 := TEMPLATE_score_pf0;
    asm @TEMPLATE_score_pf_barrier_3_4:;
@@ -871,9 +884,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   COLUPF := TEMPLATE_section5_colupf;
+   COLUPF := TEMPLATE_PF_AT(8);
    asm @TEMPLATE_palette5_barrier:;
-   COLUBK := TEMPLATE_section5_colubk;
+   COLUBK := TEMPLATE_BK_AT(8);
    asm @TEMPLATE_score_pf_barrier_4_3:;
    PF1 := TEMPLATE_score_pf0;
    asm @TEMPLATE_score_pf_barrier_4_4:;
@@ -935,9 +948,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   COLUPF := TEMPLATE_section6_colupf;
+   COLUPF := TEMPLATE_PF_AT(10);
    asm @TEMPLATE_palette6_barrier:;
-   COLUBK := TEMPLATE_section6_colubk;
+   COLUBK := TEMPLATE_BK_AT(10);
    asm @TEMPLATE_score_pf_barrier_5_3:;
    PF1 := TEMPLATE_score_pf0;
    asm @TEMPLATE_score_pf_barrier_5_4:;
@@ -1000,9 +1013,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   COLUPF := TEMPLATE_section7_colupf;
+   COLUPF := TEMPLATE_PF_AT(12);
    asm @TEMPLATE_palette7_barrier:;
-   COLUBK := TEMPLATE_section7_colubk;
+   COLUBK := TEMPLATE_BK_AT(12);
    asm @TEMPLATE_score_pf_barrier_6_3:;
    PF1 := TEMPLATE_score_pf0;
    asm @TEMPLATE_score_pf_barrier_6_4:;
@@ -1059,9 +1072,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
    asm stx ENAM1;
-   COLUPF := TEMPLATE_section8_colupf;
+   COLUPF := TEMPLATE_PF_AT(14);
    asm @TEMPLATE_palette8_active_barrier:;
-   COLUBK := TEMPLATE_section8_colubk;
+   COLUBK := TEMPLATE_BK_AT(14);
    PF1 := TEMPLATE_score_pf0;
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;
@@ -1093,9 +1106,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda #0;
    asm sta GRP1;
    asm stx ENAM1;
-   COLUPF := TEMPLATE_section8_colupf;
+   COLUPF := TEMPLATE_PF_AT(14);
    asm @TEMPLATE_palette8_zero_barrier:;
-   COLUBK := TEMPLATE_section8_colubk;
+   COLUBK := TEMPLATE_BK_AT(14);
    PF1 := TEMPLATE_score_pf0;
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;

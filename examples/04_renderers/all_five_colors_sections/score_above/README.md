@@ -19,8 +19,10 @@ place; up/down adds/subtracts its BCD weight. Release the right stick between
 edits. Horizontal selection also changes the score colour.
 
 Independent eight-row player colours and four-frame artwork move continuously
-through the section seams. The supported heights are exactly
-`2,2,2,2,2,2,2,162`; unsupported geometry fails compilation. Configure the eight
+through the section seams. Heights must be nonnegative and even, total176, with
+section one nonempty and section eight at least162 lines. Middle slots may be
+empty; all seams stay within lines2–14. Defaults are `2,2,2,2,2,2,2,162`;
+`4,0,2,0,4,0,0,166` is also supported. Later seams fail compilation. Configure the eight
 palettes and eleven visual playfield rows in
 `examples/_common/all_five_colors_sections_score_interactive.c26`.
 

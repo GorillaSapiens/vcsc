@@ -25,7 +25,13 @@ page const uint8_t game_player0_colors[8] := {
 page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
-instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game
+// Nonnegative even heights total176; section one is nonempty and section eight
+// covers at least162 lines. Empty middle slots are supported, e.g.
+// 4,0,2,0,4,0,0,166 gives seams4/6/10 without changing the drawing schedule.
+instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (
+   section1_lines:=2, section2_lines:=2, section3_lines:=2, section4_lines:=2,
+   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=162
+)
 instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
 
 // Four upright eight-row frames, stored together in one contained page.

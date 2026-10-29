@@ -1,0 +1,50 @@
+2026-10-28 14:58:03 PDT, Generalize bounded score prefix geometry
+User says keep going. Broadened the runnable combined-score previews beyond the
+single2,2,2,2,2,2,2,162 layout without changing the raster schedule, RAM or timing.
+Accepted heights are nonnegative even values totaling176,first section nonempty,
+eighth at least162. Thus sections1..7 fit in the first14 colourable lines;
+section8 covers the rest. Slots2..7 may be empty and early sections can merge.
+Examples:4,0,2,0,4,0,0,166 -> seams4/6/10;14,0,0,0,0,0,0,162 -> seam14;
+2,0,0,0,0,0,0,174 -> seam2. This is NOT arbitrary later-row geometry.
+
+Existing palette-write slots at2/4/6/8/10/12/14 now select their compile-time
+PF/BK constants through cumulative .c26 height aliases. No user-facing generator,
+runtime dispatch, extra raster instructions, mask rescheduling or RAM added.
+Barrier labels retain immediate loads for equal neighbouring palettes, including
+slots that are no longer boundaries. All .same/.cross/page contracts preserved.
+New guards reject wrong totals, odd or negative heights, empty first section
+and later boundaries. Negative instantiation literals are rejected by the
+language parser; the rejection gate accepts that explicit parser diagnostic.
+The initial guard used an alias in raw asm, which did not expand; replaced it
+with literal parameter sums and final-section minimum, not a linker workaround.
+
+Added frozen prefix_component.c26, separate from the editable example source.
+Eight new gates PASS:above/below mixed empty geometry, sparse early and late,
+all-eight-palette original geometry, full interactive controls/random timing,
+live eight-palette RGB and same-cycle wrong-palette mutation rejection. Moving
+gates retain independent glyph/full-RGB/nonempty all-five straddle requirements.
+Controls gate includes five invalid geometry checks and full-ROM equivalence
+between old fixed renderer and the new default, which is byte-identical.
+Ten-test focused run PASS (eight new plus old independent handoff rejection and
+old live driver). After adding default-ROM equivalence, prefix controls PASS
+again. Default editable leaf builds still use122/128 RAM and one drawing bank.
+
+Documented explicit .c26 height arguments in the editable common driver and
+updated README/allowlist/hot state. Existing independent score handoffs and
+earlier frozen fixed/coupled regressions are preserved. Last full suite1182;
+expanded eight-worker full checkpoint pending:
+/tmp/opencode/colors-sections-score-prefix.{log,tsv}.
+Next after validation:boundaries in later/multiple rows and general public
+extraction. Do not claim arbitrary even geometry from these prefix-only gates.
+
+2026-10-28 15:21:21 PDT, Validate configurable score prefixes
+Expanded full suite PASS:591 compile +599 e2e =1190 tests, zero failures, eight
+workers. Log/timings:/tmp/opencode/colors-sections-score-prefix.{log,tsv}.
+No source/test metadata changed during execution. Includes all eight new prefix
+gates, default ROM equivalence, invalid-geometry checks, moving all-five RGB/
+glyph/straddle checks, live palettes, controls and same-cycle mutation rejection.
+Both actual editable leaves build at3598/3840 draw ROM,1355/3840 bank1 ROM and
+122/128 RAM including11 stack bytes. Independent score handoffs retained.
+Later/multiple-row boundaries and general public extraction remain unfinished.
+Commit only this work and its renderer allowlist entry; preserve earlier
+uncommitted inventory/harness/solid-colour example work. Nothing pushed.

@@ -13,8 +13,10 @@ use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mutation)=@ARGV;
-defined($mutation)&&$mutation ne 'late_tail'&&$mutation ne 'independent'&&$mutation ne 'independent_bad_handoff' and die 'unknown live mode';
-my$independent=defined($mutation)&&$mutation=~/^independent/;
+defined($mutation)&&$mutation ne 'late_tail'&&$mutation ne 'independent'&&$mutation ne 'independent_bad_handoff'&&$mutation ne 'prefix'&&$mutation ne 'prefix_bad_palette' and die 'unknown live mode';
+my$prefix=defined($mutation)&&$mutation=~/^prefix/;
+my@prefix_heights=(4,0,2,0,4,0,0,166);
+my$independent=$prefix||(defined($mutation)&&$mutation=~/^independent/);
 my$driver_file=$independent?'independent':'interactive';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub save {open(my$f,'>',$_[0])or die$!;print{$f}$_[1];close$f or die$!;}
@@ -47,13 +49,24 @@ sub capture {
    my%frames;for(@png){/_([0-9A-F]{8})\.png$/ or die 'frame name';$frames{hex$1}=[decode_rgb($_)];}return\%frames;
 }
 for my$order(qw(above below)){
-   next if defined($mutation)&&$mutation ne 'independent'&&$order eq 'above';
+   next if defined($mutation)&&$mutation ne 'independent'&&!$prefix&&$order eq 'above';
    my$s=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
    $s=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+   if($prefix){
+      $s=~s!/component.c26"!/prefix_component.c26"!g;
+      my$args=join(',',map{'section'.($_+1).'_lines:='.$prefix_heights[$_]}0..7);
+      $s=~s/score_below:=0/$args/g;
+   }
    # All eight sections have independent palettes, not four repeated aliases.
-   $s=~s/(score_below:=[01])\)/$1,section5_colupf:=0x6e,section5_colubk:=0x12,section6_colupf:=0xce,section6_colubk:=0x72,section7_colupf:=0xde,section7_colubk:=0x92,section8_colupf:=0xfe,section8_colubk:=0xb2)/g;
+   $s=~s/(as game \([^)]*)\)/$1,section5_colupf:=0x6e,section5_colubk:=0x12,section6_colupf:=0xce,section6_colubk:=0x72,section7_colupf:=0xde,section7_colubk:=0x92,section8_colupf:=0xfe,section8_colubk:=0xb2)/g;
    $s='alias SCORE_BELOW '.($order eq 'below'?1:0)."\n".$s;
    my$gold_source=$s;
+   if(defined($mutation)&&$mutation eq 'prefix_bad_palette'){
+      my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/prefix_component.c26");
+      $c=~s/COLUPF := TEMPLATE_PF_AT\(10\);/COLUPF := TEMPLATE_PF_AT(8);/ or die 'prefix palette mutation';
+      save("$tmp/wrong_palette.c26",$c);
+      $s=~s!"$repo/test/fixtures/all_five_colors_sections_score/prefix_component.c26"!"$tmp/wrong_palette.c26"!g;
+   }
    if(defined($mutation)&&$mutation eq 'independent_bad_handoff'){
       $s=~s/(#if SCORE_BELOW\n)       vcs_ntsc_component_handoff\(\);/$1/ or die 'missing handoff mutation';
    }
@@ -84,6 +97,7 @@ for my$order(qw(above below)){
       my@visible=grep{substr($expected,($_*$w+20)*3,3)eq$bg}0..$h-1;
       @visible>=176 or die 'live visible extent';my$first=$visible[0]+($order eq 'above'?15:4);
       for my$line(2..$h-$first-1){my$n=$line<14?int($line/2):7;
+         if($prefix){my$end=0;$n=7;for my$i(0..7){$end+=$prefix_heights[$i];if($line<$end){$n=$i;last;}}}
          substr($expected,($first+$line)*$w*3,$w*3)=substr($gold[$n]{$f}[2],($first+$line)*$w*3,$w*3);
       }
       my($aw,$ah,$rgb)=@{$actual->{$f}};$aw==$w&&$ah==$h or die 'live geometry';

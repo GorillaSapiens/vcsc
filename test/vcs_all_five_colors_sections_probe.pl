@@ -17,6 +17,18 @@ use Symbol qw(gensym);
 my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
+my$score_prefix=$profile=~/^example_score_(?:above|below)_prefix$/;
+my@score_heights;
+if($score_prefix){
+   @score_heights=split /,/,($geometry//'4,0,2,0,4,0,0,166');
+   @score_heights==8&&!grep{!/^\d+$/||$_%2}@score_heights or die 'invalid score prefix heights';
+   $geometry=undef;
+}
+sub score_prefix_palette {
+   my$line=shift;my$end=0;
+   for my$n(0..7){$end+=$score_heights[$n];return$n if$line<$end;}
+   return 7; # final palette continues through the measured score handoff/tail
+}
 my$bad_refill=$profile eq 'late_bad_refill';
 my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
@@ -49,8 +61,8 @@ sub preview_palette {
 }
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
-my$example_independent=$profile eq 'example_score_below_independent';
-my$example_score=$profile=~/^example_score_(above|below)(?:_independent)?$/?$1:'';
+my$example_independent=$score_prefix||$profile eq 'example_score_below_independent';
+my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix)?$/?$1:'';
 $profile="score_${example_score}_packed" if$example_score;
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
@@ -105,7 +117,7 @@ $component =~ s/(   asm lda.z TEMPLATE_player0_y;)/$prime$1/ or die 'prime bound
 my($body)=$component =~ /(   asm \@TEMPLATE_A_u1:;.*?)   \/\/ B pair 1: fixed 152-cycle cached pair\./s;
 defined$body or die 'initial row boundary';
 my@pal=([0x2e,0x84],[0x46,0xc2],[0x8e,0x26],[0xae,0x64]);
-push@pal,([0x16,0xb4],[0x66,0x34],[0xd6,0x04],[0xf6,0x74]) if$fine_eight;
+push@pal,([0x16,0xb4],[0x66,0x34],[0xd6,0x04],[0xf6,0x74]) if$fine_eight||$score_prefix;
 for my$n(1..6) {
    my$next=$n+1;
    my$end=$n<6 ? "   asm \@TEMPLATE_A_u$next:;" : '   // A pair 7 consumes';
@@ -440,7 +452,14 @@ if($fine_spread) {
    }
 }
 if($example_score){
-   $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/component.c26");
+   my$file=$score_prefix?'prefix_component':'component';
+   $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/$file.c26");
+   if($score_prefix){for my$n(1..8){
+      $component =~ s/parameter section${n}_lines := \d+;/parameter section${n}_lines := $score_heights[$n-1];/ or die 'prefix height parameter';
+      for my$spec(['pf',0],['bk',1]){
+         $component =~ s/parameter section${n}_colu$spec->[0] := 0x[0-9a-f]+;/parameter section${n}_colu$spec->[0] := $pal[$n-1][$spec->[1]];/ or die 'prefix palette parameter';
+      }
+   }}
    $component =~ s/parameter score_below := 0;/parameter score_below := 1;/ if$example_score eq 'below'&&!$example_independent;
 }
 save("$tmp/component.c26",$component);
@@ -728,6 +747,7 @@ save("$tmp/empty.c26",$empty);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/empty.c26",'-o',"$tmp/empty.bin");
 my$background=capture('empty',"$tmp/empty.bin");
 my@seams=$edges ? () : $preview ? @preview_seams : $score_order ? (2,4,6,8,10,12,$score_packed?14:(),$score_late?18:()) : $profile eq 'late_dense' ? (18,20,22,24,26,28,$routed?():32) : $later ? (32) : (2,4,6,8,10,12,$profile eq 'packed'?14:$profile eq 'handoff'?16:());
+if($score_prefix&&!$edges){my$end=0;my%seen;@seams=();for(@score_heights){$end+=$_;push@seams,$end if$end<176&&$end>0&&!$seen{$end}++;}}
 my(%crossed,%complete_glyph,%edge_crossed);
 for my$f(200..239) {
     my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
@@ -782,7 +802,7 @@ for my$f(200..239) {
       }
    }
    for my$line(2..($score_order?$h-$first-1:191)) {
-      my$n=$preview ? preview_palette($line) : $score_order ? ($line<12?int($line/2)%4:$score_late&&$line>=18?0:$score_packed&&$line>=14?3:2) : $profile eq 'late_dense' ? ($line<18?0:$line<28?int(($line-16)/2)%4:$routed||$line<32?2:3) : $later ? ($line<32?0:3) : $line<12 ? int($line/2)%4 : (($profile eq 'packed'&&$line>=14)||($profile eq 'handoff'&&$line>=16) ? 3 : 2);
+       my$n=$score_prefix ? score_prefix_palette($line) : $preview ? preview_palette($line) : $score_order ? ($line<12?int($line/2)%4:$score_late&&$line>=18?0:$score_packed&&$line>=14?3:2) : $profile eq 'late_dense' ? ($line<18?0:$line<28?int(($line-16)/2)%4:$routed||$line<32?2:3) : $later ? ($line<32?0:3) : $line<12 ? int($line/2)%4 : (($profile eq 'packed'&&$line>=14)||($profile eq 'handoff'&&$line>=16) ? 3 : 2);
       substr($expected,($first+$line)*$w*3,$w*3)=substr($gold[$n]{$f}[2],($first+$line)*$w*3,$w*3);
    }
    my($aw,$ah,$got)=@{$actual->{$f}};$aw==$w&&$ah==$h or die 'image geometry';

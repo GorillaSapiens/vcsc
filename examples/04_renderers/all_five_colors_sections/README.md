@@ -27,8 +27,12 @@ Reset, four-frame upright artwork, independent player row colours, and
 right-joystick BCD editing. They use **122/128 bytes of stock RAM**, ordinary F8
 ROM, and one drawing bank, with no mirrored sprite tables.
 
-The score previews support exactly **2,2,2,2,2,2,2,162** colourable-line heights
-(176 lines plus the gameplay setup/tail). Other geometry is explicitly rejected.
+The score previews accept nonnegative **even** heights totaling **176**, with
+section one nonempty and section eight at least **162** lines. Thus sections
+1–7 fit in the first 14 colourable lines; the long final section covers the rest.
+Middle slots may be empty. Defaults remain `2,2,2,2,2,2,2,162`; for example,
+`4,0,2,0,4,0,0,166` gives seams at 4/6/10. Later boundaries are explicitly rejected.
+Gameplay setup/tail completes the 181-line component.
 All eight PF/background palettes are independently configurable in `.c26`.
 Edit the instantiation parameters and visual playfield rows in
 `examples/_common/all_five_colors_sections_score_interactive.c26`.

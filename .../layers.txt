@@ -14,7 +14,9 @@ CURRENT PROBE AND OPEN WORK
 ---------------------------
 Runnable combined score previews now live in
 examples/04_renderers/all_five_colors_sections/score_{above,below}/.
-Supported geometry is exactly2,2,2,2,2,2,2,162; other heights are rejected.
+Score geometry:nonnegative even heights total176,first nonempty,eighth>=162.
+Middle slots may be empty; all boundaries stay within2..14. Default2,2,2,2,2,2,2,162;
+4,0,2,0,4,0,0,166 and sparse2/14 layouts pass without changing the raster schedule.
 Eight palettes and eleven visual PF rows are configured in .c26. Joystick,
 Select, Reset, four-frame upright artwork and edge-triggered BCD editing pass
 targeted controls/timing/RGB checks. Stock RAM122/128 including eleven stack
@@ -225,14 +227,16 @@ unchanged. Full rerun1172 passed (591 compile+581 e2e):
 Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
 in bulk. Exact source-sample regression covers all supported types/filters;
 no captures/checks removed. Prior full suite predates new test discovery.
-Stable full suite:591 compile+591 e2e =1182 passed, zero failures, eight workers.
-Includes independent-below gates, older coupled regressions and initializer ROM
-equivalence. Log/timings:/tmp/opencode/colors-sections-score-independent.{log,tsv}.
+Stable full suite:591 compile+599 e2e =1190 passed, zero failures, eight workers.
+Includes eight new prefix gates, independent-below/old coupled regressions and
+default ROM equivalence. Log/timings:/tmp/opencode/colors-sections-score-prefix.{log,tsv}.
 General even geometry remains unproved. No-score preview stays row-aligned;
-score previews support only2,2,2,2,2,2,2,162. Below now returns independently;
+score previews now permit bounded even prefix geometry (first seven slots<=14
+in total,eighth covers the rest). Below returns independently;
 four new controls/live/moving-RGB/missing-handoff gates pass, along with two old
 gates in a six-test focused run. Both actual leaves use3598/3840 draw ROM and
-122/128 RAM. All expanded gates pass in the full checkpoint above.
+122/128 RAM. Prefix gates include unchanged-default full-ROM equivalence and
+explicit invalid-geometry rejection. Later/multiple-row boundaries remain OPEN.
 Next: generalize mixed-row geometry and extract configurable .c26 with honest
 independent composition contracts, preserving the runnable score examples.
 

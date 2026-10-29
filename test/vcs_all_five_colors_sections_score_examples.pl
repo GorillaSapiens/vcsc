@@ -9,8 +9,9 @@ use warnings;
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mode)=@ARGV;
-defined($mode)&&$mode ne 'independent' and die 'unknown composition mode';
+defined($mode)&&$mode ne 'independent'&&$mode ne 'prefix' and die 'unknown composition mode';
 my$driver_file=defined($mode)?'independent':'interactive';
+my$prefix=defined($mode)&&$mode eq 'prefix';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;
    my$out=<$o>//'';my$err=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$out$err";return$out;}
@@ -23,6 +24,10 @@ for my$order(qw(above below)){
    # Editable leaves are independently covered by vcs_examples_build.pl.
    my$fixture=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
    $fixture=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+   if($prefix){
+      $fixture=~s!/component.c26"!/prefix_component.c26"!g;
+      $fixture=~s/score_below:=0/section1_lines:=4,section2_lines:=0,section3_lines:=2,section4_lines:=0,section5_lines:=4,section6_lines:=0,section7_lines:=0,section8_lines:=166/g;
+   }
    open(my$f,'>',"$tmp/$order.c26")or die$!;print{$f}'alias SCORE_BELOW '.($order eq 'below'?1:0)."\n$fixture";close$f;
    my$bin="$tmp/$order.bin";my$out=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/$order.c26",'-o',$bin);
    -s$bin==8192 or die 'not ordinary F8';
@@ -55,6 +60,32 @@ $c=~s/score_below:=0/score_below:=0,section1_lines:=4/ or die 'invalid geometry 
 open(my$f,'>',"$tmp/invalid.c26")or die$!;print{$f}"alias SCORE_BELOW 0\n$c";close$f;
 eval{run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/invalid.c26",'-o',"$tmp/invalid.bin")};
 $@=~/supports only heights/ or die 'unsupported geometry was not explicitly refused';
+if($prefix){
+   my$base=slurp("$repo/test/fixtures/all_five_colors_sections_score/independent.c26");
+   $base=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/prefix_component.c26"!g;
+   for my$case(
+      ['later','2,2,2,2,2,2,4,160',qr/all seams within14/],
+      ['odd','3,1,2,2,2,2,2,162',qr/even section heights/],
+      ['empty','0,4,2,2,2,2,2,162',qr/first nonempty/],
+      ['negative','4,-2,2,2,2,2,4,162',qr/nonnegative heights|requires an integer literal/],
+      ['total','2,2,2,2,2,2,2,164',qr/total176/]){
+      my($name,$heights,$error)=@$case;my@h=split/,/,$heights;
+      my$args=join(',',map{'section'.($_+1).'_lines:='.$h[$_]}0..7);my$s=$base;
+      $s=~s/score_below:=0/$args/g;
+      open(my$f,'>',"$tmp/reject_$name.c26")or die$!;print{$f}"alias SCORE_BELOW 0\n$s";close$f;
+      eval{run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/reject_$name.c26",'-o',"$tmp/reject_$name.bin")};
+      $@=~$error or die "$name prefix geometry was not explicitly rejected: $@";
+   }
+   my$default=slurp("$repo/test/fixtures/all_five_colors_sections_score/independent.c26");
+   $default=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+   open(my$old,'>',"$tmp/prefix_old_default.c26")or die$!;print{$old}"alias SCORE_BELOW 1\n$default";close$old;
+   run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/prefix_old_default.c26",'-o',"$tmp/prefix_old_default.bin");
+   $default=~s!/component.c26"!/prefix_component.c26"!g;
+   $default=~s/score_below:=0/section1_lines:=2,section2_lines:=2,section3_lines:=2,section4_lines:=2,section5_lines:=2,section6_lines:=2,section7_lines:=2,section8_lines:=162/g;
+   open(my$new,'>',"$tmp/prefix_new_default.c26")or die$!;print{$new}"alias SCORE_BELOW 1\n$default";close$new;
+   run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/prefix_new_default.c26",'-o',"$tmp/prefix_new_default.bin");
+   slurp("$tmp/prefix_old_default.bin")eq slurp("$tmp/prefix_new_default.bin") or die 'prefix generalization changed default ROM';
+}
 # The new initializer parameter must leave the historical default ROM intact.
 my$component=slurp("$repo/libraries/vcs/six_glyph_component.c26");
 $component=~s/parameter initial_color := 0x0e;\n// or die 'initial colour default';

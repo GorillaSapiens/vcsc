@@ -31,5 +31,7 @@ There is no gameplay-owned score callback or overscan start. Omitting the handof
 is rejected by an exact-RGB mutation test. The older coupled-terminal fixture
 remains regression-tested but is no longer used by this runnable example.
 
-This remains a fixed-layout NTSC preview, not a general combined renderer.
-Supported heights are exactly `2,2,2,2,2,2,2,162`; other layouts are rejected.
+This remains a bounded NTSC preview, not a general combined renderer. Heights
+are even/nonnegative, total176, first section nonempty and eighth at least162.
+Middle slots may be empty, e.g. `4,0,2,0,4,0,0,166`. Boundaries after line14 are
+rejected. The original `2,2,2,2,2,2,2,162` layout remains the default.

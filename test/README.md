@@ -1122,12 +1122,20 @@ moving RGB/glyphs and nonempty straddles against ordinary gameplay and ordinary
 score pointer preparation. `score_live` checks the complete frozen interactive
 driver with eight independent palettes against ordinary gameplay rasters;
 `score_live_tail_rejected` detects the score-below terminal's six-cycle error.
-Supported score geometry is only `2,2,2,2,2,2,2,162`, not arbitrary even heights.
+Default score geometry is `2,2,2,2,2,2,2,162`; the bounded extension is described below.
 The current score-below example uses a normal gameplay return followed by an
 independent score handoff, not the older callback. Its frozen `independent.c26`
 driver has four additional gates: controls/random timing, eight-palette live
 RGB, moving/glyph/straddle RGB, and omitted-handoff rejection. Older coupled
 fixtures and their late-tail mutation remain checked as historical regressions.
+
+The score preview now permits even prefix geometry: nonnegative heights total176,
+first nonempty, eighth at least162 (all boundaries within lines2–14). Frozen
+`prefix_component.c26` owns eight new gates: mixed/empty, sparse early/late and
+eight-palette moving RGB, controls/random timing, live RGB and wrong-palette
+rejection. The controls gate also rejects odd/negative/empty-first/wrong-total/
+later-boundary configurations and requires full-ROM equality with the original
+fixed geometry for the unchanged default. This is not arbitrary later-row geometry.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
