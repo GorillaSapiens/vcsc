@@ -13,14 +13,15 @@ use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mutation)=@ARGV;
-my%allowed=map{$_=>1}qw(late_tail independent independent_bad_handoff prefix prefix_bad_palette later later_bad_feed later_bad_handoff boundary boundary_bad_mask boundary_bad_palette);
+my%allowed=map{$_=>1}qw(late_tail independent independent_bad_handoff prefix prefix_bad_palette later later_bad_feed later_bad_handoff boundary boundary_bad_mask boundary_bad_palette row1 row1_bad_palette row1_bad_feed row1_bad_handoff);
 defined($mutation)&&!$allowed{$mutation} and die 'unknown live mode';
 my$prefix=defined($mutation)&&$mutation=~/^prefix/;
-my$boundary=defined($mutation)&&$mutation=~/^boundary/;
+my$row1=defined($mutation)&&$mutation=~/^row1/;
+my$boundary=$row1||(defined($mutation)&&$mutation=~/^boundary/);
 my$later=$boundary||(defined($mutation)&&$mutation=~/^later/);
-my@prefix_heights=$boundary?(2,2,2,2,2,6,2,158):$later?(2,2,2,2,2,2,6,158):(4,0,2,0,4,0,0,166);
+my@prefix_heights=$row1?(4,8,2,2,2,2,2,154):$boundary?(2,2,2,2,2,6,2,158):$later?(2,2,2,2,2,2,6,158):(4,0,2,0,4,0,0,166);
 my$independent=$prefix||$later||(defined($mutation)&&$mutation=~/^independent/);
-my$driver_file=$boundary?'boundary':$later?'later':$independent?'independent':'interactive';
+my$driver_file=$row1?'row1_interactive':$boundary?'boundary':$later?'later':$independent?'independent':'interactive';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub save {open(my$f,'>',$_[0])or die$!;print{$f}$_[1];close$f or die$!;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;my$o2=<$o>//'';my$e2=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$o2$e2";}
@@ -55,13 +56,14 @@ for my$order(qw(above below)){
    next if defined($mutation)&&$mutation ne 'independent'&&!$prefix&&!$later&&$order eq 'above';
    next if defined($mutation)&&$mutation eq 'later_bad_handoff'&&$order eq 'above';
    my$s=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
-   $s=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+    $s=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+    $s=~s!"row1_interactive_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/row1_interactive_component.c26"!g if$row1;
    if($later){
       $s=~s!"later_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/later_component.c26"!g;
       $s=~s!"boundary_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26"!g if$boundary;
       # Put M0 across row1's seam and M1 on row2: the staged row2 refill
       # must not pass a wrong-Ball-mask mutation as a blank-to-blank match.
-      my($m0,$m1)=$boundary?(18,10):(8,18);
+       my($m0,$m1)=$row1?(11,18):$boundary?(18,10):(8,18);
       $s=~s/game_missile0_y := 34;/game_missile0_y := $m0;/ or die 'late M0 pose';
       $s=~s/game_missile1_y := 62;/game_missile1_y := $m1;/ or die 'late M1 pose';
    }
@@ -74,7 +76,21 @@ for my$order(qw(above below)){
    $s=~s/(as game \([^)]*)\)/$1,section5_colupf:=0x6e,section5_colubk:=0x12,section6_colupf:=0xce,section6_colubk:=0x72,section7_colupf:=0xde,section7_colubk:=0x92,section8_colupf:=0xfe,section8_colubk:=0xb2)/g;
    $s='alias SCORE_BELOW '.($order eq 'below'?1:0)."\n".$s;
    my$gold_source=$s;
-   if($boundary&&$mutation ne 'boundary'){
+    if($row1&&$mutation ne 'row1'){
+       if($mutation eq 'row1_bad_handoff'){
+          $s=~s/([ \t]*asm jmp \@score_entry;)/        asm bit.z \$00;\n$1/ or die 'row1 handoff mutation';
+       }else{
+          my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/row1_interactive_component.c26");
+          if($mutation eq 'row1_bad_palette'){
+             $c=~s/TEMPLATE_PF_AT\(20\)/TEMPLATE_PF_AT(18)/ or die 'row1 live palette mutation';
+          }else{
+             $c=~s/asm lda.z TEMPLATE_object_masks \+ 9;/asm lda.z TEMPLATE_object_masks + 8;/ or die 'row1 live refill mutation';
+          }
+          save("$tmp/wrong_row1.c26",$c);
+          $s=~s!"$repo/test/fixtures/all_five_colors_sections_score/row1_interactive_component.c26"!"$tmp/wrong_row1.c26"!g;
+       }
+    }
+    if($boundary&&!$row1&&$mutation ne 'boundary'){
       my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26");
       if($mutation eq 'boundary_bad_mask'){
          $c=~s/asm ldx.z TEMPLATE_row_cache \+ 5;/asm ldx.z TEMPLATE_row_cache + 4;/ or die 'boundary M1 mutation';
@@ -117,7 +133,12 @@ for my$order(qw(above below)){
       $gold=~s/#if SCORE_BELOW\ninstantiate .*?#endif/instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181.c26" as game/s or die 'ordinary renderer';
    }
    $gold=~s/   game_vblank\(\);\n// or die 'unbank golden preparation';
-   $gold=~s/(       prepare_game\(\);)/$1\n       game_vblank();/ or die 'golden preparation call';
+    if($row1){
+       $gold=~s/(bank1 void run_game\(void\) \{)/bank0 void prepare_ordinary_gameplay(void) { game_vblank(); }\n$1/ or die 'ordinary row1 preparation';
+       $gold=~s/([ \t]*prepare_game\(\);)/$1\n         prepare_ordinary_gameplay();/ or die 'ordinary row1 preparation call';
+    }else{
+       $gold=~s/(       prepare_game\(\);)/$1\n       game_vblank();/ or die 'golden preparation call';
+    }
    $gold=~s/([ \t]*)game_set_initial_palette\(\);/${1}COLUPF := 0x2e;\n${1}COLUBK := 0x84;/ or die 'golden palette';
    if($order eq 'below'&&!$independent){
       $gold=~s/(       game_draw\(\);)/$1\n       vcs_ntsc_component_handoff();\n       score_draw();\n       vcs_ntsc_begin_overscan();/ or die 'golden below handoff';

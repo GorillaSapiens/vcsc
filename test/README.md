@@ -1165,9 +1165,19 @@ positioning. No main-relative offset ABI, extra renderer RAM, cartridge RAM or
 mirrored artwork is required. The control fixture swaps the two existing glyph
 tables instead of adding another pair; its independent golden remains ordinary
 renderer/score code. Measured controls proof:bank0 3705/3840,bank1 1050/3840,
-RAM117/128 including eleven stack bytes. This path is NOT used by the runnable
-interactive examples:their full driver still fails strict one-bank placement.
-The delivered renderer remains even2..18 until that integration is certified.
+RAM117/128 including eleven stack bytes. These private fixtures remain frozen.
+
+The integrated `row1_interactive.c26`/`row1_interactive_component.c26` fixtures
+carry the same three-pair schedule into full four-frame,BCD-editable drivers.
+Six `score_row1_*` gates cover both orders at final20/22,controls/random timing,
+live eight-palette RGB,and rejected stale20 palette/wrong refill/delayed handoff.
+The frame loop is bank1;bank0 owns composition and saves S inside that banked
+call. One packed palette table and low-byte selection within a contained artwork
+page fit RAM128/128 (112 objects+16 stack),bank0 3684/3691 and bank1 1405 bytes.
+The runnable examples now support even2..22,not arbitrary later/mixed-row seams.
+The control harness now mirrors RIOT RAM through the hardware-stack window,
+matching the timing harness and hardware; RTS vectors written through zero page
+must not read separate stack storage. Ordinary golden rendering remains separate.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a

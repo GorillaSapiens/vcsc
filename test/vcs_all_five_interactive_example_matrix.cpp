@@ -236,6 +236,10 @@ private:
    }
 
    uint8_t read_bus(uint16_t address) {
+      // RIOT RAM is also the 6507 hardware stack. RTS vectors written through
+      // zero page must be visible through the $01xx stack mirror.
+      if ((address & 0x1280u) == 0x0080u)
+         address = static_cast<uint16_t>(0x80u | (address & 0x7fu));
       const uint16_t bus=address&0x1fff;
       if (f8_ && (bus&0x1000)) {
          if (bus==0x1ff8) bank_=0;
@@ -253,6 +257,8 @@ private:
    }
 
    void write_bus(uint16_t address, uint8_t value) {
+      if ((address & 0x1280u) == 0x0080u)
+         address = static_cast<uint16_t>(0x80u | (address & 0x7fu));
       const uint16_t bus=address&0x1fff;
       if (f8_ && (bus&0x1000)) {
          if (bus==0x1ff8) bank_=0;

@@ -20,14 +20,15 @@ edits. Horizontal selection also changes the score colour.
 
 Independent eight-row player colours and four-frame artwork move continuously
 through the section seams. Heights must be nonnegative and even, total176, with
-section one nonempty and section eight at least158 lines. Supported seams are
-2/4/6/8/10/12/14/16/18, not later positions. Defaults are now
-`2,2,2,2,2,6,2,158`, including adjacent16/18 boundaries. Earlier layouts, including
+section one nonempty and section eight at least154 lines. Supported seams are
+2/4/6/8/10/12/14/16/18/20/22, not later positions. Defaults are now
+`4,8,2,2,2,2,2,154`, including adjacent14..22 boundaries. Earlier layouts, including
 `4,0,2,0,4,0,0,166`, remain supported. Configure the eight
 palettes and eleven visual playfield rows in
 `examples/_common/all_five_colors_sections_score_interactive.c26`.
 
 NTSC only. Ordinary 8K F8 ROM; preparation/controls in bank1, all drawing and
-artwork in bank0. RAM **122/128**, including eleven stack bytes. The eleven-line
+artwork in bank0. RAM **128/128**, including sixteen stack bytes. The bank1 frame
+loop calls the application-owned bank0 composition function. The eleven-line
 score composes above the 181-line gameplay preview through the usual handoff.
 This is not the general combined renderer.

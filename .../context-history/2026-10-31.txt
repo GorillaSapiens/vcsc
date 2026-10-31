@@ -34,3 +34,66 @@ All17 assembler regression scripts passed in the focused run. Diff checks pass.
 This history-only correction does not change the tested implementation. Validate
 history format and source hygiene,then regenerate the handoff with make tar.
 Preserve unrelated pending changes. Nothing pushed.
+
+2026-10-31 12:07:12 PDT, Integrate score sections through seam22
+User asks to continue sections after the assembler fix. Both full interactive
+score examples now support every even boundary2..22,not just private proofs.
+Heights remain nonnegative/even,total176,first nonempty,eighth>=154;later24+
+is explicitly refused. Defaults4,8,2,2,2,2,2,154 demonstrate seams4/12/14/16/
+18/20/22. No-score preview remains row-aligned; general mixed-row geometry and
+public extraction are NOT complete. No cartridge RAM,mirrored sprites or second
+drawing bank introduced. Score and gameplay return independently.
+
+Packed the two late palette arrays into one page-contained11-byte array. The
+three-pair schedule retains X7/6/5 and uses array+3 for background. Return vectors
+still occupy dead RESP lanes14..19 after positioning;real S remains lane20.
+Move application frame loop to bank1,with tiny startup-bank main. Bank0
+draw_components() owns the application's score/gameplay composition and saves
+real S INSIDE its banked call. Below retains physically earlier score code and
+cycle-equivalent three-cycle JMP handoff,no gameplay callback. Blanking helpers
+inline into the frame loop,avoiding added call depth. All drawing/artwork stays
+bank0. This solves the previous full-driver page/ROM placement blocker.
+
+Long-lived banked loop adds stack pressure. Replace two-byte animation0 pointer
+with one-byte animation_base; initialize both graphics pointers in bank0. Eight
+frames occupy one contained64-byte page,so bank1 changes only pointer low bytes
+with the same ((X xor Y)&3)*8 frame selection (P1 adds32). Pointer high bytes
+remain stable. All four upright frames and score/palette controls are unchanged.
+An initial direct bank1 main was correctly rejected (entry must be startup bank).
+Moving high-level ROM address selection into bank1 was correctly rejected for
+bank affinity;keep initialization in bank0. Larger-RAM diagnostic experiments
+were never runnable/delivered. Plain inline helpers avoid required-function
+unused diagnostics encountered when require-inline definitions are nested.
+
+Actual leaf budgets:above bank0 3684/3840,below3691/3840,bank1 1405/3840 both.
+RAM128/128,112 object bytes+16 hardware-stack bytes. There is NO spare RAM for
+additional persistent state;future schedules must reuse existing phase-dead lanes
+or otherwise reduce usage. Stock-RAM requirement remains strict.
+
+The new controls test first hung at the first row1 RTS. Debug trace showed PC
+0001 with S walking valid cached routes. Root cause was the control simulator's
+separate memory for zero-page and $01xx stack addresses:real RIOT mirrors them.
+Add canonical RIOT address mapping on both read/write in
+test/vcs_all_five_interactive_example_matrix.cpp,matching vcs_frame_timing.cpp.
+This is a fidelity correction,not an oracle relaxation. New full controls then
+pass. Preserve unrelated pre-existing F8/profile edits in this same file;stage
+only our RIOT mirror addition. Existing suite also passes with proper mirrors.
+
+New frozen row1_interactive driver/component own exact certification;editable
+leaves are independently smoke-built. Six gates:complete controls/artwork/
+random timing for both score orders at22 and20;live RGB for both orders with
+eight independent palettes;wrong20 palette,wrong row2 missile refill and delayed
+score-below handoff all rejected. Live M0 endpoint11 crosses20/22,M1 endpoint18
+exercises row2 refill. Independent ordinary gameplay golden uses a bank0 VBLANK
+preparation wrapper so its ROM data affinity remains valid under the bank1
+application loop. Keep all eleven private row1 proofs and every earlier fixture,
+including prefix default-ROM equivalence.29-test focused run passes.
+
+Final full checkpoint PASS:591 compile+636 e2e =1227,zero failures,eight workers.
+Log/timings:/tmp/opencode/colors-sections-score-row1-integrated.{log,tsv}.
+Actual editable leaves build;clean their generated outputs before handoff.
+Update docs/allowlist only for these two common example sources,preserving
+unrelated pending inventory,harness,solid-colour example and history changes.
+Next:broaden later/multiple-row boundaries while keeping both runnable drivers
+and all runtime controls,then extract a public configurable component only when
+its geometry and composition contracts are proven. Nothing pushed.

@@ -26,11 +26,11 @@ page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
 // Nonnegative even heights total176; section one is nonempty. Supported seams
-// are2..18. This layout spans two rows; prefix-only layouts such
+// are2..22. This layout spans two rows; prefix-only layouts such
 // as4,0,2,0,4,0,0,166 retain the smaller original drawing schedule.
 instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (
-   section1_lines:=2, section2_lines:=2, section3_lines:=2, section4_lines:=2,
-   section5_lines:=2, section6_lines:=6, section7_lines:=2, section8_lines:=158
+   section1_lines:=4, section2_lines:=8, section3_lines:=2, section4_lines:=2,
+   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=154
 )
 instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
 
@@ -52,17 +52,34 @@ uint8_t select_latched;
 uint8_t score_latched;
 bank1 const bcd24_t digit_weights[6] := {1,10,100,1000,10000,100000};
 const uint8_t *probe_font;
-uint8_t *animation0;
+// All eight frames share one page. Keep both pointer high bytes unchanged
+// while the frame selector replaces their low bytes.
+uint8_t animation_base;
 bcd24_t score_score := 0;
-bank1 void prepare_game(void) {
+inline void prepare_game(void) {
    game_set_initial_palette();
-   game_player0_graphics := animation0;
-   game_player0_graphics += ((game_PLAYER0_X ^ game_player0_y) & 3) << 3;
-   game_player1_graphics := animation0;
-   game_player1_graphics += 32 + (((game_PLAYER1_X ^ game_player1_y) & 3) << 3);
+   asm lda.z game_object_x + 0;
+   asm eor.z game_player0_y;
+   asm and #3;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc.z animation_base;
+   asm sta.z game_player0_graphics;
+   asm lda.z game_object_x + 1;
+   asm eor.z game_player1_y;
+   asm and #3;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora #32;
+   asm clc;
+   asm adc.z animation_base;
+   asm sta.z game_player1_graphics;
    game_vblank();
 }
-bank1 void prepare_probe_score(void) {
+inline void prepare_probe_score(void) {
    // Digits 1/2: only digit*8 is needed because score_font is page-contained.
    asm lda score_score+2;
    asm tax;
@@ -124,7 +141,7 @@ bank1 void prepare_probe_score(void) {
 }
 
 
-bank1 void initialize_probe_objects(void) {
+inline void initialize_probe_objects(void) {
     score_score := 123456;
     score_color := 0x0e;
    VBLANK := 2;
@@ -156,7 +173,7 @@ bank1 void initialize_probe_objects(void) {
 // Y fields are intentionally independent and not duplicated in an application
 // array: this leaves the score, controls and bank-call stack in stock RIOT RAM.
 alias MOVE_Y(y) if (!(SWCHA & 0x10)) { if (y) { y--; } } else { if (!(SWCHA & 0x20)) { if (y < 87) { y++; } } }
-bank1 void update_controls(void) {
+inline void update_controls(void) {
    if (!(SWCHB & 1)) { hard_reset(); }
    if (SWCHB & 2) { select_latched := 0; }
    else {
@@ -196,20 +213,19 @@ bank1 void update_controls(void) {
    if (!(SWCHA & 1)) { score_score += digit_weights[selected_digit]; }
    else { if (!(SWCHA & 2)) { score_score -= digit_weights[selected_digit]; } }
 }
-bank1 void finish_probe_gameplay(void) { game_overscan(); update_controls(); }
-void main(void) {
-    initialize_probe_objects();
-   score_init();
-    probe_font := score_font;
-    animation0 := animations;
-   while (1) {
-      vcs_ntsc_vsync();
-       vcs_ntsc_begin_vblank();
-        prepare_game();
-        asm tsx;
-        asm stx.z game_row_cache + 20;
-       score_vblank();
-       prepare_probe_score();
+inline void finish_probe_gameplay(void) { game_overscan(); update_controls(); }
+bank0 void initialize_tables(void) {
+   probe_font := score_font;
+   game_player0_graphics := animations;
+   game_player1_graphics := animations;
+   asm lda #<animations;
+   asm sta.z animation_base;
+}
+// Application-owned composition, not a renderer callback. Save S inside this
+// banked call so gameplay restores the actual caller frame before returning.
+bank0 void draw_components(void) {
+   asm tsx;
+   asm stx.z game_row_cache + 20;
 #if SCORE_BELOW
        // Store the score before gameplay in ROM, but execute it afterward.
        // The final JMP replaces the ordinary three-cycle BIT handoff exactly;
@@ -231,8 +247,20 @@ void main(void) {
        game_draw();
        vcs_ntsc_begin_overscan();
 #endif
+}
+bank1 void run_game(void) {
+    initialize_probe_objects();
+   score_init();
+   while (1) {
+      vcs_ntsc_vsync();
+       vcs_ntsc_begin_vblank();
+        prepare_game();
+       score_vblank();
+       prepare_probe_score();
+       draw_components();
       finish_probe_gameplay();
       score_overscan();
       vcs_ntsc_end_overscan();
    }
 }
+void main(void) { initialize_tables(); run_game(); }
