@@ -47,3 +47,84 @@ Retain default2,2,2,2,2,6,2,158 and honest even2..18 geometry contract; later
 boundaries/general mixed-row public extraction remain the next action.
 Commit only this change and its allowlist row,leaving unrelated pending work
 intact. Nothing pushed. Create fresh make-tar handoff in /tmp.
+
+2026-10-30 20:49:00 PDT, Prove shared score row1 palette loop
+User says keep going;transport interruption says resume without repetition.
+Advanced PRIVATE score geometry through20/22 while preserving delivered2..18
+examples. Do not claim this as runnable integration or general geometry.
+New frozen row1_loop_component.c26 retains all existing pointers/heights/NUSIZ,
+one draw bank,128-byte RAM policy and independent181-line component return.
+
+One shared152-cycle row1 body runs pairs18/20/22. Indexed palette arrays use
+X7/6/5; decrement leaves X4 for ordinary pair4. Six RESP cache lanes14..19 become
+a three-return RTS vector only AFTER position setup consumes them. Five bytes
+initialise in setup's pre-WSYNC slack; the sixth uses the exact eight-cycle row0
+pad. Final code loads actual link-relocated local-label immediates directly,
+not main+offset equates,not a mirrored ROM vector or added RAM. Third return
+lands at A pair4; S remains lane19 until the ordinary A boundary resets it.
+Real S stays cache20. There are no ordinary calls while S walks the vector.
+All .same/.cross contracts remain; no fixed page anchors are needed in this
+final proof. Uniform PF barriers stay intact.
+
+First reusable-loop draft advanced P1 three cycles,caught at x152,line17. Move
+P1 counter store into the reclaimed first-line slot,restoring its phase. First
+second-line arrangement wrote right PF2 too early,caught at x136 then152,line18.
+Move Ball shift ahead of DEX/right PF2,and defer loading P0 until after that PF
+write; preserve CPY carry and exact152 cycles. Correct schedules pass full RGB,
+canonical glyphs,nonempty straddles and every isolated edge,not only CPU timing.
+
+Discarded attempts under /tmp/opencode/score-{seam20,row1-loop}:
+duplicating the known first-pair body for20 did not fit full drivers; repeated
+placement-anchor sweeps and whole-visible wrappers did not solve both orders.
+Moving high-level font/artwork address initialisation to bank1 caused correct
+contradictory-bank-pin rejection. Immediate assembly references also retain the
+bank affinity; do not bypass it. A ROM RTS table plus exported global label
+changed local-label scope; equates alone remained main-relative. A runtime PC
+capture approach needed extra preparation/pointer state and was abandoned.
+Copying the vector in VBLANK overwrote still-live RESP data,causing long frames;
+move it into post-RESP setup instead. Replacing the final ROM table/copies by
+local-address immediates removed11 bytes and all main-relative dependencies.
+
+Private driver folds VSYNC/VBLANK and the preceding overscan wait into its
+existing bank1 score-preparation wrapper; no extra visible call or callback.
+Use cache20's initial zero to skip the cold-start overscan wait (explicitly zero
+it in bank1 initialisation); subsequent saved real S is nonzero. This avoids a
+new flag byte and keeps the same initial captured-frame sequence. Non-main
+relocation now runs in bank0 relocated_raster(),called by tiny main; timing/RGB
+prove the route addresses survive relocation without using main as a base.
+
+Control proof swaps the two existing distinct eight-row tables,adding no second
+pair of art assets. Pointer selection stays bank0; height/NUSIZ arithmetic joins
+the bank1 pose updater. Reuse dead edge temporary for constant motion shifts
+with LSR instead of pulling generic _shr8 runtime into scarce drawing ROM. The
+ordinary golden retains its separate high-level control implementation. Fixed
+initial-height extraction now anchors literal7,so it cannot accidentally capture
+the earlier dynamic-control function. No valid existing oracle weakened.
+
+Eleven new gates ALL PASS:both moving score orders;final20 with unchanged22
+palette;edges20/22 with pixels on both sides;changing graphics pointers,player
+heights0..7,other heights,NUSIZ and restored-height/motion checks;uniform row1;
+non-main relocation;wrong20 palette;wrong final return;unsupported24 rejection.
+Focused14-test run also includes existing boundary/control/terminal-control
+gates and passes. Measured control proof bank0 3705/3840,bank1 1050/3840,
+RAM117/128 (106 objects+11 stack). Renderer itself uses no additional RAM.
+
+BLOCKER REMAINS:full four-frame interactive driver still fails strict one-bank
+page/capacity placement with this path. Tested compact blanking helpers and
+wrapper layouts locally; none is certified for both actual leaves. Keep all
+runnable source/docs/defaults at the previously certified even2..18 contract.
+Next:fit this shared path into both full drivers before public extraction or
+further advertised geometry. Do not repeat empty-section work. Full checkpoint
+pending:/tmp/opencode/colors-sections-score-row1-loop.{log,tsv}.
+Preserve unrelated pending inventory/harness/solid-colour example changes.
+
+2026-10-30 21:09:01 PDT, Validate private score-loop full suite
+Full suite PASS:591 compile+629 e2e =1220 tests,zero failures,eight workers.
+Log/timings:/tmp/opencode/colors-sections-score-row1-loop.{log,tsv}.
+No source/test metadata edits during execution. Eleven new row1-loop gates,
+all delivered-boundary/older private regressions and editable example builds
+pass. Hygiene,history format,assembly allowlist,diff checks pass. Actual runnable
+examples remain unchanged at even2..18; later20/22 is still PRIVATE until the
+full interactive drivers fit and pass their own controls/live raster contracts.
+Only this fixture/probe/tests/docs/hot-state delta belongs in this commit;
+preserve unrelated user work. Nothing pushed. Create fresh make-tar handoff.

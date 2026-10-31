@@ -17,12 +17,18 @@ use Symbol qw(gensym);
 my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
-my$score_boundary=$profile=~/^example_score_(?:above|below)_boundary$/;
+my$score_loop=$profile=~/^example_score_(?:above|below)_row1_loop(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated)?$/;
+my$score_loop_controls=$score_loop&&$profile=~/_controls$/;
+my$score_loop_uniform=$score_loop&&$profile=~/_uniform$/;
+my$score_loop_bad_palette=$score_loop&&$profile=~/_bad_palette$/;
+my$score_loop_bad_vector=$score_loop&&$profile=~/_bad_vector$/;
+my$score_loop_relocated=$score_loop&&$profile=~/_relocated$/;
+my$score_boundary=$score_loop||$profile=~/^example_score_(?:above|below)_boundary$/;
 my$score_extension=$score_boundary||$profile=~/^example_score_(?:above|below)_later$/;
 my$score_prefix=$score_extension||$profile=~/^example_score_(?:above|below)_prefix$/;
 my@score_heights;
 if($score_prefix){
-   @score_heights=split /,/,($geometry//($score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
+   @score_heights=split /,/,($geometry//($score_loop?'4,8,2,2,2,2,2,154':$score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
    @score_heights==8&&!grep{!/^\d+$/||$_%2}@score_heights or die 'invalid score prefix heights';
    if($edges){my$end=0;my@seams=map{$end+=$_;$end}@score_heights;
       grep{$_==($proof_seam//16)&&$_<176}@seams or die 'unsupported score proof seam';
@@ -50,7 +56,7 @@ my$fine_eight=$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/
 my$bad_fine_p1=$profile eq 'fine_spread_bad_p1';
 my$fine_spread=$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
 my$bad_fine_feed=$profile eq 'fine_spread_bad_feed'||$profile eq 'fine_rts_bad_feed'||$profile eq 'fine_rts_late_bad_feed'||$profile eq 'fine_rts_mixed_bad_feed'||$profile eq 'fine_rts_dense_bad_feed'||$profile eq 'fine_rts_boundary_bad_feed'||$profile eq 'fine_rts_dense_later_bad_feed';
-my$uniform=$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_rts_uniform'||$profile eq 'fine_rts_late_uniform'||$profile eq 'fine_rts_mixed_uniform'||$profile eq 'fine_rts_dense_uniform'||$profile eq 'fine_rts_boundary_uniform'||$profile eq 'fine_rts_dense_later_uniform';
+my$uniform=$score_loop_uniform||$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_rts_uniform'||$profile eq 'fine_rts_late_uniform'||$profile eq 'fine_rts_mixed_uniform'||$profile eq 'fine_rts_dense_uniform'||$profile eq 'fine_rts_boundary_uniform'||$profile eq 'fine_rts_dense_later_uniform';
 my$preview=$profile eq 'preview'||$profile eq 'preview_uniform'||$fine_spread;
 $proof_seam //= 16;
 my@preview_heights=split /,/,($geometry//($fine_dense_later?'34,2,2,2,2,2,2,146':$fine_boundary?'16,2,2,2,2,6,16,146':$fine_dense?'2,2,2,2,2,2,2,178':$fine_mixed?'4,22,2,2,16,32,48,66':$fine_late?'2,4,4,2,2,8,8,162':$fine_rts?'2,2,2,2,6,16,32,130':$fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
@@ -67,7 +73,7 @@ sub preview_palette {
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$example_independent=$score_prefix||$profile eq 'example_score_below_independent';
-my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary)?$/?$1:'';
+my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary|_row1_loop(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated)?)?$/?$1:'';
 $profile="score_${example_score}_packed" if$example_score;
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
@@ -457,8 +463,10 @@ if($fine_spread) {
    }
 }
 if($example_score){
-   my$file=$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
+   my$file=$score_loop?'row1_loop_component':$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
    $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/$file.c26");
+   $component=~s/TEMPLATE_PF_AT\(20\)/TEMPLATE_PF_AT(18)/ or die 'row1 palette mutation' if$score_loop_bad_palette;
+   $component=~s/\@TEMPLATE_A_c_u4 - 1/\@TEMPLATE_A_c_u5 - 1/g or die 'row1 vector mutation' if$score_loop_bad_vector;
    if($score_prefix){for my$n(1..8){
       $component =~ s/parameter section${n}_lines := \d+;/parameter section${n}_lines := $score_heights[$n-1];/ or die 'prefix height parameter';
       for my$spec(['pf',0],['bk',1]){
@@ -535,7 +543,7 @@ if($edges) {
    $component=bank_preparation($component) if!$later;
    save("$tmp/component.c26",$component);
 }
-if($fine_controls) {
+if($fine_controls||$score_loop_controls) {
    $edges or die 'fine control fixture requires isolated poses';
    my$controls=<<'CONTROLS';
 bank0 page const uint8_t alternate_p0[8] := {0x81,0x42,0x24,0x18,0x18,0x24,0x42,0x81};
@@ -557,6 +565,13 @@ bank0 void update_probe_controls(void) {
    game_PLAYER1_NUSIZ := 0x20 | ((motion >> 1) & 7);
 }
 CONTROLS
+   if($score_loop_controls){
+      # Swapping the two existing, distinct eight-row tables exercises real
+      # pointer changes without adding a second pair of artwork tables.
+      $controls=~s/^bank0 page const uint8_t alternate_p[01]\[8\].*\n//mg;
+      $controls=~s/alternate_p0/p1_graphics/g;
+      $controls=~s/alternate_p1/p0_graphics/g;
+   }
    $source =~ s/void main\(void\)/$controls\nvoid main(void)/ or die 'fine control helper';
    $source =~ s/(      update_probe_pose\(\);)/$1\n      update_probe_controls();/ or die 'fine control update';
 }
@@ -625,7 +640,7 @@ if($score_packed) {
    my($initial)=$probe =~ /void main\(void\) \{\n(.*?)(?=   game_player0_graphics := )/s;
    defined$initial or die 'score packed initialization';
    $probe =~ s/void main\(void\) \{\n\Q$initial\E/bank1 void initialize_probe_objects(void) {\n$initial}\nvoid main(void) {\n   initialize_probe_objects();\n/ or die 'score packed banked initialization';
-   my($heights)=$probe =~ /(   game_player0_height := .*?   game_init\(\);\n)/s;
+    my($heights)=$probe =~ /(   game_player0_height := 7;.*?   game_init\(\);\n)/s;
    defined$heights or die 'score packed initial heights';
    $probe =~ s/\Q$heights\E// or die 'score packed move heights';
    $probe =~ s/(bank1 void initialize_probe_objects\(void\) \{\n.*?)(\n\})/$1\n$heights$2/s or die 'score packed banked heights';
@@ -679,6 +694,33 @@ if($fine_spread) {
    $probe =~ s/(      vcs_ntsc_begin_overscan\(\);\n)      game_overscan\(\);/$1      finish_probe_gameplay();/ or die 'fine cleanup call';
 }
 $probe =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if$later&&!$edges&&!$score_packed;
+if($score_loop){
+   # Driver-only ROM reduction: the existing bank1 score-preparation call can
+   # start VSYNC/VBLANK before gameplay preparation. No visible call changes.
+   $probe=~s/(bank1 void initialize_probe_objects\(void\) \{)/$1\n   game_row_cache[20] := 0;/ or die 'loop cold-start marker';
+   $probe=~s/(bank1 void prepare_probe_score\(void\) \{)/$1\n   if (game_row_cache[20]) { vcs_ntsc_end_overscan(); }\n   vcs_ntsc_vsync();\n   vcs_ntsc_begin_vblank();/ or die 'loop frame preparation';
+   $probe=~s/   prepare_probe_score\(\);\n// or die 'loop redundant initial score preparation';
+   $probe=~s/      vcs_ntsc_vsync\(\);\n      vcs_ntsc_begin_vblank\(\);/      prepare_probe_score();/ or die 'loop begin frame call';
+   $probe=~s/(      game_vblank\(\);\n      score_vblank\(\);\n)      prepare_probe_score\(\);/$1/ or die 'loop score preparation order';
+   $probe=~s/      vcs_ntsc_end_overscan\(\);\n// or die 'loop end frame wait';
+   if($score_loop_controls){
+      # Only ROM-address selection needs bank0; run arithmetic beside the
+      # existing bank1 pose updater, still before the overscan deadline.
+      my($arithmetic)=$probe=~/(   game_player0_height := motion & 7;.*?   game_PLAYER1_NUSIZ := .*?;\n)/s;
+      defined$arithmetic or die 'loop control arithmetic';
+      $probe=~s/\Q$arithmetic\E// or die 'loop move control arithmetic';
+      # edge is dead after copying X positions. Reuse it for the two constant
+      # shifts instead of pulling the generic shift runtime into the draw bank.
+      $probe=~s/switch \(motion >> 3\)/asm lda.z motion;\n      asm lsr;\n      asm lsr;\n      asm lsr;\n      asm sta.z edge;\n      switch (edge)/ or die 'loop pose selector';
+      $arithmetic=~s/motion >> 1/edge/g;
+      $arithmetic="   asm lda.z motion;\n   asm lsr;\n   asm sta.z edge;\n".$arithmetic;
+      $probe=~s/(bank1 void update_probe_pose\(void\) \{.*?)(\n\})/$1\n$arithmetic$2/s or die 'loop bank1 control arithmetic';
+   }
+}
+if($score_loop_relocated){
+   $probe=~s/void main\(void\)/bank0 void relocated_raster(void)/ or die 'relocated raster function';
+   $probe.="\nvoid main(void) { relocated_raster(); }\n";
+}
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");
 -s"$tmp/probe.bin"==($later||$edges?8192:4096) or die 'unexpected probe ROM size';
@@ -701,11 +743,11 @@ for my$n(qw(game_player0_graphics game_player1_graphics)) {
    push@graphics,'--frame-sequence',$a,join(',',map{$_&255}@p),
       '--frame-sequence',$a+1,join(',',map{$_>>8}@p);
 }
-my@restored_heights=$fine_controls?(3,1):(7,7);
+my@restored_heights=$fine_controls||$score_loop_controls?(3,1):(7,7);
 run("$tmp/timing","$tmp/probe.bin",'420','--no-audio','--released-inputs','--raw-lines','264',@graphics,
    '--expect-memory',address('game_player0_height'),$restored_heights[0],
    '--expect-memory',address('game_player1_height'),$restored_heights[1],
-   $fine_controls?('--expect-memory',address('motion'),19):());
+   $fine_controls||$score_loop_controls?('--expect-memory',address('motion'),19):());
 
 require "$repo/test/stella_test_lib.pl";
 my$helpers=slurp("$repo/test/stella_png_sequence.pl");
@@ -774,7 +816,7 @@ for my$f(200..239) {
     my($w,$h,$rgb)=@{$gold[0]{$f}};my%count;
     # Repeated NUSIZ copies can cover the usual border sample. For the
     # control matrix locate the same 192 lines in the independent empty ROM.
-    my$extent=$fine_controls?$background->{$f}[2]:$rgb;
+    my$extent=$fine_controls||$score_loop_controls?$background->{$f}[2]:$rgb;
     $count{substr($extent,($_*$w+20)*3,3)}++ for 0..$h-1;
     my($bg)=sort{$count{$b}<=>$count{$a}}keys%count;
     my@visible=grep{substr($extent,($_*$w+20)*3,3)eq$bg}0..$h-1;

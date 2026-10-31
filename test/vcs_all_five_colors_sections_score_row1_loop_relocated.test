@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_probe.pl @REPO@ @TMP@ example_score_above_row1_loop_relocated
+# phase: e2e
+# timeout: 300
+# expectstdout: vcs_all_five_colors_sections_probe ok
+# expectexit: 0

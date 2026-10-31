@@ -20,6 +20,8 @@ not selected another workstream.
 
 Current next action: Item 63, generalize later/mixed-row geometry and public
 extraction beyond the validated two-row score previews (even seams2..18).
+Private score row1 loop now proves20/22 without extra renderer RAM or main-relative
+routes. Next bridge:fit it into both full interactive drivers,then broaden further.
 Both score previews preserve independent return/handoff phases; below uses a JMP bridge.
 Preserve private pixel gates; the main-bound RTS proof is not a public ABI.
 Keep user configuration in .c26 with existing language facilities, not JSON.

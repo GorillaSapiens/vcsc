@@ -1155,6 +1155,20 @@ Boundary geometry permits every even seam2..18, but explicitly rejects later
 positions. Original prefix geometry still produces the earlier renderer ROM;
 the older later-row fixtures retain their separate bounded rejection contract.
 
+The private `row1_loop_component.c26` proof extends score geometry through22.
+Eleven `score_row1_loop_*` gates cover both score orders, a final20 layout,
+isolated nonempty edge crossings20/22, changing pointers/heights/NUSIZ, uniform
+row1, execution outside `main`, and rejected stale palettes/return vectors/
+beyond22 geometry. It reuses six dead RESP cache bytes as a three-return RTS
+vector, initialized with actual link-relocated local-label addresses after
+positioning. No main-relative offset ABI, extra renderer RAM, cartridge RAM or
+mirrored artwork is required. The control fixture swaps the two existing glyph
+tables instead of adding another pair; its independent golden remains ordinary
+renderer/score code. Measured controls proof:bank0 3705/3840,bank1 1050/3840,
+RAM117/128 including eleven stack bytes. This path is NOT used by the runnable
+interactive examples:their full driver still fails strict one-bank placement.
+The delivered renderer remains even2..18 until that integration is certified.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

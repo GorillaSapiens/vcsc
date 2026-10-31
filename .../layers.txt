@@ -28,6 +28,21 @@ General geometry/public extraction are still unfinished; do not advertise the
 fixed preview as a general public renderer. Frozen score fixtures
 own exact regressions; editable example leaves are separately smoke-built.
 
+Next integration candidate:test/fixtures/all_five_colors_sections_score/
+row1_loop_component.c26. Private even2..22 scheduler shares one three-pair row1
+body at18/20/22, indexing palette tables with X7/6/5 and leaving X4 for pair4.
+Six dead RESP lanes14..19 become three RTS return addresses AFTER positioning;
+five bytes initialise in setup's WSYNC slack,the sixth replaces an eight-cycle
+row0 pad. Actual relocated local-label immediates avoid the old main-relative
+initialisation ABI and any extra RAM/table mirror. S reaches lane19 and is reset
+at the ordinary A boundary; real S remains lane20. No calls during this window.
+Eleven focused gates pass:both score orders,final20,nonempty edges20/22,changing
+pointers/heights/NUSIZ,uniform row1,non-main enclosing function,and rejected stale
+palette/wrong return/beyond22 geometry. Controls proof:3705/3840 draw bank,
+1050/3840 bank1,RAM117/128 incl11 stack. Full interactive drivers still FAIL
+strict one-bank placement; keep this private and leave runnable2..18 unchanged.
+Expanded full checkpoint passes:/tmp/opencode/colors-sections-score-row1-loop.{log,tsv}.
+
 Active request: implement all_five_colors_sections, combining independent
 eight-row player colour tables with continuous all-five colour sections and
 no-score/score-above/score-below examples. User explicitly chose stock 128-byte
@@ -229,10 +244,10 @@ unchanged. Full rerun1172 passed (591 compile+581 e2e):
 Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
 in bulk. Exact source-sample regression covers all supported types/filters;
 no captures/checks removed. Prior full suite predates new test discovery.
-Stable full suite:591 compile+618 e2e =1209 passed, zero failures, eight workers.
-Includes ten new boundary gates, older two-row/prefix/independent/coupled gates
-and prefix ROM equivalence. Log/timings:
-/tmp/opencode/colors-sections-score-boundary.{log,tsv}.
+Stable full suite:591 compile+629 e2e =1220 passed, zero failures, eight workers.
+Includes eleven private score-loop gates, existing boundary/two-row/prefix/
+independent/coupled gates and prefix ROM equivalence. Log/timings:
+/tmp/opencode/colors-sections-score-row1-loop.{log,tsv}.
 General even geometry remains unproved. No-score preview stays row-aligned;
 score previews now permit seam18 as well as prefix geometry. Nine new gates
 pass:both moving orders, sparse18, packed14+18, nonempty isolated edges, controls/

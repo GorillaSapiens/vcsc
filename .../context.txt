@@ -212,8 +212,12 @@ Combined score-above/below previews now runnable, default2,2,2,2,2,6,2,158 heigh
 independent palettes, four-frame sprites, BCD controls, RAM122/128. Both score
 orders use independent handoffs; below uses a cycle-equivalent JMP, no callback.
 Supported seams2/4/6/8/10/12/14/16/18; total176,first nonempty,eighth>=158.
-Later/mixed-row general geometry remains refused. Full suite1209 passes,eight
-workers,including ten new row-boundary gates.
+Later/mixed-row general geometry remains refused. Full suite1220 passes,eight
+workers,including eleven new private score-loop gates.
+Private score row1 loop proves20/22, runtime controls and a non-main enclosing
+function using relocated local RTS returns in dead RESP lanes; no extra renderer
+RAM. Full interactive drivers still fail ROM/page placement,so do not expose it.
+All eleven gates also pass in the full checkpoint. See layers.txt.
 General mixed-row geometry and public extraction remain OPEN.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.
