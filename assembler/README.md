@@ -483,6 +483,10 @@ Definedness tests treat ordinary equates, default equates that took effect, labe
 Assembler expressions are used by instruction operands, `.if` / `.elif`, `.repeat`, `.org`, `.rorg`, `.align`, `.res`, `.byte`, `.word`, constants, default constants, and `.set`.  Directives use a leading dot, such as `.byte` or `.if`.
 
 The current location counter is `*`.  There is no `.` alias for the current location counter.
+In an instruction operand, `*` is the address of the opcode, including any
+active `.rorg`, not the operand byte. Thus `JMP *+3` jumps to the following
+instruction (three bytes, three cycles). In relocatable output an ordinary `*`
+reference moves with its defining layout, like a local label.
 
 Supported expression operators use C-style precedence and left associativity for binary operators.  Use braces, `{expr}`, to group subexpressions; parentheses are not expression grouping and are reserved for 6502 addressing syntax:
 

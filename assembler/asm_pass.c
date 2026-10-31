@@ -289,7 +289,7 @@ static int insn_can_relax_long_branch(const stmt_t *stmt, const asm_context_t *c
    if (stmt->u.insn.final_mode != EM_REL_LONG || !stmt->u.insn.expr)
       return 0;
 
-   if (expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file, stmt->address + 1, &value) != EXPR_EVAL_OK)
+   if (expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file, stmt->address, &value) != EXPR_EVAL_OK)
       return 0;
 
    return branch_disp16(stmt->address + 2, value, &disp);
@@ -1867,7 +1867,7 @@ static int segment_phase_candidate_score(asm_context_t *ctx,
             continue;
          if (!stmt->u.insn.expr ||
              expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file,
-                       stmt->address + 1, &target) != EXPR_EVAL_OK) {
+                       stmt->address, &target) != EXPR_EVAL_OK) {
             ok = 0;
             break;
          }
@@ -2025,7 +2025,7 @@ static void validate_branch_page_specs(asm_context_t *ctx)
 
          if (!stmt->u.insn.expr ||
              expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file,
-                       stmt->address + 1, &target) != EXPR_EVAL_OK)
+                       stmt->address, &target) != EXPR_EVAL_OK)
             continue;
          crosses = (((((stmt->address + 2) & 0xffffL) ^
                        (target & 0xffffL)) & 0xff00L) != 0);
@@ -2574,7 +2574,9 @@ static int insn_emit_pass2(asm_context_t *ctx,
       return -1;
    }
 
-   if (eval_or_report(ctx, insn->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &value, stmt))
+   /* '*' denotes the instruction start, not the operand byte (or the
+    * synthetic JMP operand of an expanded conditional branch). */
+   if (eval_or_report(ctx, insn->expr, &ctx->symbols, stmt->scope, stmt->file, stmt->address, &value, stmt))
       return -1;
 
    switch (emode) {

@@ -1,0 +1,36 @@
+2026-10-31 00:53:17 PDT, Record instruction location counter fix
+Correct an omitted history entry from the previous source handoff. User noticed
+that this daily file was missing. Code and regression were committed as acdc27d1;
+the archive /tmp/vcsc.20261031_074248.tar.gz omitted this history record.
+
+User asked whether JMP *+3 was legal and a three-cycle NOP. A direct flat-output
+probe at F000 emitted JMP F004, exposing an off-by-one bug: instruction emission
+advanced the PC past the opcode before evaluating its operand. Existing tests
+covered arithmetic, labels and directive location counters, but not instruction
+operands containing *. Passing renderer tests used explicit labels and therefore
+did not exercise this path. That was a coverage gap, not evidence of correctness.
+
+Fix assembler/asm_pass.c to evaluate operands at the logical instruction start,
+including expanded long branches. Branch relaxation and page-contract checks
+now use that same origin. In assembler/o26.c use the instruction's packed start,
+not its operand offset; ordinary location counters carry their defining layout's
+relocation metadata, while active .rorg counters retain logical runtime addresses.
+Document the opcode-address semantics in assembler/README.md. JMP *+3 now jumps
+to the following instruction: three bytes, exactly three cycles, registers and
+flags unchanged. No renderer schedules or runnable examples changed.
+
+New test/assembler_instruction_location_counter.pl checks exact bytes against
+explicit-label equivalents for JMP-next, immediate low/high address bytes,
+self-branches, expanded long branches and the +127 short-branch limit. Test flat
+and linked object output at two ROM origins, including a page boundary, with an
+unrelated preceding text layout. Also check logical .rorg addresses in both flat
+and linked output. Rebuilt the pre-fix assembler separately under
+/tmp/opencode/instruction-pc-before; the new regression fails against it and
+passes against the corrected assembler.
+
+Final full suite PASS:591 compile+630 e2e =1221 tests,zero failures,eight workers.
+Log/timings:/tmp/opencode/assembler-instruction-pc.{log,tsv}.
+All17 assembler regression scripts passed in the focused run. Diff checks pass.
+This history-only correction does not change the tested implementation. Validate
+history format and source hygiene,then regenerate the handoff with make tar.
+Preserve unrelated pending changes. Nothing pushed.

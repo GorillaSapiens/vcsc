@@ -814,7 +814,24 @@ static int analyze_expr(o26_writer_t *wr,
          return 1;
 
       case EXPR_PC:
+         /* An ordinary location counter relocates with its defining layout,
+          * just like a label. An active .rorg instead supplies an absolute
+          * logical/runtime address. pc is a packed offset at the use site. */
          out->value = pc;
+         if (stmt->address != stmt->emit_address) {
+            out->value += stmt->address - packed_stmt_offset(wr, stmt);
+            return 1;
+         }
+         out->is_reloc = 1;
+         out->segid = segment_name_to_o26(stmt->segment);
+         out->reloc_value = out->value;
+         out->part = RELOC_PART_WORD;
+         if (!find_layout_index(wr, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME,
+                                &out->layout_index)) {
+            writer_error(wr->ctx, stmt, "could not identify the o26 layout containing location counter");
+            return 0;
+         }
+         out->has_layout_index = 1;
          return 1;
 
       case EXPR_IDENT:
@@ -1762,7 +1779,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
          if (emode == EM_IMPLIED || emode == EM_ACCUMULATOR)
             return 1;
 
-         if (!analyze_expr(wr, stmt, stmt->u.insn.expr, off, &info))
+         if (!analyze_expr(wr, stmt, stmt->u.insn.expr, insn_off, &info))
             return 0;
          value = info.value;
 
