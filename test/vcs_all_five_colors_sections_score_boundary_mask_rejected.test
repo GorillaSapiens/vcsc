@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_score_live.pl @REPO@ @TMP@ boundary_bad_mask
+# phase: e2e
+# timeout: 300
+# expectstderr: live RGB mismatch
+# expectexit: 255

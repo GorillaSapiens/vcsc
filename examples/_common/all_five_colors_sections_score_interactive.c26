@@ -25,12 +25,12 @@ page const uint8_t game_player0_colors[8] := {
 page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
-// Nonnegative even heights total176; section one is nonempty and section eight
-// covers at least162 lines. Empty middle slots are supported, e.g.
-// 4,0,2,0,4,0,0,166 gives seams4/6/10 without changing the drawing schedule.
+// Nonnegative even heights total176; section one is nonempty. Supported seams
+// are2..18. This layout spans two rows; prefix-only layouts such
+// as4,0,2,0,4,0,0,166 retain the smaller original drawing schedule.
 instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (
    section1_lines:=2, section2_lines:=2, section3_lines:=2, section4_lines:=2,
-   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=162
+   section5_lines:=2, section6_lines:=6, section7_lines:=2, section8_lines:=158
 )
 instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
 
@@ -55,6 +55,7 @@ const uint8_t *probe_font;
 uint8_t *animation0;
 bcd24_t score_score := 0;
 bank1 void prepare_game(void) {
+   game_set_initial_palette();
    game_player0_graphics := animation0;
    game_player0_graphics += ((game_PLAYER0_X ^ game_player0_y) & 3) << 3;
    game_player1_graphics := animation0;
@@ -124,6 +125,7 @@ bank1 void prepare_probe_score(void) {
 
 
 bank1 void initialize_probe_objects(void) {
+    score_score := 123456;
     score_color := 0x0e;
    VBLANK := 2;
    COLUBK := 0x84;
@@ -197,33 +199,38 @@ bank1 void update_controls(void) {
 bank1 void finish_probe_gameplay(void) { game_overscan(); update_controls(); }
 void main(void) {
     initialize_probe_objects();
-   score_score := 123456;
    score_init();
     probe_font := score_font;
     animation0 := animations;
-    prepare_probe_score();
    while (1) {
       vcs_ntsc_vsync();
        vcs_ntsc_begin_vblank();
-       game_set_initial_palette();
-       prepare_game();
-       // Save the application's real S after the banked preparation wrapper
-       // returns, not the bank1 call's deeper stack frame.
-       asm tsx;
-       asm stx.z game_row_cache + 20;
-      score_vblank();
-      prepare_probe_score();
-      vcs_ntsc_end_vblank();
-#if !SCORE_BELOW
-       score_draw();
-       vcs_ntsc_component_handoff();
-#endif
-       game_draw();
+        prepare_game();
+        asm tsx;
+        asm stx.z game_row_cache + 20;
+       score_vblank();
+       prepare_probe_score();
 #if SCORE_BELOW
-       vcs_ntsc_component_handoff();
+       // Store the score before gameplay in ROM, but execute it afterward.
+       // The final JMP replaces the ordinary three-cycle BIT handoff exactly;
+       // the two routing jumps outside visible drawing are timer-absorbed.
+       asm jmp @gameplay_entry;
+       asm @score_entry:;
        score_draw();
-#endif
        vcs_ntsc_begin_overscan();
+       asm jmp @visible_done;
+       asm @gameplay_entry:;
+       vcs_ntsc_end_vblank();
+       game_draw();
+       asm jmp @score_entry;
+       asm @visible_done:;
+#else
+       vcs_ntsc_end_vblank();
+       score_draw();
+       vcs_ntsc_component_handoff();
+       game_draw();
+       vcs_ntsc_begin_overscan();
+#endif
       finish_probe_gameplay();
       score_overscan();
       vcs_ntsc_end_overscan();

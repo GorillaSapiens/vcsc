@@ -17,11 +17,16 @@ use Symbol qw(gensym);
 my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
-my$score_prefix=$profile=~/^example_score_(?:above|below)_prefix$/;
+my$score_boundary=$profile=~/^example_score_(?:above|below)_boundary$/;
+my$score_extension=$score_boundary||$profile=~/^example_score_(?:above|below)_later$/;
+my$score_prefix=$score_extension||$profile=~/^example_score_(?:above|below)_prefix$/;
 my@score_heights;
 if($score_prefix){
-   @score_heights=split /,/,($geometry//'4,0,2,0,4,0,0,166');
+   @score_heights=split /,/,($geometry//($score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
    @score_heights==8&&!grep{!/^\d+$/||$_%2}@score_heights or die 'invalid score prefix heights';
+   if($edges){my$end=0;my@seams=map{$end+=$_;$end}@score_heights;
+      grep{$_==($proof_seam//16)&&$_<176}@seams or die 'unsupported score proof seam';
+   }
    $geometry=undef;
 }
 sub score_prefix_palette {
@@ -62,7 +67,7 @@ sub preview_palette {
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$example_independent=$score_prefix||$profile eq 'example_score_below_independent';
-my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix)?$/?$1:'';
+my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary)?$/?$1:'';
 $profile="score_${example_score}_packed" if$example_score;
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
@@ -452,7 +457,7 @@ if($fine_spread) {
    }
 }
 if($example_score){
-   my$file=$score_prefix?'prefix_component':'component';
+   my$file=$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
    $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/$file.c26");
    if($score_prefix){for my$n(1..8){
       $component =~ s/parameter section${n}_lines := \d+;/parameter section${n}_lines := $score_heights[$n-1];/ or die 'prefix height parameter';
@@ -507,7 +512,7 @@ if($edges) {
      # Fine-phase sweeps must cross the seam, not finish above it. Public Y
      # is the lower edge; one pair below the seam spans both sides, including
      # terminal190 after clipping. Keep the older non-fine fixture poses.
-     my$pose=$preview?int($proof_seam/2)+($fine_spread?1:-2):$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
+     my$pose=$score_prefix?int($proof_seam/2)+1:$preview?int($proof_seam/2)+($fine_spread?1:-2):$score_order?7:$profile eq 'late_dense'?13:$later?18:$profile eq 'handoff'?10:9;
      $pose-=3 if$bad_fine_pose; # Old non-crossing pose must fail presence gate.
     $pose=0 if$preview&&$pose<0; # Seam2 must straddle the top, not wrap to Y255.
    $source =~ s/void main\(void\)/bank1 page const uint8_t edge_positions[8] := {0,13,14,15,16,150,157,159};\nuint8_t edge;\nvoid main(void)/ or die 'edge table';
@@ -646,6 +651,22 @@ if($score_packed) {
        $probe =~ s/draw_probe_score_tail/draw_combined_score_tail/g if$example_score;
    }
 }
+if($score_extension&&$score_order eq 'below'){
+   my$old="      vcs_ntsc_end_vblank();\n      game_draw();\n      vcs_ntsc_component_handoff();\n      score_draw();\n      vcs_ntsc_begin_overscan();";
+   my$new=<<'LATE_ORDER';
+      asm jmp @late_gameplay_entry;
+      asm @late_score_entry:;
+      score_draw();
+      vcs_ntsc_begin_overscan();
+      asm jmp @late_visible_done;
+      asm @late_gameplay_entry:;
+      vcs_ntsc_end_vblank();
+      game_draw();
+      asm jmp @late_score_entry;
+      asm @late_visible_done:;
+LATE_ORDER
+   $probe =~ s/\Q$old\E/$new/ or die 'independent late ROM order';
+}
 if($fine_spread) {
    my($initial)=$probe =~ /void main\(void\) \{\n(.*?)(?=   game_player0_graphics := )/s;
    defined$initial or die 'fine initialization';
@@ -759,7 +780,7 @@ for my$f(200..239) {
     my@visible=grep{substr($extent,($_*$w+20)*3,3)eq$bg}0..$h-1;
    ($score_order?@visible>=176:@visible==192) or die 'visible extent';
     my$first=$visible[0]+($score_order?($score_order eq 'above'?15:4):0);my$expected=$rgb;
-    if($edges&&$fine_spread){
+    if($edges&&($fine_spread||$score_prefix)){
        # First frame uses setup coordinates; subsequent overscans increment
        # the forty-pose counter. Each eight-frame group isolates one object.
        # Require physical pixels on both sides, not equality of two blanks.
@@ -833,7 +854,7 @@ for my$seam(@seams){for my$name(qw(P0 P1 M0 M1 BL)){
    $crossed{"$name/$seam"} or die "$name never straddled seam $seam\n";
 }}
 if(!$edges){$complete_glyph{$_} or die "$_ never displayed a complete canonical glyph\n" for qw(P0 P1);}
-if($edges&&$fine_spread){for my$name(qw(P0 P1 M0 M1 BL)){
+if($edges&&($fine_spread||$score_prefix)){for my$name(qw(P0 P1 M0 M1 BL)){
    next if$name eq 'P0'&&$proof_seam==2; # inherited P0 priming, as above
    $edge_crossed{$name} or die "$name never crossed seam $proof_seam in edge sweep\n";
 }}

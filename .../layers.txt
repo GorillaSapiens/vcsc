@@ -14,14 +14,16 @@ CURRENT PROBE AND OPEN WORK
 ---------------------------
 Runnable combined score previews now live in
 examples/04_renderers/all_five_colors_sections/score_{above,below}/.
-Score geometry:nonnegative even heights total176,first nonempty,eighth>=162.
-Middle slots may be empty; all boundaries stay within2..14. Default2,2,2,2,2,2,2,162;
-4,0,2,0,4,0,0,166 and sparse2/14 layouts pass without changing the raster schedule.
+Score geometry:nonnegative even heights total176,first nonempty,eighth>=158.
+Supported boundaries2/4/6/8/10/12/14/16/18. Default2,2,2,2,2,6,2,158 includes
+adjacent16/18 seams. Prefix-only layouts retain the earlier schedule; later
+layouts add a specialised row-boundary palette phase and A-row1 first pair.
 Eight palettes and eleven visual PF rows are configured in .c26. Joystick,
 Select, Reset, four-frame upright artwork and edge-triggered BCD editing pass
 targeted controls/timing/RGB checks. Stock RAM122/128 including eleven stack
-bytes, ordinary F8, one drawing bank, no mirrored sprites. Both orders now use
-normal independent handoffs; below no longer owns score/overscan or a callback.
+bytes, ordinary F8, one drawing bank, no mirrored sprites. Both orders preserve
+independent returns; below uses a three-cycle JMP handoff to earlier ROM score
+code, not a gameplay-owned callback. Off-visible routing is timer-absorbed.
 General geometry/public extraction are still unfinished; do not advertise the
 fixed preview as a general public renderer. Frozen score fixtures
 own exact regressions; editable example leaves are separately smoke-built.
@@ -227,16 +229,18 @@ unchanged. Full rerun1172 passed (591 compile+581 e2e):
 Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
 in bulk. Exact source-sample regression covers all supported types/filters;
 no captures/checks removed. Prior full suite predates new test discovery.
-Stable full suite:591 compile+599 e2e =1190 passed, zero failures, eight workers.
-Includes eight new prefix gates, independent-below/old coupled regressions and
-default ROM equivalence. Log/timings:/tmp/opencode/colors-sections-score-prefix.{log,tsv}.
+Stable full suite:591 compile+618 e2e =1209 passed, zero failures, eight workers.
+Includes ten new boundary gates, older two-row/prefix/independent/coupled gates
+and prefix ROM equivalence. Log/timings:
+/tmp/opencode/colors-sections-score-boundary.{log,tsv}.
 General even geometry remains unproved. No-score preview stays row-aligned;
-score previews now permit bounded even prefix geometry (first seven slots<=14
-in total,eighth covers the rest). Below returns independently;
-four new controls/live/moving-RGB/missing-handoff gates pass, along with two old
-gates in a six-test focused run. Both actual leaves use3598/3840 draw ROM and
-122/128 RAM. Prefix gates include unchanged-default full-ROM equivalence and
-explicit invalid-geometry rejection. Later/multiple-row boundaries remain OPEN.
+score previews now permit seam18 as well as prefix geometry. Nine new gates
+pass:both moving orders, sparse18, packed14+18, nonempty isolated edges, controls/
+random timing, eight-palette live RGB, wrong M1 refill and delayed jump rejection.
+Current draw ROM3689/3840 above,3706/3840 below; RAM122/128. Prefix geometry still
+produces the earlier renderer ROM. Seam16 now passes ten new boundary gates,
+including adjacent16/18 and nonempty isolated edges. General later/multiple-row
+layouts remain OPEN. Expanded full checkpoint passes as recorded above.
 Next: generalize mixed-row geometry and extract configurable .c26 with honest
 independent composition contracts, preserving the runnable score examples.
 

@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // Experimental bounded-layout score preview, NOT the general renderer ABI.
-// Even colour seams within lines2..14 of the 176 colourable lines.
+// Even colour seams within lines2..18 of176 colourable lines.
 // Preparation is bank1; all graphics, score and gameplay drawing are bank0.
 parameter section1_lines := 2;
 parameter section2_lines := 2;
@@ -36,6 +36,12 @@ alias TEMPLATE_END7 (TEMPLATE_END6 + TEMPLATE_section7_lines)
 alias TEMPLATE_SELECT(line,a,b,c,d,e,f,g,h) ((line) < TEMPLATE_END1 ? (a) : (line) < TEMPLATE_END2 ? (b) : (line) < TEMPLATE_END3 ? (c) : (line) < TEMPLATE_END4 ? (d) : (line) < TEMPLATE_END5 ? (e) : (line) < TEMPLATE_END6 ? (f) : (line) < TEMPLATE_END7 ? (g) : (h))
 alias TEMPLATE_PF_AT(line) TEMPLATE_SELECT(line,TEMPLATE_section1_colupf,TEMPLATE_section2_colupf,TEMPLATE_section3_colupf,TEMPLATE_section4_colupf,TEMPLATE_section5_colupf,TEMPLATE_section6_colupf,TEMPLATE_section7_colupf,TEMPLATE_section8_colupf)
 alias TEMPLATE_BK_AT(line) TEMPLATE_SELECT(line,TEMPLATE_section1_colubk,TEMPLATE_section2_colubk,TEMPLATE_section3_colubk,TEMPLATE_section4_colubk,TEMPLATE_section5_colubk,TEMPLATE_section6_colubk,TEMPLATE_section7_colubk,TEMPLATE_section8_colubk)
+#if TEMPLATE_section8_lines < 162
+const uint8_t TEMPLATE_late_pf0 := TEMPLATE_playfield[4];
+const uint8_t TEMPLATE_late_pf1 := TEMPLATE_playfield[5];
+const uint8_t TEMPLATE_late_pf2 := TEMPLATE_playfield[6];
+const uint8_t TEMPLATE_late_pf3 := TEMPLATE_playfield[7];
+#endif
 bank1 page const uint8_t TEMPLATE_prepare_playfield[44] := {TEMPLATE_playfield[0],TEMPLATE_playfield[1],TEMPLATE_playfield[2],TEMPLATE_playfield[3],TEMPLATE_playfield[4],TEMPLATE_playfield[5],TEMPLATE_playfield[6],TEMPLATE_playfield[7],TEMPLATE_playfield[8],TEMPLATE_playfield[9],TEMPLATE_playfield[10],TEMPLATE_playfield[11],TEMPLATE_playfield[12],TEMPLATE_playfield[13],TEMPLATE_playfield[14],TEMPLATE_playfield[15],TEMPLATE_playfield[16],TEMPLATE_playfield[17],TEMPLATE_playfield[18],TEMPLATE_playfield[19],TEMPLATE_playfield[20],TEMPLATE_playfield[21],TEMPLATE_playfield[22],TEMPLATE_playfield[23],TEMPLATE_playfield[24],TEMPLATE_playfield[25],TEMPLATE_playfield[26],TEMPLATE_playfield[27],TEMPLATE_playfield[28],TEMPLATE_playfield[29],TEMPLATE_playfield[30],TEMPLATE_playfield[31],TEMPLATE_playfield[32],TEMPLATE_playfield[33],TEMPLATE_playfield[34],TEMPLATE_playfield[35],TEMPLATE_playfield[36],TEMPLATE_playfield[37],TEMPLATE_playfield[38],TEMPLATE_playfield[39],TEMPLATE_playfield[40],TEMPLATE_playfield[41],TEMPLATE_playfield[42],TEMPLATE_playfield[43]};
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
@@ -142,8 +148,8 @@ uint8_t TEMPLATE_object_masks[46];
 uint8_t TEMPLATE_row_cache[21];
 
 require inline void TEMPLATE_init(void) {
-   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 162 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
-   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and all seams within14";
+   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 158 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
+   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and seams2..18";
    asm .endif;
    asm .if {TEMPLATE_section1_lines | TEMPLATE_section2_lines | TEMPLATE_section3_lines | TEMPLATE_section4_lines | TEMPLATE_section5_lines | TEMPLATE_section6_lines | TEMPLATE_section7_lines | TEMPLATE_section8_lines} & 1;
    asm .error "Combined score preview requires even section heights";
@@ -1060,8 +1066,15 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.z TEMPLATE_row_cache + 10;
    asm sta PF1;
+#if TEMPLATE_section8_lines < 162
+   // Packed row0 has released cache+12: stage row2 M1 before the row1
+   // specialised pair consumes the usual refill slot for palette timing.
+   asm lda.z TEMPLATE_object_masks + 9;
+   asm sta.z TEMPLATE_row_cache + 12;
+#else
    asm bit.z $00;
    asm bit.z $00;
+#endif
    asm ldy.z TEMPLATE_object_masks + 1;
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
@@ -1142,14 +1155,26 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;
+#if TEMPLATE_section8_lines < 162
+   // Keep the current M1 mask in X across P1's active/zero paths. Using STX
+   // after GRP1 frees three cycles for the row-boundary palette writes.
+   asm ldx.z TEMPLATE_row_cache + 5;
+#else
    asm ldx #0;
+#endif
    asm sty.z TEMPLATE_object_masks + 0;
    asm lsr.z TEMPLATE_row_cache + 4;
    asm ldy.z TEMPLATE_object_masks + 1;
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
+#if TEMPLATE_section8_lines < 162
+   // Recover the extra LDX cycle without moving this right-half PF2 write.
+   asm @TEMPLATE_boundary_out_pf2:;
+   PF2 := TEMPLATE_score_pf2;
+#else
    asm lda.z TEMPLATE_row_cache + 9;
    asm sta PF2;
+#endif
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
    asm cpy.z TEMPLATE_player1_height;
@@ -1166,6 +1191,39 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z $00;
    asm @TEMPLATE_score_packed_boundary_p1_ready:;
    asm sta GRP1;
+#if TEMPLATE_section8_lines < 162
+   asm stx ENAM1;
+   COLUPF := TEMPLATE_PF_AT(16);
+   asm @TEMPLATE_boundary_palette_barrier:;
+   COLUBK := TEMPLATE_BK_AT(16);
+   asm @TEMPLATE_boundary_pf0:;
+   PF1 := TEMPLATE_late_pf0;
+   asm @TEMPLATE_boundary_pf1:;
+   PF2 := TEMPLATE_late_pf1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm nop;
+   asm @TEMPLATE_boundary_pf2:;
+   PF2 := TEMPLATE_late_pf2;
+   asm @TEMPLATE_boundary_pf3:;
+   PF1 := TEMPLATE_late_pf3;
+   asm bcs.same @TEMPLATE_score_packed_boundary_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_score_packed_boundary_p0_ready;
+   asm @TEMPLATE_score_packed_boundary_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z $00;
+   asm @TEMPLATE_score_packed_boundary_p0_ready:;
+   asm sta GRP0;
+   asm nop;
+   // X is no longer the incrementing row index in this one-off boundary.
+   asm ldx #4;
+   asm txs;
+#else
    asm lda.z TEMPLATE_row_cache + 5;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_row_cache + 5;
@@ -1195,7 +1253,78 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm inx;
    asm txs;
+#endif
+#if TEMPLATE_section8_lines < 162
+   asm jmp @TEMPLATE_score_late_u1;
+   // One-off first pair of row1. Subsequent A rows keep their original refill
+   // body; this path consumes no extra RAM and preserves the shared loop.
+   asm @TEMPLATE_score_late_u1:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm @TEMPLATE_late_barrier_0:;
+   PF1 := TEMPLATE_late_pf0;
+   asm @TEMPLATE_late_barrier_1:;
+   PF2 := TEMPLATE_late_pf1;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm cpy.z TEMPLATE_player1_height;
+   asm dec.z TEMPLATE_object_masks + 0;
+   asm nop;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm @TEMPLATE_late_barrier_2:;
+   PF1 := TEMPLATE_late_pf3;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_score_late_u1_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_score_late_u1_p1_ready;
+   asm @TEMPLATE_score_late_u1_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_score_late_u1_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   COLUPF := TEMPLATE_PF_AT(18);
+   asm @TEMPLATE_late_palette_barrier:;
+   COLUBK := TEMPLATE_BK_AT(18);
+   asm @TEMPLATE_late_barrier_3:;
+   PF1 := TEMPLATE_late_pf0;
+   asm @TEMPLATE_late_barrier_4:;
+   PF2 := TEMPLATE_late_pf1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm ldx #2;
+   asm bit.z $00;
+   asm @TEMPLATE_late_barrier_5:;
+   PF2 := TEMPLATE_late_pf2;
+   asm cpy.a TEMPLATE_player0_height;
+   asm @TEMPLATE_late_barrier_6:;
+   PF1 := TEMPLATE_late_pf3;
+   asm bcs.same @TEMPLATE_score_late_u1_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm jmp @TEMPLATE_A_c_loop;
+   asm @TEMPLATE_score_late_u1_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm jmp @TEMPLATE_A_c_loop;
+#else
    asm jmp @TEMPLATE_A_c_u1;
+#endif
    asm @TEMPLATE_A_c_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;

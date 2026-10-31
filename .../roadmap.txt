@@ -19,8 +19,8 @@ The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
 Current next action: Item 63, generalize later/mixed-row geometry and public
-extraction beyond the validated even-prefix interactive score previews.
-Both bounded score previews now use ordinary independent component handoffs.
+extraction beyond the validated two-row score previews (even seams2..18).
+Both score previews preserve independent return/handoff phases; below uses a JMP bridge.
 Preserve private pixel gates; the main-bound RTS proof is not a public ABI.
 Keep user configuration in .c26 with existing language facilities, not JSON.
 

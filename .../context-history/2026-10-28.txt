@@ -48,3 +48,73 @@ Both actual editable leaves build at3598/3840 draw ROM,1355/3840 bank1 ROM and
 Later/multiple-row boundaries and general public extraction remain unfinished.
 Commit only this work and its renderer allowlist entry; preserve earlier
 uncommitted inventory/harness/solid-colour example work. Nothing pushed.
+
+2026-10-28 18:47:27 PDT, Deliver two-row score seam18
+User asks whether empty sections are needed; assistant agrees they are only a
+convenience and later/multiple-row boundaries matter more. User says keep going.
+Added a real second-row seam18 to both runnable interactive score examples,
+not only a private proof. Default heights now2,2,2,2,2,2,6,158. Allowed boundaries
+are2/4/6/8/10/12/14 and18; total176,nonnegative even heights,first nonempty,
+eighth>=158. Explicitly reject16 (including any intermediate cumulative16),
+odd/negative/empty-first/wrong-total and beyond18. Earlier prefix-only layouts
+remain supported and compile out the additional body.
+
+Reuse proven one-off A-row1 first pair. Packed row0 no longer needs cache+12's
+old M1 mask, so its six-cycle padding stages row2 M1 from object_masks+9.
+The specialised first pair spends its usual refill slot on the palette phase;
+right PF2 stays cached, other row1 PF writes fold into immediates. Move M0 shift
+before CPY P1, defer P1 counter/M1 shift, advance P0 decrement and duplicate P0
+tails to preserve all152 cycles. Only this first A pair is specialised; later
+A rows keep the original refill path. No RAM or mirrored graphics added.
+
+Above initially fit,but below's inline ROM order failed strict page/capacity
+placement. A dead .align anchor, split initialization function and whole-visible
+wrapper did not solve both orders. Local diagnostic sweeps of all256 anchor
+phases also found no shared solution; no generated layout is exposed to users.
+Do NOT weaken .same/.cross or reintroduce the gameplay-owned score callback.
+Instead physically store below's score before gameplay, while executing it
+afterward:jump around score during VBLANK, then replace BITzp3 handoff with
+JMPabs3 into the score entry. Entry remains cycle3 after gameplay's cycle0
+return. A routing jump after starting overscan is timer-absorbed. All drawing
+remains in bank0,score/gameplay remain independently composable with measured
+entry/return phases,and no extra scanline or return-line JSR is introduced.
+
+Moved initial BCD score assignment and initial gameplay palette to bank1;
+removed redundant pre-loop pointer preparation (first VBLANK does it before
+any draw). Animation pointers are still selected before gameplay preparation;
+real S saved after banked preparation as before. Both actual leaves build at
+RAM122/128 (111 object+11 stack). Above bank0 3699/3840,bank1 1375/3840;
+below bank0 3705/3840,bank1 1376/3840. Independent score order preserved.
+
+Added frozen later_component.c26/later.c26 and NINE focused gates,all PASS:
+moving above/below with independent canonical glyphs/full RGB/nonempty all-five
+straddles; sparse18; packed14+18; isolated edges0/13/14/15/16/150/157/159 with
+actual pixels above AND below18; input/BCD/reset/randomized timing; live eight
+palettes; wrong row2 M1 feed; delayed JMP handoff. For refill mutation,M0 sits
+on row1 and M1 on row2 so wrong-mask comparisons cannot pass as two blanks.
+Controls gate checks rejected16,beyond18,hidden intermediate16 and other bad
+heights,plus full renderer-ROM equivalence for old prefix-only default.
+No raster/glyph/branch/straddle oracle weakened. Legacy prefix/fixed/coupled
+fixtures are retained independently from editable examples.
+
+Updated code/docs/assembly allowlist/hot state. Last completed full suite1190;
+expanded eight-worker checkpoint pending:
+/tmp/opencode/colors-sections-score-row1.{log,tsv}.
+Remaining work:seam16 and arbitrary later/multiple-row geometry,then general
+public extraction. Do not advertise this two-row schedule as general geometry.
+
+2026-10-28 19:07:41 PDT, Validate runnable two-row score suite
+Full suite PASS:591 compile +608 e2e =1199 tests, zero failures, eight workers.
+Log/timings:/tmp/opencode/colors-sections-score-row1.{log,tsv}.
+No source or test metadata edits during execution. Includes all nine new later
+score gates, existing prefix/default-ROM equivalence and earlier independent/
+coupled regressions. Three legacy controls/late-tail focused gates also passed
+before the full run. Hygiene, history format, assembly allowlist and diff checks
+pass. New source default spans rows0/1 with seam18; no extra RAM/drawing bank.
+Actual budgets:above3699/3840+1375/3840,below3705/3840+1376/3840;
+RAM122/128,including11 hardware-stack bytes. Score-below JMP bridge remains
+independent cycle0 return/cycle3 entry,not a gameplay-owned callback.
+Next:seam16 and broader later/multiple-row geometry/public extraction.
+Preserve pre-existing unrelated user work; stage only the two changed renderer
+allowlist entries with this implementation,not earlier pending inventory/harness
+or solid-player-colour example changes. Nothing pushed.

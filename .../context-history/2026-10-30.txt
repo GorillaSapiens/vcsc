@@ -1,0 +1,49 @@
+2026-10-30 18:16:02 PDT, Add row-boundary seam16 to score previews
+User says continue. Extended the runnable combined-score renderer to every even
+seam2..18, including the previously refused row boundary16. Default geometry
+now2,2,2,2,2,6,2,158 demonstrates adjacent16/18 in both score orders. Preserve
+total176,nonnegative/even heights,first nonempty,eighth>=158; beyond18 refused.
+No generators,extra RAM,drawing banks,sprite mirrors or callbacks introduced.
+
+The one-off packed boundary uses X to hold row1 M1 across both P1 paths. Loading
+X from cache+5 instead of immediate0 costs one cycle, recovered by folding the
+outgoing right PF2 to its row0 immediate. Its write and P1 colour phases stay
+unchanged. STX ENAM1 on line16 frees three cycles; fold incoming row1 PF writes,
+replace four INX with LDX#4, and insert exact pads to fund COLUPF/COLUBK at16.
+Keep M1 shift and all raw counters; preserve the row1 first-pair/refill schedule.
+This boundary path is compiled only for section8<162. Prefix-only layouts still
+produce the original renderer ROM. All .same/.cross contracts remain enforced.
+
+An initial local schedule using only PF immediate folding wrote right PF2 two
+cycles late, caught by exact RGB at x160,line16. The X-carried M1 schedule fixes
+that phase rather than relaxing the oracle. Preprocessor condition arithmetic
+does not accept the language alias/cumulative expression attempted locally;
+use the existing eighth-height threshold that safely covers seam16 and18.
+Temporary experiments stay under /tmp/opencode/score-seam16,not public sources.
+
+Added frozen boundary_component.c26/boundary.c26; keep all older fixtures.
+Ten focused gates cover moving above/below,sparse16,adjacent14/16/18,nonempty
+isolated edges at16 and18,controls/BCD/reset/random timing,live eight-palette
+RGB,wrong boundary M1 mask and stale seam16 palette. All pass. Two legacy
+later/prefix controls gates pass too. The first mask-mutation pose ended M1
+before16 and correctly exposed a vacuous test; changed its endpoint8->10 so M1
+actually crosses16. No valid oracle weakened. Mutation now fails on RGB.
+
+Both actual leaves build with RAM122/128 (111 object+11 hardware stack).
+Above bank0 3689/3840,bank1 1390/3840; below3706/3840,1380/3840. Independent
+entry/return and below's cycle-equivalent JMP handoff are unchanged.
+Full eight-worker checkpoint pending:
+/tmp/opencode/colors-sections-score-boundary.{log,tsv}.
+Next:broaden later/multiple-row geometry beyond18,then general public extraction.
+Preserve pre-existing unrelated solid-colour example,harness,inventory work.
+
+2026-10-30 18:40:34 PDT, Validate score boundary full suite
+Full suite PASS:591 compile+618 e2e =1209 tests,zero failures,eight workers.
+Log/timings:/tmp/opencode/colors-sections-score-boundary.{log,tsv}.
+No source/test metadata edits during the full run. All ten boundary gates,
+earlier two-row/prefix/independent/coupled regressions,and editable example
+smoke builds pass. Hygiene,history format,assembly allowlist,diff checks pass.
+Retain default2,2,2,2,2,6,2,158 and honest even2..18 geometry contract; later
+boundaries/general mixed-row public extraction remain the next action.
+Commit only this change and its allowlist row,leaving unrelated pending work
+intact. Nothing pushed. Create fresh make-tar handoff in /tmp.

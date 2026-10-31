@@ -1137,6 +1137,24 @@ rejection. The controls gate also rejects odd/negative/empty-first/wrong-total/
 later-boundary configurations and requires full-ROM equality with the original
 fixed geometry for the unchanged default. This is not arbitrary later-row geometry.
 
+The newer `later_component.c26`/`later.c26` fixtures certify a second-row seam18
+as well as earlier prefix seams. Nine `score_later_*` gates cover both moving
+score orders, sparse18, packed14+18, isolated edges with nonempty crossings,
+controls/random timing, live eight-palette RGB, wrong row2-M1 staging and a
+three-cycle jump-handoff error. The renderer preserves its independent181-line
+return; ROM order differs from execution order in the below application.
+Geometry checks explicitly reject16, a hidden intermediate16, and positions
+beyond18. Prefix-only geometry still compiles to the old renderer ROM.
+
+The `boundary_component.c26`/`boundary.c26` fixtures extend that score schedule
+to seam16 without new RAM or drawing banks. Ten `score_boundary_*` gates cover
+both moving score orders, sparse16, adjacent14/16/18, isolated edge crossings at
+16 and18, controls/random timing, and eight-palette live RGB. Independent
+mutations reject a wrong M1 mask at the boundary and a stale seam16 palette.
+Boundary geometry permits every even seam2..18, but explicitly rejects later
+positions. Original prefix geometry still produces the earlier renderer ROM;
+the older later-row fixtures retain their separate bounded rejection contract.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

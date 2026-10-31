@@ -1,4 +1,4 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// Fixed-layout preview: ordinary gameplay return, then score handoff/draw.
+// Bounded two-row preview: independent return, then three-cycle jump handoff.
 alias SCORE_BELOW 1
 include "../../../_common/all_five_colors_sections_score_interactive.c26"

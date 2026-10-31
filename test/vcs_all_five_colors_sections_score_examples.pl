@@ -9,8 +9,10 @@ use warnings;
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mode)=@ARGV;
-defined($mode)&&$mode ne 'independent'&&$mode ne 'prefix' and die 'unknown composition mode';
-my$driver_file=defined($mode)?'independent':'interactive';
+defined($mode)&&$mode ne 'independent'&&$mode ne 'prefix'&&$mode ne 'later'&&$mode ne 'boundary' and die 'unknown composition mode';
+my$boundary=defined($mode)&&$mode eq 'boundary';
+my$later=$boundary||(defined($mode)&&$mode eq 'later');
+my$driver_file=$boundary?'boundary':$later?'later':defined($mode)?'independent':'interactive';
 my$prefix=defined($mode)&&$mode eq 'prefix';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;
@@ -24,6 +26,8 @@ for my$order(qw(above below)){
    # Editable leaves are independently covered by vcs_examples_build.pl.
    my$fixture=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
    $fixture=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+   $fixture=~s!"later_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/later_component.c26"!g if$later;
+   $fixture=~s!"boundary_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26"!g if$boundary;
    if($prefix){
       $fixture=~s!/component.c26"!/prefix_component.c26"!g;
       $fixture=~s/score_below:=0/section1_lines:=4,section2_lines:=0,section3_lines:=2,section4_lines:=0,section5_lines:=4,section6_lines:=0,section7_lines:=0,section8_lines:=166/g;
@@ -60,11 +64,13 @@ $c=~s/score_below:=0/score_below:=0,section1_lines:=4/ or die 'invalid geometry 
 open(my$f,'>',"$tmp/invalid.c26")or die$!;print{$f}"alias SCORE_BELOW 0\n$c";close$f;
 eval{run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/invalid.c26",'-o',"$tmp/invalid.bin")};
 $@=~/supports only heights/ or die 'unsupported geometry was not explicitly refused';
-if($prefix){
+if($prefix||$later){
    my$base=slurp("$repo/test/fixtures/all_five_colors_sections_score/independent.c26");
-   $base=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/prefix_component.c26"!g;
+   my$renderer=$boundary?'boundary_component':$later?'later_component':'prefix_component';
+   $base=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/$renderer.c26"!g;
    for my$case(
-      ['later','2,2,2,2,2,2,4,160',qr/all seams within14/],
+      $boundary?(['beyond','2,2,2,2,2,2,8,156',qr/seams2\.\.18/]):(['later','2,2,2,2,2,2,4,160',$later?qr/seam16/:qr/all seams within14/]),
+      $later&&!$boundary?(['beyond','2,2,2,2,2,2,8,156',qr/seams2\.\.14 or18/],['middle16','2,2,2,2,2,6,2,158',qr/seam16/]):(),
       ['odd','3,1,2,2,2,2,2,162',qr/even section heights/],
       ['empty','0,4,2,2,2,2,2,162',qr/first nonempty/],
       ['negative','4,-2,2,2,2,2,4,162',qr/nonnegative heights|requires an integer literal/],
@@ -80,7 +86,7 @@ if($prefix){
    $default=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
    open(my$old,'>',"$tmp/prefix_old_default.c26")or die$!;print{$old}"alias SCORE_BELOW 1\n$default";close$old;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/prefix_old_default.c26",'-o',"$tmp/prefix_old_default.bin");
-   $default=~s!/component.c26"!/prefix_component.c26"!g;
+   $default=~s!/component.c26"!/$renderer.c26"!g;
    $default=~s/score_below:=0/section1_lines:=2,section2_lines:=2,section3_lines:=2,section4_lines:=2,section5_lines:=2,section6_lines:=2,section7_lines:=2,section8_lines:=162/g;
    open(my$new,'>',"$tmp/prefix_new_default.c26")or die$!;print{$new}"alias SCORE_BELOW 1\n$default";close$new;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/prefix_new_default.c26",'-o',"$tmp/prefix_new_default.bin");

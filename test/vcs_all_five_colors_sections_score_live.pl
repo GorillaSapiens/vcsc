@@ -13,11 +13,14 @@ use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mutation)=@ARGV;
-defined($mutation)&&$mutation ne 'late_tail'&&$mutation ne 'independent'&&$mutation ne 'independent_bad_handoff'&&$mutation ne 'prefix'&&$mutation ne 'prefix_bad_palette' and die 'unknown live mode';
+my%allowed=map{$_=>1}qw(late_tail independent independent_bad_handoff prefix prefix_bad_palette later later_bad_feed later_bad_handoff boundary boundary_bad_mask boundary_bad_palette);
+defined($mutation)&&!$allowed{$mutation} and die 'unknown live mode';
 my$prefix=defined($mutation)&&$mutation=~/^prefix/;
-my@prefix_heights=(4,0,2,0,4,0,0,166);
-my$independent=$prefix||(defined($mutation)&&$mutation=~/^independent/);
-my$driver_file=$independent?'independent':'interactive';
+my$boundary=defined($mutation)&&$mutation=~/^boundary/;
+my$later=$boundary||(defined($mutation)&&$mutation=~/^later/);
+my@prefix_heights=$boundary?(2,2,2,2,2,6,2,158):$later?(2,2,2,2,2,2,6,158):(4,0,2,0,4,0,0,166);
+my$independent=$prefix||$later||(defined($mutation)&&$mutation=~/^independent/);
+my$driver_file=$boundary?'boundary':$later?'later':$independent?'independent':'interactive';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub save {open(my$f,'>',$_[0])or die$!;print{$f}$_[1];close$f or die$!;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;my$o2=<$o>//'';my$e2=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$o2$e2";}
@@ -49,9 +52,19 @@ sub capture {
    my%frames;for(@png){/_([0-9A-F]{8})\.png$/ or die 'frame name';$frames{hex$1}=[decode_rgb($_)];}return\%frames;
 }
 for my$order(qw(above below)){
-   next if defined($mutation)&&$mutation ne 'independent'&&!$prefix&&$order eq 'above';
+   next if defined($mutation)&&$mutation ne 'independent'&&!$prefix&&!$later&&$order eq 'above';
+   next if defined($mutation)&&$mutation eq 'later_bad_handoff'&&$order eq 'above';
    my$s=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
    $s=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
+   if($later){
+      $s=~s!"later_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/later_component.c26"!g;
+      $s=~s!"boundary_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26"!g if$boundary;
+      # Put M0 across row1's seam and M1 on row2: the staged row2 refill
+      # must not pass a wrong-Ball-mask mutation as a blank-to-blank match.
+      my($m0,$m1)=$boundary?(18,10):(8,18);
+      $s=~s/game_missile0_y := 34;/game_missile0_y := $m0;/ or die 'late M0 pose';
+      $s=~s/game_missile1_y := 62;/game_missile1_y := $m1;/ or die 'late M1 pose';
+   }
    if($prefix){
       $s=~s!/component.c26"!/prefix_component.c26"!g;
       my$args=join(',',map{'section'.($_+1).'_lines:='.$prefix_heights[$_]}0..7);
@@ -61,6 +74,25 @@ for my$order(qw(above below)){
    $s=~s/(as game \([^)]*)\)/$1,section5_colupf:=0x6e,section5_colubk:=0x12,section6_colupf:=0xce,section6_colubk:=0x72,section7_colupf:=0xde,section7_colubk:=0x92,section8_colupf:=0xfe,section8_colubk:=0xb2)/g;
    $s='alias SCORE_BELOW '.($order eq 'below'?1:0)."\n".$s;
    my$gold_source=$s;
+   if($boundary&&$mutation ne 'boundary'){
+      my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26");
+      if($mutation eq 'boundary_bad_mask'){
+         $c=~s/asm ldx.z TEMPLATE_row_cache \+ 5;/asm ldx.z TEMPLATE_row_cache + 4;/ or die 'boundary M1 mutation';
+      }else{
+         $c=~s/COLUPF := TEMPLATE_PF_AT\(16\);/COLUPF := TEMPLATE_PF_AT(14);/ or die 'boundary palette mutation';
+      }
+      save("$tmp/wrong_boundary.c26",$c);
+      $s=~s!"$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26"!"$tmp/wrong_boundary.c26"!g;
+   }
+   if(defined($mutation)&&$mutation eq 'later_bad_feed'){
+      my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/later_component.c26");
+      $c=~s/asm lda.z TEMPLATE_object_masks \+ 9;/asm lda.z TEMPLATE_object_masks + 8;/ or die 'later refill mutation';
+      save("$tmp/wrong_refill.c26",$c);
+      $s=~s!"$repo/test/fixtures/all_five_colors_sections_score/later_component.c26"!"$tmp/wrong_refill.c26"!g;
+   }
+   if(defined($mutation)&&$mutation eq 'later_bad_handoff'){
+      $s=~s/(       asm jmp \@score_entry;)/       asm bit.z \$00;\n$1/ or die 'late jump handoff mutation';
+   }
    if(defined($mutation)&&$mutation eq 'prefix_bad_palette'){
       my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/prefix_component.c26");
       $c=~s/COLUPF := TEMPLATE_PF_AT\(10\);/COLUPF := TEMPLATE_PF_AT(8);/ or die 'prefix palette mutation';
@@ -79,10 +111,14 @@ for my$order(qw(above below)){
    }
    my$actual=capture("${order}_actual",$s);
    my$gold=$gold_source;
-   $gold=~s/#if SCORE_BELOW\ninstantiate .*?#endif/instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181.c26" as game/s or die 'ordinary kernel';
+   if($later){
+      $gold=~s/instantiate "[^"]+" as game \([^)]*\)/instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181.c26" as game/s or die 'ordinary later renderer';
+   }else{
+      $gold=~s/#if SCORE_BELOW\ninstantiate .*?#endif/instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181.c26" as game/s or die 'ordinary renderer';
+   }
    $gold=~s/   game_vblank\(\);\n// or die 'unbank golden preparation';
    $gold=~s/(       prepare_game\(\);)/$1\n       game_vblank();/ or die 'golden preparation call';
-   $gold=~s/       game_set_initial_palette\(\);/       COLUPF := 0x2e;\n       COLUBK := 0x84;/ or die 'golden palette';
+   $gold=~s/([ \t]*)game_set_initial_palette\(\);/${1}COLUPF := 0x2e;\n${1}COLUBK := 0x84;/ or die 'golden palette';
    if($order eq 'below'&&!$independent){
       $gold=~s/(       game_draw\(\);)/$1\n       vcs_ntsc_component_handoff();\n       score_draw();\n       vcs_ntsc_begin_overscan();/ or die 'golden below handoff';
    }
@@ -97,7 +133,7 @@ for my$order(qw(above below)){
       my@visible=grep{substr($expected,($_*$w+20)*3,3)eq$bg}0..$h-1;
       @visible>=176 or die 'live visible extent';my$first=$visible[0]+($order eq 'above'?15:4);
       for my$line(2..$h-$first-1){my$n=$line<14?int($line/2):7;
-         if($prefix){my$end=0;$n=7;for my$i(0..7){$end+=$prefix_heights[$i];if($line<$end){$n=$i;last;}}}
+         if($prefix||$later){my$end=0;$n=7;for my$i(0..7){$end+=$prefix_heights[$i];if($line<$end){$n=$i;last;}}}
          substr($expected,($first+$line)*$w*3,$w*3)=substr($gold[$n]{$f}[2],($first+$line)*$w*3,$w*3);
       }
       my($aw,$ah,$rgb)=@{$actual->{$f}};$aw==$w&&$ah==$h or die 'live geometry';
