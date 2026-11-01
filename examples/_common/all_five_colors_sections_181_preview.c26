@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // Experimental bounded-layout score preview, NOT the general renderer ABI.
-// Even colour seams within lines2..24 of176 colourable lines.
+// Even colour seams within lines2..26 of176 colourable lines.
 // Preparation is bank1; all graphics, score and gameplay drawing are bank0.
 parameter section1_lines := 2;
 parameter section2_lines := 2;
@@ -43,8 +43,10 @@ const uint8_t TEMPLATE_late_pf2 := TEMPLATE_playfield[6];
 const uint8_t TEMPLATE_late_pf3 := TEMPLATE_playfield[7];
 #endif
 #if TEMPLATE_section8_lines < 158
-// Three or four pairs leave X4 for the ordinary successor/refill path.
-#if TEMPLATE_section8_lines < 154
+// Three to five pairs leave X4 for the ordinary successor/refill path.
+#if TEMPLATE_section8_lines < 152
+page const uint8_t TEMPLATE_late_palette[15] := {0,0,0,0,0,TEMPLATE_PF_AT(26),TEMPLATE_PF_AT(24),TEMPLATE_PF_AT(22),TEMPLATE_PF_AT(20),TEMPLATE_PF_AT(18),TEMPLATE_BK_AT(26),TEMPLATE_BK_AT(24),TEMPLATE_BK_AT(22),TEMPLATE_BK_AT(20),TEMPLATE_BK_AT(18)};
+#elif TEMPLATE_section8_lines < 154
 page const uint8_t TEMPLATE_late_palette[13] := {0,0,0,0,0,TEMPLATE_PF_AT(24),TEMPLATE_PF_AT(22),TEMPLATE_PF_AT(20),TEMPLATE_PF_AT(18),TEMPLATE_BK_AT(24),TEMPLATE_BK_AT(22),TEMPLATE_BK_AT(20),TEMPLATE_BK_AT(18)};
 #else
 page const uint8_t TEMPLATE_late_palette[11] := {0,0,0,0,0,TEMPLATE_PF_AT(22),TEMPLATE_PF_AT(20),TEMPLATE_PF_AT(18),TEMPLATE_BK_AT(22),TEMPLATE_BK_AT(20),TEMPLATE_BK_AT(18)};
@@ -90,7 +92,10 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_BYTES := 44,
    TEMPLATE_PLAYFIELD_ROWS := 11,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+   TEMPLATE_WORKSPACE_BYTES := 24,
+   TEMPLATE_PRIVATE_RAM_BYTES := 70,
+#elif TEMPLATE_section8_lines < 154
    TEMPLATE_WORKSPACE_BYTES := 23,
    TEMPLATE_PRIVATE_RAM_BYTES := 69,
 #else
@@ -98,7 +103,9 @@ enum TEMPLATE_contract {
    TEMPLATE_PRIVATE_RAM_BYTES := 67,
 #endif
    TEMPLATE_PUBLIC_RAM_BYTES := 21,
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+   TEMPLATE_MODULE_RAM_BYTES := 91
+#elif TEMPLATE_section8_lines < 154
    TEMPLATE_MODULE_RAM_BYTES := 90
 #else
    TEMPLATE_MODULE_RAM_BYTES := 88
@@ -160,17 +167,26 @@ uint8_t TEMPLATE_player1_nusiz;
 // but that value is never consumed. The first fourteen row-cache bytes are two
 // seven-byte raster banks. The final seven/nine bytes hold score-safe P0/P1
 // handoff controls, dead-RESP return vectors and the caller's hardware stack
-// pointer while S is borrowed as a row base or return-vector cursor.
+// pointer while S is borrowed as a row base or return-vector cursor. For final26,
+// ten return bytes occupy cache14..23 and dead lookahead lane44 stores real S.
 uint8_t TEMPLATE_object_masks[46];
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+uint8_t TEMPLATE_row_cache[24];
+#elif TEMPLATE_section8_lines < 154
 uint8_t TEMPLATE_row_cache[23];
 #else
 uint8_t TEMPLATE_row_cache[21];
 #endif
 
+#if TEMPLATE_section8_lines < 152
+// TIA's $010E mirror forces a four-cycle store after the folded immediate.
+// This preserves the six-cycle PF1 write without a live row0 cache read.
+uint8_t TEMPLATE_pf1_absolute @[none/0x10E];
+#endif
+
 require inline void TEMPLATE_init(void) {
-   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 152 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
-   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and seams2..24";
+   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 150 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
+   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and seams2..26";
    asm .endif;
    asm .if {TEMPLATE_section1_lines | TEMPLATE_section2_lines | TEMPLATE_section3_lines | TEMPLATE_section4_lines | TEMPLATE_section5_lines | TEMPLATE_section6_lines | TEMPLATE_section7_lines | TEMPLATE_section8_lines} & 1;
    asm .error "Combined score preview requires even section heights";
@@ -182,7 +198,9 @@ inline void TEMPLATE_set_initial_palette(void) {
 }
 
 // Inline statement alias: saving S must not introduce a hardware-stack frame.
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+alias TEMPLATE_save_stack() { asm tsx; asm stx.z TEMPLATE_object_masks + 44; }
+#elif TEMPLATE_section8_lines < 154
 alias TEMPLATE_save_stack() { asm tsx; asm stx.z TEMPLATE_row_cache + 22; }
 #else
 alias TEMPLATE_save_stack() { asm tsx; asm stx.z TEMPLATE_row_cache + 20; }
@@ -397,7 +415,13 @@ bank1 void TEMPLATE_prepare(void) {
    // Prime cache B with row zero. Starting on B makes the odd eleven-row
    // profile terminate on the same fixed B-boundary path used by the proven
    // 192-line twelve-row kernel, while A is filled with row one during row zero.
+#if TEMPLATE_section8_lines < 152
+   // Row0's PF0 uses immutable operands. Prime row2 now: five palette pairs
+   // consume both ordinary PF0 refill slots in row1, but later A rows retain them.
+   asm lda.a TEMPLATE_prepare_playfield + 8;
+#else
    asm lda.a TEMPLATE_prepare_playfield;
+#endif
    asm sta.z TEMPLATE_row_cache + 7;
    asm lda.a TEMPLATE_prepare_playfield + 1;
    asm sta.z TEMPLATE_row_cache + 8;
@@ -639,6 +663,22 @@ require inline void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_row_cache + 13;
    asm sta ENAM0;
 #if TEMPLATE_section8_lines < 158
+#if TEMPLATE_section8_lines < 152
+   // Four identical returns need only two LDA immediates. Nine bytes fit in
+   // 33 cycles before WSYNC; the tenth replaces row0's eight-cycle pad.
+   asm lda #<{@TEMPLATE_score_late_u1 - 1};
+   asm sta.z TEMPLATE_row_cache + 14;
+   asm sta.z TEMPLATE_row_cache + 16;
+   asm sta.z TEMPLATE_row_cache + 18;
+   asm sta.z TEMPLATE_row_cache + 20;
+   asm lda #>{@TEMPLATE_score_late_u1 - 1};
+   asm sta.z TEMPLATE_row_cache + 15;
+   asm sta.z TEMPLATE_row_cache + 17;
+   asm sta.z TEMPLATE_row_cache + 19;
+   asm sta.z TEMPLATE_row_cache + 21;
+   asm lda #<{@TEMPLATE_A_c_u6 - 1};
+   asm sta.z TEMPLATE_row_cache + 22;
+#else
    // RESP has released the return lanes. Five/seven bytes fit before WSYNC;
    // the last replaces row0's exact eight-cycle pad below.
    asm lda #<{@TEMPLATE_score_late_u1 - 1};
@@ -662,6 +702,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta.z TEMPLATE_row_cache + 21;
 #endif
 #endif
+#endif
    // Keep the setup tail blank; the first cached gameplay line installs the
    // playfield before the visible beam reaches it.
    asm sta WSYNC;
@@ -670,7 +711,11 @@ require inline void TEMPLATE_draw(void) {
    // Row zero enters in cache B at the scheduler's cycle-3 handoff.  The first visible
    // P0 half is timed to place the first cached pair at cycle 75; every normal
    // pair thereafter is exactly 152 cycles.
-#if TEMPLATE_section8_lines < 158
+#if TEMPLATE_section8_lines < 152
+   asm lda #>{@TEMPLATE_A_c_u6 - 1};
+   asm sta.z TEMPLATE_row_cache + 23;
+   asm bit.z $00;
+#elif TEMPLATE_section8_lines < 158
 #if TEMPLATE_section8_lines < 154
    asm lda #>{@TEMPLATE_score_late_u1 - 1};
 #else
@@ -683,7 +728,11 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z $00;
    asm nop;
 #endif
+#if TEMPLATE_section8_lines < 152
+   asm lda.a TEMPLATE_score_pf0;
+#else
    asm lda.a TEMPLATE_row_cache + 7;
+#endif
    asm sta PF1;
    asm lda.a TEMPLATE_row_cache + 8;
    asm sta PF2;
@@ -1112,8 +1161,12 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_row_cache + 13;
    asm sta ENAM0;
+#if TEMPLATE_section8_lines < 152
+   TEMPLATE_pf1_absolute := TEMPLATE_score_pf0;
+#else
    asm lda.z TEMPLATE_row_cache + 7;
    asm sta PF1;
+#endif
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;
    asm lda.z TEMPLATE_object_masks + 3;
@@ -1211,8 +1264,12 @@ require inline void TEMPLATE_draw(void) {
    asm sta ENAM0;
    asm lda.z TEMPLATE_row_cache + 4;
    asm sta ENABL;
+#if TEMPLATE_section8_lines < 152
+   TEMPLATE_pf1_absolute := TEMPLATE_score_pf0;
+#else
    asm lda.z TEMPLATE_row_cache + 7;
    asm sta PF1;
+#endif
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;
 #if TEMPLATE_section8_lines < 162
@@ -1283,7 +1340,9 @@ require inline void TEMPLATE_draw(void) {
 #if TEMPLATE_section8_lines < 158
    asm ldx #<TEMPLATE_row_cache + 13;
    asm txs;
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+   asm ldx #9;
+#elif TEMPLATE_section8_lines < 154
    asm ldx #8;
 #else
    asm ldx #7;
@@ -1327,7 +1386,7 @@ require inline void TEMPLATE_draw(void) {
 #if TEMPLATE_section8_lines < 162
    asm jmp @TEMPLATE_score_late_u1;
    // Row1 is specialised; subsequent A rows retain their ordinary refills.
-   // For seams20..24, one 152-cycle body repeats via the dead RESP lanes.
+   // For seams20..26, one 152-cycle body repeats via the dead RESP lanes.
 #if TEMPLATE_section8_lines < 158
    asm @TEMPLATE_score_late_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
@@ -1368,7 +1427,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_late_palette,x;
    asm sta COLUPF;
    asm @TEMPLATE_late_palette_barrier:;
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+   asm lda.ax TEMPLATE_late_palette + 5,x;
+#elif TEMPLATE_section8_lines < 154
    asm lda.ax TEMPLATE_late_palette + 4,x;
 #else
    asm lda.ax TEMPLATE_late_palette + 3,x;
@@ -2438,7 +2499,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta ENABL;
    asm sta GRP1;
    // Restore the caller's hardware stack pointer before the inline draw returns.
-#if TEMPLATE_section8_lines < 154
+#if TEMPLATE_section8_lines < 152
+   asm ldx.z TEMPLATE_object_masks + 44;
+#elif TEMPLATE_section8_lines < 154
    asm ldx.z TEMPLATE_row_cache + 22;
 #else
    asm ldx.z TEMPLATE_row_cache + 20;

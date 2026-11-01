@@ -14,10 +14,10 @@ CURRENT PROBE AND OPEN WORK
 ---------------------------
 Runnable combined score previews now live in
 examples/04_renderers/all_five_colors_sections/score_{above,below}/.
-Score geometry:nonnegative even heights total176,first nonempty,eighth>=152.
-Supported boundaries2/4/6/8/10/12/14/16/18/20/22/24. Default4,10,2,2,2,2,2,152 includes
-adjacent14..24 seams. Prefix-only layouts retain the earlier schedule; later
-layouts add a specialised boundary and shared three/four-pair A-row1 palette loop.
+Score geometry:nonnegative even heights total176,first nonempty,eighth>=150.
+Supported boundaries2/4/6/8/10/12/14/16/18/20/22/24/26. Default4,12,2,2,2,2,2,150 includes
+adjacent16..26 seams. Prefix-only layouts retain the earlier schedule; later
+layouts add a specialised boundary and shared three/four/five-pair A-row1 loop.
 Eight palettes and eleven visual PF rows are configured in .c26. Joystick,
 Select, Reset, four-frame upright artwork and edge-triggered BCD editing pass
 targeted controls/timing/RGB checks. Stock RAM128/128 including sixteen stack
@@ -28,30 +28,34 @@ General geometry/public extraction are still unfinished; do not advertise the
 fixed preview as a general public renderer. Frozen score fixtures
 own exact regressions; editable example leaves are separately smoke-built.
 
-Integrated scheduler shares row1 body18/20/22/24,indexing one contained palette
-table and leaving X4. For final24,X8/7/6/5 uses eight RTS bytes14..21 and real S22.
-Seven bytes initialise after RESP in setup's WSYNC slack,the eighth replaces
-row0's eight-cycle pad. Actual relocated local-label immediates avoid main-relative
-routes. S is reset at the ordinary A boundary;no calls while S walks the vector.
-PF0 refill moves from pair4 to pair5;A boundary reads/shifts Ball directly in
-HBLANK,reusing padding and preserving every later write phase. Only final24
-geometry compiles these changes;earlier renderer ROM/layout contracts remain.
-Both full interactive drivers now fit:bank0 3706/3840 both;
+Integrated scheduler shares row1 body18..26,indexing one contained palette table
+and leaving X4. Final26 X9/8/7/6/5 uses ten RTS bytes14..23;actual S uses dead
+lookahead44. Group repeated return addresses:nine bytes cost33 setup cycles,
+tenth replaces row0's eight-cycle pad. Local relocated labels avoid main-relative
+routes. S resets at ordinary A boundary;no calls while S walks the vector.
+For final26,fold row0 PF0 reads and prime row2 PF0 during bank1 blanking:initial
+read is absolute ROM,other writes use $010E TIA mirror for equal six-cycle phase.
+Later A rows still refill PF0 normally. A boundary reads/shifts Ball directly in
+HBLANK. Earlier geometries retain their original renderer layouts/contracts.
+Both full interactive drivers now fit:bank0 3710/3840 both;
 bank1 1389/3840 above,1396/3840 below. RAM112 object+16 stack=128,NO spare state.
 Application frame loop is bank1; bank0 draw_components() composes independently
 returning score/gameplay renderers. Save real S INSIDE that banked call. All eight
 animation frames share one page:bank0 initializes pointer high bytes,bank1 updates
-low bytes from a one-byte base. Application external-score pointer3 high byte
+low bytes from dead score offset1 before preparing the score. Restore that base
+after both draws;do NOT address beyond the four full pointers in compact mode.
+Application external-score pointer3 high byte
 caches font low byte between draws;pointer0 high holds the shared font page.
 Prepare all four pointer lows before restoring highs;after both components return,
 restore cached font low. This replaces the old two-byte persistent font pointer,
-funding the renderer's two added return-vector bytes without increasing total RAM.
-Seventeen seam24 gates cover moving orders,controls/random timing,nonempty24 and
-Ball-fetch boundary32/160 edges,uniform rows,dynamic BCD,independent live gameplay/
-score RGB,and six mutations. Keep six integrated22 and eleven private loop gates.
+funding added return-vector bytes without increasing total RAM.
+Seam26 gates cover moving orders,controls/random timing,nonempty26/32/160,
+uniform rows,dynamic BCD,independent live gameplay/score RGB,and seven mutations.
+Keep all seam24,integrated22 and private loop gates. Isolated edge candidate uses
+untouched lookahead45 for persistent edge state;golden keeps ordinary storage.
 Controls CPU harness must mirror RIOT RAM at stack addresses,as actual hardware
 and the timing harness do; otherwise zero-page RTS vectors read unrelated zeros.
-Expanded full checkpoint pending:/tmp/opencode/colors-sections-score-row1-24.{log,tsv}.
+Expanded checkpoint pending:/tmp/opencode/colors-sections-score-row1-26.{log,tsv}.
 
 Active request: implement all_five_colors_sections, combining independent
 eight-row player colour tables with continuous all-five colour sections and

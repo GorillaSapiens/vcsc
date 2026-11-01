@@ -1193,6 +1193,17 @@ Default full drivers remain RAM128/128,one drawing bank3706/3840 both orders.
 Earlier geometry retains its original smaller renderer and prefix ROM equivalence.
 The assembly allowlist also hashes inline statement aliases containing assembly.
 
+The frozen `row1_26` driver/component adds a fifth palette pair without another
+visible refill slot. Its row0 PF0 reads are cycle-equivalent ROM/immediate TIA
+mirror writes,so VBLANK can prime cache7 directly with row2 PF0. Grouped repeated
+return bytes fit the old setup window;ten bytes use cache14..23 and actual S uses
+dead mask lookahead44. The application reclaims one byte by caching animation
+base in dead score offset1,consumed before score preparation and restored after
+both draws. Both full drivers still use one drawing bank and stock128-byte RAM.
+Moving,nonempty26/32/160,controls,uniform and dynamic-score oracles remain exact.
+Full live RGB has separate ordinary score/gameplay preparation;negative gates
+reject wrong row2 prime,row0 fold,palette,animation/font cache,handoff and return.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

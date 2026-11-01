@@ -17,7 +17,8 @@ use Symbol qw(gensym);
 my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
-my$score24=$profile=~/^example_score_(?:above|below)_row1_24(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?$/;
+my$score26=$profile=~/^example_score_(?:above|below)_row1_26(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?$/;
+my$score24=$score26||$profile=~/^example_score_(?:above|below)_row1_24(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?$/;
 my$score24_dynamic=$score24&&$profile=~/_dynamic$/;
 my$score_loop=$score24||$profile=~/^example_score_(?:above|below)_row1_loop(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated)?$/;
 my$score_loop_controls=$score_loop&&$profile=~/_controls$/;
@@ -30,7 +31,7 @@ my$score_extension=$score_boundary||$profile=~/^example_score_(?:above|below)_la
 my$score_prefix=$score_extension||$profile=~/^example_score_(?:above|below)_prefix$/;
 my@score_heights;
 if($score_prefix){
-   @score_heights=split /,/,($geometry//($score24?'4,10,2,2,2,2,2,152':$score_loop?'4,8,2,2,2,2,2,154':$score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
+   @score_heights=split /,/,($geometry//($score26?'4,12,2,2,2,2,2,150':$score24?'4,10,2,2,2,2,2,152':$score_loop?'4,8,2,2,2,2,2,154':$score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
    @score_heights==8&&!grep{!/^\d+$/||$_%2}@score_heights or die 'invalid score prefix heights';
    if($edges){my$end=0;my@seams=map{$end+=$_;$end}@score_heights;
        (grep{$_==($proof_seam//16)&&$_<176}@seams)
@@ -77,7 +78,7 @@ sub preview_palette {
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$example_independent=$score_prefix||$profile eq 'example_score_below_independent';
-my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary|_row1_(?:loop|24)(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?)?$/?$1:'';
+my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary|_row1_(?:loop|24|26)(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?)?$/?$1:'';
 $profile="score_${example_score}_packed" if$example_score;
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
@@ -467,14 +468,16 @@ if($fine_spread) {
    }
 }
 if($example_score){
-   my$file=$score24?'row1_24_component':$score_loop?'row1_loop_component':$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
+   my$file=$score26?'row1_26_component':$score24?'row1_24_component':$score_loop?'row1_loop_component':$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
    $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/$file.c26");
    if($score_loop_bad_palette){
-      if($score24){$component=~s/TEMPLATE_PF_AT\(24\)/TEMPLATE_PF_AT(22)/ or die 'row24 palette mutation';}
+      if($score26){$component=~s/TEMPLATE_PF_AT\(26\)/TEMPLATE_PF_AT(24)/ or die 'row26 palette mutation';}
+      elsif($score24){$component=~s/TEMPLATE_PF_AT\(24\)/TEMPLATE_PF_AT(22)/ or die 'row24 palette mutation';}
       else{$component=~s/TEMPLATE_PF_AT\(20\)/TEMPLATE_PF_AT(18)/ or die 'row1 palette mutation';}
    }
    if($score_loop_bad_vector){
-      if($score24){$component=~s/\@TEMPLATE_A_c_u5 - 1/\@TEMPLATE_A_c_u6 - 1/g or die 'row24 vector mutation';}
+      if($score26){$component=~s/\@TEMPLATE_A_c_u6 - 1/\@TEMPLATE_A_c_u7 - 1/g or die 'row26 vector mutation';}
+      elsif($score24){$component=~s/\@TEMPLATE_A_c_u5 - 1/\@TEMPLATE_A_c_u6 - 1/g or die 'row24 vector mutation';}
       else{$component=~s/\@TEMPLATE_A_c_u4 - 1/\@TEMPLATE_A_c_u5 - 1/g or die 'row1 vector mutation';}
    }
    if($score_prefix){for my$n(1..8){
@@ -750,6 +753,14 @@ if($score_loop_relocated){
 if($score24){
    $probe=~s/game_row_cache\[20\]/game_row_cache[22]/g;
    $probe=~s/game_row_cache \+ 20/game_row_cache + 22/g;
+}
+if($score26){
+   $probe=~s/game_row_cache\[22\]/game_object_masks[44]/g;
+   $probe=~s/game_row_cache \+ 22/game_object_masks + 44/g;
+   # The isolated edge sweep needs one persistent byte but has no animation
+   # cache to reclaim. Padding45 is never written by preparation or drawing;
+   # its terminal speculative read is not consumed. Leave the golden separate.
+   $probe=~s/uint8_t edge;/alias edge game_object_masks[45]/ or die 'row26 edge scratch' if$edges&&!$score_loop_controls;
 }
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");

@@ -204,18 +204,18 @@ three example compositions. User explicitly requires stock 128-byte RAM.
 User requires ONE draw bank; no mirrored sprites. A no-score interactive preview
 lives in examples/04_renderers/all_five_colors_sections/no_score/ (100/128 RAM).
 Heights now accept 16-line increments totaling 192; two visual PF aliases repeat.
-Combined score-above/below previews now runnable,default4,10,2,2,2,2,2,152 heights;
+Combined score-above/below previews now runnable,default4,12,2,2,2,2,2,150 heights;
 independent palettes, four-frame sprites, BCD controls, RAM128/128. Both score
 orders use independent handoffs; below uses a cycle-equivalent JMP, no callback.
-Supported seams2/4/6/8/10/12/14/16/18/20/22/24;total176,first nonempty,eighth>=152.
-Later/mixed-row general geometry remains refused. Full checkpoint pending;
-seventeen new seam24 gates pass. Bank1 owns the frame loop;
+Supported seams2/4/6/8/10/12/14/16/18/20/22/24/26;total176,first nonempty,eighth>=150.
+Later/mixed-row general geometry remains refused. Expanded checkpoint pending;
+bank1 owns the frame loop;
 bank0 application composition saves real S inside its banked call. Both actual
-drivers fit:draw ROM3706 both,bank1 1389/1396;RAM112 objects+16 stack=128. No extra
+drivers fit:draw ROM3710 both,bank1 1389/1396;RAM112 objects+16 stack=128. No extra
 state fits. Dead RESP lanes hold relocated local RTS returns,not main offsets.
-Four-pair path defers PF0 refill to pair5 and fetches Ball at A boundaries.
-Score font base reuses a phase-dead pointer byte; real-S save aliases hide its
-layout-dependent cache offset. Earlier renderer geometries remain unchanged.
+Five-pair path primes row2 PF0 in blanking and folds row0 reads at equal cycles.
+Actual S uses dead lookahead44;score font/animation bases reuse phase-dead pointer/
+offset bytes. Earlier renderer geometries remain unchanged.
 Private geometry/control/edge proofs remain; see layers.txt.
 General mixed-row geometry and public extraction remain OPEN.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.

@@ -26,11 +26,11 @@ page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
 // Nonnegative even heights total176; section one is nonempty. Supported seams
-// are2..24. This layout spans two rows; prefix-only layouts such
+// are2..26. This layout spans two rows; prefix-only layouts such
 // as4,0,2,0,4,0,0,166 retain the smaller original drawing schedule.
 instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (
-   section1_lines:=4, section2_lines:=10, section3_lines:=2, section4_lines:=2,
-   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=152
+   section1_lines:=4, section2_lines:=12, section3_lines:=2, section4_lines:=2,
+   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=150
 )
 instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
 
@@ -53,7 +53,6 @@ uint8_t score_latched;
 bank1 const bcd24_t digit_weights[6] := {1,10,100,1000,10000,100000};
 // All eight frames share one page. Keep both pointer high bytes unchanged
 // while the frame selector replaces their low bytes.
-uint8_t animation_base;
 bcd24_t score_score := 0;
 inline void prepare_game(void) {
    game_set_initial_palette();
@@ -64,7 +63,7 @@ inline void prepare_game(void) {
    asm asl;
    asm asl;
    asm clc;
-   asm adc.z animation_base;
+   asm adc.z score_offsets + 1;
    asm sta.z game_player0_graphics;
    asm lda.z game_object_x + 1;
    asm eor.z game_player1_y;
@@ -74,7 +73,7 @@ inline void prepare_game(void) {
    asm asl;
    asm ora #32;
    asm clc;
-   asm adc.z animation_base;
+   asm adc.z score_offsets + 1;
    asm sta.z game_player1_graphics;
    game_vblank();
 }
@@ -216,7 +215,7 @@ bank0 void initialize_tables(void) {
    game_player0_graphics := animations;
    game_player1_graphics := animations;
    asm lda #<animations;
-   asm sta.z animation_base;
+   asm sta.z score_offsets + 1;
 }
 // Application-owned composition, not a renderer callback. Save S inside this
 // banked call so gameplay restores the actual caller frame before returning.
@@ -243,7 +242,10 @@ bank0 void draw_components(void) {
        game_draw();
        vcs_ntsc_begin_overscan();
 #endif
-   // Both components have returned; pointer3 is dead until next VBLANK.
+   // Both components have returned; these score pointers are dead until next
+   // VBLANK. prepare_game consumes the animation base before score preparation.
+   asm lda #<animations;
+   asm sta.z score_offsets + 1;
    asm lda #<score_font;
    asm sta.z score_pointers + 7;
 }

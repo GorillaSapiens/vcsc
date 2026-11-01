@@ -173,3 +173,72 @@ Review corrected conditional RAM metadata to workspace23/private69/module90 for
 final24 only (public21 unchanged);earlier geometries retain21/67/88. No ROM-byte
 change. Refreshed stale three-pass/vector comments. Editable above/below ROMs
 independently match their frozen seam24 fixtures byte-for-byte.
+
+2026-10-31 17:19:37 PDT, Seam24 full checkpoint passes
+Full eight-worker suite passed591 compile+653 e2e=1244 tests,zero failures.
+Logs/timings:/tmp/opencode/colors-sections-score-row1-24.{log,tsv}.
+History format,source hygiene,assembly allowlist and git diff checks also pass.
+Commit only the seam24 extension,its frozen fixtures/gates and related docs;
+preserve unrelated pending examples,harness,runner,inventory and history work.
+Refresh make-tar handoff after recording this checkpoint. Nothing pushed.
+Next remains later/multiple-row score scheduling,finer no-score geometry and
+public extraction only once geometry/composition contracts are proven.
+
+2026-10-31 17:54:08 PDT, Extend score sections through seam26
+User says keep going. Fifth shared row1 pair supports final26;default heights
+4,12,2,2,2,2,2,150 show16/18/20/22/24/26. Component validates nonnegative/even
+heights,total176,first nonempty,eighth>=150;28+ and mixed later rows still refused.
+All additional renderer scheduling compiles only for final26. Earlier geometry
+retains original renderer layouts. Both complete driver prototypes fit bank0
+3710/3840,bank1 1389 above/1396 below,RAM112 objects+16 stack=128.
+
+Fifth palette pair consumes pair5's deferred PF0 refill. Fold the remaining
+row0 PF0 reads:initial absolute load reads the actual constant ROM byte at four
+cycles;two six-cycle writes use folded immediate plus absolute $010E TIA mirror
+store. Thus cache7 can hold row2 PF0 from bank1 preparation onward. Other A rows
+retain ordinary refills;row1 alone skips pair4/5 and enters pair6 after fifth
+palette write. No alternating-PF assumption,mirror sprite table or main-relative
+return address. Palette table15 bytes indexesX9..5,background offset5,leavesX4.
+
+Ten return bytes occupy cache14..23 (cache24 bytes);save actual S in mask padding
+lane44,which preparation never writes and terminal lookahead never consumes.
+Group four identical low bytes then four identical highs:9 setup bytes take33
+cycles,less than the old7-byte/35-cycle initialization. Final high byte replaces
+row0's eight-cycle pad. No visible cycle or position phase is borrowed.
+Reclaim one application byte by caching animation base in score_offsets+1:
+prepare_game consumes it BEFORE preparing score;bank0 initializes/restores it
+after both draws. Existing font-low cache stays in score pointer3 high byte.
+
+Discarded experiments,all in /tmp/opencode/sections-next26:
+- Blindly adding two setup bytes crosses WSYNC and adds one visible line.
+- Stashing one byte after each RESP crosses positioning WSYNC for randomized X.
+- Removing outer preparation JSR lowers hidden depth,but automatic deadline
+  placement flips to bank1 and increases bridge stack reservation;not adopted.
+- Inline asm JSR to deadline gets bank bridging but loses compiler callgraph
+  edge accounting;do not use reduced reported stack as proof of safety.
+- A tail-JMP wrapper pins deadline but fails final placement;not adopted.
+- Global draw labels break enclosing C/local scopes. Absolute equates to local
+  labels are offsets,not relocatable aliases. Keep original local RTS labels.
+- asm #constant-object reads its address,not stored byte;use compiler-folded
+  assignment plus hardware mirror,or actual ROM read,not address immediates.
+
+First full controls run caught an experimental animation cache at pointer+11:
+compact score owns only FOUR full pointers plus two separate offset bytes.
+That out-of-bounds write hit selected_digit. Correct cache is score_offsets+1;
+no change to harness or expected controls. Isolated non-controls edge probes
+need one more byte but have no animation base to reclaim;candidate alone uses
+untouched mask padding45 for edge state,with its speculative terminal read dead.
+Ordinary golden retains independent storage and pointer/score preparation.
+
+Frozen row1_26 driver/component plus new gates cover moving above/below,full
+interactive controls/random timing,nonempty26 and changed fetch boundaries32/160,
+uniform PF,dynamic BCD,live eight-palette RGB,and wrong palette/prime/fold/cache/
+handoff/return mutations. All18 targeted gates pass;full eight-worker suite is
+running: /tmp/opencode/colors-sections-score-row1-26.{log,tsv}.
+Live golden is captured from the valid source before mutations;an unnecessary
+animation-cache repair in golden initially failed its own regex and was removed.
+Initial wrong-fold mutation swapped two equal all-FF bytes;invert PF0 instead
+so the negative gate must expose actual visible corruption. No oracle relaxed.
+Keep stock128 RAM,one drawing bank,all controls and independent score returns.
+General later/mixed-row geometry,finer no-score placement and public extraction
+remain unfinished. Preserve unrelated pending work;local commits only,no push.
