@@ -61,7 +61,7 @@ find({no_chdir=>1,wanted=>sub {
    my @asm;
    for my $line (split /\n/,slurp($full)) {
       $line =~ s/^\s+//; $line =~ s/\s+\z//;
-      push @asm,$line if $line =~ /^asm\s+/;
+      push @asm,$line if $line =~ /^(?:asm\s+|alias\b.*\basm\s+)/;
    }
    return unless @asm;
    $actual{$rel}={count=>scalar(@asm),digest=>sha256_hex(join("\n",@asm)."\n")};

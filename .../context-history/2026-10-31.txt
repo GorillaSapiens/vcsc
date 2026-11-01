@@ -97,3 +97,79 @@ unrelated pending inventory,harness,solid-colour example and history changes.
 Next:broaden later/multiple-row boundaries while keeping both runnable drivers
 and all runtime controls,then extract a public configurable component only when
 its geometry and composition contracts are proven. Nothing pushed.
+
+2026-10-31 16:48:13 PDT, Extend score sections through seam24
+User says keep going. Extended both full interactive score previews to every
+even boundary2..24. Heights total176,nonnegative/even,first nonempty,eighth>=152;
+26+ still explicitly refused. Defaults4,10,2,2,2,2,2,152 show adjacent14..24.
+General later/mixed-row geometry and public extraction remain unfinished.
+
+Reuse the shared row1 body FOUR times with X8/7/6/5,leaving X4 for normal pair5.
+Eight return bytes occupy cache14..21;real S moves to22;cache grows21->23 ONLY
+for final24 geometry. Seven address bytes fit after RESP before setup WSYNC;
+the eighth uses row0's exact eight-cycle pad. Third return repeats the shared
+body,fourth reaches A pair5. Palette table grows11->13 with background offset4.
+Add unreachable seven-byte layout spacer before ordinary A pair1;do not remove
+page/.same/.cross contracts. Earlier geometries compile the old layout and keep
+prefix default-ROM equivalence. No generated/user-facing geometry input added.
+
+The fourth palette pair consumes A pair4's PF0 prefetch slot. Move that refill
+to pair5 (for A parity only) and stop prefetching Ball there. At A boundary read
+Ball directly from object_masks+4,X,commit bit0,LSR A and store shifted mask into
+cache11 before left PF. The old padding pays the cost. Left PF is still in
+HBLANK;later output phases are unchanged. Nonempty full-edge tests at32 and160
+prove early/late A-row Ball handoffs,not just palette seam24. Incorrect Ball
+source and deferred PF0 source each fail live RGB tests with nonblank objects.
+
+Fund two extra cache bytes by removing the application's persistent probe_font
+pointer. External-score pointer3 high byte caches font low between draws;
+pointer0 high remains the shared font page. The page-contained80-byte font
+proves all digit offsets fit without carrying. Calculate all four full-pointer
+lows using cached base BEFORE overwriting pointer3 high,then copy pointer0 high
+to other highs. Initialize cache/page in bank0;after both visible components
+return,restore cached low from actual score_font address in bank0. Preparation
+stays bank1. No extra persistent state,mirrors,cartridge RAM or second draw bank.
+Default leaves:bank0 3706/3840 both,bank1 1389 above/1396 below;
+RAM128/128 (112 object+16 stack). Earlier geometry needs no enlarged cache.
+
+Introduce game_save_stack() as a statement alias so saving actual S inside the
+banked composition never adds another return frame and hides geometry-dependent
+offset20/22. Multi-line alias bodies are not legal in this preprocessor;keep
+the alias on one line. A require-inline helper hit unused-required diagnostics
+when used only through nested VBLANK in the legacy prefix-ROM fixture;the
+statement alias avoids that issue without weakening inlining. Extend assembly
+allowlist scanning to hash assembly-bearing inline aliases as well as asm lines.
+Preserve unrelated pending allowlist count/source entries and harness changes.
+
+Rejected design routes before this solution:duplicating another specialised
+pair spends scarce drawing ROM;expanding a contiguous vector12..19 conflicts
+with live row2 M1;using20/21 without moving real S corrupts return state. Further
+prefetch relocation is necessary for26+,not merely a longer palette table.
+An initial phase-anchor search found dead seven-byte padding fits both complete
+drivers;all actual linker page contracts and pixel checks still enforce timing.
+Experiments stay under /tmp/opencode/sections-next24.
+
+Seventeen new gates pass:both moving score orders;full interactive controls,
+artwork,random timing and geometry rejection;nonempty isolated edges at24 plus
+first/last changed Ball-fetch boundaries32/160;uniform row1;dynamic BCD values
+against ordinary score preparation in both orders;live eight-palette RGB;stale24
+palette,wrong PF0 prefetch,wrong Ball source,missing font-cache restore,delayed
+score handoff and wrong return-vector mutations. Frozen row1_24 driver/component
+own exact gates;editable leaves are independently smoke-built.
+
+Probe edge layouts initially exceeded RAM with old probe_font storage;apply the
+same phase-dead byte reuse to CANDIDATE only. Keep ordinary golden score math.
+Live golden now also uses ordinary score preparation,with bank0 init/preparation
+hooks to respect its font affinity. Do not share candidate font math in golden.
+Dynamic probe first failed because replacing its helper dropped the folded score
+updater;preserve that independent updater before new pointer math. No valid
+oracle was relaxed. Every negative gate now fails for the intended raster/timing
+reason,not a compile/regex error. Full checkpoint pending:
+/tmp/opencode/colors-sections-score-row1-24.{log,tsv}.
+Next:later/multiple-row seams while preserving runtime controls and both runnable
+examples;public extraction only after supported geometry/composition are proven.
+Preserve unrelated user work. Nothing pushed. Create fresh make-tar handoff.
+Review corrected conditional RAM metadata to workspace23/private69/module90 for
+final24 only (public21 unchanged);earlier geometries retain21/67/88. No ROM-byte
+change. Refreshed stale three-pass/vector comments. Editable above/below ROMs
+independently match their frozen seam24 fixtures byte-for-byte.

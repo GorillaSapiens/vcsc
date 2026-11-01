@@ -28,9 +28,9 @@ right-joystick BCD editing. They use **128/128 bytes of stock RAM**, ordinary F8
 ROM, and one drawing bank, with no mirrored sprite tables.
 
 The score previews accept nonnegative **even** heights totaling **176**, with
-section one nonempty and section eight at least **154** lines. Supported
-boundaries are **2,4,6,8,10,12,14,16,18,20 and 22**; later positions are explicitly
-rejected. Defaults are now `4,8,2,2,2,2,2,154`, including adjacent seams14..22.
+section one nonempty and section eight at least **152** lines. Supported
+boundaries are **2,4,6,8,10,12,14,16,18,20,22 and 24**; later positions are explicitly
+rejected. Defaults are now `4,10,2,2,2,2,2,152`, including adjacent seams14..24.
 The earlier `2,2,2,2,2,2,2,162` and `4,0,2,0,4,0,0,166` layouts still work and
 compile out the additional row1 drawing path. Middle slots may be empty.
 Gameplay setup/tail completes the 181-line component.

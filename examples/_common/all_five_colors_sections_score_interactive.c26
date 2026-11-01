@@ -26,11 +26,11 @@ page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
 // Nonnegative even heights total176; section one is nonempty. Supported seams
-// are2..22. This layout spans two rows; prefix-only layouts such
+// are2..24. This layout spans two rows; prefix-only layouts such
 // as4,0,2,0,4,0,0,166 retain the smaller original drawing schedule.
 instantiate "../../../_common/all_five_colors_sections_181_preview.c26" as game (
-   section1_lines:=4, section2_lines:=8, section3_lines:=2, section4_lines:=2,
-   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=154
+   section1_lines:=4, section2_lines:=10, section3_lines:=2, section4_lines:=2,
+   section5_lines:=2, section6_lines:=2, section7_lines:=2, section8_lines:=152
 )
 instantiate "six_glyph_component.c26" as score (external_pointers:=1, mutable_color:=1, initial_color:=0)
 
@@ -51,7 +51,6 @@ uint8_t selected_digit;
 uint8_t select_latched;
 uint8_t score_latched;
 bank1 const bcd24_t digit_weights[6] := {1,10,100,1000,10000,100000};
-const uint8_t *probe_font;
 // All eight frames share one page. Keep both pointer high bytes unchanged
 // while the frame selector replaces their low bytes.
 uint8_t animation_base;
@@ -80,6 +79,9 @@ inline void prepare_game(void) {
    game_vblank();
 }
 inline void prepare_probe_score(void) {
+   // Between score draws, pointer3's high byte holds the font's low byte.
+   // All full pointers share pointer0's high byte because the font is contained.
+   // Restore high bytes only after every low-byte calculation is complete.
    // Digits 1/2: only digit*8 is needed because score_font is page-contained.
    asm lda score_score+2;
    asm tax;
@@ -99,22 +101,16 @@ inline void prepare_probe_score(void) {
    asm and #$f0;
    asm lsr;
    asm clc;
-   asm adc probe_font;
+   asm adc score_pointers+7;
    asm sta score_pointers;
-   asm lda probe_font+1;
-   asm adc #0;
-   asm sta score_pointers+1;
    asm txa;
    asm and #$0f;
    asm asl;
    asm asl;
    asm asl;
    asm clc;
-   asm adc probe_font;
+   asm adc score_pointers+7;
    asm sta score_pointers+2;
-   asm lda probe_font+1;
-   asm adc #0;
-   asm sta score_pointers+3;
 
    // Digits 5/6 retain complete pointers.
    asm lda score_score;
@@ -122,22 +118,20 @@ inline void prepare_probe_score(void) {
    asm and #$f0;
    asm lsr;
    asm clc;
-   asm adc probe_font;
+   asm adc score_pointers+7;
    asm sta score_pointers+4;
-   asm lda probe_font+1;
-   asm adc #0;
-   asm sta score_pointers+5;
    asm txa;
    asm and #$0f;
    asm asl;
    asm asl;
    asm asl;
    asm clc;
-   asm adc probe_font;
+   asm adc score_pointers+7;
    asm sta score_pointers+6;
-   asm lda probe_font+1;
-   asm adc #0;
-   asm sta score_pointers+7;
+   asm lda.z score_pointers + 1;
+   asm sta.z score_pointers + 3;
+   asm sta.z score_pointers + 5;
+   asm sta.z score_pointers + 7;
 }
 
 
@@ -215,7 +209,10 @@ inline void update_controls(void) {
 }
 inline void finish_probe_gameplay(void) { game_overscan(); update_controls(); }
 bank0 void initialize_tables(void) {
-   probe_font := score_font;
+   asm lda #>score_font;
+   asm sta.z score_pointers + 1;
+   asm lda #<score_font;
+   asm sta.z score_pointers + 7;
    game_player0_graphics := animations;
    game_player1_graphics := animations;
    asm lda #<animations;
@@ -224,8 +221,7 @@ bank0 void initialize_tables(void) {
 // Application-owned composition, not a renderer callback. Save S inside this
 // banked call so gameplay restores the actual caller frame before returning.
 bank0 void draw_components(void) {
-   asm tsx;
-   asm stx.z game_row_cache + 20;
+   game_save_stack();
 #if SCORE_BELOW
        // Store the score before gameplay in ROM, but execute it afterward.
        // The final JMP replaces the ordinary three-cycle BIT handoff exactly;
@@ -247,6 +243,9 @@ bank0 void draw_components(void) {
        game_draw();
        vcs_ntsc_begin_overscan();
 #endif
+   // Both components have returned; pointer3 is dead until next VBLANK.
+   asm lda #<score_font;
+   asm sta.z score_pointers + 7;
 }
 bank1 void run_game(void) {
     initialize_probe_objects();

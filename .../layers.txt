@@ -14,10 +14,10 @@ CURRENT PROBE AND OPEN WORK
 ---------------------------
 Runnable combined score previews now live in
 examples/04_renderers/all_five_colors_sections/score_{above,below}/.
-Score geometry:nonnegative even heights total176,first nonempty,eighth>=154.
-Supported boundaries2/4/6/8/10/12/14/16/18/20/22. Default4,8,2,2,2,2,2,154 includes
-adjacent14..22 seams. Prefix-only layouts retain the earlier schedule; later
-layouts add a specialised boundary and shared three-pair A-row1 palette loop.
+Score geometry:nonnegative even heights total176,first nonempty,eighth>=152.
+Supported boundaries2/4/6/8/10/12/14/16/18/20/22/24. Default4,10,2,2,2,2,2,152 includes
+adjacent14..24 seams. Prefix-only layouts retain the earlier schedule; later
+layouts add a specialised boundary and shared three/four-pair A-row1 palette loop.
 Eight palettes and eleven visual PF rows are configured in .c26. Joystick,
 Select, Reset, four-frame upright artwork and edge-triggered BCD editing pass
 targeted controls/timing/RGB checks. Stock RAM128/128 including sixteen stack
@@ -28,25 +28,30 @@ General geometry/public extraction are still unfinished; do not advertise the
 fixed preview as a general public renderer. Frozen score fixtures
 own exact regressions; editable example leaves are separately smoke-built.
 
-Integrated scheduler shares one three-pair row1 body at18/20/22, indexing one
-page-contained palette table with X7/6/5 and leaving X4 for pair4.
-Six dead RESP lanes14..19 become three RTS return addresses AFTER positioning;
-five bytes initialise in setup's WSYNC slack,the sixth replaces an eight-cycle
-row0 pad. Actual relocated local-label immediates avoid the old main-relative
-initialisation ABI and any extra RAM/table mirror. S reaches lane19 and is reset
-at the ordinary A boundary; real S remains lane20. No calls during this window.
-Both full interactive drivers now fit:bank0 3684/3840 above,3691/3840 below;
-bank1 1405/3840 both. RAM112 object+16 stack=128,NO extra persistent state fits.
+Integrated scheduler shares row1 body18/20/22/24,indexing one contained palette
+table and leaving X4. For final24,X8/7/6/5 uses eight RTS bytes14..21 and real S22.
+Seven bytes initialise after RESP in setup's WSYNC slack,the eighth replaces
+row0's eight-cycle pad. Actual relocated local-label immediates avoid main-relative
+routes. S is reset at the ordinary A boundary;no calls while S walks the vector.
+PF0 refill moves from pair4 to pair5;A boundary reads/shifts Ball directly in
+HBLANK,reusing padding and preserving every later write phase. Only final24
+geometry compiles these changes;earlier renderer ROM/layout contracts remain.
+Both full interactive drivers now fit:bank0 3706/3840 both;
+bank1 1389/3840 above,1396/3840 below. RAM112 object+16 stack=128,NO spare state.
 Application frame loop is bank1; bank0 draw_components() composes independently
 returning score/gameplay renderers. Save real S INSIDE that banked call. All eight
 animation frames share one page:bank0 initializes pointer high bytes,bank1 updates
-low bytes from a one-byte base. No sprite mirrors or renderer RAM added.
-Six new integrated gates cover both drivers at final20/22,full controls/random
-timing,live eight-palette RGB,and wrong20 palette/refill/handoff mutations. Keep
-the eleven older private row1-loop gates and all earlier geometry contracts.
+low bytes from a one-byte base. Application external-score pointer3 high byte
+caches font low byte between draws;pointer0 high holds the shared font page.
+Prepare all four pointer lows before restoring highs;after both components return,
+restore cached font low. This replaces the old two-byte persistent font pointer,
+funding the renderer's two added return-vector bytes without increasing total RAM.
+Seventeen seam24 gates cover moving orders,controls/random timing,nonempty24 and
+Ball-fetch boundary32/160 edges,uniform rows,dynamic BCD,independent live gameplay/
+score RGB,and six mutations. Keep six integrated22 and eleven private loop gates.
 Controls CPU harness must mirror RIOT RAM at stack addresses,as actual hardware
 and the timing harness do; otherwise zero-page RTS vectors read unrelated zeros.
-Full checkpoint passes:/tmp/opencode/colors-sections-score-row1-integrated.{log,tsv}.
+Expanded full checkpoint pending:/tmp/opencode/colors-sections-score-row1-24.{log,tsv}.
 
 Active request: implement all_five_colors_sections, combining independent
 eight-row player colour tables with continuous all-five colour sections and
@@ -149,12 +154,8 @@ final-link .same contracts authoritative. Eight-colour alternate central probe:
 bank0 3458/3840, bank1 723/3840, RAM97/128 (88 data + nine stack). No extra RAM
 was needed for eight palettes. Geometry remains private, not a user generator.
 Helper: test/fixtures/all_five_colors_sections_preview/fine_spread.pl.
-Latest private fine_rts gates add phases4/8: first layout 2,2,2,2,6,16,32,130
-and later layout20,4,14,2,14,40,48,50 pass eight-palette central RGB, edge4/8
-and later edge20/24. Uniform, changing-control edge30 and wrong-route rejection
-pass too. Total focused gates29 including RIOT mirroring. Full suite after the
-RTS/RAM-oracle additions: 591 compile +492 e2e =1083 passed, zero failures,
-eight workers. Log/timings: /tmp/opencode/colors-sections-rts.{log,tsv}.
+Private fine_rts proves phases4/8, eight-palette central RGB, edge4/8/20/24,
+uniform PF, changing controls and wrong-route rejection; see dated history.
 
 RTS consumes a prefilled 24-byte return vector in physical RIOT RAM. Fold all
 remaining fixed PF-cache reads at exact cycles and remap six live mask lanes
@@ -184,8 +185,6 @@ edges10/12/26/28, controls12, uniform PF, wrong route and conflicting geometry.
 Helper fine_late.pl composes the original RTS schedule; original4/8 gates pass.
 Local commit873488ad records RIOT/F8 oracle correction; user allows local
 commits, no push. Further progress is in context-history/2026-10-22.txt.
-Latest full suite:591 compile +501 e2e =1092 passed, zero failures, eight workers.
-Log/timings:/tmp/opencode/colors-sections-late-refill.{log,tsv}.
 Mixed A/B scheduling now selects early/late independently per row parity;
 both early-A/late-B and reverse pass central/edge/controls/uniform/mutations.
 Adaptive mode now relocates BL/M1 refills to any free pair1..4 across a parity,

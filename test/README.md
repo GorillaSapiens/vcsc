@@ -1174,10 +1174,24 @@ live eight-palette RGB,and rejected stale20 palette/wrong refill/delayed handoff
 The frame loop is bank1;bank0 owns composition and saves S inside that banked
 call. One packed palette table and low-byte selection within a contained artwork
 page fit RAM128/128 (112 objects+16 stack),bank0 3684/3691 and bank1 1405 bytes.
-The runnable examples now support even2..22,not arbitrary later/mixed-row seams.
+These fixtures certify even2..22;the newer extension follows below.
 The control harness now mirrors RIOT RAM through the hardware-stack window,
 matching the timing harness and hardware; RTS vectors written through zero page
 must not read separate stack storage. Ordinary golden rendering remains separate.
+
+The `row1_24.c26`/`row1_24_component.c26` fixtures extend that schedule to24.
+Seventeen gates cover both moving orders,full controls/random timing,nonempty
+edges at24 and the changed Ball-fetch boundaries32/160,uniform row1,and dynamic
+BCD values against ordinary score preparation. Complete live-driver RGB uses
+independent ordinary gameplay AND score pointer preparation. Mutations reject
+stale24 palettes,wrong deferred PF0,wrong boundary Ball masks,missing font-cache
+restoration,delayed handoff and wrong RTS returns. The next-row PF0 refill moves
+from pair4 to pair5; Ball is read/shifted directly in the A-row boundary's HBLANK.
+An eight-byte vector uses cache14..21,real S is22,and the application recovers
+those two bytes by keeping the font base in a phase-dead score-pointer byte.
+Default full drivers remain RAM128/128,one drawing bank3706/3840 both orders.
+Earlier geometry retains its original smaller renderer and prefix ROM equivalence.
+The assembly allowlist also hashes inline statement aliases containing assembly.
 
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a

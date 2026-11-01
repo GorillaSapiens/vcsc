@@ -9,11 +9,12 @@ use warnings;
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mode)=@ARGV;
-defined($mode)&&$mode ne 'independent'&&$mode ne 'prefix'&&$mode ne 'later'&&$mode ne 'boundary'&&$mode ne 'row1'&&$mode ne 'row1_20' and die 'unknown composition mode';
+defined($mode)&&$mode ne 'independent'&&$mode ne 'prefix'&&$mode ne 'later'&&$mode ne 'boundary'&&$mode ne 'row1'&&$mode ne 'row1_20'&&$mode ne 'row1_24' and die 'unknown composition mode';
+my$row24=defined($mode)&&$mode eq 'row1_24';
 my$row1=defined($mode)&&$mode=~/^row1/;
 my$boundary=$row1||(defined($mode)&&$mode eq 'boundary');
 my$later=$boundary||(defined($mode)&&$mode eq 'later');
-my$driver_file=$row1?'row1_interactive':$boundary?'boundary':$later?'later':defined($mode)?'independent':'interactive';
+my$driver_file=$row24?'row1_24':$row1?'row1_interactive':$boundary?'boundary':$later?'later':defined($mode)?'independent':'interactive';
 my$prefix=defined($mode)&&$mode eq 'prefix';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;
@@ -30,6 +31,7 @@ for my$order(qw(above below)){
    $fixture=~s!"later_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/later_component.c26"!g if$later;
     $fixture=~s!"boundary_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26"!g if$boundary;
     $fixture=~s!"row1_interactive_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/row1_interactive_component.c26"!g if$row1;
+    $fixture=~s!"row1_24_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/row1_24_component.c26"!g if$row24;
     if($row1&&$mode eq 'row1_20'){
        my@h=(4,2,2,2,2,4,4,156);
        for my$i(1..8){$fixture=~s/section${i}_lines:=\d+/section${i}_lines:=$h[$i-1]/ or die 'row1 final20 geometry';}
@@ -72,10 +74,10 @@ eval{run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/invalid.c26",'-o',
 $@=~/supports only heights/ or die 'unsupported geometry was not explicitly refused';
 if($prefix||$later){
    my$base=slurp("$repo/test/fixtures/all_five_colors_sections_score/independent.c26");
-    my$renderer=$row1?'row1_interactive_component':$boundary?'boundary_component':$later?'later_component':'prefix_component';
+    my$renderer=$row24?'row1_24_component':$row1?'row1_interactive_component':$boundary?'boundary_component':$later?'later_component':'prefix_component';
    $base=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/$renderer.c26"!g;
    for my$case(
-       $row1?(['beyond','2,2,2,2,2,2,12,152',qr/seams2\.\.22/]):$boundary?(['beyond','2,2,2,2,2,2,8,156',qr/seams2\.\.18/]):(['later','2,2,2,2,2,2,4,160',$later?qr/seam16/:qr/all seams within14/]),
+       $row24?(['beyond','2,2,2,2,2,2,14,150',qr/seams2\.\.24/]):$row1?(['beyond','2,2,2,2,2,2,12,152',qr/seams2\.\.22/]):$boundary?(['beyond','2,2,2,2,2,2,8,156',qr/seams2\.\.18/]):(['later','2,2,2,2,2,2,4,160',$later?qr/seam16/:qr/all seams within14/]),
       $later&&!$boundary?(['beyond','2,2,2,2,2,2,8,156',qr/seams2\.\.14 or18/],['middle16','2,2,2,2,2,6,2,158',qr/seam16/]):(),
       ['odd','3,1,2,2,2,2,2,162',qr/even section heights/],
       ['empty','0,4,2,2,2,2,2,162',qr/first nonempty/],

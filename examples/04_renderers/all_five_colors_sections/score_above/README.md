@@ -20,9 +20,9 @@ edits. Horizontal selection also changes the score colour.
 
 Independent eight-row player colours and four-frame artwork move continuously
 through the section seams. Heights must be nonnegative and even, total176, with
-section one nonempty and section eight at least154 lines. Supported seams are
-2/4/6/8/10/12/14/16/18/20/22, not later positions. Defaults are now
-`4,8,2,2,2,2,2,154`, including adjacent14..22 boundaries. Earlier layouts, including
+section one nonempty and section eight at least152 lines. Supported seams are
+2/4/6/8/10/12/14/16/18/20/22/24, not later positions. Defaults are now
+`4,10,2,2,2,2,2,152`, including adjacent14..24 boundaries. Earlier layouts, including
 `4,0,2,0,4,0,0,166`, remain supported. Configure the eight
 palettes and eleven visual playfield rows in
 `examples/_common/all_five_colors_sections_score_interactive.c26`.

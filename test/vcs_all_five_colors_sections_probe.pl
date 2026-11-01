@@ -17,7 +17,9 @@ use Symbol qw(gensym);
 my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
-my$score_loop=$profile=~/^example_score_(?:above|below)_row1_loop(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated)?$/;
+my$score24=$profile=~/^example_score_(?:above|below)_row1_24(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?$/;
+my$score24_dynamic=$score24&&$profile=~/_dynamic$/;
+my$score_loop=$score24||$profile=~/^example_score_(?:above|below)_row1_loop(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated)?$/;
 my$score_loop_controls=$score_loop&&$profile=~/_controls$/;
 my$score_loop_uniform=$score_loop&&$profile=~/_uniform$/;
 my$score_loop_bad_palette=$score_loop&&$profile=~/_bad_palette$/;
@@ -28,10 +30,12 @@ my$score_extension=$score_boundary||$profile=~/^example_score_(?:above|below)_la
 my$score_prefix=$score_extension||$profile=~/^example_score_(?:above|below)_prefix$/;
 my@score_heights;
 if($score_prefix){
-   @score_heights=split /,/,($geometry//($score_loop?'4,8,2,2,2,2,2,154':$score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
+   @score_heights=split /,/,($geometry//($score24?'4,10,2,2,2,2,2,152':$score_loop?'4,8,2,2,2,2,2,154':$score_boundary?'2,2,2,2,2,6,2,158':$score_extension?'2,2,2,2,2,2,6,158':'4,0,2,0,4,0,0,166'));
    @score_heights==8&&!grep{!/^\d+$/||$_%2}@score_heights or die 'invalid score prefix heights';
    if($edges){my$end=0;my@seams=map{$end+=$_;$end}@score_heights;
-      grep{$_==($proof_seam//16)&&$_<176}@seams or die 'unsupported score proof seam';
+       (grep{$_==($proof_seam//16)&&$_<176}@seams)
+          ||($score24&&defined($proof_seam)&&($proof_seam==32||$proof_seam==160))
+          or die 'unsupported score proof seam';
    }
    $geometry=undef;
 }
@@ -73,12 +77,12 @@ sub preview_palette {
 my$routed=$profile eq 'routed_dense'||$profile eq 'routed_dense_bad_reset'||$preview;
 my$bad_route=$profile eq 'routed_dense_bad_reset';
 my$example_independent=$score_prefix||$profile eq 'example_score_below_independent';
-my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary|_row1_loop(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated)?)?$/?$1:'';
+my$example_score=$profile=~/^example_score_(above|below)(?:_independent|_prefix|_later|_boundary|_row1_(?:loop|24)(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?)?$/?$1:'';
 $profile="score_${example_score}_packed" if$example_score;
 my$bad_score_m0=$profile eq 'score_above_bad_m0';
 my$bad_score_late_m1=$profile eq 'score_above_packed_late_bad_m1';
 my$bad_score_tail_call=$profile eq 'score_below_packed_late_bad_call';
-my$score_dynamic=$profile eq 'score_above_packed_late_dynamic'||$profile eq 'score_below_packed_late_dynamic';
+my$score_dynamic=$score24_dynamic||$profile eq 'score_above_packed_late_dynamic'||$profile eq 'score_below_packed_late_dynamic';
 $profile='score_above_packed_late' if$profile eq 'score_above_packed_late_dynamic';
 $profile='score_below_packed_late' if$profile eq 'score_below_packed_late_dynamic';
 $profile='score_above_packed_late' if$bad_score_late_m1;
@@ -463,10 +467,16 @@ if($fine_spread) {
    }
 }
 if($example_score){
-   my$file=$score_loop?'row1_loop_component':$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
+   my$file=$score24?'row1_24_component':$score_loop?'row1_loop_component':$score_boundary?'boundary_component':$score_extension?'later_component':$score_prefix?'prefix_component':'component';
    $component=slurp("$repo/test/fixtures/all_five_colors_sections_score/$file.c26");
-   $component=~s/TEMPLATE_PF_AT\(20\)/TEMPLATE_PF_AT(18)/ or die 'row1 palette mutation' if$score_loop_bad_palette;
-   $component=~s/\@TEMPLATE_A_c_u4 - 1/\@TEMPLATE_A_c_u5 - 1/g or die 'row1 vector mutation' if$score_loop_bad_vector;
+   if($score_loop_bad_palette){
+      if($score24){$component=~s/TEMPLATE_PF_AT\(24\)/TEMPLATE_PF_AT(22)/ or die 'row24 palette mutation';}
+      else{$component=~s/TEMPLATE_PF_AT\(20\)/TEMPLATE_PF_AT(18)/ or die 'row1 palette mutation';}
+   }
+   if($score_loop_bad_vector){
+      if($score24){$component=~s/\@TEMPLATE_A_c_u5 - 1/\@TEMPLATE_A_c_u6 - 1/g or die 'row24 vector mutation';}
+      else{$component=~s/\@TEMPLATE_A_c_u4 - 1/\@TEMPLATE_A_c_u5 - 1/g or die 'row1 vector mutation';}
+   }
    if($score_prefix){for my$n(1..8){
       $component =~ s/parameter section${n}_lines := \d+;/parameter section${n}_lines := $score_heights[$n-1];/ or die 'prefix height parameter';
       for my$spec(['pf',0],['bk',1]){
@@ -694,6 +704,22 @@ if($fine_spread) {
    $probe =~ s/(      vcs_ntsc_begin_overscan\(\);\n)      game_overscan\(\);/$1      finish_probe_gameplay();/ or die 'fine cleanup call';
 }
 $probe =~ s/include "vcs.c26"/include "vcs.c26"\ninclude "F8\/mapper.c26"/ if$later&&!$edges&&!$score_packed;
+if($score24){
+   # Exercise the complete driver's phase-dead pointer-byte reuse without
+   # sharing it with the ordinary score golden above.
+   my$driver=slurp("$repo/test/fixtures/all_five_colors_sections_score/row1_24.c26");
+    my($body)=$driver=~/inline void prepare_probe_score\(void\) \{(.*?)\n\}/s;
+    defined$body or die 'row24 external pointer preparation';
+    if($score24_dynamic){
+       my($update)=$source=~/bank1 void update_probe_score\(void\) \{(.*?)\n\}/s;
+       defined$update or die 'row24 dynamic score update';
+       $body=$update."\n".$body;
+    }
+   $probe=~s/bank1 void prepare_probe_score\(void\) \{.*?\n\}/bank1 void prepare_probe_score(void) {$body\n}/s or die 'row24 replace preparation';
+   $probe=~s/const uint8_t \*probe_font;\n// or die 'row24 remove persistent font pointer';
+   $probe=~s/   probe_font := score_font;/   asm lda #>score_font;\n   asm sta.z score_pointers + 1;\n   asm lda #<score_font;\n   asm sta.z score_pointers + 7;/ or die 'row24 initial pointer cache';
+   $probe=~s/(      vcs_ntsc_begin_overscan\(\);)/$1\n      asm lda #<score_font;\n      asm sta.z score_pointers + 7;/ or die 'row24 restore pointer cache';
+}
 if($score_loop){
    # Driver-only ROM reduction: the existing bank1 score-preparation call can
    # start VSYNC/VBLANK before gameplay preparation. No visible call changes.
@@ -720,6 +746,10 @@ if($score_loop){
 if($score_loop_relocated){
    $probe=~s/void main\(void\)/bank0 void relocated_raster(void)/ or die 'relocated raster function';
    $probe.="\nvoid main(void) { relocated_raster(); }\n";
+}
+if($score24){
+   $probe=~s/game_row_cache\[20\]/game_row_cache[22]/g;
+   $probe=~s/game_row_cache \+ 20/game_row_cache + 22/g;
 }
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");

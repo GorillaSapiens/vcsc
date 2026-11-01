@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // Experimental bounded-layout score preview, NOT the general renderer ABI.
-// Even colour seams within lines2..22 of176 colourable lines.
+// Even colour seams within lines2..24 of176 colourable lines.
 // Preparation is bank1; all graphics, score and gameplay drawing are bank0.
 parameter section1_lines := 2;
 parameter section2_lines := 2;
@@ -43,8 +43,12 @@ const uint8_t TEMPLATE_late_pf2 := TEMPLATE_playfield[6];
 const uint8_t TEMPLATE_late_pf3 := TEMPLATE_playfield[7];
 #endif
 #if TEMPLATE_section8_lines < 158
-// X runs7/6/5 so the final decrement leaves row base4 for ordinary pair4.
+// Three or four pairs leave X4 for the ordinary successor/refill path.
+#if TEMPLATE_section8_lines < 154
+page const uint8_t TEMPLATE_late_palette[13] := {0,0,0,0,0,TEMPLATE_PF_AT(24),TEMPLATE_PF_AT(22),TEMPLATE_PF_AT(20),TEMPLATE_PF_AT(18),TEMPLATE_BK_AT(24),TEMPLATE_BK_AT(22),TEMPLATE_BK_AT(20),TEMPLATE_BK_AT(18)};
+#else
 page const uint8_t TEMPLATE_late_palette[11] := {0,0,0,0,0,TEMPLATE_PF_AT(22),TEMPLATE_PF_AT(20),TEMPLATE_PF_AT(18),TEMPLATE_BK_AT(22),TEMPLATE_BK_AT(20),TEMPLATE_BK_AT(18)};
+#endif
 #endif
 bank1 page const uint8_t TEMPLATE_prepare_playfield[44] := {TEMPLATE_playfield[0],TEMPLATE_playfield[1],TEMPLATE_playfield[2],TEMPLATE_playfield[3],TEMPLATE_playfield[4],TEMPLATE_playfield[5],TEMPLATE_playfield[6],TEMPLATE_playfield[7],TEMPLATE_playfield[8],TEMPLATE_playfield[9],TEMPLATE_playfield[10],TEMPLATE_playfield[11],TEMPLATE_playfield[12],TEMPLATE_playfield[13],TEMPLATE_playfield[14],TEMPLATE_playfield[15],TEMPLATE_playfield[16],TEMPLATE_playfield[17],TEMPLATE_playfield[18],TEMPLATE_playfield[19],TEMPLATE_playfield[20],TEMPLATE_playfield[21],TEMPLATE_playfield[22],TEMPLATE_playfield[23],TEMPLATE_playfield[24],TEMPLATE_playfield[25],TEMPLATE_playfield[26],TEMPLATE_playfield[27],TEMPLATE_playfield[28],TEMPLATE_playfield[29],TEMPLATE_playfield[30],TEMPLATE_playfield[31],TEMPLATE_playfield[32],TEMPLATE_playfield[33],TEMPLATE_playfield[34],TEMPLATE_playfield[35],TEMPLATE_playfield[36],TEMPLATE_playfield[37],TEMPLATE_playfield[38],TEMPLATE_playfield[39],TEMPLATE_playfield[40],TEMPLATE_playfield[41],TEMPLATE_playfield[42],TEMPLATE_playfield[43]};
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
@@ -86,10 +90,19 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_BYTES := 44,
    TEMPLATE_PLAYFIELD_ROWS := 11,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
+#if TEMPLATE_section8_lines < 154
+   TEMPLATE_WORKSPACE_BYTES := 23,
+   TEMPLATE_PRIVATE_RAM_BYTES := 69,
+#else
    TEMPLATE_WORKSPACE_BYTES := 21,
    TEMPLATE_PRIVATE_RAM_BYTES := 67,
+#endif
    TEMPLATE_PUBLIC_RAM_BYTES := 21,
+#if TEMPLATE_section8_lines < 154
+   TEMPLATE_MODULE_RAM_BYTES := 90
+#else
    TEMPLATE_MODULE_RAM_BYTES := 88
+#endif
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -145,15 +158,19 @@ uint8_t TEMPLATE_player1_nusiz;
 // fourth byte as D1/D2/D3. Bytes 44..45 are harmless lookahead padding: terminal
 // row pair 1 prefetches the nonexistent next-row M1 with the same fixed timing,
 // but that value is never consumed. The first fourteen row-cache bytes are two
-// seven-byte raster banks. The final seven bytes hold score-safe P0/P1 handoff
-// controls plus the caller's hardware stack pointer while S is borrowed as a
-// row base.
+// seven-byte raster banks. The final seven/nine bytes hold score-safe P0/P1
+// handoff controls, dead-RESP return vectors and the caller's hardware stack
+// pointer while S is borrowed as a row base or return-vector cursor.
 uint8_t TEMPLATE_object_masks[46];
+#if TEMPLATE_section8_lines < 154
+uint8_t TEMPLATE_row_cache[23];
+#else
 uint8_t TEMPLATE_row_cache[21];
+#endif
 
 require inline void TEMPLATE_init(void) {
-   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 154 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
-   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and seams2..22";
+   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 152 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
+   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and seams2..24";
    asm .endif;
    asm .if {TEMPLATE_section1_lines | TEMPLATE_section2_lines | TEMPLATE_section3_lines | TEMPLATE_section4_lines | TEMPLATE_section5_lines | TEMPLATE_section6_lines | TEMPLATE_section7_lines | TEMPLATE_section8_lines} & 1;
    asm .error "Combined score preview requires even section heights";
@@ -163,6 +180,13 @@ inline void TEMPLATE_set_initial_palette(void) {
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
 }
+
+// Inline statement alias: saving S must not introduce a hardware-stack frame.
+#if TEMPLATE_section8_lines < 154
+alias TEMPLATE_save_stack() { asm tsx; asm stx.z TEMPLATE_row_cache + 22; }
+#else
+alias TEMPLATE_save_stack() { asm tsx; asm stx.z TEMPLATE_row_cache + 20; }
+#endif
 
 bank1 void TEMPLATE_prepare(void) {
    // Internal assembly helpers add one hidden JSR level.
@@ -520,8 +544,7 @@ bank1 void TEMPLATE_prepare(void) {
    // The visible kernel borrows S as its row-base register. Every component
    // lifecycle call is stack-balanced, so the caller's S here is also the S
    // that must be restored when draw() returns after an optional score-above.
-   asm tsx;
-   asm stx.z TEMPLATE_row_cache + 20;
+   TEMPLATE_save_stack();
 
    // Do not let the later player-only HMOVE move M0/M1/Ball a second time.
    asm lda #0;
@@ -532,8 +555,7 @@ bank1 void TEMPLATE_prepare(void) {
 }
 require inline void TEMPLATE_vblank(void) {
    TEMPLATE_prepare();
-   asm tsx;
-   asm stx.z TEMPLATE_row_cache + 20;
+   TEMPLATE_save_stack();
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta.z TEMPLATE_row_cache + 6;
 }
@@ -617,8 +639,8 @@ require inline void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_row_cache + 13;
    asm sta ENAM0;
 #if TEMPLATE_section8_lines < 158
-   // RESP has released lanes14..19. Five return bytes fit before WSYNC;
-   // the sixth replaces row0's exact eight-cycle pad below.
+   // RESP has released the return lanes. Five/seven bytes fit before WSYNC;
+   // the last replaces row0's exact eight-cycle pad below.
    asm lda #<{@TEMPLATE_score_late_u1 - 1};
    asm sta.z TEMPLATE_row_cache + 14;
    asm lda #>{@TEMPLATE_score_late_u1 - 1};
@@ -627,8 +649,18 @@ require inline void TEMPLATE_draw(void) {
    asm sta.z TEMPLATE_row_cache + 16;
    asm lda #>{@TEMPLATE_score_late_u1 - 1};
    asm sta.z TEMPLATE_row_cache + 17;
+#if TEMPLATE_section8_lines < 154
+   asm lda #<{@TEMPLATE_score_late_u1 - 1};
+#else
    asm lda #<{@TEMPLATE_A_c_u4 - 1};
+#endif
    asm sta.z TEMPLATE_row_cache + 18;
+#if TEMPLATE_section8_lines < 154
+   asm lda #<{@TEMPLATE_A_c_u5 - 1};
+   asm sta.z TEMPLATE_row_cache + 20;
+   asm lda #>{@TEMPLATE_A_c_u5 - 1};
+   asm sta.z TEMPLATE_row_cache + 21;
+#endif
 #endif
    // Keep the setup tail blank; the first cached gameplay line installs the
    // playfield before the visible beam reaches it.
@@ -639,7 +671,11 @@ require inline void TEMPLATE_draw(void) {
    // P0 half is timed to place the first cached pair at cycle 75; every normal
    // pair thereafter is exactly 152 cycles.
 #if TEMPLATE_section8_lines < 158
+#if TEMPLATE_section8_lines < 154
+   asm lda #>{@TEMPLATE_score_late_u1 - 1};
+#else
    asm lda #>{@TEMPLATE_A_c_u4 - 1};
+#endif
    asm sta.z TEMPLATE_row_cache + 19;
    asm bit.z $00;
 #else
@@ -1247,7 +1283,11 @@ require inline void TEMPLATE_draw(void) {
 #if TEMPLATE_section8_lines < 158
    asm ldx #<TEMPLATE_row_cache + 13;
    asm txs;
+#if TEMPLATE_section8_lines < 154
+   asm ldx #8;
+#else
    asm ldx #7;
+#endif
 #else
    asm nop;
    asm ldx #4;
@@ -1287,7 +1327,7 @@ require inline void TEMPLATE_draw(void) {
 #if TEMPLATE_section8_lines < 162
    asm jmp @TEMPLATE_score_late_u1;
    // Row1 is specialised; subsequent A rows retain their ordinary refills.
-   // For seams20/22, one 152-cycle body runs three times via cache14..19.
+   // For seams20..24, one 152-cycle body repeats via the dead RESP lanes.
 #if TEMPLATE_section8_lines < 158
    asm @TEMPLATE_score_late_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
@@ -1328,7 +1368,11 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_late_palette,x;
    asm sta COLUPF;
    asm @TEMPLATE_late_palette_barrier:;
+#if TEMPLATE_section8_lines < 154
+   asm lda.ax TEMPLATE_late_palette + 4,x;
+#else
    asm lda.ax TEMPLATE_late_palette + 3,x;
+#endif
    asm sta COLUBK;
    asm @TEMPLATE_late_barrier_3:;
    PF1 := TEMPLATE_late_pf0;
@@ -1420,6 +1464,11 @@ require inline void TEMPLATE_draw(void) {
 #endif
 #else
    asm jmp @TEMPLATE_A_c_u1;
+#endif
+#if TEMPLATE_section8_lines < 154
+   // Unreachable placement spacer; following .same/.cross contracts still
+   // constrain ordinary A rows at final link.
+   asm .res 7;
 #endif
    asm @TEMPLATE_A_c_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
@@ -1617,7 +1666,7 @@ require inline void TEMPLATE_draw(void) {
    asm lsr.z TEMPLATE_row_cache + 4;
    asm nop;
 
-   // A pair 5: row base is back in X; prefetch next-row Ball.
+   // A pair 5: row base is back in X; prefetch Ball or deferred PF0.
    asm @TEMPLATE_A_c_u5:;
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;
@@ -1631,8 +1680,14 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
    asm cpy.z TEMPLATE_player1_height;
+#if TEMPLATE_section8_lines < 154
+   // The fourth palette pair used pair4's slot; defer PF0 by one pair.
+   asm lda.ax TEMPLATE_playfield + 4,x;
+   asm sta.z TEMPLATE_row_cache + 7;
+#else
    asm lda.zx TEMPLATE_object_masks + 4,x;
    asm sta.z TEMPLATE_row_cache + 11;
+#endif
    asm lda.z TEMPLATE_row_cache + 2;
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
@@ -1819,15 +1874,30 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_boundary:;
    asm lda.z TEMPLATE_row_cache + 6;
    asm sta ENAM0;
+#if TEMPLATE_section8_lines < 154
+   asm lda.zx TEMPLATE_object_masks + 4,x;
+#else
    asm lda.z TEMPLATE_row_cache + 11;
+#endif
    asm sta ENABL;
+#if TEMPLATE_section8_lines < 154
+   // Fetch and shift Ball directly while the left PF writes are still in
+   // HBLANK. Reuse the old padding; every later phase remains unchanged.
+   asm lsr;
+   asm sta.z TEMPLATE_row_cache + 11;
+#endif
    asm lda.z TEMPLATE_row_cache + 0;
    asm sta PF1;
    asm lda.z TEMPLATE_row_cache + 1;
    asm sta PF2;
+#if TEMPLATE_section8_lines < 154
+   asm nop;
+   asm nop;
+#else
    asm lsr.z TEMPLATE_row_cache + 11;
    asm nop;
    asm bit.z $00;
+#endif
    asm ldy.z TEMPLATE_object_masks + 1;
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
@@ -2368,7 +2438,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta ENABL;
    asm sta GRP1;
    // Restore the caller's hardware stack pointer before the inline draw returns.
+#if TEMPLATE_section8_lines < 154
+   asm ldx.z TEMPLATE_row_cache + 22;
+#else
    asm ldx.z TEMPLATE_row_cache + 20;
+#endif
    asm txs;
    asm sta PF0;
    asm sta PF1;

@@ -13,15 +13,16 @@ use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
 my($repo,$tmp,$mutation)=@ARGV;
-my%allowed=map{$_=>1}qw(late_tail independent independent_bad_handoff prefix prefix_bad_palette later later_bad_feed later_bad_handoff boundary boundary_bad_mask boundary_bad_palette row1 row1_bad_palette row1_bad_feed row1_bad_handoff);
+my%allowed=map{$_=>1}qw(late_tail independent independent_bad_handoff prefix prefix_bad_palette later later_bad_feed later_bad_handoff boundary boundary_bad_mask boundary_bad_palette row1 row1_bad_palette row1_bad_feed row1_bad_handoff row24 row24_bad_palette row24_bad_feed row24_bad_ball row24_bad_font row24_bad_handoff);
 defined($mutation)&&!$allowed{$mutation} and die 'unknown live mode';
 my$prefix=defined($mutation)&&$mutation=~/^prefix/;
-my$row1=defined($mutation)&&$mutation=~/^row1/;
+my$row24=defined($mutation)&&$mutation=~/^row24/;
+my$row1=$row24||(defined($mutation)&&$mutation=~/^row1/);
 my$boundary=$row1||(defined($mutation)&&$mutation=~/^boundary/);
 my$later=$boundary||(defined($mutation)&&$mutation=~/^later/);
-my@prefix_heights=$row1?(4,8,2,2,2,2,2,154):$boundary?(2,2,2,2,2,6,2,158):$later?(2,2,2,2,2,2,6,158):(4,0,2,0,4,0,0,166);
+my@prefix_heights=$row24?(4,10,2,2,2,2,2,152):$row1?(4,8,2,2,2,2,2,154):$boundary?(2,2,2,2,2,6,2,158):$later?(2,2,2,2,2,2,6,158):(4,0,2,0,4,0,0,166);
 my$independent=$prefix||$later||(defined($mutation)&&$mutation=~/^independent/);
-my$driver_file=$row1?'row1_interactive':$boundary?'boundary':$later?'later':$independent?'independent':'interactive';
+my$driver_file=$row24?'row1_24':$row1?'row1_interactive':$boundary?'boundary':$later?'later':$independent?'independent':'interactive';
 sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub save {open(my$f,'>',$_[0])or die$!;print{$f}$_[1];close$f or die$!;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;my$o2=<$o>//'';my$e2=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$o2$e2";}
@@ -58,14 +59,16 @@ for my$order(qw(above below)){
    my$s=slurp("$repo/test/fixtures/all_five_colors_sections_score/$driver_file.c26");
     $s=~s!"component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/component.c26"!g;
     $s=~s!"row1_interactive_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/row1_interactive_component.c26"!g if$row1;
+    $s=~s!"row1_24_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/row1_24_component.c26"!g if$row24;
    if($later){
       $s=~s!"later_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/later_component.c26"!g;
       $s=~s!"boundary_component.c26"!"$repo/test/fixtures/all_five_colors_sections_score/boundary_component.c26"!g if$boundary;
       # Put M0 across row1's seam and M1 on row2: the staged row2 refill
       # must not pass a wrong-Ball-mask mutation as a blank-to-blank match.
-       my($m0,$m1)=$row1?(11,18):$boundary?(18,10):(8,18);
+       my($m0,$m1)=$row24?(13,18):$row1?(11,18):$boundary?(18,10):(8,18);
       $s=~s/game_missile0_y := 34;/game_missile0_y := $m0;/ or die 'late M0 pose';
-      $s=~s/game_missile1_y := 62;/game_missile1_y := $m1;/ or die 'late M1 pose';
+       $s=~s/game_missile1_y := 62;/game_missile1_y := $m1;/ or die 'late M1 pose';
+       $s=~s/game_ball_y := 48;/game_ball_y := 18;/ or die 'row24 boundary Ball pose' if$row24;
    }
    if($prefix){
       $s=~s!/component.c26"!/prefix_component.c26"!g;
@@ -76,7 +79,25 @@ for my$order(qw(above below)){
    $s=~s/(as game \([^)]*)\)/$1,section5_colupf:=0x6e,section5_colubk:=0x12,section6_colupf:=0xce,section6_colubk:=0x72,section7_colupf:=0xde,section7_colubk:=0x92,section8_colupf:=0xfe,section8_colubk:=0xb2)/g;
    $s='alias SCORE_BELOW '.($order eq 'below'?1:0)."\n".$s;
    my$gold_source=$s;
-    if($row1&&$mutation ne 'row1'){
+    if($row24&&$mutation ne 'row24'){
+       if($mutation eq 'row24_bad_handoff'){
+          $s=~s/([ \t]*asm jmp \@score_entry;)/        asm bit.z \$00;\n$1/ or die 'row24 handoff mutation';
+       }elsif($mutation eq 'row24_bad_font'){
+          $s=~s/   asm lda #<score_font;\n   asm sta.z score_pointers \+ 7;\n\}/}/ or die 'row24 font-cache mutation';
+       }else{
+          my$c=slurp("$repo/test/fixtures/all_five_colors_sections_score/row1_24_component.c26");
+          if($mutation eq 'row24_bad_palette'){
+             $c=~s/TEMPLATE_PF_AT\(24\)/TEMPLATE_PF_AT(22)/ or die 'row24 live palette mutation';
+          }elsif($mutation eq 'row24_bad_ball'){
+             $c=~s/(\@TEMPLATE_A_c_boundary:;.*?)asm lda.zx TEMPLATE_object_masks \+ 4,x;/${1}asm lda.zx TEMPLATE_object_masks + 5,x;/s or die 'row24 live Ball mutation';
+          }else{
+             $c=~s/(\@TEMPLATE_A_c_u5:;.*?)asm lda.ax TEMPLATE_playfield \+ 4,x;/${1}asm lda.ax TEMPLATE_playfield + 5,x;/s or die 'row24 live PF prefetch mutation';
+          }
+          save("$tmp/wrong_row24.c26",$c);
+          $s=~s!"$repo/test/fixtures/all_five_colors_sections_score/row1_24_component.c26"!"$tmp/wrong_row24.c26"!g;
+       }
+    }
+    if($row1&&!$row24&&$mutation ne 'row1'){
        if($mutation eq 'row1_bad_handoff'){
           $s=~s/([ \t]*asm jmp \@score_entry;)/        asm bit.z \$00;\n$1/ or die 'row1 handoff mutation';
        }else{
@@ -136,6 +157,18 @@ for my$order(qw(above below)){
     if($row1){
        $gold=~s/(bank1 void run_game\(void\) \{)/bank0 void prepare_ordinary_gameplay(void) { game_vblank(); }\n$1/ or die 'ordinary row1 preparation';
        $gold=~s/([ \t]*prepare_game\(\);)/$1\n         prepare_ordinary_gameplay();/ or die 'ordinary row1 preparation call';
+       if($row24){
+          $gold=~s/   game_save_stack\(\);/   asm tsx;\n   asm stx.z game_row_cache + 20;/ or die 'ordinary row24 stack save';
+          # Independently prepare score pointers with the ordinary component;
+          # do not let the candidate's phase-dead cache hide a font-base bug.
+          $gold=~s/external_pointers:=1/external_pointers:=0/ or die 'ordinary row24 score';
+          $gold=~s/bcd24_t score_score := 0;\n// or die 'ordinary row24 score storage';
+          $gold=~s/inline void prepare_probe_score\(void\) \{.*?\n\}/inline void prepare_probe_score(void) {}/s or die 'remove row24 golden pointer math';
+          $gold=~s/   score_init\(\);\n// or die 'remove row24 bank1 score init';
+          $gold=~s/(bank0 void initialize_tables\(void\) \{)/$1\n   score_init();/ or die 'ordinary row24 bank0 score init';
+          $gold=~s/prepare_ordinary_gameplay\(void\) \{ game_vblank\(\); \}/prepare_ordinary_gameplay(void) { game_vblank(); score_vblank(); }/ or die 'ordinary row24 score preparation';
+          $gold=~s/       score_vblank\(\);\n// or die 'remove row24 bank1 score preparation';
+       }
     }else{
        $gold=~s/(       prepare_game\(\);)/$1\n       game_vblank();/ or die 'golden preparation call';
     }
