@@ -104,3 +104,24 @@ Next: schedule actual PF/mask storage intervals rather than folding two PF rows,
 then prove independent score handoffs and full application budgets before public
 extraction. The static path is the no-generator baseline for that work. Do not
 resume seam28/seam30 prefix extensions.
+
+## Runnable no-score integration
+
+The runnable no-score leaf now uses the maintained copy at
+`examples/_common/all_five_colors_sections_global_preview.c26`; the original
+`static_global.c26` remains the frozen baseline used by exact static probes.
+The example's default heights are `6,12,28,34,34,36,40,2`, exposing
+fine boundaries throughout the display, including line190. The complete
+application links at 106/128 RAM bytes (95 objects + 11 stack), bank0 3456/3840
+and bank1 1002/3840. A manual check of the actual leaf passed frame timing,
+all-five controls, endpoints and reset, including its Y=103 clipping endpoint.
+The maintained exact tests continue to consume private fixtures, not editable
+example constants; ordinary example smoke builds cover the runnable leaf.
+
+This is not arbitrary-playfield or score completion. A row/section-intersection
+loop attempt with immediate per-row PF writes exceeded bank0 capacity even for
+the dense first-row geometry, before raster validation. It is not retained as
+maintained source. The remaining redesign must share PF/object pipeline code
+without duplicating row bodies and must schedule all four PF-byte refills in
+addition to the route/M1 refills; promoting this alternating-PF implementation
+to a general public renderer would conceal that unsolved requirement.

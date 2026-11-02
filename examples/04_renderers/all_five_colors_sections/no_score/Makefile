@@ -9,7 +9,7 @@ all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(VCS_DIR)/vcs.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/F8/mapper.c26 \
-           $(ROOT)/examples/_common/all_five_colors_sections_preview.c26 \
+           $(ROOT)/examples/_common/all_five_colors_sections_global_preview.c26 \
            $(ROOT)/examples/_common/all_five_colors_sections_preview_sprites.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 8192

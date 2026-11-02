@@ -70,3 +70,59 @@ Reran reversed palette,moving dense and isolated terminal:3/3 passed with eight
 workers:/tmp/opencode/static-terminal-pose.{log,tsv}. All12 targeted checks now
 pass across the recorded run plus that correction. Full suite remains running;
 record its actual result separately. Code checkpoint3ea367f6 plus pending pose fix.
+
+Runnable no-score integration checkpoint (delivery still incomplete)
+-----------------------------------------------------------------
+User asked to finish;do not confuse this checkpoint with overall completion.
+The maintained display-wide static kernel is now
+examples/_common/all_five_colors_sections_global_preview.c26, copied from the
+frozen static_global fixture. Actual no-score leaf uses it with heights
+6,12,28,34,34,36,40,2 (seams6,18,46,80,114,150,190), ordinary instantiate args.
+Initial-palette aliases preserve the example API. Makefile dependency updated.
+ROM bank0=3456/3840,bank1=1002/3840,RAM106/128=95objects+11stack. OBJECT_MAX_Y103
+allows all five to cross terminal seams with bottom clipping. Existing frozen
+fixture stays row-aligned;existing interactive test now ALSO builds actual leaf,
+checks frame timing,all-five controls/endpoints/reset using new103-max profile.
+Native static probes now exercise maintained example component,not frozen copy.
+Three static dense/mixed/terminal gates pass;actual application timing/controls
+pass. Manual default-geometry exact RGB/glyph/all-five-straddle probe passes.
+That last run exposed another pose-coverage restriction:104-unit sweep selected
+only first-height178. Now select any global geometry with seam188or190;no oracle
+or presence requirement waived. Logs:/tmp/opencode/sections-delivery-targeted.log
+and default probe under /tmp/opencode/sections-default-rgb-fixed.
+
+Arbitrary PF rows and generalized score compositions are STILL NOT IMPLEMENTED.
+Attempted per-row/per-section loop source exceeded drawing-bank capacity for
+dense first-row geometry before raster checks. Saved rejected source only at
+/tmp/opencode/looped-sections-capacity.c26 and development script
+/tmp/opencode/build-looped-sections.pl;neither is maintained/build dependency.
+Do NOT ship them or claim this proves requirements impossible. Need shared-code
+PF/mask refill schedule rather than duplication. No seam28extensions or new
+geometry matrices added. No installed general renderer ABI claimed.
+
+Full eight-worker suite running with logs/timings at
+/tmp/opencode/colors-sections-delivery.{log,tsv};record actual result after
+completion. Mixed pre-existing pending files must not be committed wholesale:
+test/example_assembly_allowlist.pl (our count37),fixtures/example_assembly_allowlist.tsv
+(our new global component entry),vcs_all_five_interactive_example_matrix.cpp
+(our additional103-max profile). Preserve their prior edits and all unrelated
+staged work. No pushes. Refresh make tar after staging new maintained source.
+
+Follow-up:source_tree_hygiene correctly rejects exact tests coupled to editable
+examples. Removed the added actual-leaf block from maintained exact regression
+and restored static probe input to frozen static_global.c26. Actual build,
+timing and103-max controls checks above were run and passed manually using the
+temporary compiled harness;the extra103-max profile is NOT retained in the
+maintained harness. Existing source-independent exact fixtures remain baseline;
+ordinary example build smoke covers actual leaf. No hygiene exemption added.
+Mixed pending files now contain only OUR allowlist count/new-component entry,
+not any new harness hunk. Keep prior pending harness edits unchanged.
+
+Full delivery-suite result recovered after completion:
+591 compile passed;715/717 e2e passed. Only failures were the new component's
+assembly allowlist entry and the editable-example coupling in the exact tests,
+both observed before their in-flight fixes. Reran both through test.pl with
+eight workers after fixes:2/2 passed. Thus all1308 checks passed across full
+run plus focused reruns,NOT a single clean full run. Logs:
+/tmp/opencode/colors-sections-delivery.log and colors-sections-delivery-rerun.log.
+Renderer task remains incomplete despite successful regression validation.

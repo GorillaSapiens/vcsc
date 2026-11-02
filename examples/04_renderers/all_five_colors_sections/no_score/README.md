@@ -21,16 +21,20 @@ each player's eight row colours are independently editable in the `.c26` source.
 The eight section palettes are also editable in the source's `instantiate`
 arguments, along with `section1_lines` through `section8_lines`.
 
-This **experimental row-aligned preview** defaults to seams at visible scanlines
-16, 32, 48, 64, 96, 128 and 160. The eight heights are
-**16, 16, 16, 16, 32, 32, 32, 32**, totaling 192 scanlines.
-Heights must be multiples of 16 and total 192. Section one must be nonempty;
-later slots may have zero height. Finer two-line geometry is not supported yet.
+This **experimental even-line preview** defaults to seams at visible scanlines
+6, 18, 46, 80, 114, 150 and 190. The eight heights are
+**6, 12, 28, 34, 34, 36, 40, 2**, totaling 192 scanlines.
+Heights must be even and total 192. Section one must be nonempty;
+later slots may have zero height. Boundaries can cross playfield rows and may
+be two scanlines apart, including at the bottom of the display.
+Movement extends to Y=103, allowing objects to cross the last boundary and clip
+below the display rather than stopping above it.
 The two visual playfield row
 aliases repeat down the display; edit those aliases rather than individual copies.
-It uses ordinary 8K F8 ROM and 100 of the stock 128 RAM bytes, not cartridge RAM. Drawing and
+It uses ordinary 8K F8 ROM and 106 of the stock 128 RAM bytes, not cartridge RAM. Drawing and
 sprite tables stay in bank0; preparation, initialization and controls use bank1.
 No sprite mirroring or external source generator is required.
 
 The example-local renderer is not installed as a general public component.
-Score-above and score-below combined-colour previews are not supplied yet.
+The sibling score previews retain their bounded geometry; they do not yet use
+this display-wide scheduler. Arbitrary, distinct playfield rows remain unsupported.

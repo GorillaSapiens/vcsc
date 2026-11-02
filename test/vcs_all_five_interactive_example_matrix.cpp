@@ -63,7 +63,7 @@ struct Profile {
 
 Profile parse_profile(const std::string &name) {
    if (name == "all5_192") return {"all5_192", 95, false, false, false, false};
-   if (name == "all5_colors_sections_preview") return {"all5_colors_sections_preview", 95, false, false, false, false};
+    if (name == "all5_colors_sections_preview") return {"all5_colors_sections_preview", 95, false, false, false, false};
    if (name == "all5_above") return {"all5_above", 87, true, false, false, false};
    if (name == "all5_below") return {"all5_below", 87, true, false, false, false};
    if (name == "all5_color181_above") return {"all5_color181_above", 87, true, false, false, true};

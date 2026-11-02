@@ -546,7 +546,7 @@ if($preview&&!$edges) {
    # Player Y is its lower edge: terminal seams188/190 need poses beyond95.
    # Include clipped-below-screen poses, preserving the independent full-glyph
    # and all-five-object straddle checks rather than waiving terminal seams.
-   if(($fine_dense_later||$fine_global)&&$preview_heights[0]==178){
+   if(($fine_dense_later||$fine_global)&&grep{$_>=188}@preview_seams){
       $source =~ s/motion >= 96\) \{ motion -= 96;/motion >= 104) { motion -= 104;/ or die 'terminal dense motion';
    }
 }

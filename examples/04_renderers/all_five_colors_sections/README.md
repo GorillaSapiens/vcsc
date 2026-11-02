@@ -12,9 +12,10 @@
 [`no_score`](no_score/) is a runnable NTSC preview combining independent
 eight-row player colours with continuous playfield/background sections.
 
-**This is not the finished general renderer.** Its eight bands default to heights
-of 16, 16, 16, 16, 32, 32, 32 and 32 scanlines, spread across the display.
-Heights are configurable in 16-line increments.
+**This is not the finished general renderer.** The no-score preview's eight bands
+default to heights of 6, 12, 28, 34, 34, 36, 40 and 2 scanlines. Heights are
+configurable in two-line increments across the entire 192-line display, including
+playfield-row boundaries. It still repeats two playfield patterns.
 
 Runnable combined-colour score previews are now available:
 
