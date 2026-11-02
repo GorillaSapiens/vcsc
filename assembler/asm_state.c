@@ -534,20 +534,32 @@ static int directive_expr_is_ident(const expr_t *expr, const char **name_out)
    return 1;
 }
 
-//! @brief Return proc decl name data used by assembler symbol, scope, and segment state; returned pointers alias existing storage unless explicitly allocated by the function name.
-const char *proc_decl_name(const stmt_t *stmt)
+//! @brief Return a named scope's identifier without taking ownership.
+static const char *scope_decl_name(const stmt_t *stmt, const char *directive)
 {
    const char *name;
 
    if (!stmt || stmt->kind != STMT_DIR || !stmt->u.dir)
       return NULL;
-   if (strcmp(stmt->u.dir->name, ".proc"))
+   if (strcmp(stmt->u.dir->name, directive))
       return NULL;
    if (!stmt->u.dir->exprs || stmt->u.dir->exprs->next)
       return NULL;
    if (!directive_expr_is_ident(stmt->u.dir->exprs->expr, &name))
       return NULL;
    return name;
+}
+
+//! @brief Return the procedure name, which also establishes an o26 layout.
+const char *proc_decl_name(const stmt_t *stmt)
+{
+   return scope_decl_name(stmt, ".proc");
+}
+
+//! @brief Return a lexical scope name without establishing a separate layout.
+const char *lexical_scope_decl_name(const stmt_t *stmt)
+{
+   return scope_decl_name(stmt, ".scope");
 }
 
 //! @brief Return whether exported name applies in assembler symbol, scope, and segment state.
@@ -750,6 +762,7 @@ static void assign_scopes(program_ir_t *prog)
       }
 
       proc_name = proc_decl_name(stmt);
+      if (!proc_name) proc_name = lexical_scope_decl_name(stmt);
       if (proc_name) {
          scope_stack_t *frame;
          char *owned;
@@ -770,7 +783,8 @@ static void assign_scopes(program_ir_t *prog)
          continue;
       }
 
-      if (stmt->kind == STMT_DIR && stmt->u.dir && !strcmp(stmt->u.dir->name, ".endproc")) {
+      if (stmt->kind == STMT_DIR && stmt->u.dir &&
+          (!strcmp(stmt->u.dir->name, ".endproc") || !strcmp(stmt->u.dir->name, ".endscope"))) {
          if (proc_stack) {
             scope_stack_t *frame = proc_stack;
             free(current_scope);

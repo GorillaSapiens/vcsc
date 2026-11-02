@@ -657,11 +657,22 @@ static int add_reloc(o26_segment_buf_t *buf, long offset, unsigned char type, un
    r->has_aux_low = has_aux_low;
    r->aux_low = aux_low;
 
-   if (!buf->relocs)
-      buf->relocs = r;
-   else
-      buf->relocs_tail->next = r;
-   buf->relocs_tail = r;
+   /* Source order need not be packed-image order: a nested procedure or an
+      explicit segment switch can resume an earlier layout. The serialized
+      relocation table uses nonnegative offset deltas, so keep it sorted. */
+   if (!buf->relocs || offset >= buf->relocs_tail->offset) {
+      if (!buf->relocs)
+         buf->relocs = r;
+      else
+         buf->relocs_tail->next = r;
+      buf->relocs_tail = r;
+   } else {
+      o26_reloc_t **at = &buf->relocs;
+      while (*at && (*at)->offset <= offset)
+         at = &(*at)->next;
+      r->next = *at;
+      *at = r;
+   }
    return 1;
 }
 
@@ -1563,6 +1574,8 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
              !strcmp(stmt->u.dir->name, ".zpexport") || !strcmp(stmt->u.dir->name, ".zpimport") ||
              !strcmp(stmt->u.dir->name, ".weak") || !strcmp(stmt->u.dir->name, ".proc") ||
              !strcmp(stmt->u.dir->name, ".endproc") ||
+             !strcmp(stmt->u.dir->name, ".scope") ||
+             !strcmp(stmt->u.dir->name, ".endscope") ||
              !strcmp(stmt->u.dir->name, ".segmentregion") ||
              !strcmp(stmt->u.dir->name, ".segmentalign") ||
              !strcmp(stmt->u.dir->name, ".segmentprivate") ||

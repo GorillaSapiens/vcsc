@@ -50,18 +50,26 @@ my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
 my$bad_fine_pose=$profile eq 'fine_rts_dense_later_bad_pose';
+my$global_c26=$profile=~/^fine_global_c26(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
+my$global_procedures=$global_c26||$profile=~/^fine_global_procedures(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
+my$fine_global=$global_procedures||$profile=~/^fine_global(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
+my$bad_global_refill=$fine_global&&$profile=~/_bad_refill$/;
+my$global_compile=$fine_global&&$profile=~/_compile$/;
 my$fine_dense_later=$profile=~/^fine_rts_dense_later(?:_uniform|_controls|_bad_feed|_bad_pose)?$/;
 my$fine_dense=$fine_dense_later||$profile=~/^fine_rts_dense(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_boundary=$profile=~/^fine_rts_boundary(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_mixed=$fine_boundary||$profile=~/^fine_rts_mixed(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_late=$fine_dense||$fine_mixed||$profile=~/^fine_rts_late(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_rts=$fine_late||$profile=~/^fine_rts(?:_uniform|_controls|_bad_feed)?$/;
-my$fine_controls=$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls'||$profile eq 'fine_rts_dense_later_controls';
-my$fine_eight=$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/&&!$fine_controls);
+my$fine_controls=$profile eq 'fine_global_controls'||$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls'||$profile eq 'fine_rts_dense_later_controls';
+$fine_controls=1 if$global_procedures&&$profile=~/_controls$/;
+my$fine_eight=$fine_global||$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/&&!$fine_controls);
 my$bad_fine_p1=$profile eq 'fine_spread_bad_p1';
-my$fine_spread=$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
+my$fine_spread=$fine_global||$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
 my$bad_fine_feed=$profile eq 'fine_spread_bad_feed'||$profile eq 'fine_rts_bad_feed'||$profile eq 'fine_rts_late_bad_feed'||$profile eq 'fine_rts_mixed_bad_feed'||$profile eq 'fine_rts_dense_bad_feed'||$profile eq 'fine_rts_boundary_bad_feed'||$profile eq 'fine_rts_dense_later_bad_feed';
 my$uniform=$score_loop_uniform||$profile eq 'late_dense_uniform'||$profile eq 'preview_uniform'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_rts_uniform'||$profile eq 'fine_rts_late_uniform'||$profile eq 'fine_rts_mixed_uniform'||$profile eq 'fine_rts_dense_uniform'||$profile eq 'fine_rts_boundary_uniform'||$profile eq 'fine_rts_dense_later_uniform';
+$bad_fine_feed=1 if$fine_global&&$profile=~/_bad_feed$/;
+$uniform=1 if$fine_global&&$profile=~/_uniform$/;
 my$preview=$profile eq 'preview'||$profile eq 'preview_uniform'||$fine_spread;
 $proof_seam //= 16;
 my@preview_heights=split /,/,($geometry//($fine_dense_later?'34,2,2,2,2,2,2,146':$fine_boundary?'16,2,2,2,2,6,16,146':$fine_dense?'2,2,2,2,2,2,2,178':$fine_mixed?'4,22,2,2,16,32,48,66':$fine_late?'2,4,4,2,2,8,8,162':$fine_rts?'2,2,2,2,6,16,32,130':$fine_spread?'2,4,8,16,32,48,64,18':'16,16,16,16,32,32,32,32'));
@@ -452,13 +460,21 @@ if($fine_spread) {
    # Private sparse-phase schedule, not a general geometry implementation.
    # It changes palettes at row offsets 2,6,14; row boundaries retain colour.
    # S holds row X only during drawing; no calls or stack accesses are allowed.
-   for my$seam(@preview_seams) {
+   for my$seam($fine_global?():@preview_seams) {
       grep{$_==$seam%16}($fine_boundary?(0,2,4,6,8,10,12,14):$fine_late?(2,4,6,8,10,12,14):$fine_rts?(2,4,6,8,14):(2,6,14)) or die 'unsupported fine spread phase';
    }
-   my$helper=$fine_dense_later?'fine_dense_later':$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
+   my$helper=$fine_global?'fine_global':$fine_dense_later?'fine_dense_later':$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
    my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/$helper.pl";
    ref$build eq 'CODE' or die "fine spread helper: $@ $!";
-   $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed);
+   my$c26_donors;
+   if($global_c26){
+      my$c26=do "$repo/test/fixtures/all_five_colors_sections_preview/c26_schedule_plan.pl";die$@ if$@;
+      make_path("$tmp/schedule");$c26_donors=$c26->($repo,"$tmp/schedule",\@preview_heights)->{donors};
+   }
+   $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed,$global_procedures,$c26_donors);
+   if($bad_global_refill){
+      $component=~s/asm lda.zx TEMPLATE_object_masks \+ 9,x;/asm lda.zx TEMPLATE_object_masks + 5,x;/ or die 'global late refill mutation';
+   }
     if($bad_fine_p1) {
        # Reproduce the old early-COLUP1 bug without changing line cycles.
        # Sweep seam14: its crossing pose keeps P1 active in this A-row tail.
@@ -765,6 +781,12 @@ if($score26){
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");
 -s"$tmp/probe.bin"==($later||$edges?8192:4096) or die 'unexpected probe ROM size';
+if($fine_global){
+   my$map=slurp("$tmp/probe.map");
+   $map=~/bank0\s+used=(\d+) bytes/&&$1<=3840 or die 'global drawing-bank budget';
+   $map=~/ram\s+used=(\d+) bytes/&&$1<=128 or die 'global stock-RAM budget';
+   if($global_compile){print "vcs_all_five_colors_sections_probe ok\n";exit 0;}
+}
 my$mos="$repo/simulator/mos6502";
 my$obj=-f"$mos/mos6502.o"?"$mos/mos6502.o":"$mos/mos6502.cpp";
 run($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,

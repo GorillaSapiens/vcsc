@@ -1422,10 +1422,12 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
          }
       }
 
-      if (stmt->kind == STMT_DIR && stmt->u.dir && !strcmp(stmt->u.dir->name, ".proc")) {
+      if (stmt->kind == STMT_DIR && stmt->u.dir &&
+          (!strcmp(stmt->u.dir->name, ".proc") || !strcmp(stmt->u.dir->name, ".scope"))) {
          const char *proc_name = proc_decl_name(stmt);
+         if (!proc_name) proc_name = lexical_scope_decl_name(stmt);
          if (!proc_name) {
-            asm_error(ctx, stmt, ".proc expects exactly one identifier name");
+            asm_error(ctx, stmt, "%s expects exactly one identifier name", stmt->u.dir->name);
          } else if (declare_symbol_or_report(ctx, proc_name, stmt)) {
             sym = find_declared_symbol(&ctx->symbols, ctx->prog, stmt, proc_name);
             if (seg->rorg_active) {
@@ -1545,6 +1547,8 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                 !strcmp(stmt->u.dir->name, ".weak") ||
                 !strcmp(stmt->u.dir->name, ".proc") ||
                 !strcmp(stmt->u.dir->name, ".endproc") ||
+                !strcmp(stmt->u.dir->name, ".scope") ||
+                !strcmp(stmt->u.dir->name, ".endscope") ||
                 !strcmp(stmt->u.dir->name, ".segmentregion") ||
                 !strcmp(stmt->u.dir->name, ".segmentalign") ||
                 !strcmp(stmt->u.dir->name, ".segmentprivate") ||
@@ -2271,6 +2275,8 @@ static int directive_emit_pass2(asm_context_t *ctx,
        !strcmp(dir->name, ".weak") ||
        !strcmp(dir->name, ".proc") ||
        !strcmp(dir->name, ".endproc") ||
+       !strcmp(dir->name, ".scope") ||
+       !strcmp(dir->name, ".endscope") ||
        !strcmp(dir->name, ".segmentregion") ||
        !strcmp(dir->name, ".segmentalign") ||
        !strcmp(dir->name, ".segmentprivate") ||

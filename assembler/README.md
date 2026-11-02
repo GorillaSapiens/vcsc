@@ -799,6 +799,12 @@ therefore pin one source-level function to a named memory region without merging
 all functions assigned to that region into one indivisible layout. Procedures
 in unrelated explicit segments retain their existing whole-segment behavior.
 
+Use `.scope NAME` / `.endscope` for lexical label scoping without creating a
+separate layout. These directives emit no bytes and preserve the current
+segment/placement contracts. A global label inside such a scope marks its actual
+location in the enclosing layout; `.endscope` restores the previous local-label
+scope. This is useful for a relocatable entry anchor inside a timed procedure.
+
 ### Component-owned linker constraints
 
 Relocatable assembly components may carry their own final-placement and hidden

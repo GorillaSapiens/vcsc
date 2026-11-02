@@ -10,7 +10,32 @@ objects must move continuously across seams, without restarts or separator
 scanlines. Configure geometry inside .c26, not through a user-facing generator.
 Reuse the certified object pipeline; do not drop its runtime controls.
 
-CURRENT PROBE AND OPEN WORK
+CURRENT SCHEDULER DIRECTION
+---------------------------
+The user rejected boundary-by-boundary two-line progress. Do NOT implement a
+seam28 extension. Plan palette deadlines, live PF/mask refills, parity, row
+handoffs and phase-dead storage jointly; geometry stays configured in .c26.
+Private fine_global_plan/fine_global now prove mixed display-wide placement,
+dense first/middle/late/terminal rows, row-boundary palettes and a line190 seam.
+Four reusable route bytes replace position-growing RTS vectors. M1 palette-boundary
+prefetches use the preceding opposite row's dead lane, or pair six's final dead
+M1 shift plus pad to refill its own row+2 lane. All tested parity/phase unions
+now allocate, including dense2..12 plus boundary16; no extra RAM or visible cycles.
+Zero-byte .scope entry anchors retain actual enclosing-layout relocation; .proc
+would split them into separately movable layouts. All page/branch checks remain.
+See test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md for contracts.
+Whole-block .proc lowering now delegates placement to final linker contracts,
+without private byte-layout phase selection. Sorted assembler relocation records
+fix resumed-layout serialization; terminal jumps retain the parent continuation.
+Private global_schedule.c26 computes allocation from eight height parameters
+using existing assembler macros/equates, with zero RAM/data/planning instructions.
+Its compiled records drive exact RGB/control proofs via a test-only bridge.
+Next: static assembler-conditional .c26 renderer templates consuming those constants,
+not a user generator. This is still private, folds alternating PF, and has no
+certified score/interactive composition. Prove live PF/storage and full app RAM/
+ROM/score handoffs before public extraction. Existing previews retain their limits.
+
+CURRENT PREVIEWS AND OPEN WORK
 ---------------------------
 Runnable combined score previews now live in
 examples/04_renderers/all_five_colors_sections/score_{above,below}/.
@@ -55,7 +80,9 @@ Keep all seam24,integrated22 and private loop gates. Isolated edge candidate use
 untouched lookahead45 for persistent edge state;golden keeps ordinary storage.
 Controls CPU harness must mirror RIOT RAM at stack addresses,as actual hardware
 and the timing harness do; otherwise zero-page RTS vectors read unrelated zeros.
-Expanded checkpoint pending:/tmp/opencode/colors-sections-score-row1-26.{log,tsv}.
+Full checkpoint:591 compile+697 e2e=1288 passed,zero failures,eight workers;
+eight native .c26 gates added afterward also pass separately. Logs:
+/tmp/opencode/colors-sections-global-tail.{log,tsv};global-c26-final.log.
 
 Active request: implement all_five_colors_sections, combining independent
 eight-row player colour tables with continuous all-five colour sections and
@@ -120,7 +147,7 @@ frozen certified fixture; editable examples remain smoke-built independently.
 Sprite orientation fixed: use SPRITE_GLYPH per frame, not top-down raw ROM rows.
 This is NOT a general installed component. OPEN: general fine two-line eight-slot
 geometry and independent composition contracts beyond the bounded score previews.
-Next: generalize compact routing within one draw bank; preserve all pixel oracles.
+Next: the display-wide scheduler above, not another bounded-prefix extension.
 
 Private fine_spread profile: requested 2,4,8,16,32,48,64,18 now passes central
 RGB, independent eight-row glyphs, all-five straddling, uniform PF and ALL edge
@@ -247,21 +274,8 @@ object must show pixels above AND below the seam; old blank-to-blank poses fail.
 Only inherited P0/seam2 priming exemption remains. P1 negative gate now sweeps
 14 (active mutated tail), not30. The55-ROM/880-snapshot four-palette gate has a
 600-second overall budget; per-capture60 seconds/eight workers/pixel checks
-unchanged. Full rerun1172 passed (591 compile+581 e2e):
-/tmp/opencode/colors-sections-terminal-budget.{log,tsv}.
-Shared PNG decoder skips filter0 reconstruction and expands indexed/RGB rows
-in bulk. Exact source-sample regression covers all supported types/filters;
-no captures/checks removed. Prior full suite predates new test discovery.
-Stable full suite:591 compile+636 e2e =1227 passed, zero failures, eight workers.
-Includes six integrated and eleven private score-loop gates,boundary/two-row/prefix/
-independent/coupled gates and prefix ROM equivalence. Log/timings:
-/tmp/opencode/colors-sections-score-row1-integrated.{log,tsv}.
-General even geometry remains unproved. No-score preview stays row-aligned;
-score previews permit all even seams through22. Earlier seam16/18,nonempty edges,
-controls/refill/handoff gates remain intact. Prefix geometry still produces the
-earlier renderer ROM. General later/multiple-row layouts remain OPEN.
-Next: generalize mixed-row geometry and extract configurable .c26 with honest
-independent composition contracts, preserving the runnable score examples.
+unchanged. Superseded checkpoints and PNG decoder details are in daily history;
+current acceptance state and next scheduling work are at the top of this file.
 
 test/vcs_all_five_sections_probe.pl generates a bounded experimental schedule
 from the certified cached all-five renderer. It retains preparation, positioning,

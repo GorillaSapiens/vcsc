@@ -193,39 +193,33 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue item 63's section-colour design, not the shelved stripe-feed machine.
-The user confirmed compile-time section boundaries and requires all five objects
-to move and span sections without restarting. A cached, solid-player-colour
-section timing probe exists in test/vcs_all_five_sections_probe.pl, with normal
-e2e entries for alternating rows and fixed 32/160, 48/144 and 96/96 splits.
-Solid-colour section components are delivered; see their maintained tests/docs.
-Active request is all_five_colors_sections: combine player colour tables with sections and all
-three example compositions. User explicitly requires stock 128-byte RAM.
-User requires ONE draw bank; no mirrored sprites. A no-score interactive preview
-lives in examples/04_renderers/all_five_colors_sections/no_score/ (100/128 RAM).
-Heights now accept 16-line increments totaling 192; two visual PF aliases repeat.
-Combined score-above/below previews now runnable,default4,12,2,2,2,2,2,150 heights;
-independent palettes, four-frame sprites, BCD controls, RAM128/128. Both score
-orders use independent handoffs; below uses a cycle-equivalent JMP, no callback.
-Supported seams2/4/6/8/10/12/14/16/18/20/22/24/26;total176,first nonempty,eighth>=150.
-Later/mixed-row general geometry remains refused. Expanded checkpoint pending;
-bank1 owns the frame loop;
-bank0 application composition saves real S inside its banked call. Both actual
-drivers fit:draw ROM3710 both,bank1 1389/1396;RAM112 objects+16 stack=128. No extra
-state fits. Dead RESP lanes hold relocated local RTS returns,not main offsets.
-Five-pair path primes row2 PF0 in blanking and folds row0 reads at equal cycles.
-Actual S uses dead lookahead44;score font/animation bases reuse phase-dead pointer/
-offset bytes. Earlier renderer geometries remain unchanged.
-Private geometry/control/edge proofs remain; see layers.txt.
-General mixed-row geometry and public extraction remain OPEN.
+Continue item63's combined-colour sections,not shelved stripes. All five objects
+must move across compile-time boundaries continuously. Solid-colour components
+are delivered separately;their maintained tests/docs own completed details.
+Goal:all_five_colors_sections with all three compositions,stock128-byte RAM.
+One drawing bank, no mirrored sprites. Runnable previews are under
+examples/04_renderers/all_five_colors_sections/: no-score has16-line heights
+totaling192 (100/128 RAM); scores accept even seams2..26,total176,first nonempty,
+eighth>=150 (128/128 RAM). Scores return independently;below uses JMP,no callback.
+1288 full-suite plus eight newer native .c26 checks passed,eight workers.
+Actual score draw ROM3710/3840;bank1 1389/1396. Save real S inside bank0's banked
+composition;phase-dead RESP/score-pointer storage details live in layers.txt.
+General geometry/public extraction remain OPEN. User rejected two-line prefix
+extensions:do NOT implement seam28. Private fine_global planner/backend proves
+mixed/dense early-middle-late-terminal layouts and row-boundary palettes through
+line190,using four route bytes. Pair-six dead M1 shift slots now close dense-plus-
+boundary allocation gaps. Private global_schedule.c26 computes allocations with
+existing assembler macros/equates,zero RAM/data/runtime instructions;whole-block
+procedures use final-link branch placement. C26-driven RGB/control proofs pass.
+Next:static .c26 renderer templates consuming that plan without the test bridge.
+Still private,alternating PF only,no score/full app certification. See private
+test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md for contracts.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.
 Section controls: joystick, edge-triggered Select cycling, Reset; no auto motion.
 Solid-player-colour section examples remain separate from combined-colour
 previews. Frozen exact regressions are independent of editable example settings.
 User configuration must live inside .c26; JSON input was rejected and removed.
-Player colour tables
-remain a separate timing gate. No public layer ABI is agreed; production renderers
-are unchanged. See layers.txt for the bounded probe contract.
+No public layer ABI is agreed;production renderers remain unchanged.
 
 `gameplay`; 10 left.

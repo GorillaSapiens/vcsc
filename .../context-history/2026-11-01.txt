@@ -1,0 +1,66 @@
+2026-11-01 22:59:18 PDT, Global refill and native planning proofs
+Continued after4cc55c7f rather than another bounded-prefix extension.
+The previous full run passed591 compile+681 e2e,with two policy failures:
+same-named .test wrappers (already removed) and missing GLOBAL_PLAN.md banner.
+Fixed banner;five policy/relocation/planner reruns passed. No rendering failures.
+
+Closed dense-plus-boundary allocation gap without RAM growth. Pair six's final
+M1 shift is dead because pair seven consumes packed M1;replace its five cycles
+with a seven-cycle row+2 refill and remove the two-cycle right-PF pad. A parity
+with no ordinary donor slots leaves all six slots free in the opposite parity;
+four routes,one cross-row M1 refill,and its own late refill fit. When phase6 was
+ordinary,select the palette-style body at that phase and rewrite the same palette.
+Both parities,dense late layouts,controls,uniform PF and corrupted-refill oracles
+pass. The mutation flag initially vanished during profile normalization;capture
+it before normalization so the negative gate really corrupts the renderer.
+Planner exhausts all unions of up to six parity/phase events plus a row boundary,
+and2000 seeded full-height geometries. No model allocation failures remain there.
+
+Whole-procedure lowering removes the Perl byte-layout helper from placement.
+Normal,packed,boundary and route-data layouts use final .same/.cross/page contracts.
+Export actual scoped entry anchors for inter-layout references. Keep final close/
+return code in the compiler-owned parent layout. The initial terminal procedure
+fell into unrelated placed code;absolute LDX saved-S plus JMP replaces the old
+zero-page LDX and two NOPs at equal nine cycles,preserving the caller continuation.
+Thirty-two geometries compile inside RAM/one-drawing-bank budgets in both lowering
+paths;moving mixed/dense/control/uniform and rejected palette/refill proofs pass.
+
+Procedure lowering exposed a real assembler serialization bug:relocation records
+were emitted in source order,not packed-image offset order. Resuming a parent
+layout after a nested procedure created negative deltas,serialized as large
+positive offsets. add_reloc now keeps ordered records with its existing fast
+append path. Exact nested/resumed-layout byte regression passes. Temporary linker
+diagnostic and assembler logging were removed;no linker source change remains.
+
+Private global_schedule.c26 now plans directly from eight .c26 height parameters
+using existing assembler MACRO/equate facilities,no new compiler syntax. All
+planning emits zero RAM,zero data and zero executable instructions,checked by
+linked main size29 descriptor bytes+6 ordinary loop/fini bytes. Thirty-five
+geometries are independently checked for slot/palette/lifetime correctness.
+The test-only c26_schedule_plan bridge decodes records;actual renderer RGB and
+control gates consume those records and use whole-procedure placement.
+Discarded front-end attempts:enums only accept literal values;chained const scalar
+initializers became runtime startup calculations exceeding64KiB;C aliases do not
+expand inside raw asm. Existing assembler macros avoid all three limitations.
+Assembler grouping is braces,not parentheses;using C parentheses caused parser
+errors before that final implementation. No enum/compiler feature was added.
+
+Still private:renderer lowering uses a test transformation,PF patterns alternate,
+and score/full interactive application budgets are not generalized. Next:static
+.c26 assembler-conditional renderer templates consuming the native plan,then
+arbitrary PF/liveness and independent score composition. Do not resume seam28.
+Current full run:/tmp/opencode/colors-sections-global-tail.{log,tsv};new C26 gates
+were added after that run started and also pass targeted checks. Preserve unrelated
+pending files and staged work;commit only this workstream,nothing pushed.
+
+2026-11-01 23:05:27 PDT, Global scheduling full rerun passes
+Full eight-worker rerun passed591 compile+697 e2e=1288 tests,zero failures.
+Logs/timings:/tmp/opencode/colors-sections-global-tail.{log,tsv}.
+Eight native .c26 allocator/rendering checks added after that run started also
+passed separately with eight workers:/tmp/opencode/global-c26-final.log.
+Those include35 compile-time geometry/lifetime/zero-storage checks and native
+allocation-driven dense/mixed/terminal/controls/uniform RGB plus refill mutation.
+Current code commits:c6c7a66e relocation ordering,51cfcaab native planning/refills.
+No full-suite or targeted failures remain. Public extraction/arbitrary PF/score
+composition remain unfinished as recorded in current hot state. Refresh archive;
+nothing pushed and unrelated pending/staged work remains preserved.

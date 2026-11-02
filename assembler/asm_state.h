@@ -27,6 +27,7 @@ void reset_segment_pcs(asm_context_t *ctx);
 void snapshot_segment_used_sizes(asm_context_t *ctx);
 void ensure_default_segment(asm_context_t *ctx);
 const char *proc_decl_name(const stmt_t *stmt);
+const char *lexical_scope_decl_name(const stmt_t *stmt);
 void publish_segment_symbols(asm_context_t *ctx);
 void gather_segment_defs(asm_context_t *ctx);
 void validate_segment_defs(asm_context_t *ctx);

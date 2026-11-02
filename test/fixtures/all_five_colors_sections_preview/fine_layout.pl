@@ -7,8 +7,10 @@ return sub {
    for my$line(split /\n/,$body){
       $line =~ s/\/\/.*//;$line =~ s/^\s+|\s+$//g;next if$line eq '';
       if($line =~ /^asm (\@\w+):;$/){$labels{$1}=$pc;next;}
+      next if$line =~ /^asm (?:\.scope TEMPLATE_\w+|\.endscope|TEMPLATE_global_entry_\w+:);$/;
       next if$line =~ /^asm TEMPLATE_\w+ = \@\w+;$/;
       if($line =~ /^PF[12] := TEMPLATE_(?:even|odd)_pf[0-3];$/){$pc+=4;next;}
+      if($line =~ /^TEMPLATE_global_pf[12]_abs := TEMPLATE_(?:even|odd)_pf[0-3];$/){$pc+=5;next;}
       if($line =~ /^COLU(?:PF|BK) := \d+;$/){$pc+=4;next;}
       $line =~ /^asm ([a-z]+)(?:\.([a-z]+))?(?: (.*?))?;$/ or die "unknown normal-row statement: $line\n";
       my($op,$mode,$arg)=($1,$2,$3);my$bytes;
@@ -25,7 +27,7 @@ return sub {
       else{die "unmodelled normal-row operand: $line\n";}
       $pc+=$bytes;
    }
-   $pc==$expected or die "row block changed byte size: $pc != $expected\n";
+   $expected eq 'any'||$pc==$expected or die "row block changed byte size: $pc != $expected\n";
    my@phases;
    PHASE:for my$phase(0..255){
       for my$edge(@edges){my($from,$target,$kind)=@$edge;
@@ -38,5 +40,5 @@ return sub {
       push@phases,[$phase,$phase];
    }
    @phases or die 'normal row has no legal page phase';
-   return\@phases;
+   return $expected eq 'any'?{size=>$pc,phases=>\@phases}:\@phases;
 };

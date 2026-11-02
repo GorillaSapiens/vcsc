@@ -242,3 +242,49 @@ so the negative gate must expose actual visible corruption. No oracle relaxed.
 Keep stock128 RAM,one drawing bank,all controls and independent score returns.
 General later/mixed-row geometry,finer no-score placement and public extraction
 remain unfinished. Preserve unrelated pending work;local commits only,no push.
+
+2026-10-31 18:16:21 PDT, Seam26 full checkpoint passes
+Full eight-worker suite passed591 compile+671 e2e=1262 tests,zero failures.
+Logs/timings:/tmp/opencode/colors-sections-score-row1-26.{log,tsv}.
+Both editable score leaves independently match frozen seam26 ROMs byte-for-byte.
+Bank0 remains3710/3840 both orders,bank1 1389/1396,RAM112 objects+16 stack=128.
+History format,source hygiene,assembly allowlist and diff checks also pass.
+Commit only seam26 work and related fixtures/gates/docs;preserve unrelated work.
+Refresh make-tar handoff after recording this checkpoint. Nothing pushed.
+Next:later/multiple-row score scheduling,finer no-score placement,and public
+extraction only after supported geometry/composition contracts are proven.
+
+2026-10-31 19:12:43 PDT, Display-wide scheduler feasibility
+User rejected two-scanline-at-a-time prefix extensions. Stop seam28 work; plan
+palette deadlines, live PF/mask refills, row handoffs and storage jointly.
+Private fine_global_plan/fine_global now allocate four reusable route bytes
+across parity slots and share dead packed tails. Only actual phase14 events
+need palette-specific tails. BL reads/shifts at boundaries; boundary palettes
+require M1 prefetches in the preceding opposite row's dead destination lane.
+An initial two-extra-byte M1 approach overran by two cycles. Direct dead-lane
+prefetch removes both bytes and the overrun; move one INX ahead of right PF2 to
+retain its exact phase. No sprite data mirrors or second drawing bank.
+Pure lexical assembler .scope/.endscope exports actual relocated entry anchors
+while restoring compiler local scope. The discarded .proc anchors were separate
+zero-length movable layouts, silently sharing an unrelated address; dense A
+geometries exposed that. Nested-scope exact linked-byte test now covers this.
+Unaligned route tables produced indexed page-cross cycles beginning at row9;
+align the complete192-byte four-table block, retaining final branch contracts.
+Twelve focused gates pass with eight workers: dense first/middle/late/terminal,
+mixed placements, boundaries, line190/nonempty edges, controls, uniform PF,
+palette mutation, lexical relocation and seeded2000-geometry allocation checks.
+Private backend still assumes alternating PF, uses parity-union slot reservations,
+and rejects some legal layouts; no public .c26 path or score composition yet.
+Do not claim arbitrary geometry or integrated interactive RAM from probe budgets.
+Exact next work and limitations:private GLOBAL_PLAN.md and current hot records.
+Full suite running:/tmp/opencode/colors-sections-global.{log,tsv}.
+Moved superseded hot checkpoints here to retain the64KiB hot-state budget:
+Terminal rerun1172 passed (591 compile+581 e2e),with logs at
+/tmp/opencode/colors-sections-terminal-budget.{log,tsv}. Shared PNG decoder skips
+filter0 reconstruction and expands indexed/RGB rows in bulk;exact source-sample
+regression covers all supported types/filters,no captures/checks removed.
+Integrated22 checkpoint1227 passed (591 compile+636 e2e),eight workers,zero failures,
+logs:/tmp/opencode/colors-sections-score-row1-integrated.{log,tsv}. It included six
+integrated and eleven private score-loop gates,boundary/two-row/prefix/independent/
+coupled gates and prefix ROM equivalence. At that historical checkpoint score
+seams stopped at22;later24/26 work superseded it. General geometry remains open.
