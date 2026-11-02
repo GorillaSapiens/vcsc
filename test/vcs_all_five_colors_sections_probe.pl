@@ -50,9 +50,11 @@ my$bad_colour=$profile eq 'packed_bad_colour';
 my$bad_glyph=$profile eq 'packed_bad_glyph';
 my$bad_dense_refill=$profile eq 'late_dense_bad_refill';
 my$bad_fine_pose=$profile eq 'fine_rts_dense_later_bad_pose';
+my$static_palette=$profile eq 'fine_global_static_palette';
+my$global_static=$profile=~/^fine_global_static(?:_controls|_uniform|_palette|_bad_feed|_bad_refill|_compile)?$/;
 my$global_c26=$profile=~/^fine_global_c26(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
 my$global_procedures=$global_c26||$profile=~/^fine_global_procedures(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
-my$fine_global=$global_procedures||$profile=~/^fine_global(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
+my$fine_global=$global_static||$global_procedures||$profile=~/^fine_global(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
 my$bad_global_refill=$fine_global&&$profile=~/_bad_refill$/;
 my$global_compile=$fine_global&&$profile=~/_compile$/;
 my$fine_dense_later=$profile=~/^fine_rts_dense_later(?:_uniform|_controls|_bad_feed|_bad_pose)?$/;
@@ -63,6 +65,7 @@ my$fine_late=$fine_dense||$fine_mixed||$profile=~/^fine_rts_late(?:_uniform|_con
 my$fine_rts=$fine_late||$profile=~/^fine_rts(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_controls=$profile eq 'fine_global_controls'||$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls'||$profile eq 'fine_rts_dense_later_controls';
 $fine_controls=1 if$global_procedures&&$profile=~/_controls$/;
+$fine_controls=1 if$global_static&&$profile=~/_controls$/;
 my$fine_eight=$fine_global||$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/&&!$fine_controls);
 my$bad_fine_p1=$profile eq 'fine_spread_bad_p1';
 my$fine_spread=$fine_global||$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
@@ -142,6 +145,7 @@ my($body)=$component =~ /(   asm \@TEMPLATE_A_u1:;.*?)   \/\/ B pair 1: fixed 15
 defined$body or die 'initial row boundary';
 my@pal=([0x2e,0x84],[0x46,0xc2],[0x8e,0x26],[0xae,0x64]);
 push@pal,([0x16,0xb4],[0x66,0x34],[0xd6,0x04],[0xf6,0x74]) if$fine_eight||$score_prefix;
+@pal=reverse@pal if$static_palette;
 for my$n(1..6) {
    my$next=$n+1;
    my$end=$n<6 ? "   asm \@TEMPLATE_A_u$next:;" : '   // A pair 7 consumes';
@@ -463,17 +467,22 @@ if($fine_spread) {
    for my$seam($fine_global?():@preview_seams) {
       grep{$_==$seam%16}($fine_boundary?(0,2,4,6,8,10,12,14):$fine_late?(2,4,6,8,10,12,14):$fine_rts?(2,4,6,8,14):(2,6,14)) or die 'unsupported fine spread phase';
    }
-   my$helper=$fine_global?'fine_global':$fine_dense_later?'fine_dense_later':$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
-   my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/$helper.pl";
-   ref$build eq 'CODE' or die "fine spread helper: $@ $!";
    my$c26_donors;
    if($global_c26){
       my$c26=do "$repo/test/fixtures/all_five_colors_sections_preview/c26_schedule_plan.pl";die$@ if$@;
       make_path("$tmp/schedule");$c26_donors=$c26->($repo,"$tmp/schedule",\@preview_heights)->{donors};
    }
-   $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed,$global_procedures,$c26_donors);
+   if($global_static){
+      $component=slurp("$repo/test/fixtures/all_five_colors_sections_preview/static_global.c26");
+      if($bad_fine_feed){$component=~s/TEMPLATE_FEED_pf\(2\)/TEMPLATE_FEED_pf(0)/ or die 'static palette mutation';}
+   }else{
+      my$helper=$fine_global?'fine_global':$fine_dense_later?'fine_dense_later':$fine_boundary?'fine_boundary':$fine_dense?'fine_dense_first':$fine_late?'fine_late':'fine_spread';
+      my$build=do "$repo/test/fixtures/all_five_colors_sections_preview/$helper.pl";
+      ref$build eq 'CODE' or die "fine spread helper: $@ $!";
+      $component=$build->($repo,\@preview_heights,\@pal,$bad_fine_feed,$fine_rts,$uniform,$fine_mixed,$global_procedures,$c26_donors);
+   }
    if($bad_global_refill){
-      $component=~s/asm lda.zx TEMPLATE_object_masks \+ 9,x;/asm lda.zx TEMPLATE_object_masks + 5,x;/ or die 'global late refill mutation';
+      $component=~s/asm lda.zx TEMPLATE_object_masks \+ 9,x;/asm lda.zx TEMPLATE_object_masks + 5,x;/g or die 'global late refill mutation';
    }
     if($bad_fine_p1) {
        # Reproduce the old early-COLUP1 bug without changing line cycles.
@@ -537,7 +546,7 @@ if($preview&&!$edges) {
    # Player Y is its lower edge: terminal seams188/190 need poses beyond95.
    # Include clipped-below-screen poses, preserving the independent full-glyph
    # and all-five-object straddle checks rather than waiving terminal seams.
-   if($fine_dense_later&&$preview_heights[0]==178){
+   if(($fine_dense_later||$fine_global)&&$preview_heights[0]==178){
       $source =~ s/motion >= 96\) \{ motion -= 96;/motion >= 104) { motion -= 104;/ or die 'terminal dense motion';
    }
 }
@@ -654,7 +663,11 @@ if($score_order) {
        $source =~ s/      prepare_probe_score\(\);\n// or die 'ordinary golden score preparation';
     }
 } else {
-   $probe =~ s#renderers/all_five_player_color_192/all_five_player_color_192.c26#$tmp/component.c26# or die 'component include';
+    $probe =~ s#renderers/all_five_player_color_192/all_five_player_color_192.c26#$tmp/component.c26# or die 'component include';
+}
+if($global_static){
+   my$args=join(',',map{my$n=$_+1;sprintf("section%d_lines:=%d,section%d_colupf:=0x%02x,section%d_colubk:=0x%02x",$n,$preview_heights[$_],$n,$pal[$_][0],$n,$pal[$_][1])}0..7);
+   $probe=~s/(instantiate "\Q$tmp\E\/component.c26" as game)/$1 ($args)/ or die 'static geometry instantiation';
 }
 if($score_packed) {
    if($score_dynamic) {
@@ -862,6 +875,8 @@ for my$n(0..$#pal) {
 }
 my$actual=capture('probe',"$tmp/probe.bin");
 my$empty=$source;
+$empty=~s/COLUPF := 0x2e;/COLUPF := $pal[0][0];/g;
+$empty=~s/COLUBK := 0x84;/COLUBK := $pal[0][1];/g;
 for my$name(qw(player0 player1 missile0 missile1 ball)) {
    if($edges) {
       $empty =~ s/(case \d: game_${name}_y := )\d+;/${1}200;/ or die "$name empty edge pose";
@@ -934,7 +949,7 @@ for my$f(200..239) {
    my($aw,$ah,$got)=@{$actual->{$f}};$aw==$w&&$ah==$h or die 'image geometry';
    if($got ne$expected) {
       for my$y(0..$h-1){for my$x(0..$w-1){my$p=($y*$w+$x)*3;
-         substr($got,$p,3)eq substr($expected,$p,3) or die "frame $f RGB mismatch at $x,$y (visible line ".($y-$first).")\n";
+         substr($got,$p,3)eq substr($expected,$p,3) or die "frame $f RGB mismatch at $x,$y (visible line ".($y-$first).", got ".unpack('H6',substr($got,$p,3)).", expected ".unpack('H6',substr($expected,$p,3)).")\n";
       }}
    }
    # Separate, non-overlapping object windows prove actual pixels on both

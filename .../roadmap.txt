@@ -23,8 +23,8 @@ two-scanline prefix extension. The private display-wide planner now proves mixed
 dense early/middle/late/terminal and row-boundary layouts with four reusable route
 bytes. Pair-six dead M1 shifts now close the dense-plus-boundary allocation gap.
 Private .c26 macros/equates compute allocations without state or runtime code;
-whole-block procedures let the linker place branch-contracted bodies. Next:
-static .c26 renderer templates consuming that plan without the private test bridge.
+whole-block procedures let the linker place branch-contracted bodies.
+static_global.c26 now draws from that plan without the private test bridge.
 Still not public support: prove arbitrary PF rows, full app RAM/ROM and independent
 score composition within one drawing bank and stock RAM before extraction.
 See test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md.

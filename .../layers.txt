@@ -27,13 +27,12 @@ See test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md for contracts.
 Whole-block .proc lowering now delegates placement to final linker contracts,
 without private byte-layout phase selection. Sorted assembler relocation records
 fix resumed-layout serialization; terminal jumps retain the parent continuation.
-Private global_schedule.c26 computes allocation from eight height parameters
-using existing assembler macros/equates, with zero RAM/data/planning instructions.
-Its compiled records drive exact RGB/control proofs via a test-only bridge.
-Next: static assembler-conditional .c26 renderer templates consuming those constants,
-not a user generator. This is still private, folds alternating PF, and has no
-certified score/interactive composition. Prove live PF/storage and full app RAM/
-ROM/score handoffs before public extraction. Existing previews retain their limits.
+Private static_global.c26 now embeds allocation and complete conditional kernels:
+ordinary height/colour instantiate parameters,no planning/lowering bridge. Scoped
+row-target labels preserve relocation without address-macro expansion. Static RGB/
+control/mutation gates pass;inactive branch-contract validation is fixed separately.
+Next:actual PF/storage intervals,full application RAM/ROM and score composition.
+Still private,alternating PF only. Existing previews retain their limits.
 
 CURRENT PREVIEWS AND OPEN WORK
 ---------------------------

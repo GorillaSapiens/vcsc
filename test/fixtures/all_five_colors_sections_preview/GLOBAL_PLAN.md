@@ -51,6 +51,28 @@ planning code. It reserves M1 refills first, then assigns own/cross-row routes.
 `fine_global_c26` rendering gates actually consume those records. It is not a
 user input format or the finished configurable renderer. No JSON is involved.
 
+`static_global.c26` now embeds that allocation policy and the complete renderer
+as maintained `.c26` source. Eight heights and sixteen palette bytes are ordinary
+`instantiate` parameters. The `fine_global_static` test path loads no planning or
+lowering helper, does not decode a descriptor cartridge, and invokes only the
+normal compiler/assembler/linker. Existing preview leaves are not switched yet.
+
+Normal bodies select palette/route/M1 slots using assembly conditionals. Packed
+bodies are retained only for actual phase-14 events, with a shared non-writing
+tail otherwise. Complete procedures retain all final-link timing contracts.
+Each row target is a zero-byte scoped label at the selected packed entry, **not
+an equate alias**: equates do not carry the placed label's relocation into o26.
+The first address-macro implementation preserved relocation but expanded every
+candidate at every route-table byte; matrix timeouts motivated the direct anchor
+form. Route tables remain 192 bytes on one page.
+
+All helpers are inline, not `require inline`: inactive/zero-byte assembly arms
+cannot satisfy a required-function link usage contract. Separate helper bodies
+also bound parser stack use. The assembler must skip inactive instructions when
+validating `.same`/`.cross`, just as it does during layout and emission; the new
+`asm_inactive_branch_contracts.pl` checks both inactive acceptance and active
+long-branch rejection. No timing assertion is removed from the active kernel.
+
 The `vcs_all_five_colors_sections_global_*.test` gates cover dense first/middle/
 late/terminal rows, mixed seams, row-boundary palettes, line190, nonempty edge
 poses, runtime object controls, uniform PF, and a rejected palette mutation.
@@ -59,17 +81,26 @@ drawing-bank budgets are checked in each linked map. A 32-geometry compile matri
 checks both lowering paths. The `.c26` allocator is independently checked for
 35 geometries, zero RAM and zero planning instructions, then certified with
 moving RGB/control cases. Palette/refill mutations must fail exact RGB.
+Static gates additionally use hexadecimal palette overrides, reverse all eight
+palettes including the first, and check invalid geometry/colour diagnostics.
+The static 32-geometry compile matrix has its own workload-specific 600-second
+budget; the original two-path matrix keeps 240 seconds. All map gates retain
+128-byte RAM and 3840-byte drawing-bank limits. Snapshot deadlines/worker/process
+cleanup policy is unchanged.
+The final scoped-target static matrix passed in 412.75 seconds. The initial
+terminal moving-palette gate needed the existing 104-unit clipped-terminal pose
+sweep enabled for global profiles too; it then passed without relaxing canonical
+glyph, exact-RGB or nonempty seam-straddle checks.
 
 ## Not yet a public renderer
 
-Renderer lowering is still a private test transformation. The scheduling front
-end now lives in `.c26`, but a static `.c26` renderer has not yet replaced that
-test transformation. It still folds two alternating playfield patterns. Score
-composition, full interactive state/stack budgets and arbitrary playfield rows
-have not been proved. The editable previews retain their previous limits.
+The new static path no longer needs a test transformation, but still folds two
+alternating playfield patterns. Score composition, full interactive state/stack
+budgets and arbitrary playfield rows have not been proved. The editable previews
+retain their previous limits. Do not advertise the private profile as general
+all-five sections support.
 
-Next: connect the `.c26` scheduling constants to static assembler-conditional
-renderer templates with complete procedure blocks, removing the test bridge and
-byte-layout helper from the user path. Then prove live PF/storage intervals and
-independent score handoffs before public extraction. Do not resume seam28/seam30
-prefix extensions.
+Next: schedule actual PF/mask storage intervals rather than folding two PF rows,
+then prove independent score handoffs and full application budgets before public
+extraction. The static path is the no-generator baseline for that work. Do not
+resume seam28/seam30 prefix extensions.

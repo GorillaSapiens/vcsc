@@ -2005,7 +2005,7 @@ static void validate_branch_page_specs(asm_context_t *ctx)
    for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {
       branch_page_spec_t spec;
 
-      if (stmt->kind != STMT_INSN)
+      if (!stmt->active || stmt->kind != STMT_INSN)
          continue;
       spec = stmt->u.insn.branch_page;
       if (spec == BRANCH_PAGE_UNSPECIFIED)

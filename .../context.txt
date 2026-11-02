@@ -210,9 +210,9 @@ mixed/dense early-middle-late-terminal layouts and row-boundary palettes through
 line190,using four route bytes. Pair-six dead M1 shift slots now close dense-plus-
 boundary allocation gaps. Private global_schedule.c26 computes allocations with
 existing assembler macros/equates,zero RAM/data/runtime instructions;whole-block
-procedures use final-link branch placement. C26-driven RGB/control proofs pass.
-Next:static .c26 renderer templates consuming that plan without the test bridge.
-Still private,alternating PF only,no score/full app certification. See private
+procedures use final-link placement. static_global.c26 now draws without a test
+bridge/generator,using scoped row-target anchors. RGB/control gates pass. Next:
+arbitrary PF/storage scheduling,score/full app proof;still private. See private
 test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md for contracts.
 Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
 Runner timeouts clean child groups.

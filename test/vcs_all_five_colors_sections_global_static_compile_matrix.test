@@ -1,0 +1,5 @@
+# runner: perl @REPO@/test/vcs_all_five_colors_sections_global_compile_matrix.pl @REPO@ @TMP@ fine_global_static_compile
+# phase: e2e
+# timeout: 600
+# expectstdout: global compile matrix ok
+# expectexit: 0

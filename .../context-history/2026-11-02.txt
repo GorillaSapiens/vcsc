@@ -1,0 +1,72 @@
+2026-11-02 00:35:14 PDT, Static global renderer replaces test lowering
+Continued from87bbe727. Added maintained private static_global.c26 with the
+native allocator and complete assembler-conditional normal,packed,boundary and
+route-table bodies. Eight heights/sixteen palette bytes are ordinary instantiate
+arguments. fine_global_static loads no planner/lowering helper and decodes no
+descriptor cartridge. Existing public examples/frozen baselines remain untouched.
+Runtime controls,stock RAM,one drawing bank and sprite-table ownership remain.
+
+Whole procedures retain final .same/.cross/page constraints. Split helper functions
+bound parser stack use;the initial monolithic draw exhausted it. Helpers are inline
+but not require-inline because inactive/zero-byte arms have no linker usage.
+The terminal block jumps to the compiler-owned parent close/return code,at the
+certified cycle count. Only actually required packed palettes are emitted.
+Namespace palette-tail barriers independently so multiple active tails coexist.
+
+Direct row-address equates lost o26 relocation,loading tiny packed offsets as
+addresses. Source ADDRESS macros fixed relocation and passed dense/mixed/terminal/
+controls/uniform/mutation RGB,but expanded every candidate at each table byte.
+Both240- and600-second matrix runs timed out;do not describe these as passing.
+Final lowering instead emits each row's TARGET label at the selected packed entry
+inside a zero-byte lexical scope. Tables/initialization reference real relocated
+labels directly. This removes repeated address-macro expansion without weakening
+any branch/page constraint. Retain old independently certified lowering paths.
+
+Assembler validate_branch_page_specs lacked the active-statement guard already
+used for layout/emission. Inactive template arms were rejected as long timing
+branches. Added the guard and a focused inactive-accept/active-reject regression.
+No active timing contract is relaxed. Palette terminal writes use folded C alias
+expressions,not raw assembler parameters,so hexadecimal colour overrides work.
+VBLANK sets the configured first palette as well. Static tests pass parameters
+via instantiate,not by rewriting component defaults. Reject malformed geometry
+and byte-out-of-range palettes;negative instantiate values are rejected earlier
+by the language's integer-literal argument rule.
+
+Reverse-palette test exposed a golden-oracle assumption:empty cartridge retained
+the old palette0 while golden0 changed. Apply actual palette0 to the independent
+empty reference too;do not waive the canonical upright-eight-row glyph checks.
+Detailed RGB failures now include actual/expected RGB bytes. Negative refill
+mutation replaces both static candidate arms,not just an inactive first match.
+
+All first eight static raster/control/uniform/mutation tests passed with eight
+workers. Native targets/hex palettes/invalid-inputs and the32-geometry static
+matrix are being rechecked after anchor/oracle fixes. The original64-build matrix
+still passes;its240-second budget is unchanged. Static32-build workload has600
+seconds,shared60-second snapshots/process-group cleanup remain unchanged.
+Current targeted logs:/tmp/opencode/global-static-anchored-final.log and
+global-static-timings.tsv. Earlier failed macro-expansion logs remain for context.
+
+Still private and alternating PF only. Next:actual PF/mask storage intervals,
+independent score composition/full interactive budgets,then public extraction.
+Do not return to seam28-prefix work. Preserve all unrelated pending/staged work;
+no pushes. Record final test outcome before handoff and refresh with make tar.
+
+Assembler fix committed d51fe9ca. Full eight-worker suite started with final
+anchor-based code:/tmp/opencode/colors-sections-static.{log,tsv}. Final targeted
+run is global-static-anchored-final.log;no static matrix success is yet recorded.
+The later ordinary-empty-reference palette0 fix retains the independent canonical
+glyph requirement,not just whole-raster agreement. First static matrix timeouts
+belong to the superseded address-macro lowering,not the scoped-target version.
+
+2026-11-02 00:42:32 PDT, Static matrix passes and terminal sweep fixed
+Final scoped-target32-geometry compile/budget matrix PASSED in412.75 seconds
+inside its600-second budget. Invalid-geometry/colour contract gate passed52.85s.
+Final targeted run passed11/12;only reverse-palette moving terminal case failed
+the nonempty P0 straddle at188 after passing whole-raster RGB. This was a pose
+coverage issue,not a renderer failure:the104-unit clipped-terminal sweep applied
+only to fine_dense_later,not fine_global. Include global profiles in that same
+existing104-unit sweep when first height178. Keep all glyph/pixel/straddle checks.
+Reran reversed palette,moving dense and isolated terminal:3/3 passed with eight
+workers:/tmp/opencode/static-terminal-pose.{log,tsv}. All12 targeted checks now
+pass across the recorded run plus that correction. Full suite remains running;
+record its actual result separately. Code checkpoint3ea367f6 plus pending pose fix.
