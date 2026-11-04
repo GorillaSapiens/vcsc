@@ -126,3 +126,40 @@ eight workers after fixes:2/2 passed. Thus all1308 checks passed across full
 run plus focused reruns,NOT a single clean full run. Logs:
 /tmp/opencode/colors-sections-delivery.log and colors-sections-delivery-rerun.log.
 Renderer task remains incomplete despite successful regression validation.
+
+Further direct-row diagnostic (not deliverable):
+Continued only in /tmp/opencode, with build-direct-sections.pl producing
+loop-debug/component.c26 and run-loop-probe.pl adapting the existing frozen
+oracle. This is NOT a maintained generator or component. It uses per-row bodies
+and a 38-byte return vector, contradicting the agreed reusable-four-byte design;
+do not promote it. Dense geometry still fails stock drawing-bank placement.
+The diagnostic mapper expands bank0 to3968 only to measure layout;none of its
+builds certify the3840-byte budget. Sparse geometry passes randomized frame
+timing after unrolling mask encoding, but exact RGB STILL FAILS (latest:
+direct-rgb-sparse-colorphase5, frame200 x260 visibleline31). Inactive P1 paths
+retain stale COLUP1 rather than restoring row-zero colour, and ordinary active
+COLUP1 writes are phase69 rather than the golden phase71. Other phase/carry bugs
+were found along the way; passing early pixels is not certification. Raw asm
+`lda #TEMPLATE_pf_...` loads a symbol address, not a folded C constant value;
+use C assignment for folded literals. Shifts between CPY and its branch corrupt
+the height decision. Sprite pointers initialized by bank1 may place graphics in
+bank1, invalid for bank0 drawing; preserve bank0 ownership explicitly.
+No renderer, example, fixture or test changes from this diagnostic were retained.
+No new commit/archive was made. Existing latest handoff and limitations stand.
+Return to shared-code PF/object lifetime scheduling, not this growing-vector
+route or another round of geometry probes. Overall renderer is still unfinished.
+
+Recovery and maintained preparation improvement:
+User explicitly requested a tarball before further work. Created and inspected
+/tmp/vcsc.20261103_001646.tar.gz via make tar, then removed superseded archives.
+Maintained global preview now unrolls its twelve fixed mask encodes using a
+native assembler macro (no generator). Encoding takes336 rather than541 cycles,
+saving205 VBLANK cycles for143 extra bank1 bytes. Actual no-score leaf builds at
+bank0=3456,bank1=1145,RAM106 (95objects+11stack), unchanged drawing/RAM budgets.
+Manual existing exact oracle, redirected only in a temporary wrapper to the
+maintained component, passed default geometry6,12,28,34,34,36,40,2 through seam190
+and randomized-controls/edge geometry16,2,2,2,2,6,16,146. Outputs under
+/tmp/opencode/maintained-global-encode-{default,controls}; wrapper
+/tmp/opencode/check-maintained-global.pl. Frozen fixtures/tests remain untouched.
+This is preparation headroom,NOT arbitrary-PF or score completion. Refresh the
+tarball after committing this change; the initial recovery archive predates it.

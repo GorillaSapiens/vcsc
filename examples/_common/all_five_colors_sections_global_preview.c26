@@ -556,25 +556,33 @@ bank1 void TEMPLATE_prepare(void) {
    // Convert each three-byte row mask from D0..D7 into a D1-ready seven-bit
    // stream. The old D7 bits are packed in the fourth lane as BL/M1/M0 in
    // D1/D2/D3. That lane is consumed only by the final pair of each row.
-   asm ldx #0;
-   asm .scope TEMPLATE_scope_encode_masks;
-   asm TEMPLATE_entry_encode_masks:;
-   asm .endscope;
-   asm asl.zx TEMPLATE_object_masks + 2,x;
+   // These twelve fixed rows cost 336 cycles instead of the indexed loop's
+   // 541. Spend bank1 ROM, not visible-phase slots or additional RIOT RAM.
+   // Each ASL carry must reach its following ROL without a flag-changing
+   // instruction between them; the packed D7 lane remains BL/M1/M0 in D1..D3.
+   asm MACRO TEMPLATE_ENCODE_MASK_ROW row;
+   asm asl.z TEMPLATE_object_masks + row + 2;
    asm lda #0;
    asm rol;
-   asm asl.zx TEMPLATE_object_masks + 1,x;
+   asm asl.z TEMPLATE_object_masks + row + 1;
    asm rol;
-   asm asl.zx TEMPLATE_object_masks,x;
+   asm asl.z TEMPLATE_object_masks + row;
    asm rol;
    asm asl;
-   asm sta.zx TEMPLATE_object_masks + 3,x;
-   asm txa;
-   asm clc;
-   asm adc #4;
-   asm tax;
-   asm cpx #48;
-   asm bcc.same TEMPLATE_entry_encode_masks;
+   asm sta.z TEMPLATE_object_masks + row + 3;
+   asm ENDM;
+   asm TEMPLATE_ENCODE_MASK_ROW 0;
+   asm TEMPLATE_ENCODE_MASK_ROW 4;
+   asm TEMPLATE_ENCODE_MASK_ROW 8;
+   asm TEMPLATE_ENCODE_MASK_ROW 12;
+   asm TEMPLATE_ENCODE_MASK_ROW 16;
+   asm TEMPLATE_ENCODE_MASK_ROW 20;
+   asm TEMPLATE_ENCODE_MASK_ROW 24;
+   asm TEMPLATE_ENCODE_MASK_ROW 28;
+   asm TEMPLATE_ENCODE_MASK_ROW 32;
+   asm TEMPLATE_ENCODE_MASK_ROW 36;
+   asm TEMPLATE_ENCODE_MASK_ROW 40;
+   asm TEMPLATE_ENCODE_MASK_ROW 44;
 
    // Prime cache A with row zero before reclaiming its compact source bytes as
    // visible-phase working Y coordinates and the current source-row offset.
