@@ -1,0 +1,68 @@
+2026-11-03 21:08:10 PDT, Native repeated-pair preview progress
+
+The user rejected stopping after eight minutes and required continued renderer
+work, not more seam-prefix extensions, geometry matrices or preparation tuning.
+
+Added native all_five_colors_sections_repeated_preview.c26 and a stock F8 mapper
+with startup in bank1. The same no-score leaf selects this implementation with
+make repeated / -DALL_FIVE_REPEATED_PREVIEW=1. Default builds remain unchanged.
+The alternative has twelve distinct visual PF rows, all five interactive objects,
+independent P0/P1 colour rows, four animation frames and the seven default seams
+6,18,46,80,114,150,190. All configuration remains ordinary .c26 parameters/data.
+There is no user-facing generator, cartridge RAM, mirrored sprite ROM or growing
+return vector. A two-byte RAM pointer dispatches through page-contained ROM;
+the hardware stack remains available. The large native source is explicit
+compile-time scheduling, not a generated build dependency.
+
+Passing development checks used the existing all_five_colors_sections_probe.pl
+oracle, with a local wrapper pointing at the candidate (frozen fixtures untouched),
+twelve distinct PF rows, and two layouts:
+  6,12,14,32,32,32,32,32 (fine seams in two PF rows)
+  6,12,28,34,34,36,40,2 (the actual seven-seam default)
+These passed exact RGB/glyph/continuity and frame checks for default positions.
+The actual interactive driver with four animation frames also builds and passes
+frame timing. Final maintained-source measurements/checks are recorded below.
+
+NOT complete: runtime control/edge probes fail. The isolated control layout first
+differs at frame207 x312,y27 (visible14): P0 colour changes later than the ordinary
+ancestor's special row-ending pipeline. The default edge probe also differs at
+terminal visible190, x318. No claim of full arbitrary-PF/control certification or
+score composition. Keeping the new build opt-in avoids regressing default users.
+
+Development files under /tmp/opencode (not build dependencies):
+  repeated-pairs-dev.py: first prototype; growing return vector, rejected.
+  repeated-dispatch-dev.py: fixed-pointer source emitter; supplies native candidate.
+  check-repeated.pl: local adapter around the EXISTING exact probe. Set
+    REPEATED_COMPONENT to the maintained source, REPEATED_DISTINCT_PF=1.
+  repeated-mapper.c26: temporary equivalent of the maintained repeated mapper.
+  repeated-row-end-dev.py: later FAILED diagnostic, not the maintained renderer.
+  build-actual-repeated.py: temporary driver experiment, superseded by make repeated.
+Do not depend on these /tmp files surviving; maintained native source is complete.
+
+The failed row-end diagnostic used row-local X and paired normal bodies with a
+shared clipping tail. On the final normal pair, it moves P0 colour/glyph work
+before the boundary's ordinary entry. New boundary entries omit duplicate colour
+work and move P1-counter STY into old padding, preserving pair totals. This fixed
+the first P0 edge difference but exposed P1 early clearing at frame210 x318,y26
+(visible13); the seven-seam default also exceeded final bank placement. It is not
+a replacement renderer. P1's ancestor row-end GRP1 write is around next-line4,
+versus the repeated body's current-line74. A uniform repeated body cannot simply
+retime all P1 writes without breaking ordinary pairs at right-edge positions.
+
+Important implementation lessons:
+* A fixed page of small JMP trampolines lets dispatch fetch only one ROM byte per
+  pair, while keeping a fixed high pointer byte and runtime graphics pointers.
+* The indexed dispatch table itself MUST be page-contained (not only trampolines),
+  otherwise indexed read page crossings add a cycle and silently lengthen frames.
+* Inline normal P1 clipping with a short local branch materially improves final
+  bank packing; moving all clipping paths out to distant cold prefixes did not.
+* ENABL is staged through VDELBL/GRP1: boundaries can install next-row Ball while
+  computing it, freeing later slots to match the ordinary COLUP1 handoff.
+* An inactive P1 path cannot freely move its row-zero colour write: extended/right
+  edge copies can still expose previous graphics at that point in the scanline.
+* Conditional compilation cannot bisect an instantiate argument list. Select a
+  quoted component-path alias before the instantiate statement instead.
+
+The previous positive-height validation and reviewed global/score allowlist
+count/hash corrections remain in the tree. Many unrelated staged runner/solid
+section changes predate this work; never commit them wholesale. Nothing pushed.

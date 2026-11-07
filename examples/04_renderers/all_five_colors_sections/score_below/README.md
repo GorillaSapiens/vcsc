@@ -37,8 +37,8 @@ An incorrectly delayed jump handoff is rejected by an exact-RGB mutation test.
 The older coupled-terminal fixture remains checked but is not used here.
 
 This remains a bounded NTSC preview, not a general combined renderer. Heights
-are even/nonnegative, total176, first section nonempty and eighth at least150.
+are positive and even (at least two scanlines), totaling176, with eighth at least150.
 Boundaries are restricted to2/4/6/8/10/12/14/16/18/20/22/24/26. Default geometry is
-`4,12,2,2,2,2,2,150`, including adjacent16..26 boundaries. Older layouts still work.
+`4,12,2,2,2,2,2,150`, including adjacent16..26 boundaries. Zero-height sections are rejected.
 The bank1 application loop calls the bank0 composition function; the renderer
 does not call back into application or score code.

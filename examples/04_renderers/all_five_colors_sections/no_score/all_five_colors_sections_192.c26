@@ -3,27 +3,51 @@
 // Even-line combined-colour preview; see README.md. Build with make.
 include "vcs.c26"
 include "frame_ntsc.c26"
+#if ALL_FIVE_REPEATED_PREVIEW
+include "../../../_common/all_five_colors_sections_repeated_mapper.c26"
+#else
 include "F8/mapper.c26"
+#endif
 include "playfield.c26"
 
-// Edit these two visual patterns. The preview repeats them down the display.
-// Its boundary schedule folds these alternating rows into immediate PF writes.
+// The default build folds two alternating patterns into immediate PF writes.
+// `make repeated` instead selects the twelve independently editable rows below.
 alias PREVIEW_EVEN_ROW VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..)
 alias PREVIEW_ODD_ROW VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X)
 page const uint8_t game_playfield[48] := {
+#if ALL_FIVE_REPEATED_PREVIEW
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._.X....X._..X..X..),
+   VCS_PLAYFIELD_ROW(0b..XX.XX._X......X_...XX..._X.X..X.X),
+   VCS_PLAYFIELD_ROW(0bXXXX...._....XXXX_X......X_...XX...),
+   VCS_PLAYFIELD_ROW(0bX..XX..X_.XX..XX._..XXXX.._XX....XX),
+   VCS_PLAYFIELD_ROW(0b.X....X._X.X..X.X_.X.XX.X._X......X),
+   VCS_PLAYFIELD_ROW(0bXXX..XXX_...XX..._XX.XX.XX_..X..X..),
+   VCS_PLAYFIELD_ROW(0b.XXXXXX._X......X_.XX..XX._X..XX..X),
+   VCS_PLAYFIELD_ROW(0bX.X.X.X._.X.X.X.X_XX....XX_..XXXX..),
+   VCS_PLAYFIELD_ROW(0b...XX..._XXX..XXX_..X..X.._XX.XX.XX),
+   VCS_PLAYFIELD_ROW(0bX.XXXX.X_.X....X._X......X_.XXXXXX.),
+   VCS_PLAYFIELD_ROW(0bXX....XX_..XXXX.._X.X..X.X_.X.XX.X.),
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_X......X_...XX..._XXXXXXXX)
+#else
    PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
    PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
    PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
    PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
    PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW,
    PREVIEW_EVEN_ROW, PREVIEW_ODD_ROW
+#endif
 };
 
 // Independent bottom-to-top player row colours; all five objects stay live.
 page const uint8_t game_player0_colors[8] := {0x0e,0x2e,0x4e,0x6e,0x8e,0xae,0xce,0xee};
 page const uint8_t game_player1_colors[8] := {0xee,0xce,0xae,0x8e,0x6e,0x4e,0x2e,0x0e};
 // Default seams: 6,18,46,80,114,150,190. Even heights total 192.
-instantiate "../../../_common/all_five_colors_sections_global_preview.c26" as game (
+#if ALL_FIVE_REPEATED_PREVIEW
+alias COMBINED_SECTION_COMPONENT "../../../_common/all_five_colors_sections_repeated_preview.c26"
+#else
+alias COMBINED_SECTION_COMPONENT "../../../_common/all_five_colors_sections_global_preview.c26"
+#endif
+instantiate COMBINED_SECTION_COMPONENT as game (
    section1_lines:=6, section2_lines:=12, section3_lines:=28, section4_lines:=34,
    section5_lines:=34, section6_lines:=36, section7_lines:=40, section8_lines:=2,
    section1_colupf:=0x2e, section1_colubk:=0x84,
@@ -38,7 +62,11 @@ instantiate "../../../_common/all_five_colors_sections_global_preview.c26" as ga
 
 include "../../../_common/all_five_colors_sections_preview_sprites.c26"
 
+#if ALL_FIVE_REPEATED_PREVIEW
+bank0 void update_player_animation(void) {
+#else
 inline void update_player_animation(void) {
+#endif
    game_player0_graphics := p0_animation;
    game_player0_graphics += ((game_PLAYER0_X ^ game_player0_y) & 0x03) << 3;
    game_player1_graphics := p1_animation;
@@ -144,7 +172,16 @@ bank1 void initialize_game(void) {
    game_init();
 }
 
+#if ALL_FIVE_REPEATED_PREVIEW
+bank0 void draw_repeated_frame(void) {
+   vcs_ntsc_end_vblank();
+   game_draw();
+   vcs_ntsc_begin_overscan();
+}
+bank1 void run_repeated_game(void) {
+#else
 void main(void) {
+#endif
    initialize_game();
    update_player_animation();
    while (1) {
@@ -153,12 +190,21 @@ void main(void) {
        COLUPF := game_INITIAL_COLUPF;
        COLUBK := game_INITIAL_COLUBK;
       game_vblank();
-      vcs_ntsc_end_vblank();
-      game_draw();
-      vcs_ntsc_begin_overscan();
+#if ALL_FIVE_REPEATED_PREVIEW
+       draw_repeated_frame();
+#else
+       vcs_ntsc_end_vblank();
+       game_draw();
+       vcs_ntsc_begin_overscan();
+#endif
       game_overscan();
        update_controls();
        update_player_animation();
       vcs_ntsc_end_overscan();
    }
 }
+#if ALL_FIVE_REPEATED_PREVIEW
+void main(void) {
+   run_repeated_game();
+}
+#endif

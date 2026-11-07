@@ -193,33 +193,24 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue item63's combined-colour sections,not shelved stripes. All five objects
-must move across compile-time boundaries continuously. Solid-colour components
-are delivered separately;their maintained tests/docs own completed details.
-Goal:all_five_colors_sections with all three compositions,stock128-byte RAM.
-One drawing bank, no mirrored sprites. Runnable previews are under
-examples/04_renderers/all_five_colors_sections/: no-score has16-line heights
-totaling192 (100/128 RAM); scores accept even seams2..26,total176,first nonempty,
-eighth>=150 (128/128 RAM). Scores return independently;below uses JMP,no callback.
-1288 full-suite plus eight newer native .c26 checks passed,eight workers.
-Actual score draw ROM3710/3840;bank1 1389/1396. Save real S inside bank0's banked
-composition;phase-dead RESP/score-pointer storage details live in layers.txt.
-General geometry/public extraction remain OPEN. User rejected two-line prefix
-extensions:do NOT implement seam28. Private fine_global planner/backend proves
-mixed/dense early-middle-late-terminal layouts and row-boundary palettes through
-line190,using four route bytes. Pair-six dead M1 shift slots now close dense-plus-
-boundary allocation gaps. Private global_schedule.c26 computes allocations with
-existing assembler macros/equates,zero RAM/data/runtime instructions;whole-block
-procedures use final-link placement. static_global.c26 now draws without a test
-bridge/generator,using scoped row-target anchors. RGB/control gates pass. Next:
-arbitrary PF/storage scheduling,score/full app proof;still private. See private
-test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md for contracts.
-Parallel default restored to 8; longer build/snapshot budgets, no blanket serial.
-Runner timeouts clean child groups.
-Section controls: joystick, edge-triggered Select cycling, Reset; no auto motion.
-Solid-player-colour section examples remain separate from combined-colour
-previews. Frozen exact regressions are independent of editable example settings.
-User configuration must live inside .c26; JSON input was rejected and removed.
-No public layer ABI is agreed;production renderers remain unchanged.
+Continue item63: combined-colour sections, all five continuous objects, stock128
+RAM, one drawing bank, no mirrored sprites. All configured heights must be
+positive/even (>=2); do not extend historical frozen zero-height contracts.
+Runnable leaves: examples/04_renderers/all_five_colors_sections/. Default no-score
+retains the alternating-PF scheduler; scores remain bounded to even seams2..26
+with128/128 RAM and independent returns. No seam28 extension or public ABI.
+No-score `make repeated` now builds a separate native repeated-pair preview from
+the same driver: twelve distinct PF rows, four animation frames, fixed two-byte
+dispatch, no stolen S. Row-aligned layouts now have a passing isolated first-row
+P0/P1 handoff; later rows and fine-event layouts remain uncertified. Uniform PF
+inputs expose C26 constant-load folding in old paired writes. Keep it opt-in.
+Next: generalize the corrected final-pair handoff within bank/page/RAM limits,
+protect constant PF writes against load folding, then integrate
+both scores. Do not replace default/frozen regressions with this unfinished path.
+Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.
+Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt, 2026-11-06.txt.
+Keep eight workers, shared60s snapshot deadlines, workload budgets and child-group
+timeout cleanup. Preserve independent leaves, joystick/Select/Reset controls and
+frozen exact tests. Configure directly in .c26, never user-facing generators.
 
 `gameplay`; 10 left.

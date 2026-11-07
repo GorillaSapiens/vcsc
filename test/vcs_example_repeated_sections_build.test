@@ -1,0 +1,6 @@
+# runner: perl @TEST_ROOT@/vcs_examples_build.pl @REPO@ @TMP@ --repeated-colour-sections
+# phase: e2e
+# Two complete native renderer builds and final bank placement under eight workers.
+# timeout: 180
+# expectstdout: repeated colour-section example build ok
+# expectexit: 0

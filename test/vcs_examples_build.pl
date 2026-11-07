@@ -9,7 +9,7 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
-sub usage { die "usage: $0 REPO TMP [--shard INDEX/COUNT]\n"; }
+sub usage { die "usage: $0 REPO TMP [--shard INDEX/COUNT|--repeated-colour-sections]\n"; }
 sub slurp_fh { my($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub capture {
    my(@cmd)=@_; my $err=gensym; my $pid=open3(my $in,my $out,$err,@cmd); close($in);
@@ -34,6 +34,8 @@ sub tigervision_bank_count_from_source {
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
+my $repeated_sections=@ARGV && $ARGV[0] eq '--repeated-colour-sections';
+shift @ARGV if $repeated_sections;
 my($shard_index,$shard_count);
 if (@ARGV) {
    shift @ARGV eq '--shard' or usage();
@@ -50,6 +52,36 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+if ($repeated_sections) {
+   # Editable-example smoke/budget gate, deliberately separate from frozen
+   # exact-pixel/control certifications. Do not add a golden oracle here.
+   my $leaf="$repo/examples/04_renderers/all_five_colors_sections/no_score/all_five_colors_sections_192.c26";
+   my $aligned=read_file($leaf);
+   my @heights=(16,16,16,16,32,32,32,32);
+   for my $n (1..8) {
+      $aligned=~s/(section${n}_lines\s*:=\s*)\d+/$1$heights[$n-1]/
+         or die "missing row-aligned example height$n\n";
+   }
+   open(my $fh,'>:raw',"$tmp/repeated_aligned.c26") or die "write aligned example: $!\n";
+   print {$fh} $aligned; close($fh) or die "close aligned example: $!\n";
+   for my $case (['repeated',$leaf],['repeated_aligned',"$tmp/repeated_aligned.c26"]) {
+      my($name,$source)=@$case;
+      my($rc,$sig,$out,$err)=capture($driver,'-DALL_FIVE_REPEATED_PREVIEW=1',
+         '-I',$vcs,'-I',dirname($leaf),'-Map',"$tmp/$name.map",$source,
+         '-o',"$tmp/$name.bin");
+      !$rc && !$sig or die "$name example build failed: $out$err";
+      -s "$tmp/$name.bin" == 8192 or die "$name preview must remain stock F8\n";
+      my $map=read_file("$tmp/$name.map");
+      for my $bank (qw(bank0 bank1)) {
+         my($used)=$map=~/^\s+\Q$bank\E\s+used=(\d+) bytes/m;
+         defined($used) && $used<=3840 or die "invalid $name $bank budget\n";
+      }
+      my($ram)=$map=~/^\s+ram\s+used=(\d+) bytes/m;
+      defined($ram) && $ram<=128 or die "$name preview exceeds stock RAM\n";
+   }
+   print "repeated colour-section example build ok\n";
+   exit 0;
+}
 -f $roundtrip or die "missing disassembler round-trip verifier $roundtrip\n";
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;

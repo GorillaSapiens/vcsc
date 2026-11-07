@@ -185,8 +185,8 @@ uint8_t TEMPLATE_pf1_absolute @[none/0x10E];
 #endif
 
 require inline void TEMPLATE_init(void) {
-   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 150 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0;
-   asm .error "Combined score preview requires total176, nonnegative heights, first nonempty and seams2..26";
+   asm .if TEMPLATE_section1_lines + TEMPLATE_section2_lines + TEMPLATE_section3_lines + TEMPLATE_section4_lines + TEMPLATE_section5_lines + TEMPLATE_section6_lines + TEMPLATE_section7_lines + TEMPLATE_section8_lines != 176 || TEMPLATE_section8_lines < 150 || TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines <= 0 || TEMPLATE_section3_lines <= 0 || TEMPLATE_section4_lines <= 0 || TEMPLATE_section5_lines <= 0 || TEMPLATE_section6_lines <= 0 || TEMPLATE_section7_lines <= 0;
+   asm .error "Combined score preview requires total176, positive heights and seams2..26";
    asm .endif;
    asm .if {TEMPLATE_section1_lines | TEMPLATE_section2_lines | TEMPLATE_section3_lines | TEMPLATE_section4_lines | TEMPLATE_section5_lines | TEMPLATE_section6_lines | TEMPLATE_section7_lines | TEMPLATE_section8_lines} & 1;
    asm .error "Combined score preview requires even section heights";

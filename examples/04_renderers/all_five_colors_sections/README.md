@@ -15,7 +15,11 @@ eight-row player colours with continuous playfield/background sections.
 **This is not the finished general renderer.** The no-score preview's eight bands
 default to heights of 6, 12, 28, 34, 34, 36, 40 and 2 scanlines. Heights are
 configurable in two-line increments across the entire 192-line display, including
-playfield-row boundaries. It still repeats two playfield patterns.
+playfield-row boundaries. Its default build still repeats two playfield patterns.
+The same leaf's opt-in `make repeated` build instead demonstrates twelve distinct
+PF rows with a native repeated two-scanline renderer and fixed two-byte dispatch.
+That build is also unfinished: edge/NUSIZ timing and score integration remain open.
+See its [limitations](no_score/README.md#opt-in-repeated-pair-build-unfinished).
 
 Runnable combined-colour score previews are now available:
 
@@ -28,12 +32,12 @@ Reset, four-frame upright artwork, independent player row colours, and
 right-joystick BCD editing. They use **128/128 bytes of stock RAM**, ordinary F8
 ROM, and one drawing bank, with no mirrored sprite tables.
 
-The score previews accept nonnegative **even** heights totaling **176**, with
-section one nonempty and section eight at least **150** lines. Supported
+The score previews accept positive **even** heights totaling **176**, with
+every section at least **2** lines and section eight at least **150**. Supported
 boundaries are **2,4,6,8,10,12,14,16,18,20,22,24 and 26**; later positions are explicitly
 rejected. Defaults are now `4,12,2,2,2,2,2,150`, including adjacent seams16..26.
-The earlier `2,2,2,2,2,2,2,162` and `4,0,2,0,4,0,0,166` layouts still work and
-compile out the additional row1 drawing path. Middle slots may be empty.
+The earlier `2,2,2,2,2,2,2,162` layout still works and compiles out the additional
+row1 drawing path. Zero-height sections are rejected in both score and no-score previews.
 Gameplay setup/tail completes the 181-line component.
 The application loop lives in bank1 and calls a bank0 composition function;
 both renderers still return independently. The RAM budget includes sixteen

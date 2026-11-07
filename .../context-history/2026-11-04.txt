@@ -1,0 +1,125 @@
+2026-11-04 16:35:34 PDT, Repeated preview build-policy correction
+
+User requested continued work. The prior background suite returned failure, but
+its /tmp log and all /tmp/opencode development files were removed between turns;
+do not claim a clean full run or infer its complete failure list. Native sources
+and the opt-in runnable target are preserved in the tree.
+
+A focused rerun exposed the new build-only test's placement violation: the exact
+regression policy rejects editable example paths in dedicated Perl/C++ drivers.
+Moved the smoke/budget operation into the EXISTING vcs_examples_build.pl harness,
+selected by --repeated-colour-sections and a small .test runner. Deleted the new
+dedicated Perl build driver. No policy exemption or golden fixture coupling was
+added. The repeated build, assembly allowlist, source hygiene and example inventory
+then passed four focused checks with eight workers.
+
+The supplied actual repeated build uses bank0 3700/3840, bank1 1419/3840 and stock
+RAM94/128 (79 objects +15 hardware-stack). Prior exact distinct-row/default-pose
+checks and frame timing are recorded in 2026-11-03.txt; extended edge control and
+both score compositions remain unfinished. Default no-score still builds with
+bank0 3456, bank1 1145 and RAM106/128. Do not silently promote the opt-in build.
+
+Restarted the complete suite with eight workers. Its log is now the workspace's
+ignored test/test_output_RPTS, not /tmp, so it can survive another turn. The suite
+result, selected local commit and refreshed make-tar handoff still need recording.
+
+2026-11-04 16:54:49 PDT, Repeated handoff diagnostics and checks
+
+Reconstructed /tmp/opencode/check-repeated.pl around the existing exact oracle.
+It swaps only the candidate component/mapper, keeps the ordinary golden source,
+and gives each PF row four distinct bytes. Candidate drawing is explicitly bank0;
+the stock repeated mapper starts main in bank1, so main calls a bank0 raster
+function. Motion arithmetic stays bank1; control graphics-pointer assignment
+stays bank0. This is temporary diagnostic tooling, not a build dependency.
+
+The finalized maintained source passes exact RGB/glyph/continuity on geometry
+6,12,28,34,34,36,40,2 with twelve distinct PF rows and default positions. Its
+controls profile on 6,12,14,32,32,32,32,32 reproduces frame207 x312,y27 (visible14),
+got ae7bfa, expected6e7bfa. No frozen fixture, oracle or expectation was changed.
+
+A new /tmp/opencode/dispatch-select.pl diagnostic moves P0 selection after the
+indirect dispatch. Per-destination selectors preserve ordinary pair totals and
+move final-pair colour before GRP0, with inactive colours handled separately.
+It does NOT solve the handoff: after moving test control arithmetic to bank1,
+row-aligned 16,16,16,16,32,32,32,32 passes timing but differs at frame207 x308,y27,
+got6e7bfa, expected6ebcfa. Fine-event geometries also exceed bank0 placement.
+Do not promote this candidate. The maintained fixed-pointer source is unchanged.
+Merely relocating colour and keeping the total pair length is insufficient;
+the ancestor's final-pair GRP0/GRP1 phases also need to remain exact.
+
+The ongoing full suite exposed history-header and example-play policy failures.
+New history headers used the local date tool's MST token, but this repository's
+header grammar requires the literal PDT token. Kept recorded clock values and
+normalized only that required token. The two-output Makefile now uses the
+standard play shell loop for the default ROM, with an explicit play-repeated
+target for the opt-in ROM; normal play still does not build/promote the preview.
+All six focused build/allowlist/hygiene/inventory/history/play checks pass.
+
+The actual make-repeated build remains bank0 3700, bank1 1419, RAM94/128 and
+passes 420-frame raw264 timing (417 measured live frames). The timing tool's
+success string still incorrectly says262; its --raw-lines264 assertion is used.
+
+2026-11-04 17:01:34 PDT, Exact row-ending TIA phase evidence
+
+Added a temporary trace hook to a copy of vcs_frame_timing.cpp; the maintained
+timing test is untouched. /tmp/opencode/make-phase-trace.pl emits phase-trace.cpp,
+compiled against the existing mos6502.o. At VSYNC assertion208, frame-relative
+line54 covers the first PF-row handoff in the controls profile. Cycle phases are
+virtual_cycles modulo76, not relative to the potentially offset VSYNC assertion.
+
+Maintained repeated versus ordinary gold_0, geometry6,12,14,32,32,32,32,32:
+  repeated line54 GRP0 phase68, COLUP0 phase7;
+  ordinary line54 COLUP0 phase68, GRP0 phase0.
+The frame-relative line counter's origin differs from modulo76, which explains
+phase68 followed by phase0 under the same printed line54. Ordinary non-ending
+P0 writes are GRP0phase68/COLUP0phase6; repeated is68/7. Repeated normal GRP1 is
+phase6 versus ordinaryphase3; ordinary final normal pair usesphase12 before the
+boundary's shared phase2 transfer. The inactive repeated P1 path uses a TIA mirror
+that this simple low-$80 write hook omits, so absence of COLUP1 in its log is NOT
+evidence of no colour write.
+
+The dispatch-select diagnostic is invalid for more than P0 colour: it moves ALL
+normal GRP0 writes after the indirect dispatch (phase0 instead of68). Its final
+COLUP0phase75/GRP0phase7 still differs from ordinary68/0. Pair/frame timing alone
+does not certify this rearrangement. Keep this failed candidate outside the tree.
+
+Both maintained-source distinct-PF default-pose geometries have now been rerun
+successfully, not merely inherited from the prior emitter:6,12,14,32,32,32,32,32
+and6,12,28,34,34,36,40,2. Local workstream commit cd54f205 preserves the opt-in
+implementation and build/policy fixes; unrelated staged work was not committed.
+
+2026-11-04 17:16:57 PDT, Completed suite and timeout follow-up
+
+The eight-worker full run completed:1306 passed,3 failed,1309 total. Its retained
+log is test/test_output_RPTS. Failures were context_history_format.pl and
+example_play_makefiles.pl (both fixed and passing focused reruns before that
+background run finished), plus the unchanged frozen
+vcs_all_five_colors_sections_global_static_compile_matrix.test timing out at its
+600-second budget. Do not report the full suite as green.
+
+Started an eight-worker focused rerun of those three checks after the broad load
+ended. Its compile matrix result is still pending. No timeout, process-group
+cleanup, fixture, compiler or snapshot-deadline policy was changed to conceal the
+timeout. This matrix targets the existing frozen static scheduler, not the new
+opt-in repeated source. Follow up its result before deciding whether the timeout
+is load-sensitive or reproducible.
+
+2026-11-04 17:22:44 PDT, All three failed checks pass on rerun
+
+The eight-worker focused rerun completed successfully:3 passed,0 failed. History
+format, example playback and the frozen static compile matrix all pass. The
+matrix kept its original600-second timeout; no code, geometry or budget change
+was needed. This supports a load-sensitive timeout, not a reproduced compiler
+failure. The complete suite has NOT been rerun after these fixes; report the
+original1306/1309 result plus all three successful reruns, not a green full run.
+Remaining renderer work is unchanged: exact P0/P1 row-ending phases and then both
+score compositions, keeping the native repeated build opt-in until certified.
+
+2026-11-04 20:48:42 PDT, Fix playback warning inside ROM loop
+
+User reported compile-only suite590/591: example_stella_play_contract.pl rejected
+the no-score Makefile because its settings warning preceded the shell loop rather
+than immediately preceding Stella. Moved the warning inside the loop immediately
+before the launch, preserving opt-in/default separation and the existing flags.
+Both playback contracts pass together. Full eight-worker compile-only rerun:
+591 passed,0 failed. No test or contract was weakened. Renderer status unchanged.

@@ -1,0 +1,97 @@
+2026-11-06 18:09:00 PDT, First-row repeated handoff integration
+
+User requested continued renderer work. Added a native, automatically scheduled
+first-row handoff for row-aligned layouts only (all eight heights multiples16).
+The default seven-fine-seam layout keeps its old path. This is a bounded renderer
+fix, NOT completion, a new public ABI, or a promotion of the opt-in preview.
+
+The first six ordinary pairs now repeat with local X6..1, keeping the ancestor's
+normal clipping pipeline. A separate seventh pair retains its special P1 clipping
+and updates active P0 colour before its cycle0 GRP0 write. The boundary retains
+the ordinary late inactive P1 colour write, including LDY0. Do not substitute an
+early colour-zero store: extended copies can still expose the previous glyph.
+
+Correct boundary packing: after staging next-row Ball in ENABL, the dispatch low
+byte is dead and reused for D1-ready next-row M1. X holds the next PF colour,
+loaded in four cycles from a one-byte ROM constant. The boundary uses LDA stage /
+STA ENAM1 / STX COLUPF / ordinary COLUBK assignment. Its three extra cycles versus
+the ancestor's M1 load/store/shift replace three dead INX cycles before the next
+right PF writes. Counter reset/global-X restoration moves into final padding.
+The dispatch high byte remains fixed; row1's normal body reloads dispatch low
+before any indirect jump. No extra RAM, growing vector, stolen S or sprite table.
+
+The first-row entry is one cycle earlier than the previous fixed-pointer path;
+one extra cycle at its exit preserves every later row's old phase. Both changes
+are necessary: globally shifting the old rows caused a PF difference at visible160.
+The ordinary loop shifts M0 before CPY P1; putting LSR after CPY clobbers carry
+and can load out-of-range graphics, silently lengthening some frames.
+
+The maintained native source passed the existing FULL-frame exact oracle through
+a temporary candidate adapter on 16,16,16,16,32,32,32,32, isolated seam16 controls,
+twelve distinct PF rows, runtime heights, pointer changes and NUSIZ. This is a
+first-boundary control proof, not certification of later sprite poses/rows.
+The seven-seam default6,12,28,34,34,36,40,2 also passes its distinct-PF/default-pose
+oracle after integration. Frozen oracle drivers/fixtures were not changed.
+
+Expanded the EXISTING editable-example smoke/budget gate to build both the actual
+default repeated example and a temporary row-aligned copy, preserving hexadecimal
+colour arguments. The latter uses bank0 3202,bank1 1419,RAM94/128. The supplied
+fine-seam build keeps bank0 3700,RAM94; one unused ROM constant adds one bank1 byte
+(1420). The hardware-stack reservation remains15, objects79. Build/allowlist/
+source-hygiene/inventory checks passed with eight workers before final doc cleanup.
+
+Failed broader prototype: cloning the certified ordinary-loop/seventh-pair/
+boundary sequence for all twelve distinct PF rows exceeds bank0 placement. It is
+NOT the maintained renderer. Do not simply replicate this first-row body eleven
+more times. Temporary row-local.py can emit that failed full clone or the passing
+hybrid; check-repeated.pl adapts the existing oracle, and phase.cpp traces TIA
+writes. These /tmp/opencode files are NOT dependencies and may disappear. The
+passing first-row machine schedule is now maintained directly in the .c26 source.
+
+Toolchain lessons: C26 const objects are ROM bytes, not assembler immediates;
+"lda #object" loads its ADDRESS. Raw hexadecimal parameter text in "ldx #param"
+is not normalized for the assembler. The four-cycle ROM LDX avoids both issues.
+Restricted #if expressions do not accept the scheduler's bitwise calculation;
+ROW_END_ALIGNED is therefore a native assembler constant emitted by schedule_header,
+and .if controls drawing-body emission just like the existing native scheduler.
+
+Newly exposed remaining limitation: uniform PF inputs fail whole-frame timing
+(255 raw lines in the initial candidate). Consecutive C26 constant assignments
+can fold a repeated LDA away. Added explicit zero-cycle label barriers between
+paired C26 PF writes in the NEW first-row body. OLD normal/event/boundary bodies
+still need the same protection; uniform PF rendering is NOT certified. Do not
+weaken the frame oracle or add waits that conceal accumulated per-pair drift.
+
+Next: generalize the proven final-pair/boundary phases without cloning all twelve
+large bodies; close constant-PF folding holes, then integrate fine-event layouts
+and both score compositions. The ordinary default renderer is unchanged.
+
+Final checks on the maintained source, including its explicit PF barriers:
+591/591 compile-only tests,6/6 focused build/policy/history/play checks, and the
+isolated seam16 exact controls probe all pass. Both actual repeated example ROMs
+pass420-frame raw264 timing (417 live frames each; the tool's success wording
+still incorrectly says262). Final row-aligned budgets remain3202/1419/RAM94,
+fine-seam supplied budgets3700/1420/RAM94. Full1309-test suite was not rerun here.
+
+2026-11-06 21:08:49 PDT, Budget the paired repeated build gate
+
+User's full eight-worker e2e run finished717/718: only the repeated example gate
+timed out. Its new .test runner lacked explicit timeout metadata and inherited
+the generic45-second budget despite now doing TWO complete native C26 builds and
+final bank placements. Added a workload-specific180-second timeout to that runner
+only. No build/RAM/bank assertion, global timeout, snapshot deadline, worker count
+or process-group cleanup was changed.
+
+Focused eight-worker rerun: repeated build gate, runner_process_group_smoke.pl and
+vcs_diagnostic_subprocess_timeout.pl all pass (3/3). Started a complete eight-worker
+e2e rerun with retained workspace log test/test_output_RPT2; result still pending.
+This is not evidence of a clean full run yet. Renderer limitations are unchanged.
+
+2026-11-06 21:33:22 PDT, Complete e2e rerun passes
+
+The complete eight-worker e2e rerun finished718 passed,0 failed,718 total.
+Retained log: test/test_output_RPT2. This includes the paired repeated example
+build gate with its explicit180-second workload budget. Together with the prior
+591/591 compile-only run, both phases have successful complete runs (not one
+new combined invocation). Renderer row/fine-event/uniform-PF/score limitations
+remain unchanged; passing maintained regressions does not certify those paths.

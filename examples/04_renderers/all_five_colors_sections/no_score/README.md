@@ -24,8 +24,8 @@ arguments, along with `section1_lines` through `section8_lines`.
 This **experimental even-line preview** defaults to seams at visible scanlines
 6, 18, 46, 80, 114, 150 and 190. The eight heights are
 **6, 12, 28, 34, 34, 36, 40, 2**, totaling 192 scanlines.
-Heights must be even and total 192. Section one must be nonempty;
-later slots may have zero height. Boundaries can cross playfield rows and may
+Every height must be positive and even (at least two scanlines), totaling 192.
+Zero-height sections are rejected. Boundaries can cross playfield rows and may
 be two scanlines apart, including at the bottom of the display.
 Movement extends to Y=103, allowing objects to cross the last boundary and clip
 below the display rather than stopping above it.
@@ -37,4 +37,41 @@ No sprite mirroring or external source generator is required.
 
 The example-local renderer is not installed as a general public component.
 The sibling score previews retain their bounded geometry; they do not yet use
-this display-wide scheduler. Arbitrary, distinct playfield rows remain unsupported.
+this display-wide scheduler. The default build still requires alternating PF rows.
+
+## Opt-in repeated-pair build (unfinished)
+
+```sh
+make repeated
+make play-repeated
+```
+
+This builds the **same interactive example**, with twelve distinct visual PF
+rows selected by `ALL_FIVE_REPEATED_PREVIEW` in its `.c26` source. It retains the
+seven default seams, all five movable objects, independent player row colours,
+and four animation frames. Edit the twelve `VCS_PLAYFIELD_ROW` entries and the
+shared section arguments directly; no external generator is involved.
+
+The alternative renderer repeats a two-scanline body for each PF row and routes
+fine colour events through native compile-time scheduling. Its dispatch uses
+**two reusable RAM bytes**, not a growing return vector. Drawing and sprite ROM
+stay in bank0; startup and application work use bank1, with stock F8 bank sizes
+and stock RIOT RAM. The hardware stack is not repurposed during drawing.
+The supplied build uses **3700/3840** bank0 bytes and **94/128** RAM bytes,
+including its hardware-stack reservation.
+
+For row-aligned layouts (all eight heights multiples of16), the first PF row
+now repeats six ordinary pairs and uses a separate final-pair/boundary handoff.
+The layout `16,16,16,16,32,32,32,32` passes the isolated first-boundary runtime
+height/pointer/NUSIZ exact probe with twelve distinct PF rows. This uses the
+temporarily dead dispatch low byte for staging, not additional RAM or the stack.
+It is only a first-row fix; fine-event layouts retain their existing path.
+
+**Not completion or a general renderer ABI:** the distinct-row/default-position
+exact-pixel checks pass, but edge-position/runtime-NUSIZ probes still expose P0
+row-ending colour timing differences outside that bounded first-row path.
+P1 handoffs in later rows and fine-event layouts still need certification.
+Uniform PF inputs also expose constant-folding timing problems in the remaining
+old bodies. Other geometries are not certified, and
+neither score composition uses this renderer yet. Keep the default build when
+you need its existing edge-control behaviour.

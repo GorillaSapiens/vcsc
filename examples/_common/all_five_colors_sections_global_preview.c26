@@ -4,7 +4,7 @@
 // eight-byte player colour tables, then instantiate with section heights/colours.
 // Only the first two four-byte playfield patterns are folded into this kernel.
 // Configure heights through instantiate arguments, not by selecting a kernel:
-// they must be even, total 192, and have a nonempty first section.
+// every height must be positive and even, and together they must total 192.
 //
 // This file is maintained source. Builds invoke only the ordinary compiler,
 // assembler and linker: no Perl planning, address-decoding bridge, byte-layout
@@ -37,8 +37,8 @@ inline void TEMPLATE_plan_init(void) {
    asm TEMPLATE_END6 = TEMPLATE_END5 + TEMPLATE_section6_lines;
    asm TEMPLATE_END7 = TEMPLATE_END6 + TEMPLATE_section7_lines;
    asm TEMPLATE_END8 = TEMPLATE_END7 + TEMPLATE_section8_lines;
-   asm .if TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines < 0 || TEMPLATE_section3_lines < 0 || TEMPLATE_section4_lines < 0 || TEMPLATE_section5_lines < 0 || TEMPLATE_section6_lines < 0 || TEMPLATE_section7_lines < 0 || TEMPLATE_section8_lines < 0;
-   asm .error "Global section heights must be nonnegative and first nonempty";
+   asm .if TEMPLATE_section1_lines <= 0 || TEMPLATE_section2_lines <= 0 || TEMPLATE_section3_lines <= 0 || TEMPLATE_section4_lines <= 0 || TEMPLATE_section5_lines <= 0 || TEMPLATE_section6_lines <= 0 || TEMPLATE_section7_lines <= 0 || TEMPLATE_section8_lines <= 0;
+   asm .error "Global section heights must be positive";
    asm .endif;
    asm .if TEMPLATE_END8 != 192;
    asm .error "Global section heights must total 192";
