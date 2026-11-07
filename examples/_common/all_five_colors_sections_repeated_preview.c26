@@ -64,6 +64,68 @@ page const uint8_t TEMPLATE_pf_data_9[4] := {TEMPLATE_playfield[36],TEMPLATE_pla
 page const uint8_t TEMPLATE_pf_data_10[4] := {TEMPLATE_playfield[40],TEMPLATE_playfield[41],TEMPLATE_playfield[42],TEMPLATE_playfield[43]};
 page const uint8_t TEMPLATE_pf_data_11[4] := {TEMPLATE_playfield[44],TEMPLATE_playfield[45],TEMPLATE_playfield[46],TEMPLATE_playfield[47]};
 const uint8_t TEMPLATE_row0_next_pf := TEMPLATE_FEED_pf(16);
+// Keep equal adjacent constants cycle-equivalent: each inlined helper contains
+// a zero-cycle assembly label between stores, preventing repeated-LDA folding.
+inline void TEMPLATE_pf_left_0(void) {
+   PF1 := TEMPLATE_playfield[0];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[1];
+}
+inline void TEMPLATE_pf_left_1(void) {
+   PF1 := TEMPLATE_playfield[4];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[5];
+}
+inline void TEMPLATE_pf_left_2(void) {
+   PF1 := TEMPLATE_playfield[8];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[9];
+}
+inline void TEMPLATE_pf_left_3(void) {
+   PF1 := TEMPLATE_playfield[12];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[13];
+}
+inline void TEMPLATE_pf_left_4(void) {
+   PF1 := TEMPLATE_playfield[16];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[17];
+}
+inline void TEMPLATE_pf_left_5(void) {
+   PF1 := TEMPLATE_playfield[20];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[21];
+}
+inline void TEMPLATE_pf_left_6(void) {
+   PF1 := TEMPLATE_playfield[24];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[25];
+}
+inline void TEMPLATE_pf_left_7(void) {
+   PF1 := TEMPLATE_playfield[28];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[29];
+}
+inline void TEMPLATE_pf_left_8(void) {
+   PF1 := TEMPLATE_playfield[32];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[33];
+}
+inline void TEMPLATE_pf_left_9(void) {
+   PF1 := TEMPLATE_playfield[36];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[37];
+}
+inline void TEMPLATE_pf_left_10(void) {
+   PF1 := TEMPLATE_playfield[40];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[41];
+}
+inline void TEMPLATE_pf_left_11(void) {
+   PF1 := TEMPLATE_playfield[44];
+   asm @pf_left_barrier:;
+   PF2 := TEMPLATE_playfield[45];
+}
 inline void TEMPLATE_schedule_header(void) {
    asm TEMPLATE_END_0 = 0;
    asm TEMPLATE_END_1 = TEMPLATE_section1_lines;
@@ -663,8 +725,7 @@ bank1 void TEMPLATE_prepare(void) {
    asm sta ENAM1;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
 }
@@ -899,8 +960,7 @@ inline void TEMPLATE_emit_normal_0(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -908,6 +968,7 @@ inline void TEMPLATE_emit_normal_0(void) {
    asm lsr.z TEMPLATE_object_masks + 2;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[2];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[3];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 0;
@@ -931,14 +992,14 @@ inline void TEMPLATE_emit_normal_0(void) {
    asm lda.z TEMPLATE_object_masks + 1;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 1;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm lsr.z TEMPLATE_object_masks + 0;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[2];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[3];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -953,8 +1014,7 @@ inline void TEMPLATE_emit_event_0_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -979,8 +1039,7 @@ inline void TEMPLATE_emit_event_0_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1030,8 +1089,7 @@ inline void TEMPLATE_emit_event_0_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1056,8 +1114,7 @@ inline void TEMPLATE_emit_event_0_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1107,8 +1164,7 @@ inline void TEMPLATE_emit_event_0_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1133,8 +1189,7 @@ inline void TEMPLATE_emit_event_0_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1184,8 +1239,7 @@ inline void TEMPLATE_emit_event_0_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1210,8 +1264,7 @@ inline void TEMPLATE_emit_event_0_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1261,8 +1314,7 @@ inline void TEMPLATE_emit_event_0_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1287,8 +1339,7 @@ inline void TEMPLATE_emit_event_0_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1338,8 +1389,7 @@ inline void TEMPLATE_emit_event_0_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1364,8 +1414,7 @@ inline void TEMPLATE_emit_event_0_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1415,8 +1464,7 @@ inline void TEMPLATE_emit_event_0_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1441,8 +1489,7 @@ inline void TEMPLATE_emit_event_0_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1492,8 +1539,7 @@ inline void TEMPLATE_emit_event_0_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 2;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1518,8 +1564,7 @@ inline void TEMPLATE_emit_event_0_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1569,8 +1614,7 @@ inline void TEMPLATE_emit_normal_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -1578,6 +1622,7 @@ inline void TEMPLATE_emit_normal_1(void) {
    asm lsr.z TEMPLATE_object_masks + 6;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[6];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[7];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 4;
@@ -1601,14 +1646,14 @@ inline void TEMPLATE_emit_normal_1(void) {
    asm lda.z TEMPLATE_object_masks + 5;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 5;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm lsr.z TEMPLATE_object_masks + 4;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[6];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[7];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -1623,8 +1668,7 @@ inline void TEMPLATE_emit_event_1_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1649,8 +1693,7 @@ inline void TEMPLATE_emit_event_1_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1700,8 +1743,7 @@ inline void TEMPLATE_emit_event_1_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1726,8 +1768,7 @@ inline void TEMPLATE_emit_event_1_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1777,8 +1818,7 @@ inline void TEMPLATE_emit_event_1_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1803,8 +1843,7 @@ inline void TEMPLATE_emit_event_1_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1854,8 +1893,7 @@ inline void TEMPLATE_emit_event_1_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1880,8 +1918,7 @@ inline void TEMPLATE_emit_event_1_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -1931,8 +1968,7 @@ inline void TEMPLATE_emit_event_1_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -1957,8 +1993,7 @@ inline void TEMPLATE_emit_event_1_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2008,8 +2043,7 @@ inline void TEMPLATE_emit_event_1_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2034,8 +2068,7 @@ inline void TEMPLATE_emit_event_1_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2085,8 +2118,7 @@ inline void TEMPLATE_emit_event_1_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2111,8 +2143,7 @@ inline void TEMPLATE_emit_event_1_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2162,8 +2193,7 @@ inline void TEMPLATE_emit_event_1_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 6;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2188,8 +2218,7 @@ inline void TEMPLATE_emit_event_1_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2239,8 +2268,7 @@ inline void TEMPLATE_emit_normal_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -2248,6 +2276,7 @@ inline void TEMPLATE_emit_normal_2(void) {
    asm lsr.z TEMPLATE_object_masks + 10;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[10];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[11];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 8;
@@ -2271,14 +2300,14 @@ inline void TEMPLATE_emit_normal_2(void) {
    asm lda.z TEMPLATE_object_masks + 9;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 9;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm lsr.z TEMPLATE_object_masks + 8;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[10];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[11];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -2293,8 +2322,7 @@ inline void TEMPLATE_emit_event_2_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2319,8 +2347,7 @@ inline void TEMPLATE_emit_event_2_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2370,8 +2397,7 @@ inline void TEMPLATE_emit_event_2_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2396,8 +2422,7 @@ inline void TEMPLATE_emit_event_2_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2447,8 +2472,7 @@ inline void TEMPLATE_emit_event_2_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2473,8 +2497,7 @@ inline void TEMPLATE_emit_event_2_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2524,8 +2547,7 @@ inline void TEMPLATE_emit_event_2_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2550,8 +2572,7 @@ inline void TEMPLATE_emit_event_2_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2601,8 +2622,7 @@ inline void TEMPLATE_emit_event_2_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2627,8 +2647,7 @@ inline void TEMPLATE_emit_event_2_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2678,8 +2697,7 @@ inline void TEMPLATE_emit_event_2_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2704,8 +2722,7 @@ inline void TEMPLATE_emit_event_2_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2755,8 +2772,7 @@ inline void TEMPLATE_emit_event_2_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2781,8 +2797,7 @@ inline void TEMPLATE_emit_event_2_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2832,8 +2847,7 @@ inline void TEMPLATE_emit_event_2_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 10;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2858,8 +2872,7 @@ inline void TEMPLATE_emit_event_2_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -2909,8 +2922,7 @@ inline void TEMPLATE_emit_normal_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -2918,6 +2930,7 @@ inline void TEMPLATE_emit_normal_3(void) {
    asm lsr.z TEMPLATE_object_masks + 14;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[14];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[15];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 12;
@@ -2941,14 +2954,14 @@ inline void TEMPLATE_emit_normal_3(void) {
    asm lda.z TEMPLATE_object_masks + 13;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 13;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm lsr.z TEMPLATE_object_masks + 12;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[14];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[15];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -2963,8 +2976,7 @@ inline void TEMPLATE_emit_event_3_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -2989,8 +3001,7 @@ inline void TEMPLATE_emit_event_3_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3040,8 +3051,7 @@ inline void TEMPLATE_emit_event_3_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3066,8 +3076,7 @@ inline void TEMPLATE_emit_event_3_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3117,8 +3126,7 @@ inline void TEMPLATE_emit_event_3_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3143,8 +3151,7 @@ inline void TEMPLATE_emit_event_3_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3194,8 +3201,7 @@ inline void TEMPLATE_emit_event_3_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3220,8 +3226,7 @@ inline void TEMPLATE_emit_event_3_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3271,8 +3276,7 @@ inline void TEMPLATE_emit_event_3_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3297,8 +3301,7 @@ inline void TEMPLATE_emit_event_3_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3348,8 +3351,7 @@ inline void TEMPLATE_emit_event_3_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3374,8 +3376,7 @@ inline void TEMPLATE_emit_event_3_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3425,8 +3426,7 @@ inline void TEMPLATE_emit_event_3_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3451,8 +3451,7 @@ inline void TEMPLATE_emit_event_3_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3502,8 +3501,7 @@ inline void TEMPLATE_emit_event_3_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 14;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3528,8 +3526,7 @@ inline void TEMPLATE_emit_event_3_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3579,8 +3576,7 @@ inline void TEMPLATE_emit_normal_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -3588,6 +3584,7 @@ inline void TEMPLATE_emit_normal_4(void) {
    asm lsr.z TEMPLATE_object_masks + 18;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[18];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[19];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 16;
@@ -3611,14 +3608,14 @@ inline void TEMPLATE_emit_normal_4(void) {
    asm lda.z TEMPLATE_object_masks + 17;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 17;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm lsr.z TEMPLATE_object_masks + 16;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[18];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[19];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -3633,8 +3630,7 @@ inline void TEMPLATE_emit_event_4_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3659,8 +3655,7 @@ inline void TEMPLATE_emit_event_4_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3710,8 +3705,7 @@ inline void TEMPLATE_emit_event_4_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3736,8 +3730,7 @@ inline void TEMPLATE_emit_event_4_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3787,8 +3780,7 @@ inline void TEMPLATE_emit_event_4_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3813,8 +3805,7 @@ inline void TEMPLATE_emit_event_4_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3864,8 +3855,7 @@ inline void TEMPLATE_emit_event_4_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3890,8 +3880,7 @@ inline void TEMPLATE_emit_event_4_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -3941,8 +3930,7 @@ inline void TEMPLATE_emit_event_4_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -3967,8 +3955,7 @@ inline void TEMPLATE_emit_event_4_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4018,8 +4005,7 @@ inline void TEMPLATE_emit_event_4_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4044,8 +4030,7 @@ inline void TEMPLATE_emit_event_4_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4095,8 +4080,7 @@ inline void TEMPLATE_emit_event_4_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4121,8 +4105,7 @@ inline void TEMPLATE_emit_event_4_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4172,8 +4155,7 @@ inline void TEMPLATE_emit_event_4_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 18;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4198,8 +4180,7 @@ inline void TEMPLATE_emit_event_4_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4249,8 +4230,7 @@ inline void TEMPLATE_emit_normal_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -4258,6 +4238,7 @@ inline void TEMPLATE_emit_normal_5(void) {
    asm lsr.z TEMPLATE_object_masks + 22;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[22];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[23];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 20;
@@ -4281,14 +4262,14 @@ inline void TEMPLATE_emit_normal_5(void) {
    asm lda.z TEMPLATE_object_masks + 21;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 21;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm lsr.z TEMPLATE_object_masks + 20;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[22];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[23];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -4303,8 +4284,7 @@ inline void TEMPLATE_emit_event_5_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4329,8 +4309,7 @@ inline void TEMPLATE_emit_event_5_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4380,8 +4359,7 @@ inline void TEMPLATE_emit_event_5_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4406,8 +4384,7 @@ inline void TEMPLATE_emit_event_5_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4457,8 +4434,7 @@ inline void TEMPLATE_emit_event_5_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4483,8 +4459,7 @@ inline void TEMPLATE_emit_event_5_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4534,8 +4509,7 @@ inline void TEMPLATE_emit_event_5_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4560,8 +4534,7 @@ inline void TEMPLATE_emit_event_5_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4611,8 +4584,7 @@ inline void TEMPLATE_emit_event_5_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4637,8 +4609,7 @@ inline void TEMPLATE_emit_event_5_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4688,8 +4659,7 @@ inline void TEMPLATE_emit_event_5_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4714,8 +4684,7 @@ inline void TEMPLATE_emit_event_5_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4765,8 +4734,7 @@ inline void TEMPLATE_emit_event_5_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4791,8 +4759,7 @@ inline void TEMPLATE_emit_event_5_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4842,8 +4809,7 @@ inline void TEMPLATE_emit_event_5_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 22;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4868,8 +4834,7 @@ inline void TEMPLATE_emit_event_5_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -4919,8 +4884,7 @@ inline void TEMPLATE_emit_normal_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -4928,6 +4892,7 @@ inline void TEMPLATE_emit_normal_6(void) {
    asm lsr.z TEMPLATE_object_masks + 26;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[26];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[27];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 24;
@@ -4951,14 +4916,14 @@ inline void TEMPLATE_emit_normal_6(void) {
    asm lda.z TEMPLATE_object_masks + 25;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 25;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm lsr.z TEMPLATE_object_masks + 24;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[26];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[27];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -4973,8 +4938,7 @@ inline void TEMPLATE_emit_event_6_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -4999,8 +4963,7 @@ inline void TEMPLATE_emit_event_6_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5050,8 +5013,7 @@ inline void TEMPLATE_emit_event_6_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5076,8 +5038,7 @@ inline void TEMPLATE_emit_event_6_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5127,8 +5088,7 @@ inline void TEMPLATE_emit_event_6_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5153,8 +5113,7 @@ inline void TEMPLATE_emit_event_6_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5204,8 +5163,7 @@ inline void TEMPLATE_emit_event_6_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5230,8 +5188,7 @@ inline void TEMPLATE_emit_event_6_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5281,8 +5238,7 @@ inline void TEMPLATE_emit_event_6_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5307,8 +5263,7 @@ inline void TEMPLATE_emit_event_6_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5358,8 +5313,7 @@ inline void TEMPLATE_emit_event_6_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5384,8 +5338,7 @@ inline void TEMPLATE_emit_event_6_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5435,8 +5388,7 @@ inline void TEMPLATE_emit_event_6_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5461,8 +5413,7 @@ inline void TEMPLATE_emit_event_6_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5512,8 +5463,7 @@ inline void TEMPLATE_emit_event_6_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 26;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5538,8 +5488,7 @@ inline void TEMPLATE_emit_event_6_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5589,8 +5538,7 @@ inline void TEMPLATE_emit_normal_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -5598,6 +5546,7 @@ inline void TEMPLATE_emit_normal_7(void) {
    asm lsr.z TEMPLATE_object_masks + 30;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[30];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[31];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 28;
@@ -5621,14 +5570,14 @@ inline void TEMPLATE_emit_normal_7(void) {
    asm lda.z TEMPLATE_object_masks + 29;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 29;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm lsr.z TEMPLATE_object_masks + 28;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[30];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[31];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -5643,8 +5592,7 @@ inline void TEMPLATE_emit_event_7_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5669,8 +5617,7 @@ inline void TEMPLATE_emit_event_7_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5720,8 +5667,7 @@ inline void TEMPLATE_emit_event_7_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5746,8 +5692,7 @@ inline void TEMPLATE_emit_event_7_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5797,8 +5742,7 @@ inline void TEMPLATE_emit_event_7_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5823,8 +5767,7 @@ inline void TEMPLATE_emit_event_7_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5874,8 +5817,7 @@ inline void TEMPLATE_emit_event_7_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5900,8 +5842,7 @@ inline void TEMPLATE_emit_event_7_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -5951,8 +5892,7 @@ inline void TEMPLATE_emit_event_7_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -5977,8 +5917,7 @@ inline void TEMPLATE_emit_event_7_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6028,8 +5967,7 @@ inline void TEMPLATE_emit_event_7_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6054,8 +5992,7 @@ inline void TEMPLATE_emit_event_7_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6105,8 +6042,7 @@ inline void TEMPLATE_emit_event_7_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6131,8 +6067,7 @@ inline void TEMPLATE_emit_event_7_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6182,8 +6117,7 @@ inline void TEMPLATE_emit_event_7_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 30;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6208,8 +6142,7 @@ inline void TEMPLATE_emit_event_7_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6259,8 +6192,7 @@ inline void TEMPLATE_emit_normal_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -6268,6 +6200,7 @@ inline void TEMPLATE_emit_normal_8(void) {
    asm lsr.z TEMPLATE_object_masks + 34;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[34];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[35];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 32;
@@ -6291,14 +6224,14 @@ inline void TEMPLATE_emit_normal_8(void) {
    asm lda.z TEMPLATE_object_masks + 33;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 33;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm lsr.z TEMPLATE_object_masks + 32;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[34];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[35];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -6313,8 +6246,7 @@ inline void TEMPLATE_emit_event_8_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6339,8 +6271,7 @@ inline void TEMPLATE_emit_event_8_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6390,8 +6321,7 @@ inline void TEMPLATE_emit_event_8_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6416,8 +6346,7 @@ inline void TEMPLATE_emit_event_8_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6467,8 +6396,7 @@ inline void TEMPLATE_emit_event_8_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6493,8 +6421,7 @@ inline void TEMPLATE_emit_event_8_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6544,8 +6471,7 @@ inline void TEMPLATE_emit_event_8_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6570,8 +6496,7 @@ inline void TEMPLATE_emit_event_8_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6621,8 +6546,7 @@ inline void TEMPLATE_emit_event_8_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6647,8 +6571,7 @@ inline void TEMPLATE_emit_event_8_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6698,8 +6621,7 @@ inline void TEMPLATE_emit_event_8_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6724,8 +6646,7 @@ inline void TEMPLATE_emit_event_8_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6775,8 +6696,7 @@ inline void TEMPLATE_emit_event_8_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6801,8 +6721,7 @@ inline void TEMPLATE_emit_event_8_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6852,8 +6771,7 @@ inline void TEMPLATE_emit_event_8_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 34;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -6878,8 +6796,7 @@ inline void TEMPLATE_emit_event_8_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -6929,8 +6846,7 @@ inline void TEMPLATE_emit_normal_9(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -6938,6 +6854,7 @@ inline void TEMPLATE_emit_normal_9(void) {
    asm lsr.z TEMPLATE_object_masks + 38;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[38];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[39];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 36;
@@ -6961,14 +6878,14 @@ inline void TEMPLATE_emit_normal_9(void) {
    asm lda.z TEMPLATE_object_masks + 37;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 37;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm lsr.z TEMPLATE_object_masks + 36;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[38];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[39];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -6983,8 +6900,7 @@ inline void TEMPLATE_emit_event_9_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7009,8 +6925,7 @@ inline void TEMPLATE_emit_event_9_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7060,8 +6975,7 @@ inline void TEMPLATE_emit_event_9_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7086,8 +7000,7 @@ inline void TEMPLATE_emit_event_9_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7137,8 +7050,7 @@ inline void TEMPLATE_emit_event_9_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7163,8 +7075,7 @@ inline void TEMPLATE_emit_event_9_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7214,8 +7125,7 @@ inline void TEMPLATE_emit_event_9_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7240,8 +7150,7 @@ inline void TEMPLATE_emit_event_9_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7291,8 +7200,7 @@ inline void TEMPLATE_emit_event_9_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7317,8 +7225,7 @@ inline void TEMPLATE_emit_event_9_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7368,8 +7275,7 @@ inline void TEMPLATE_emit_event_9_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7394,8 +7300,7 @@ inline void TEMPLATE_emit_event_9_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7445,8 +7350,7 @@ inline void TEMPLATE_emit_event_9_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7471,8 +7375,7 @@ inline void TEMPLATE_emit_event_9_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7522,8 +7425,7 @@ inline void TEMPLATE_emit_event_9_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 38;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7548,8 +7450,7 @@ inline void TEMPLATE_emit_event_9_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7599,8 +7500,7 @@ inline void TEMPLATE_emit_normal_10(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -7608,6 +7508,7 @@ inline void TEMPLATE_emit_normal_10(void) {
    asm lsr.z TEMPLATE_object_masks + 42;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[42];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[43];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 40;
@@ -7631,14 +7532,14 @@ inline void TEMPLATE_emit_normal_10(void) {
    asm lda.z TEMPLATE_object_masks + 41;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 41;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm lsr.z TEMPLATE_object_masks + 40;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[42];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[43];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -7653,8 +7554,7 @@ inline void TEMPLATE_emit_event_10_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7679,8 +7579,7 @@ inline void TEMPLATE_emit_event_10_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7730,8 +7629,7 @@ inline void TEMPLATE_emit_event_10_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7756,8 +7654,7 @@ inline void TEMPLATE_emit_event_10_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7807,8 +7704,7 @@ inline void TEMPLATE_emit_event_10_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7833,8 +7729,7 @@ inline void TEMPLATE_emit_event_10_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7884,8 +7779,7 @@ inline void TEMPLATE_emit_event_10_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7910,8 +7804,7 @@ inline void TEMPLATE_emit_event_10_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -7961,8 +7854,7 @@ inline void TEMPLATE_emit_event_10_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -7987,8 +7879,7 @@ inline void TEMPLATE_emit_event_10_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8038,8 +7929,7 @@ inline void TEMPLATE_emit_event_10_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8064,8 +7954,7 @@ inline void TEMPLATE_emit_event_10_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8115,8 +8004,7 @@ inline void TEMPLATE_emit_event_10_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8141,8 +8029,7 @@ inline void TEMPLATE_emit_event_10_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8192,8 +8079,7 @@ inline void TEMPLATE_emit_event_10_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 42;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8218,8 +8104,7 @@ inline void TEMPLATE_emit_event_10_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8269,8 +8154,7 @@ inline void TEMPLATE_emit_normal_11(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm lda.ax TEMPLATE_dispatch_low,x;
    asm sta.z TEMPLATE_dispatch;
@@ -8278,6 +8162,7 @@ inline void TEMPLATE_emit_normal_11(void) {
    asm lsr.z TEMPLATE_object_masks + 46;
    asm sty.z TEMPLATE_row_cache + 1;
    PF2 := TEMPLATE_playfield[46];
+   asm @pf_right_barrier:;
    PF1 := TEMPLATE_playfield[47];
    asm cpy.z TEMPLATE_player1_height;
    asm lda.z TEMPLATE_object_masks + 44;
@@ -8301,14 +8186,14 @@ inline void TEMPLATE_emit_normal_11(void) {
    asm lda.z TEMPLATE_object_masks + 45;
    asm sta ENAM1;
    asm lsr.z TEMPLATE_object_masks + 45;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm lsr.z TEMPLATE_object_masks + 44;
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
    asm cpy.z TEMPLATE_player0_height;
    PF2 := TEMPLATE_playfield[46];
+   asm @pf_right_second_barrier:;
    PF1 := TEMPLATE_playfield[47];
    asm dex;
    asm jmp TEMPLATE_p0_dispatch;
@@ -8323,8 +8208,7 @@ inline void TEMPLATE_emit_event_11_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8349,8 +8233,7 @@ inline void TEMPLATE_emit_event_11_1(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section1_colupf;
    COLUBK := TEMPLATE_section1_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8400,8 +8283,7 @@ inline void TEMPLATE_emit_event_11_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8426,8 +8308,7 @@ inline void TEMPLATE_emit_event_11_2(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section2_colupf;
    COLUBK := TEMPLATE_section2_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8477,8 +8358,7 @@ inline void TEMPLATE_emit_event_11_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8503,8 +8383,7 @@ inline void TEMPLATE_emit_event_11_3(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section3_colupf;
    COLUBK := TEMPLATE_section3_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8554,8 +8433,7 @@ inline void TEMPLATE_emit_event_11_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8580,8 +8458,7 @@ inline void TEMPLATE_emit_event_11_4(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section4_colupf;
    COLUBK := TEMPLATE_section4_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8631,8 +8508,7 @@ inline void TEMPLATE_emit_event_11_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8657,8 +8533,7 @@ inline void TEMPLATE_emit_event_11_5(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section5_colupf;
    COLUBK := TEMPLATE_section5_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8708,8 +8583,7 @@ inline void TEMPLATE_emit_event_11_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8734,8 +8608,7 @@ inline void TEMPLATE_emit_event_11_6(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section6_colupf;
    COLUBK := TEMPLATE_section6_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8785,8 +8658,7 @@ inline void TEMPLATE_emit_event_11_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8811,8 +8683,7 @@ inline void TEMPLATE_emit_event_11_7(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section7_colupf;
    COLUBK := TEMPLATE_section7_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8862,8 +8733,7 @@ inline void TEMPLATE_emit_event_11_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 46;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -8888,8 +8758,7 @@ inline void TEMPLATE_emit_event_11_8(void) {
    asm sta ENAM1;
    COLUPF := TEMPLATE_section8_colupf;
    COLUBK := TEMPLATE_section8_colubk;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -8939,8 +8808,7 @@ inline void TEMPLATE_emit_boundary_1(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 3;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[0];
-   PF2 := TEMPLATE_playfield[1];
+   TEMPLATE_pf_left_0();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -9028,8 +8896,7 @@ inline void TEMPLATE_emit_boundary_1(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -9134,8 +9001,7 @@ inline void TEMPLATE_emit_boundary_2(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 7;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[4];
-   PF2 := TEMPLATE_playfield[5];
+   TEMPLATE_pf_left_1();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -9223,8 +9089,7 @@ inline void TEMPLATE_emit_boundary_2(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -9329,8 +9194,7 @@ inline void TEMPLATE_emit_boundary_3(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 11;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[8];
-   PF2 := TEMPLATE_playfield[9];
+   TEMPLATE_pf_left_2();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -9418,8 +9282,7 @@ inline void TEMPLATE_emit_boundary_3(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -9524,8 +9387,7 @@ inline void TEMPLATE_emit_boundary_4(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 15;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[12];
-   PF2 := TEMPLATE_playfield[13];
+   TEMPLATE_pf_left_3();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -9613,8 +9475,7 @@ inline void TEMPLATE_emit_boundary_4(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -9719,8 +9580,7 @@ inline void TEMPLATE_emit_boundary_5(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[16];
-   PF2 := TEMPLATE_playfield[17];
+   TEMPLATE_pf_left_4();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -9808,8 +9668,7 @@ inline void TEMPLATE_emit_boundary_5(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -9914,8 +9773,7 @@ inline void TEMPLATE_emit_boundary_6(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 23;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[20];
-   PF2 := TEMPLATE_playfield[21];
+   TEMPLATE_pf_left_5();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -10003,8 +9861,7 @@ inline void TEMPLATE_emit_boundary_6(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -10109,8 +9966,7 @@ inline void TEMPLATE_emit_boundary_7(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 27;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[24];
-   PF2 := TEMPLATE_playfield[25];
+   TEMPLATE_pf_left_6();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -10198,8 +10054,7 @@ inline void TEMPLATE_emit_boundary_7(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -10304,8 +10159,7 @@ inline void TEMPLATE_emit_boundary_8(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[28];
-   PF2 := TEMPLATE_playfield[29];
+   TEMPLATE_pf_left_7();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -10393,8 +10247,7 @@ inline void TEMPLATE_emit_boundary_8(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -10499,8 +10352,7 @@ inline void TEMPLATE_emit_boundary_9(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 35;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[32];
-   PF2 := TEMPLATE_playfield[33];
+   TEMPLATE_pf_left_8();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -10588,8 +10440,7 @@ inline void TEMPLATE_emit_boundary_9(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -10694,8 +10545,7 @@ inline void TEMPLATE_emit_boundary_10(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 39;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[36];
-   PF2 := TEMPLATE_playfield[37];
+   TEMPLATE_pf_left_9();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -10783,8 +10633,7 @@ inline void TEMPLATE_emit_boundary_10(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -10889,8 +10738,7 @@ inline void TEMPLATE_emit_boundary_11(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 43;
    asm sta.a ENAM0;
-   PF1 := TEMPLATE_playfield[40];
-   PF2 := TEMPLATE_playfield[41];
+   TEMPLATE_pf_left_10();
    asm ldy.z TEMPLATE_row_cache + 1;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 1;
@@ -10978,8 +10826,7 @@ inline void TEMPLATE_emit_boundary_11(void) {
    asm dex;
    asm bit.z $00;
    asm .endif;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm ldy.z TEMPLATE_row_cache + 0;
    asm dey;
    asm sty.z TEMPLATE_row_cache + 0;
@@ -11084,8 +10931,7 @@ inline void TEMPLATE_emit_terminal(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_object_masks + 47;
    asm sta ENAM0;
-   PF1 := TEMPLATE_playfield[44];
-   PF2 := TEMPLATE_playfield[45];
+   TEMPLATE_pf_left_11();
    asm jmp TEMPLATE_terminal_middle;
    asm .endproc;
    asm .proc TEMPLATE_terminal_midblock;

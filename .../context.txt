@@ -202,10 +202,11 @@ with128/128 RAM and independent returns. No seam28 extension or public ABI.
 No-score `make repeated` now builds a separate native repeated-pair preview from
 the same driver: twelve distinct PF rows, four animation frames, fixed two-byte
 dispatch, no stolen S. Row-aligned layouts now have a passing isolated first-row
-P0/P1 handoff; later rows and fine-event layouts remain uncertified. Uniform PF
-inputs expose C26 constant-load folding in old paired writes. Keep it opt-in.
+P0/P1 handoff; later rows and fine-event layouts remain uncertified. Equal PF
+constants now retain timed loads; uniform aligned/fine default-pose probes pass.
+Keep it opt-in.
 Next: generalize the corrected final-pair handoff within bank/page/RAM limits,
-protect constant PF writes against load folding, then integrate
+then integrate
 both scores. Do not replace default/frozen regressions with this unfinished path.
 Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.
 Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt, 2026-11-06.txt.

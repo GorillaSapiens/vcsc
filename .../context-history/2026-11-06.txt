@@ -95,3 +95,41 @@ build gate with its explicit180-second workload budget. Together with the prior
 591/591 compile-only run, both phases have successful complete runs (not one
 new combined invocation). Renderer row/fine-event/uniform-PF/score limitations
 remain unchanged; passing maintained regressions does not certify those paths.
+
+2026-11-06 23:30:11 PDT, Preserve equal PF constant load timing
+
+Continued renderer work: all twelve old normal/event/boundary left-PF pairs now
+use inline C26 helpers with a zero-cycle assembly label between the constant
+stores. Normal right-PF pairs have independent first/second-half labels. This
+prevents repeated-LDA folding when adjacent PF bytes are equal. Each helper is
+native C26, not generated source or a runtime call; source shrinks154 lines.
+No RAM, hardware-stack, dispatch, sprite/control, geometry or mapper change.
+
+Temporary adapter correction: fine_global_uniform was accepted by the oracle's
+global profile parser but NOT included in its $uniform selector. Updated only
+the /tmp adapter to explicitly set uniform for _uniform profiles. Verified that
+generated probe.c26 uses all48 PF bytes255, not alternating/distinct PF rows.
+This distinction matters: earlier nominal uniform successes only exercised
+alternating PF. The actual uniform input now passes full-frame timing and exact
+pixels on BOTH16,16,16,16,32,32,32,32 and6,12,28,34,34,36,40,2 at default poses.
+As a negative control, the committed pre-fix renderer on the same genuinely
+uniform fine-seam input fails at255 raw lines (19380 rather than20064 cycles).
+Frozen oracle source and its fixture selections were not modified.
+
+Distinct-PF aligned first-boundary controls and fine-seam default-pose probes also
+pass. Fine-seam edge poses still fail the known P0 colour handoff at visible14;
+uniform-load repair does NOT close that renderer acceptance criterion. Default
+interactive ROM passes420-frame raw264 timing. Its bank0 placement grows24 bytes
+to3724/3840 despite labels emitting no instructions; bank1 stays1420,RAM94/128.
+Thus do not claim byte-identical ROM placement. Default non-repeated is unchanged.
+
+Started a combined full eight-worker test run; retained log test/test_output_RPT3.
+Result pending at this checkpoint. No test timeout/budget was changed here.
+
+2026-11-06 23:50:13 PDT, Combined eight-worker suite passes
+
+The combined full eight-worker run completed1309 passed,0 failed,1309 total.
+Retained log: test/test_output_RPT3. This tests the maintained equal-PF-load fix
+and reviewed assembly allowlist in one combined compile/e2e invocation, not just
+separate focused reruns. Renderer edge/fine-handoff/score limitations remain;
+these passing maintained regressions do not certify the unfinished paths.
