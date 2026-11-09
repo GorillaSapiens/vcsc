@@ -9,6 +9,8 @@
 // exact-pixel probe at default positions. Extended/edge control probes still expose
 // row-ending P0 colour and P1 clipping timing differences; see the leaf README.
 // Row-aligned layouts now use a corrected first-row handoff, not a full fix.
+// A final two-line section also has corrected terminal P0/M0/PF timing; P1's
+// late clipping selector remains unfinished, including at that terminal seam.
 parameter section1_lines := 2;
 parameter section2_lines := 2;
 parameter section3_lines := 2;
@@ -8766,6 +8768,35 @@ inline void TEMPLATE_emit_event_11_8(void) {
    PF2 := TEMPLATE_playfield[46];
    asm nop;
    PF1 := TEMPLATE_playfield[47];
+   asm .if TEMPLATE_END_7 == 190;
+   // The line190 colour event is also the final cached pair. Commit active
+   // P0 colour at68 and GRP0 at0, rather than recolouring the old glyph from
+   // terminal entry. BIT preserves CPY's carry for the clipping selector.
+   asm bit.z $00;
+   asm bcc.same @terminal_p0_active;
+   asm lda #0;
+   asm tay;
+   asm bit.a CXM0P;
+   asm nop;
+   asm bcs.same @terminal_p0_ready;
+   asm @terminal_p0_active:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @terminal_p0_ready:;
+   asm sta GRP0;
+   asm .scope TEMPLATE_boundary_12_anchor;
+   asm TEMPLATE_boundary_12:;
+   asm .endscope;
+   asm lda.z TEMPLATE_object_masks + 47;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_object_masks + 44;
+   asm sta ENABL;
+   TEMPLATE_terminal_pf1_abs := TEMPLATE_playfield[44];
+   asm @terminal_pf_left_barrier:;
+   TEMPLATE_initial_pf2_abs := TEMPLATE_playfield[45];
+   asm jmp TEMPLATE_terminal_middle;
+   asm .else;
    asm bcs.same TEMPLATE_zero0_event_11_8;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm lsr.z TEMPLATE_object_masks + 45;
@@ -8790,6 +8821,7 @@ inline void TEMPLATE_emit_event_11_8(void) {
    asm tay;
    asm lsr.z TEMPLATE_object_masks + 45;
    asm jmp TEMPLATE_ready0_event_11_8;
+   asm .endif;
    asm .scope TEMPLATE_zero1_event_11_8_anchor;
    asm TEMPLATE_zero1_event_11_8:;
    asm .endscope;
@@ -10924,6 +10956,7 @@ inline void TEMPLATE_emit_boundary_11(void) {
 }
 inline void TEMPLATE_emit_terminal(void) {
    asm .proc TEMPLATE_terminal;
+   asm .if TEMPLATE_END_7 != 190;
    asm .scope TEMPLATE_boundary_12_anchor;
    asm TEMPLATE_boundary_12:;
    asm .endscope;
@@ -10933,12 +10966,19 @@ inline void TEMPLATE_emit_terminal(void) {
    asm sta ENAM0;
    TEMPLATE_pf_left_11();
    asm jmp TEMPLATE_terminal_middle;
+   asm .endif;
    asm .endproc;
    asm .proc TEMPLATE_terminal_midblock;
    asm .scope TEMPLATE_terminal_middle_anchor;
    asm TEMPLATE_terminal_middle:;
    asm .endscope;
+   // The line190 path stages Ball and restores PF through absolute mirrors
+   // above. Its fixed middle pad is one cycle shorter, keeping right PF at47/53.
+   asm .if TEMPLATE_END_7 == 190;
+   asm nop;
+   asm .else;
    asm bit.z $00;
+   asm .endif;
    asm bit.z $00;
    asm bit.z $00;
    asm nop;

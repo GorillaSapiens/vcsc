@@ -204,12 +204,15 @@ the same driver: twelve distinct PF rows, four animation frames, fixed two-byte
 dispatch, no stolen S. Row-aligned layouts now have a passing isolated first-row
 P0/P1 handoff; later rows and fine-event layouts remain uncertified. Equal PF
 constants now retain timed loads; uniform aligned/fine default-pose probes pass.
-Keep it opt-in.
+With a final two-line section, terminal P0 colour/GRP0 and M0/PF now match the
+ancestor's phases; terminal P0 edge/control sweeps reach the known P1 failure.
+That is NOT a passing full terminal-edge probe. Keep it opt-in.
 Next: generalize the corrected final-pair handoff within bank/page/RAM limits,
 then integrate
 both scores. Do not replace default/frozen regressions with this unfinished path.
 Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.
-Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt, 2026-11-06.txt.
+Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt,
+2026-11-06.txt and 2026-11-08.txt.
 Keep eight workers, shared60s snapshot deadlines, workload budgets and child-group
 timeout cleanup. Preserve independent leaves, joystick/Select/Reset controls and
 frozen exact tests. Configure directly in .c26, never user-facing generators.

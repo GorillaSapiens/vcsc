@@ -67,6 +67,12 @@ height/pointer/NUSIZ exact probe with twelve distinct PF rows. This uses the
 temporarily dead dispatch low byte for staging, not additional RAM or the stack.
 It is only a first-row fix; fine-event layouts retain their existing path.
 
+When the last section is two lines, the line190 event now commits active P0
+colour at cycle68, GRP0 at0 and terminal M0 at6, without an extra terminal colour
+write. The terminal P0 edge sweep and a runtime-height/pointer/NUSIZ sweep get
+through all eight P0 positions; both then stop at the outstanding P1 clipping
+error. This is not a passing full terminal-edge probe.
+
 **Not completion or a general renderer ABI:** the distinct-row/default-position
 exact-pixel checks pass, but edge-position/runtime-NUSIZ probes still expose P0
 row-ending colour timing differences outside that bounded first-row path.

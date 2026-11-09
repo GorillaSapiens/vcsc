@@ -1,0 +1,70 @@
+2026-11-08 18:36:55 PDT, Correct the terminal P0 event handoff
+
+User requested continued renderer work. Maintained a bounded native P0 terminal
+handoff when END7==190 (final section two lines), including the supplied repeated
+interactive example. This is a partial renderer fix, not completion/promotion,
+not a new public ABI, and NOT a successful full terminal-edge certification.
+The stock non-repeated default and both bounded score renderers are unchanged.
+
+The line190 event's P0 selector now commits active COLUP0 at cycle68 and GRP0 at0,
+then falls directly into terminal M0 at6. It does NOT jump through another P0
+colour write. The current Ball stream stages ENABL at12; absolute PF mirrors put
+terminal left PF at18/24 and the shared terminal right tail remains47/53. A one-
+cycle shorter shared middle pad balances these stages. No additional RAM, ROM
+bank, return vector, sprite table, or hardware-stack trick is involved.
+The three-cycle BIT before the selector MUST preserve CPY's carry; using a mask
+LSR there incorrectly activates out-of-range P0 glyph loads and adds page cycles.
+
+Reconstructed /tmp adapter and exact TIA trace tool (temporary, not dependencies).
+Frozen oracle source/fixture selection was not changed. On supplied geometry
+6,12,28,34,34,36,40,2 with twelve distinct PF rows, seam190 edge oracle formerly
+failed frame202 x318,y203,visible190 in P0. It now reaches frame215 x302,y202,
+visible189 in P1: all eight isolated P0 positions complete before that failure.
+Runtime-height/pointer/NUSIZ seam190 sweep on16,16,16,16,32,32,62,2 similarly gets
+through P0 and stops at frame215 x298,y202,visible189 in P1. These are partial
+sweep results, not passing probes. The full-controls probe on the supplied
+fine-seam geometry exceeds drawing-bank placement BOTH before and after this fix;
+do not claim that layout passed controls or relax its mapper/bank budget.
+
+Full-frame probes that DO pass on maintained source: supplied distinct-PF/default
+pose; truly uniform PF/default pose; prior aligned first-boundary height/pointer/
+NUSIZ probe16,16,16,16,32,32,32,32. Real interactive repeated ROM passes420-frame
+raw264 timing (417 live frames; tool success wording still wrongly says262).
+Budgets stay bank0 3724/3840,bank1 1420/3840,RAM94/128 including15 hardware-stack
+bytes. Five focused build/allowlist/hygiene/inventory/history checks pass with
+eight workers. Started combined full eight-worker suite, log test/test_output_RPT4;
+result pending at this checkpoint. No test budgets or expectations were weakened.
+
+Exploration NOT promoted: merging ordinary/final early halves into one per-row
+body saves32 raw bytes/row while preserving the isolated first-row exact oracle.
+X7..1 repeats six ordinary pairs then takes a special final P1 half. Stage Ball
+early before the shared P1 decrement; CPY follows the final/normal CPX branch.
+Normal right PF needs a NOP BEFORE PF2, not between PF2/PF1: earlier PF2 clobbers
+the previous left field (observed x144 mismatch). Fully cloning the corrected
+row body still pins $10BB(4283) bytes in bank0 before placement, versus $123B(4667)
+for the unmerged clone. Both exceed3840, so neither is maintained. Do NOT simply
+clone the first-row path eleven times or claim merging alone solved bank capacity.
+
+Exploration NOT promoted: delaying terminal GRP1 from6 to12 also requires keeping
+active COLUP1 at1 (inactive selector later), not just a cycle-balanced pair total.
+LDY-prefetching M1 AFTER the graphics lookup advances active COLUP1 too early when
+GRP1 is held fixed; the exact P1 edge failure persists even with GRP1 at12.
+Moving palette writes to make room can instead miss BG/PF left-edge deadlines.
+A runtime M1 shift after CPY also corrupts clipping carry. Only the independent,
+verified P0 terminal change is maintained; P1's selector/staging work remains open.
+
+Next: solve the P1 late selector together with palette/M1 staging and PF windows,
+then generalize row-ending handoffs within one drawing bank and stock RAM before
+integrating scores. Temporary generators are diagnostic only, never a user or
+build dependency. Keep default/opt-in separation and preserve unrelated changes.
+
+2026-11-08 19:19:59 PDT, Full-suite timeouts pass focused rerun
+
+Combined eight-worker run test/test_output_RPT4 finished1307 passed,2 failed,
+1309 total. Both failures were command timeouts: the static global compile matrix
+(600-second budget) and paired repeated-example build gate (180-second budget).
+Reran both together using the same eight-worker runner and unchanged budgets;
+both passed (2/2). No source, assertions, timeout, worker count, snapshot deadline
+or process-group cleanup was changed to obtain that result. This is NOT a clean
+combined full-suite result; the complete run still records its two timeouts.
+The terminal P0 fix remains bounded and P1 clipping remains unfinished.
