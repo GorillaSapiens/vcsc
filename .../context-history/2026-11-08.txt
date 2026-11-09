@@ -68,3 +68,68 @@ both passed (2/2). No source, assertions, timeout, worker count, snapshot deadli
 or process-group cleanup was changed to obtain that result. This is NOT a clean
 combined full-suite result; the complete run still records its two timeouts.
 The terminal P0 fix remains bounded and P1 clipping remains unfinished.
+
+2026-11-08 22:18:29 PDT, Terminal P1 clipping and palette staging pass
+
+Continued from P0-only fix. The native line190 event now passes the FULL terminal
+edge probe (all five objects, eight physical/RESP-residue edge positions, twelve
+distinct PF rows) on supplied6,12,28,34,34,36,40,2. Terminal height/pointer/NUSIZ
+controls also pass on16,16,16,16,32,32,62,2. Uniform-PF default-pose probe passes.
+This is real closure of the terminal P1 failure at frame215, not skipping P1 or
+reporting a partial sweep. Other row/fine handoffs are still unfinished; both
+scores remain bounded and the repeated renderer remains an opt-in private preview.
+
+Critical schedule: replace the dead final M0 shift and DEX (seven cycles) with
+early VDELBL Ball staging, preserving first-half right PF deadlines. Four NOP
+cycles then precede the P1 selector. On the active path, load P1 colour into dead
+dispatch low, keep graphics in A, load cached colour into X and STX COLUP1. X then
+loads the next PF colour; absolute LDY prefetches M1. Commit GRP1 at12 with both
+registers staged. Inactive path loads X/Y and consumes six balanced BIT cycles,
+uses the existing immediate-colour/absolute-TIA alias and jumps into the same
+GRP1 commit. Active COLUP1 is1, inactive4, GRP1 is12. The fourth LDY cycle matters.
+The fixed dispatch high byte and real hardware stack remain untouched.
+
+After GRP1: BG17,PF20,M1 enables23, then left PF28/33. Move CPY P0 AFTER second-
+half right PF2 so its write remains48; right PF1 is56. Two-cycle padding before
+the P0 selector keeps active COLUP0 at68,GRP0 at0. Existing terminal M0/Ball/PF
+continuation is unchanged. No additional RAM, cartridge bank, sprite copy or
+return vector. Supplied interactive budget is3735/3840 bank0 (+11),1420/3840
+bank1,94/128 RAM including15 stack bytes. Its420-frame raw264 timing passes.
+The supplied geometry's expanded-controls ROM still fails bank placement even
+before this work; only the smaller stated geometry has controls certification.
+
+Added three normal-runner tests using the EXISTING exact oracle: repeated terminal
+edges, controls and uniform. New profiles load independent private snapshots
+repeated_terminal.c26 and repeated_mapper.c26 in the existing preview fixture
+directory. The renderer snapshot initially matches native source except its
+two-line frozen provenance header; do NOT automatically follow example edits.
+Old profiles retain their prior fixture choices, expected pixels and budgets.
+Editable-example build/budget gate remains in vcs_examples_build.pl as requested.
+New test workload budgets240s match existing terminal raster tests; shared60s
+Stella deadline and process-group cleanup are unchanged.
+
+Initial test integration directly referenced editable examples and correctly
+failed source hygiene; fixed the dependency by freezing private snapshots, NOT
+by adding an exemption or disguising an example path. Also removed regression
+names from the beam-critical allowlist's compiler-debt-only regression column.
+No hygiene/allowlist rules were relaxed. Final new three tests plus both policy
+checks pass5/5. Earlier frozen C26/static terminal and C26 uniform profiles also
+pass, as do editable build and inventory checks. Full-suite rerun still needed
+for this P1 change; previous combined run's1307/1309 timeouts remain historical.
+
+Rejected further timing variants: simply delaying GRP1 while LDY-prefetching M1
+after the graphics lookup moves active colour too early; reordering palette
+writes alone misses BG/PF deadlines. The successful colour-cache schedule frees
+Y/X without moving either P1 colour phase. Do not resume the failed variants.
+
+Started a new combined eight-worker suite after the final fixture/policy fixes,
+retained log test/test_output_RPT5 (three new tests bring expected total1312).
+Result pending. No budgets or runner flags were changed for this rerun.
+
+2026-11-08 22:41:40 PDT, Combined terminal-fix suite passes
+
+The combined full eight-worker run completed1312 passed,0 failed,1312 total.
+Retained log: test/test_output_RPT5. Includes all three new frozen terminal
+regressions and the previously timed-out compile/build workloads, with unchanged
+budgets. This is a clean combined run, not an aggregation of focused reruns.
+Other row/fine-event handoffs and both score compositions remain unfinished.

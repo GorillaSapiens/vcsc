@@ -17,6 +17,7 @@ use Symbol qw(gensym);
 my($repo,$tmp,$profile,$edges,$proof_seam,$geometry)=@ARGV;
 $edges //= 0;
 $profile //= 'dense';
+my$repeated_terminal=$profile=~/^repeated_terminal(?:_controls|_uniform)?$/;
 my$score26=$profile=~/^example_score_(?:above|below)_row1_26(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?$/;
 my$score24=$score26||$profile=~/^example_score_(?:above|below)_row1_24(?:_controls|_uniform|_bad_palette|_bad_vector|_relocated|_dynamic)?$/;
 my$score24_dynamic=$score24&&$profile=~/_dynamic$/;
@@ -54,7 +55,7 @@ my$static_palette=$profile eq 'fine_global_static_palette';
 my$global_static=$profile=~/^fine_global_static(?:_controls|_uniform|_palette|_bad_feed|_bad_refill|_compile)?$/;
 my$global_c26=$profile=~/^fine_global_c26(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
 my$global_procedures=$global_c26||$profile=~/^fine_global_procedures(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
-my$fine_global=$global_static||$global_procedures||$profile=~/^fine_global(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
+my$fine_global=$repeated_terminal||$global_static||$global_procedures||$profile=~/^fine_global(?:_controls|_uniform|_bad_feed|_bad_refill|_compile)?$/;
 my$bad_global_refill=$fine_global&&$profile=~/_bad_refill$/;
 my$global_compile=$fine_global&&$profile=~/_compile$/;
 my$fine_dense_later=$profile=~/^fine_rts_dense_later(?:_uniform|_controls|_bad_feed|_bad_pose)?$/;
@@ -66,6 +67,7 @@ my$fine_rts=$fine_late||$profile=~/^fine_rts(?:_uniform|_controls|_bad_feed)?$/;
 my$fine_controls=$profile eq 'fine_global_controls'||$profile eq 'fine_spread_controls'||$profile eq 'fine_rts_controls'||$profile eq 'fine_rts_late_controls'||$profile eq 'fine_rts_mixed_controls'||$profile eq 'fine_rts_dense_controls'||$profile eq 'fine_rts_boundary_controls'||$profile eq 'fine_rts_dense_later_controls';
 $fine_controls=1 if$global_procedures&&$profile=~/_controls$/;
 $fine_controls=1 if$global_static&&$profile=~/_controls$/;
+$fine_controls=1 if$repeated_terminal&&$profile=~/_controls$/;
 my$fine_eight=$fine_global||$profile eq 'fine_spread_eight'||($fine_rts&&$profile!~/_uniform$/&&!$fine_controls);
 my$bad_fine_p1=$profile eq 'fine_spread_bad_p1';
 my$fine_spread=$fine_global||$profile eq 'fine_spread'||$profile eq 'fine_spread_uniform'||$profile eq 'fine_spread_bad_feed'||$fine_controls||$bad_fine_p1||$fine_eight||$fine_rts;
@@ -453,14 +455,14 @@ if($score_packed) {
       $component =~ s/   asm sta WSYNC;\n\}\n\nrequire inline void TEMPLATE_overscan/   draw_probe_score_tail();\n}\n\nrequire inline void TEMPLATE_overscan/ or die 'score tail terminal call';
    }
 }
-if($preview) {
+if($preview&&!$repeated_terminal) {
    # Frozen counterpart of the preview, not just its generated ancestor.
    $component=slurp("$repo/test/fixtures/all_five_colors_sections_preview/component.c26");
    for my$n(1..8) {
       $component =~ s/(parameter section${n}_lines := )\d+;/$1$preview_heights[$n-1];/ or die 'preview height parameter';
    }
 }
-if($fine_spread) {
+if($fine_spread&&!$repeated_terminal) {
    # Private sparse-phase schedule, not a general geometry implementation.
    # It changes palettes at row offsets 2,6,14; row boundaries retain colour.
    # S holds row X only during drawing; no calls or stack accesses are allowed.
@@ -513,13 +515,24 @@ if($example_score){
    }}
    $component =~ s/parameter score_below := 0;/parameter score_below := 1;/ if$example_score eq 'below'&&!$example_independent;
 }
+if($repeated_terminal){
+   # Separate frozen snapshot. Established profiles above retain their own
+   # component selection, schedules and goldens; never redirect them here.
+   !grep{$_<2}@preview_heights or die 'repeated example requires positive heights';
+   $preview_heights[7]==2 or die 'repeated terminal profile requires a two-line tail';
+   $component=slurp("$repo/test/fixtures/all_five_colors_sections_preview/repeated_terminal.c26");
+   for my$n(1..8){
+      $component=~s/(parameter section${n}_lines := )\d+;/$1$preview_heights[$n-1];/
+         or die 'repeated example height parameter';
+   }
+}
 save("$tmp/component.c26",$component);
 
 my$source=slurp("$repo/test/fixtures/all_five_player_color_192/smoke.c26");
 if($preview) {
    # The spread-out preview folds the example's two alternating PF patterns.
    # Keep this fixture explicit rather than claiming arbitrary per-row PF data.
-   my@rows=map{$uniform?(255,255,255,255):$_%2?(0x36,0x81,0x18,0xa5):(0x81,0x18,0x42,0x24)}0..11;
+   my@rows=map{$uniform?(255,255,255,255):$repeated_terminal?(0x81^($_*7),0x18^($_*11),0x42^($_*13),0x24^($_*17)):$_%2?(0x36,0x81,0x18,0xa5):(0x81,0x18,0x42,0x24)}0..11;
    my$pf='page const uint8_t game_playfield[48] := {'.join(',',@rows).'};';
    $source =~ s/page const uint8_t game_playfield\[48\] := \{.*?\};/$pf/s or die 'preview playfield fixture';
 }
@@ -790,6 +803,28 @@ if($score26){
    # cache to reclaim. Padding45 is never written by preparation or drawing;
    # its terminal speculative read is not consumed. Leave the golden separate.
    $probe=~s/uint8_t edge;/alias edge game_object_masks[45]/ or die 'row26 edge scratch' if$edges&&!$score_loop_controls;
+}
+if($repeated_terminal){
+   $probe=~s!F8/mapper.c26!$repo/test/fixtures/all_five_colors_sections_preview/repeated_mapper.c26!
+      or die 'repeated example mapper';
+   $probe=~s/void main\(void\)/bank0 void repeated_raster(void)/ or die 'repeated raster bank';
+   $probe.="\nvoid main(void) { repeated_raster(); }\n";
+   if(!$edges){
+      my($pose)=$probe=~/(      motion \+= 3;.*?      game_ball_y := motion;\n)/s;
+      defined$pose or die 'repeated motion pose';
+      $probe=~s/\Q$pose\E/      repeated_advance_pose();\n/ or die 'remove repeated pose';
+      $probe=~s/bank0 void repeated_raster\(void\)/bank1 void repeated_advance_pose(void) {\n$pose}\nbank0 void repeated_raster(void)/
+         or die 'repeated motion bank';
+   }
+   if($fine_controls){
+      # Arithmetic stays with the bank1 pose update; graphics pointer writes
+      # remain in bank0 beside the upright, non-mirrored glyph tables.
+      my($arithmetic)=$probe=~/(   game_player0_height := motion & 7;.*?   game_PLAYER1_NUSIZ := .*?;\n)/s;
+      defined$arithmetic or die 'repeated control arithmetic';
+      $probe=~s/\Q$arithmetic\E// or die 'remove repeated arithmetic';
+      $probe=~s/(bank1 void update_probe_pose\(void\) \{.*?)(\n\})/$1\n$arithmetic$2/s
+         or die 'repeated control bank';
+   }
 }
 save("$tmp/probe.c26",$probe);
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/probe.c26",'-o',"$tmp/probe.bin");

@@ -9,8 +9,8 @@
 // exact-pixel probe at default positions. Extended/edge control probes still expose
 // row-ending P0 colour and P1 clipping timing differences; see the leaf README.
 // Row-aligned layouts now use a corrected first-row handoff, not a full fix.
-// A final two-line section also has corrected terminal P0/M0/PF timing; P1's
-// late clipping selector remains unfinished, including at that terminal seam.
+// A final two-line section also has corrected terminal P0/P1/M0/PF timing.
+// Other late clipping handoffs and general fine-event controls remain unfinished.
 parameter section1_lines := 2;
 parameter section2_lines := 2;
 parameter section3_lines := 2;
@@ -66,6 +66,7 @@ page const uint8_t TEMPLATE_pf_data_9[4] := {TEMPLATE_playfield[36],TEMPLATE_pla
 page const uint8_t TEMPLATE_pf_data_10[4] := {TEMPLATE_playfield[40],TEMPLATE_playfield[41],TEMPLATE_playfield[42],TEMPLATE_playfield[43]};
 page const uint8_t TEMPLATE_pf_data_11[4] := {TEMPLATE_playfield[44],TEMPLATE_playfield[45],TEMPLATE_playfield[46],TEMPLATE_playfield[47]};
 const uint8_t TEMPLATE_row0_next_pf := TEMPLATE_FEED_pf(16);
+const uint8_t TEMPLATE_terminal_next_pf := TEMPLATE_section8_colupf;
 // Keep equal adjacent constants cycle-equivalent: each inlined helper contains
 // a zero-cycle assembly label between stores, preventing repeated-LDA folding.
 inline void TEMPLATE_pf_left_0(void) {
@@ -8726,7 +8727,94 @@ inline void TEMPLATE_emit_event_11_7(void) {
    asm jmp TEMPLATE_ready1_event_11_7;
    asm .endproc;
 }
+// Terminal colour event: keep the active P1 colour commit at1, inactive at4,
+// and GRP1 at12. Dispatch low is dead here and caches one selected colour.
+// Graphics remain in A while X commits the colour; X/Y then stage PF/M1.
+inline void TEMPLATE_emit_terminal_event(void) {
+   asm .proc TEMPLATE_block_terminal_event;
+   asm .scope TEMPLATE_event_11_8_anchor;
+   asm TEMPLATE_event_11_8:;
+   asm .endscope;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_object_masks + 46;
+   asm sta ENAM0;
+   TEMPLATE_pf_left_11();
+   asm ldy.z TEMPLATE_row_cache + 1;
+   asm dey;
+   asm sty.z TEMPLATE_row_cache + 1;
+   // Final M0 needs no further shift; X is no longer a pair counter. Their
+   // seven cycles stage the delayed Ball early without moving right PF.
+   asm lda.z TEMPLATE_object_masks + 44;
+   asm sta.a ENABL;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.a TEMPLATE_pf_data_11 + 2;
+   asm sta PF2;
+   PF1 := TEMPLATE_playfield[47];
+   asm nop;
+   asm nop;
+   asm bcs.same @p1_zero;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta.z TEMPLATE_dispatch;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm ldx.z TEMPLATE_dispatch;
+   asm stx COLUP1;
+   asm ldx.a TEMPLATE_terminal_next_pf;
+   asm ldy.a TEMPLATE_object_masks + 45;
+   asm @p1_ready:;
+   asm sta GRP1;
+   COLUBK := TEMPLATE_section8_colubk;
+   asm stx COLUPF;
+   asm sty ENAM1;
+   TEMPLATE_pf_left_11();
+   asm ldy.z TEMPLATE_row_cache + 0;
+   asm dey;
+   asm sty.z TEMPLATE_row_cache + 0;
+   asm nop;
+   PF2 := TEMPLATE_playfield[46];
+   // Compare after PF2, preserving its48 deadline and clipping carry.
+   asm cpy.z TEMPLATE_player0_height;
+   PF1 := TEMPLATE_playfield[47];
+   asm nop;
+   asm bcc.same @p0_active;
+   asm lda #0;
+   asm tay;
+   asm bit.a CXM0P;
+   asm nop;
+   asm bcs.same @p0_ready;
+   asm @p0_active:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @p0_ready:;
+   asm sta GRP0;
+   asm .scope TEMPLATE_boundary_12_anchor;
+   asm TEMPLATE_boundary_12:;
+   asm .endscope;
+   asm lda.z TEMPLATE_object_masks + 47;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_object_masks + 44;
+   asm sta ENABL;
+   TEMPLATE_terminal_pf1_abs := TEMPLATE_playfield[44];
+   asm @terminal_pf_left_barrier:;
+   TEMPLATE_initial_pf2_abs := TEMPLATE_playfield[45];
+   asm jmp TEMPLATE_terminal_middle;
+   // The inactive path commits colour three cycles later than the active
+   // path but reaches the same GRP1 phase. Absolute LDY's fourth cycle matters.
+   asm @p1_zero:;
+   asm ldx.a TEMPLATE_terminal_next_pf;
+   asm ldy.a TEMPLATE_object_masks + 45;
+   asm bit.z $00;
+   asm bit.z $00;
+   TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
+   asm lda #0;
+   asm jmp @p1_ready;
+   asm .endproc;
+}
 inline void TEMPLATE_emit_event_11_8(void) {
+   asm .if TEMPLATE_END_7 == 190;
+   TEMPLATE_emit_terminal_event();
+   asm .else;
    asm .proc TEMPLATE_block_event_11_8;
    asm .scope TEMPLATE_event_11_8_anchor;
    asm TEMPLATE_event_11_8:;
@@ -8768,35 +8856,6 @@ inline void TEMPLATE_emit_event_11_8(void) {
    PF2 := TEMPLATE_playfield[46];
    asm nop;
    PF1 := TEMPLATE_playfield[47];
-   asm .if TEMPLATE_END_7 == 190;
-   // The line190 colour event is also the final cached pair. Commit active
-   // P0 colour at68 and GRP0 at0, rather than recolouring the old glyph from
-   // terminal entry. BIT preserves CPY's carry for the clipping selector.
-   asm bit.z $00;
-   asm bcc.same @terminal_p0_active;
-   asm lda #0;
-   asm tay;
-   asm bit.a CXM0P;
-   asm nop;
-   asm bcs.same @terminal_p0_ready;
-   asm @terminal_p0_active:;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta COLUP0;
-   asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm @terminal_p0_ready:;
-   asm sta GRP0;
-   asm .scope TEMPLATE_boundary_12_anchor;
-   asm TEMPLATE_boundary_12:;
-   asm .endscope;
-   asm lda.z TEMPLATE_object_masks + 47;
-   asm sta ENAM0;
-   asm lda.z TEMPLATE_object_masks + 44;
-   asm sta ENABL;
-   TEMPLATE_terminal_pf1_abs := TEMPLATE_playfield[44];
-   asm @terminal_pf_left_barrier:;
-   TEMPLATE_initial_pf2_abs := TEMPLATE_playfield[45];
-   asm jmp TEMPLATE_terminal_middle;
-   asm .else;
    asm bcs.same TEMPLATE_zero0_event_11_8;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm lsr.z TEMPLATE_object_masks + 45;
@@ -8805,15 +8864,8 @@ inline void TEMPLATE_emit_event_11_8(void) {
    asm TEMPLATE_ready0_event_11_8:;
    asm .endscope;
    asm sta GRP0;
-   asm .if TEMPLATE_END_7 == 190;
-   asm jmp TEMPLATE_boundary_12;
-   asm .else;
-   asm .if TEMPLATE_section8_lines == 2;
-   asm jmp TEMPLATE_event_11_9;
-   asm .else;
+   // The two-line final section is handled above; this event has pairs left.
    asm jmp TEMPLATE_normal_11;
-   asm .endif;
-   asm .endif;
    asm .scope TEMPLATE_zero0_event_11_8_anchor;
    asm TEMPLATE_zero0_event_11_8:;
    asm .endscope;
@@ -8821,7 +8873,6 @@ inline void TEMPLATE_emit_event_11_8(void) {
    asm tay;
    asm lsr.z TEMPLATE_object_masks + 45;
    asm jmp TEMPLATE_ready0_event_11_8;
-   asm .endif;
    asm .scope TEMPLATE_zero1_event_11_8_anchor;
    asm TEMPLATE_zero1_event_11_8:;
    asm .endscope;
@@ -8830,6 +8881,7 @@ inline void TEMPLATE_emit_event_11_8(void) {
    asm lsr.z TEMPLATE_object_masks + 44;
    asm jmp TEMPLATE_ready1_event_11_8;
    asm .endproc;
+   asm .endif;
 }
 inline void TEMPLATE_emit_boundary_1(void) {
    asm .proc TEMPLATE_block_boundary_1;

@@ -57,7 +57,7 @@ fine colour events through native compile-time scheduling. Its dispatch uses
 **two reusable RAM bytes**, not a growing return vector. Drawing and sprite ROM
 stay in bank0; startup and application work use bank1, with stock F8 bank sizes
 and stock RIOT RAM. The hardware stack is not repurposed during drawing.
-The supplied build uses **3724/3840** bank0 bytes and **94/128** RAM bytes,
+The supplied build uses **3735/3840** bank0 bytes and **94/128** RAM bytes,
 including its hardware-stack reservation.
 
 For row-aligned layouts (all eight heights multiples of16), the first PF row
@@ -69,14 +69,18 @@ It is only a first-row fix; fine-event layouts retain their existing path.
 
 When the last section is two lines, the line190 event now commits active P0
 colour at cycle68, GRP0 at0 and terminal M0 at6, without an extra terminal colour
-write. The terminal P0 edge sweep and a runtime-height/pointer/NUSIZ sweep get
-through all eight P0 positions; both then stop at the outstanding P1 clipping
-error. This is not a passing full terminal-edge probe.
+write. P1 commits active colour at1, inactive colour at4 and GRP1 at12, caching
+one selected colour in the temporarily dead dispatch byte. The complete terminal
+edge probe passes for all five objects on the supplied geometry with twelve
+distinct PF rows. The terminal runtime-height/pointer/NUSIZ probe also passes on
+`16,16,16,16,32,32,62,2`; the supplied geometry's larger controls probe does not
+fit bank0. Separate frozen terminal-snapshot profiles in the existing exact oracle
+retain these checks independently of editable examples and older frozen profiles.
 
 **Not completion or a general renderer ABI:** the distinct-row/default-position
 exact-pixel checks pass, but edge-position/runtime-NUSIZ probes still expose P0
 row-ending colour timing differences outside that bounded first-row path.
-P1 handoffs in later rows and fine-event layouts still need certification.
+P1 handoffs in other rows and fine-event layouts still need certification.
 Uniform PF inputs now retain the scheduled loads: equal adjacent PF constants
 pass timing and exact pixels at default positions on both the row-aligned and
 supplied fine-seam layouts. This does not fix their edge-control limitations.
