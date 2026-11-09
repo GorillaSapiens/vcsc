@@ -209,12 +209,14 @@ five objects on supplied geometry; terminal height/pointer/NUSIZ controls pass
 on16,16,16,16,32,32,62,2. Three independent frozen terminal profiles retain those
 proofs and uniform PF coverage. Supplied geometry's larger controls ROM still
 does not fit. Other row/fine handoffs and both scores remain unfinished; opt-in.
-Next: generalize the corrected final-pair handoff within bank/page/RAM limits,
-then integrate
-both scores. Do not replace default/frozen regressions with this unfinished path.
+Next: fit the experimentally passing fine first-row handoff into the interactive
+drawing bank, then generalize later handoffs and integrate both scores. The
+temporary colour-cache schedule passes controls on6,12,14,32,32,32,32,32 but is
+NOT promoted: supplied interactive geometry still fails page/bank placement.
+Do not replace default/frozen regressions with this unfinished path.
 Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.
 Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt,
-2026-11-06.txt and 2026-11-08.txt.
+2026-11-06.txt, 2026-11-08.txt and 2026-11-09.txt.
 Keep eight workers, shared60s snapshot deadlines, workload budgets and child-group
 timeout cleanup. Preserve independent leaves, joystick/Select/Reset controls and
 frozen exact tests. Configure directly in .c26, never user-facing generators.

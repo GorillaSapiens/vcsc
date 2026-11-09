@@ -980,14 +980,18 @@ inline void TEMPLATE_emit_normal_0(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_0;
+   // CPY carry is still clear: a taken page-contained branch costs JMP's
+   // three cycles but saves one byte. Do not use this across a mask shift.
+   asm bcc.same TEMPLATE_ready1_normal_0;
    asm .scope TEMPLATE_zero1_normal_0_anchor;
    asm TEMPLATE_zero1_normal_0:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   // Six cycles, three bytes; no flags from these padding reads are consumed.
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_0_anchor;
    asm TEMPLATE_ready1_normal_0:;
    asm .endscope;
@@ -1634,14 +1638,15 @@ inline void TEMPLATE_emit_normal_1(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_1;
+   asm bcc.same TEMPLATE_ready1_normal_1;
    asm .scope TEMPLATE_zero1_normal_1_anchor;
    asm TEMPLATE_zero1_normal_1:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_1_anchor;
    asm TEMPLATE_ready1_normal_1:;
    asm .endscope;
@@ -2288,14 +2293,15 @@ inline void TEMPLATE_emit_normal_2(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_2;
+   asm bcc.same TEMPLATE_ready1_normal_2;
    asm .scope TEMPLATE_zero1_normal_2_anchor;
    asm TEMPLATE_zero1_normal_2:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_2_anchor;
    asm TEMPLATE_ready1_normal_2:;
    asm .endscope;
@@ -2942,14 +2948,15 @@ inline void TEMPLATE_emit_normal_3(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_3;
+   asm bcc.same TEMPLATE_ready1_normal_3;
    asm .scope TEMPLATE_zero1_normal_3_anchor;
    asm TEMPLATE_zero1_normal_3:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_3_anchor;
    asm TEMPLATE_ready1_normal_3:;
    asm .endscope;
@@ -3596,14 +3603,15 @@ inline void TEMPLATE_emit_normal_4(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_4;
+   asm bcc.same TEMPLATE_ready1_normal_4;
    asm .scope TEMPLATE_zero1_normal_4_anchor;
    asm TEMPLATE_zero1_normal_4:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_4_anchor;
    asm TEMPLATE_ready1_normal_4:;
    asm .endscope;
@@ -4250,14 +4258,15 @@ inline void TEMPLATE_emit_normal_5(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_5;
+   asm bcc.same TEMPLATE_ready1_normal_5;
    asm .scope TEMPLATE_zero1_normal_5_anchor;
    asm TEMPLATE_zero1_normal_5:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_5_anchor;
    asm TEMPLATE_ready1_normal_5:;
    asm .endscope;
@@ -4904,14 +4913,15 @@ inline void TEMPLATE_emit_normal_6(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_6;
+   asm bcc.same TEMPLATE_ready1_normal_6;
    asm .scope TEMPLATE_zero1_normal_6_anchor;
    asm TEMPLATE_zero1_normal_6:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_6_anchor;
    asm TEMPLATE_ready1_normal_6:;
    asm .endscope;
@@ -5558,14 +5568,15 @@ inline void TEMPLATE_emit_normal_7(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_7;
+   asm bcc.same TEMPLATE_ready1_normal_7;
    asm .scope TEMPLATE_zero1_normal_7_anchor;
    asm TEMPLATE_zero1_normal_7:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_7_anchor;
    asm TEMPLATE_ready1_normal_7:;
    asm .endscope;
@@ -6212,14 +6223,15 @@ inline void TEMPLATE_emit_normal_8(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_8;
+   asm bcc.same TEMPLATE_ready1_normal_8;
    asm .scope TEMPLATE_zero1_normal_8_anchor;
    asm TEMPLATE_zero1_normal_8:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_8_anchor;
    asm TEMPLATE_ready1_normal_8:;
    asm .endscope;
@@ -6866,14 +6878,15 @@ inline void TEMPLATE_emit_normal_9(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_9;
+   asm bcc.same TEMPLATE_ready1_normal_9;
    asm .scope TEMPLATE_zero1_normal_9_anchor;
    asm TEMPLATE_zero1_normal_9:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_9_anchor;
    asm TEMPLATE_ready1_normal_9:;
    asm .endscope;
@@ -7520,14 +7533,15 @@ inline void TEMPLATE_emit_normal_10(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_10;
+   asm bcc.same TEMPLATE_ready1_normal_10;
    asm .scope TEMPLATE_zero1_normal_10_anchor;
    asm TEMPLATE_zero1_normal_10:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_10_anchor;
    asm TEMPLATE_ready1_normal_10:;
    asm .endscope;
@@ -8174,14 +8188,15 @@ inline void TEMPLATE_emit_normal_11(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp TEMPLATE_ready1_normal_11;
+   asm bcc.same TEMPLATE_ready1_normal_11;
    asm .scope TEMPLATE_zero1_normal_11_anchor;
    asm TEMPLATE_zero1_normal_11:;
    asm .endscope;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm .scope TEMPLATE_ready1_normal_11_anchor;
    asm TEMPLATE_ready1_normal_11:;
    asm .endscope;
@@ -8804,8 +8819,9 @@ inline void TEMPLATE_emit_terminal_event(void) {
    asm @p1_zero:;
    asm ldx.a TEMPLATE_terminal_next_pf;
    asm ldy.a TEMPLATE_object_masks + 45;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
    asm jmp @p1_ready;
@@ -9069,11 +9085,13 @@ inline void TEMPLATE_emit_boundary_1(void) {
    asm .scope TEMPLATE_zero1_boundary_1_anchor;
    asm TEMPLATE_zero1_boundary_1:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_1;
+   // The inactive selector preserves set CPY carry through all padding/loads.
+   asm bcs.same TEMPLATE_ready1_boundary_1;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_2(void) {
@@ -9262,11 +9280,12 @@ inline void TEMPLATE_emit_boundary_2(void) {
    asm .scope TEMPLATE_zero1_boundary_2_anchor;
    asm TEMPLATE_zero1_boundary_2:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_2;
+   asm bcs.same TEMPLATE_ready1_boundary_2;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_3(void) {
@@ -9455,11 +9474,12 @@ inline void TEMPLATE_emit_boundary_3(void) {
    asm .scope TEMPLATE_zero1_boundary_3_anchor;
    asm TEMPLATE_zero1_boundary_3:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_3;
+   asm bcs.same TEMPLATE_ready1_boundary_3;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_4(void) {
@@ -9648,11 +9668,12 @@ inline void TEMPLATE_emit_boundary_4(void) {
    asm .scope TEMPLATE_zero1_boundary_4_anchor;
    asm TEMPLATE_zero1_boundary_4:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_4;
+   asm bcs.same TEMPLATE_ready1_boundary_4;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_5(void) {
@@ -9841,11 +9862,12 @@ inline void TEMPLATE_emit_boundary_5(void) {
    asm .scope TEMPLATE_zero1_boundary_5_anchor;
    asm TEMPLATE_zero1_boundary_5:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_5;
+   asm bcs.same TEMPLATE_ready1_boundary_5;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_6(void) {
@@ -10034,11 +10056,12 @@ inline void TEMPLATE_emit_boundary_6(void) {
    asm .scope TEMPLATE_zero1_boundary_6_anchor;
    asm TEMPLATE_zero1_boundary_6:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_6;
+   asm bcs.same TEMPLATE_ready1_boundary_6;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_7(void) {
@@ -10227,11 +10250,12 @@ inline void TEMPLATE_emit_boundary_7(void) {
    asm .scope TEMPLATE_zero1_boundary_7_anchor;
    asm TEMPLATE_zero1_boundary_7:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_7;
+   asm bcs.same TEMPLATE_ready1_boundary_7;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_8(void) {
@@ -10420,11 +10444,12 @@ inline void TEMPLATE_emit_boundary_8(void) {
    asm .scope TEMPLATE_zero1_boundary_8_anchor;
    asm TEMPLATE_zero1_boundary_8:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_8;
+   asm bcs.same TEMPLATE_ready1_boundary_8;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_9(void) {
@@ -10613,11 +10638,12 @@ inline void TEMPLATE_emit_boundary_9(void) {
    asm .scope TEMPLATE_zero1_boundary_9_anchor;
    asm TEMPLATE_zero1_boundary_9:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_9;
+   asm bcs.same TEMPLATE_ready1_boundary_9;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_10(void) {
@@ -10806,11 +10832,12 @@ inline void TEMPLATE_emit_boundary_10(void) {
    asm .scope TEMPLATE_zero1_boundary_10_anchor;
    asm TEMPLATE_zero1_boundary_10:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_10;
+   asm bcs.same TEMPLATE_ready1_boundary_10;
    asm .endproc;
 }
 inline void TEMPLATE_emit_boundary_11(void) {
@@ -10999,11 +11026,12 @@ inline void TEMPLATE_emit_boundary_11(void) {
    asm .scope TEMPLATE_zero1_boundary_11_anchor;
    asm TEMPLATE_zero1_boundary_11:;
    asm .endscope;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    TEMPLATE_colup1_abs := TEMPLATE_player1_colors[0];
    asm lda #0;
-   asm jmp TEMPLATE_ready1_boundary_11;
+   asm bcs.same TEMPLATE_ready1_boundary_11;
    asm .endproc;
 }
 inline void TEMPLATE_emit_terminal(void) {
@@ -11031,8 +11059,9 @@ inline void TEMPLATE_emit_terminal(void) {
    asm .else;
    asm bit.z $00;
    asm .endif;
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm nop;
    asm nop;
    asm jmp TEMPLATE_terminal_right;
@@ -14193,8 +14222,9 @@ require inline void TEMPLATE_draw(void) {
    // Row zero enters at the scheduler's cycle-3 handoff.  The first visible
    // P0 half is timed to place the first cached pair at cycle 75; every normal
    // pair thereafter is exactly 152 cycles.
-   asm bit.z $00;
-   asm bit.z $00;
+   asm nop;
+   asm nop;
+   asm nop;
    asm bit.z $00;
    PF1 := TEMPLATE_playfield[0];
    asm nop;

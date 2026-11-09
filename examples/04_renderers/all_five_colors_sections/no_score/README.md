@@ -57,7 +57,7 @@ fine colour events through native compile-time scheduling. Its dispatch uses
 **two reusable RAM bytes**, not a growing return vector. Drawing and sprite ROM
 stay in bank0; startup and application work use bank1, with stock F8 bank sizes
 and stock RIOT RAM. The hardware stack is not repurposed during drawing.
-The supplied build uses **3735/3840** bank0 bytes and **94/128** RAM bytes,
+The supplied build uses **3686/3840** bank0 bytes and **94/128** RAM bytes,
 including its hardware-stack reservation.
 
 For row-aligned layouts (all eight heights multiples of16), the first PF row

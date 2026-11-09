@@ -1,0 +1,73 @@
+2026-11-09 01:48:01 PDT, Fine-row proof and bank headroom
+
+Continued native repeated renderer, without changing default/score selection.
+An unpromoted first-fine-row schedule now passes the complete exact edge/control
+probe on6,12,14,32,32,32,32,32 (seam18). This closes the previous first-row P0
+mismatch within that temporary component, but does NOT certify the maintained
+renderer: the supplied interactive geometry still fails drawing-bank placement.
+No budgets were increased, no sprite/control checks skipped, no RAM added.
+
+Successful diagnostic generator: /tmp/opencode/first-fine-cache.py, component
+/tmp/opencode/first-fine-cache.c26. Never a build dependency or public generator.
+The generator derives from the maintained renderer and copies terminal cache
+logic into a first-row final-pair entry, followed by the corrected aligned first
+boundary continuation. New condition excludes globally row-aligned geometry and
+any section end at12 or14: those final-pair event compositions remain unsolved.
+Table entry89 routes through the existing boundary1 trampoline to the special
+final pair, so the fixed two-byte dispatch and hardware stack remain intact.
+
+Critical differences from terminal schedule:
+- Move M1 staging before GRP1: replace eight cycles of X/Y palette/mask prefetch
+  with LDY.z mask1,STY ENAM1,NOP. Both active/inactive P1 paths retain their colour
+  phases and GRP1 phase12. The inactive colour remains at4; active is1.
+- After GRP1 immediately write left PF1/PF2 at17/22. Terminal's28/33 schedule
+  produced a visible left-field mismatch at visible14,x32 and cannot be reused.
+- Then stage next-row Ball (mask4 ASL into dead dispatch low); update P0 cache.
+  Five cycles of padding originally became LDX.absolute next-PF plus an absolute
+  PF2 write. This keeps right PF2 at48,CPY afterwards,right PF1 at56,P0 colour68,
+  GRP0 at0. X now carries PF for the aligned boundary continuation.
+- Boundary Ball consumes dispatch low, then replace it with shifted next M1.
+  Use immediate first left PF1 rather than its absolute-store alias; trade that
+  saved cycle plus a removed NOP for JMP to a separately emitted boundary-rest
+  procedure. All writes retain phases; this avoids one huge page-contained unit.
+- At the end select event_1_N at compile time when a section ends at18; otherwise
+  jump normal1. Always jumping normal1 skipped seam18 and failed visible18,x0.
+  Do NOT globally shift dispatch selectors to compensate.
+- Latest split version replaces LDX.absolute next-PF plus absolute PF2 (10 cycles)
+  with immediate X palette load,JMP to a separately emitted final-pair tail,and
+  immediate PF2 (2+3+5 cycles). Native .if ranges choose section palette for X;
+  direct-register loading TEMPLATE_FEED_pf(16) is rejected as not immediate.
+- P1 cold branch must precede the final-pair entry to keep its .same span short.
+  P0 ready and boundary selectors retain their balanced active/inactive branches.
+
+Probe records: /tmp/opencode/fine-last0-controls-v3 and -v5 both pass the complete
+exact oracle. v5 includes the last tail split. The interactive link still fails
+final page/alignment capacity. Before the last split/compaction, raw renderer
+component3716 bytes plus105 bytes of interactive animation was3821, leaving
+insufficient fragmentation room. Merely splitting procedures did not fix fit.
+Do NOT promote a narrow smaller-layout-only path as the delivered renderer.
+Next meaningful task is reducing/sharing that handoff enough for supplied
+interactive placement, then checking default and controls before promoting it.
+Moving update_player_animation to bank1 is not a shortcut: its references to
+bank0 sprite tables produce contradictory hard bank pins. Candidate reverted.
+
+Promoted separately: phase-neutral native byte reductions uncovered during this
+work. Normal P1 active JMPs become BCC.same (CPY carry remains clear); boundary
+P1 inactive JMPs become BCS.same (carry remains set). Taken branches are exactly
+three cycles, and .same retains hard no-page-cross/short-branch contracts. Do not
+extend substitutions across LSR/ASL mask updates, which overwrite carry. Two
+consecutive BIT.z padding reads become three NOPs: six cycles, one byte less;
+their N/V/Z outputs were dead. Terminal P0's carry-preserving BIT is unchanged.
+All maintained asm lines match the tested compact candidate exactly; frozen
+terminal/older snapshots are intentionally not updated.
+
+Actual interactive bank0 is3686/3840,49 bytes below3735; bank1 remains1420/3840,
+RAM94/128 including15 hardware-stack bytes. No data/animation was moved or cloned.
+Live-source exact probes pass independently: supplied terminal all-object edges,
+terminal height/pointer/NUSIZ controls on16,16,16,16,32,32,62,2, true uniform PF
+default poses, and aligned first-boundary controls on16,16,16,16,32,32,32,32.
+The420-frame interactive timing check passes with explicit --raw-lines264.
+Seven normal-runner checks also pass together with eight workers: editable paired
+build, allowlist,hygiene,inventory, and all three frozen terminal profiles.
+No full-suite rerun for byte compaction yet; the clean1312/1312 combined result
+belongs to the preceding terminal-fix source, not automatically to this revision.
