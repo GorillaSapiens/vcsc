@@ -204,16 +204,18 @@ the same driver: twelve distinct PF rows, four animation frames, fixed two-byte
 dispatch, no stolen S. Row-aligned layouts now have a passing isolated first-row
 P0/P1 handoff; later rows and fine-event layouts remain uncertified. Equal PF
 constants now retain timed loads; uniform aligned/fine default-pose probes pass.
-With a final two-line section, the complete terminal edge sweep passes for all
-five objects on supplied geometry; terminal height/pointer/NUSIZ controls pass
-on16,16,16,16,32,32,62,2. Three independent frozen terminal profiles retain those
-proofs and uniform PF coverage. Supplied geometry's larger controls ROM still
-does not fit. Other row/fine handoffs and both scores remain unfinished; opt-in.
-Next: fit the experimentally passing fine first-row handoff into the interactive
-drawing bank, then generalize later handoffs and integrate both scores. The
-temporary colour-cache schedule passes controls on6,12,14,32,32,32,32,32 but is
-NOT promoted: supplied interactive geometry still fails page/bank placement.
-Do not replace default/frozen regressions with this unfinished path.
+Frozen terminal profiles retain edge/control/uniform proofs; larger supplied
+controls still exceed bank0. Other fine handoffs/scores remain unfinished; opt-in.
+User has redirected the architecture: an intro positions all five objects once;
+repeatedly instantiated sections own PF/background colours and cooperate through
+shared object progress to enable/disable objects without restarting at seams.
+Section parameters: number_of_scanlines,playfield_row,pf_color,bk_color.
+libraries/vcs/layers/ has intro, provisional scenery sections and one76-byte
+all_five_objects.c26 vertical preparer. Its state/ancestor-raster checks pass;
+section drawing still DOES NOT advance objects. Next: the shared timed drawing
+handoff and a moving all-five/two-section proof. See layers.txt.
+Do not continue monolithic geometry-specific fixes as the delivery architecture.
+Preserve the existing examples/frozen regressions as implementation evidence.
 Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.
 Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt,
 2026-11-06.txt, 2026-11-08.txt and 2026-11-09.txt.

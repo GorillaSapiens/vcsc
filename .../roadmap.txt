@@ -18,16 +18,13 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 63, general compile-time scheduling, NOT another
-two-scanline prefix extension. The private display-wide planner now proves mixed,
-dense early/middle/late/terminal and row-boundary layouts with four reusable route
-bytes. Pair-six dead M1 shifts now close the dense-plus-boundary allocation gap.
-Private .c26 macros/equates compute allocations without state or runtime code;
-whole-block procedures let the linker place branch-contracted bodies.
-static_global.c26 now draws from that plan without the private test bridge.
-Still not public support: prove arbitrary PF rows, full app RAM/ROM and independent
-score composition within one drawing bank and stock RAM before extraction.
-See test/fixtures/all_five_colors_sections_preview/GLOBAL_PLAN.md.
+Current next action: Item 63, cooperating intro and repeated section components.
+The intro positions all five objects horizontally once. Each section owns its
+height and PF/background colours, advancing shared object progress across a
+cycle-defined handoff. No fixed eight-slot monolith or per-section object restart.
+Define and prove intro plus two sections with all-five seam continuity before
+extending this composition. Prior private schedulers are evidence, not the API.
+Intro and scenery sections exist; shared vertical object advancement is next.
 The runnable score previews remain even seams2..26 and RAM128/128. Preserve all
 frozen exact-pixel gates and independent returns; no mirrored sprites.
 Keep user configuration in .c26 with existing language facilities, not JSON.
@@ -35,10 +32,10 @@ Keep user configuration in .c26 with existing language facilities, not JSON.
 [ ] 63. Layers: frames built from cooperating components sharing a vocabulary of
         global variables.
 
-        * The actual user goal is all_five or all-five/player-colour renderer
-          behaviour with different playfield/background colours by vertical
-          section. A new object engine or shared-variable ABI is not itself
-          the goal; both remain implementation choices.
+        * Use an intro component to position all five objects, then repeatedly
+          instantiated section components for PF/background colours and shared
+          vertical object enable/disable progress. Components must cooperate,
+          not wrap a monolithic fixed-eight-section renderer.
         * `.../layers.txt` records the clarified goal. Its earlier AI-written
           draft is not an authoritative hardware specification or task order.
         * Preserve the chosen renderer's object continuity and frame timing;

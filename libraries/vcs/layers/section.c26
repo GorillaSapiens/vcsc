@@ -1,0 +1,70 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Experimental scenery section. Object advancement is NOT implemented here.
+// Entry/exit: cycle 3; exactly number_of_scanlines completed, no extra seam line.
+// Owns no RAM, VSYNC, VBLANK, timer, or object registers. Clobbers A, X, flags.
+// playfield_row is the same left-to-right 32-bit visual literal accepted by
+// VCS_PLAYFIELD_ROW(), not four raw TIA-order bytes.
+parameter number_of_scanlines := 2;
+parameter playfield_row := 0;
+parameter pf_color := 14;
+parameter bk_color := 0;
+
+#if TEMPLATE_number_of_scanlines < 2 || TEMPLATE_number_of_scanlines > 254
+extern const uint8_t TEMPLATE_bad_height[TEMPLATE_section_height_must_be_positive_even_and_at_most_254];
+#endif
+// A zero-sized initialized object is rejected for odd heights. This is a
+// compile-time C26 expression, avoiding restricted #if arithmetic and raw-ASM
+// substitution of hexadecimal user parameters.
+const uint8_t TEMPLATE_height_validation[1 - (TEMPLATE_number_of_scanlines & 1)] := {0};
+#if TEMPLATE_pf_color < 0 || TEMPLATE_pf_color > 255 || TEMPLATE_bk_color < 0 || TEMPLATE_bk_color > 255
+extern const uint8_t TEMPLATE_bad_colour[TEMPLATE_section_colours_must_be_bytes];
+#endif
+
+alias TEMPLATE_reverse8(x) ( \
+   ((((x) & 1) << 7) | (((x) & 2) << 5) | (((x) & 4) << 3) | \
+    (((x) & 8) << 1) | (((x) & 16) >> 1) | (((x) & 32) >> 3) | \
+    (((x) & 64) >> 5) | (((x) & 128) >> 7)) )
+alias TEMPLATE_left1 (((TEMPLATE_playfield_row`uint32_t) >> 24) & 255)
+alias TEMPLATE_left2 TEMPLATE_reverse8(((TEMPLATE_playfield_row`uint32_t) >> 16) & 255)
+alias TEMPLATE_right2 (((TEMPLATE_playfield_row`uint32_t) >> 8) & 255)
+alias TEMPLATE_right1 TEMPLATE_reverse8((TEMPLATE_playfield_row`uint32_t) & 255)
+
+require inline void TEMPLATE_draw(void) {
+   // Entry 3: twelve setup cycles replace the ordinary loop's twelve-cycle
+   // return path. Both reach @line at 15, including adjacent section instances.
+   $X := TEMPLATE_number_of_scanlines;
+   COLUBK := TEMPLATE_bk_color;
+   asm @palette_barrier:;
+   COLUPF := TEMPLATE_pf_color;
+   asm @line:;
+   PF1 := TEMPLATE_left1;
+   asm @left_barrier:;
+   PF2 := TEMPLATE_left2;
+   // Eighteen cycles put the right-half stores at 48/53. Labels above/below
+   // prevent equal constants from deleting loads and changing those phases.
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm @right_barrier:;
+   PF2 := TEMPLATE_right2;
+   asm @right1_barrier:;
+   PF1 := TEMPLATE_right1;
+   // Decrement BEFORE WSYNC: STA preserves Z. The taken exit branch returns
+   // at 3; the untaken branch + ten-cycle pad + JMP resumes @line at 15.
+   asm dex;
+   asm sta WSYNC;
+   asm beq.same @done;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm jmp @line;
+   asm @done:;
+}

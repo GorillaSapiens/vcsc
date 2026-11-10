@@ -10,7 +10,32 @@ objects must move continuously across seams, without restarts or separator
 scanlines. Configure geometry inside .c26, not through a user-facing generator.
 Reuse the certified object pipeline; do not drop its runtime controls.
 
-CURRENT SCHEDULER DIRECTION
+AUTHORITATIVE COMPONENT DIRECTION
+--------------------------------
+The user explicitly requires cooperating components, not a monolithic renderer
+with eight baked-in section slots. An intro component positions all five objects
+horizontally once. A section component is instantiated repeatedly to set its
+playfield/background colours and, together with adjacent sections, enable/disable
+the five objects as their vertical extents enter/leave the section.
+Object progress must survive each section handoff: no per-instance restart,
+duplicated object state, repositioning, or blank separator lines. Keep runtime
+graphics pointers, heights, row colours and NUSIZ, stock RAM and one drawing bank.
+The handoff must specify cycle phase and live TIA delayed-graphics state as well
+as shared software counters; ordinary function calls are not assumed safe there.
+Positive even heights remain configured directly in .c26. Do not require every
+section to know a fixed eight-entry geometry or rename the monolith as sections.
+Each section repeats ONE asymmetric PF row; parameters are number_of_scanlines,
+playfield_row,pf_color,bk_color. A new section changes pattern and/or colours;
+there is no separate PF-row schedule.
+Intro: libraries/vcs/layers/all_five_intro.c26; shared layers_object_x[5] and
+layers_player0_nusiz/player1_nusiz. No private RAM; blanking only, not fixed-duration.
+Scenery section: libraries/vcs/layers/section.c26; four parameters above, no RAM,
+entry/exit cycle3 with no separator. It preserves held TIA objects but does NOT
+advance them vertically. Next: integrate shared object progress, then prove all
+five moving across two sections. Preserve existing examples/tests.
+The private schedules below are implementation evidence, not the current design.
+
+PRIOR SCHEDULER IMPLEMENTATION
 ---------------------------
 The user rejected boundary-by-boundary two-line progress. Do NOT implement a
 seam28 extension. Plan palette deadlines, live PF/mask refills, parity, row

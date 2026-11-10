@@ -1,0 +1,94 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Experimental horizontal intro for cooperating all-five drawing sections.
+// Include vcs.c26 and define the three shared objects below in the application
+// or shared-state owner. These are real linker symbols, not textual aliases.
+// No private RAM, vertical state, graphics, palettes, or frame ownership.
+// establish() runs during blanking; it does NOT start a visible section.
+// The caller's blanking deadline absorbs the position-dependent WSYNC work.
+extern uint8_t layers_object_x[5];
+extern uint8_t layers_player0_nusiz;
+extern uint8_t layers_player1_nusiz;
+
+page const uint8_t TEMPLATE_reposition[16] := {
+   0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
+   0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
+};
+
+require inline void TEMPLATE_establish(void) {
+   asm sta WSYNC;
+   asm ldx #4;
+   asm bit.z $00;
+   asm lda.zx layers_object_x,x;
+   asm sec;
+   asm @ball:;
+   asm sbc #15;
+   asm bcs.same @ball;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm ldx #3;
+   asm bit.z $00;
+   asm lda.zx layers_object_x,x;
+   asm sec;
+   asm @missile1:;
+   asm sbc #15;
+   asm bcs.same @missile1;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm ldx #2;
+   asm bit.z $00;
+   asm lda.zx layers_object_x,x;
+   asm sec;
+   asm @missile0:;
+   asm sbc #15;
+   asm bcs.same @missile0;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z $00;
+   asm lda.zx layers_object_x,x;
+   asm sec;
+   asm @player1:;
+   asm sbc #15;
+   asm bcs.same @player1;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z $00;
+   asm lda.zx layers_object_x,x;
+   asm sec;
+   asm @player0:;
+   asm sbc #15;
+   asm bcs.same @player0;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm lda.z layers_player0_nusiz;
+   asm sta NUSIZ0;
+   asm lda.z layers_player1_nusiz;
+   asm sta NUSIZ1;
+}

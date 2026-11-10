@@ -71,3 +71,186 @@ Seven normal-runner checks also pass together with eight workers: editable paire
 build, allowlist,hygiene,inventory, and all three frozen terminal profiles.
 No full-suite rerun for byte compaction yet; the clean1312/1312 combined result
 belongs to the preceding terminal-fix source, not automatically to this revision.
+
+2026-11-09 20:41:16 PDT, User redirects work to cooperating components
+
+User says the monolithic direction feels wrong: requires an intro component that
+places five objects horizontally, then a section component instantiated multiple
+times for PF/background colours and cooperative object enabling/disabling.
+This supersedes the next action of fitting another specialised row handoff.
+Updated hot layers/context/roadmap direction; no renderer code changed for this
+clarification. Existing implementations and exact tests remain untouched.
+First proof should be intro plus two differently coloured sections with all-five
+cross-seam motion, with an explicit cycle phase and shared software/TIA state
+contract. It must not be a facade over the fixed-eight-slot monolith. No claim
+that independent instances or their handoff are implemented/certified yet.
+
+2026-11-09 20:57:35 PDT, Extracted RAM-free horizontal intro
+
+User selected a single asymmetric PF row per section, with parameters
+number_of_scanlines,playfield_row,pf_color,bk_color, then requested implementation.
+Added experimental libraries/vcs/layers/all_five_intro.c26 and README. Actual
+horizontal RESP/HMP/HMOVE/NUSIZ code is extracted from the certified player-colour
+renderer; no vertical preparation or monolithic drawing is wrapped into it.
+Intro reads shared layers_object_x[5] and layers_player0_nusiz/player1_nusiz,
+owns no private RAM, and touches no vertical counters, pointers, colours or enables.
+Its establish() runs in blanking; variable position-dependent WSYNC work must be
+absorbed by the enclosing frame deadline. Fixed-duration visible/score-above
+intro placement remains unproved. No installed/public ABI or full-composition
+claim. Section drawing is NOT implemented; do not mistake the documented section
+contract for executable code or restart the old geometry-specific scheduler.
+
+Added normal-runner test/vcs_layers_intro.pl. It substitutes ONLY the horizontal
+block in a temporary copy of the independently maintained certified ancestor;
+all its mask preparation, delayed-graphics priming and visible drawing remain.
+Two whole-image exact Stella comparisons exercise all-five positions including
+0,13,14,15,16,150,157,159, using the pinned combined palette/private basedirs and
+shared60s snapshot deadline. Candidate RAM must equal golden RAM. A missing-intro
+mutation must change the RGB digest. All these checks pass. Existing ancestor,
+frozen fixtures, previews and examples are unchanged.
+
+First binding attempt used C26 expression aliases for shared names; raw assembly
+operands do not expand them. Corrected to actual shared linker symbols; the
+temporary witness component owns them in place of its old instance-prefixed
+X/NUSIZ objects. Initial runner cleanup accidentally changed the exit status in
+END despite successful raster checks; preserving/restoring $? around process-
+group cleanup fixes this. No success marker is accepted with a failing exit.
+
+Outstanding implementation: independently instantiated positive-even sections
+must advance shared object progress and preserve delayed TIA latches plus colour/
+graphics phases. A per-section ordinary call or WSYNC separator is not valid.
+Retain independent eight-row colours, runtime pointers/heights/NUSIZ and stock
+RAM/one drawing bank. The first next test is two genuinely separate sections
+with all-five seam crossing, not another full-height eight-slot scheduler.
+
+Final focused checks pass: vcs_layers_intro.pl (including the mutation and RAM
+check), source_tree_hygiene.pl, context_history_format.pl. No full-suite rerun for
+this intro-only extraction. New library files remain experimental/uninstalled.
+
+2026-11-09 21:25:31 PDT, Composable single-row scenery sections pass
+
+Implemented libraries/vcs/layers/section.c26 with the four requested parameters:
+number_of_scanlines,playfield_row,pf_color,bk_color. Each section repeats one
+asymmetric visual32-bit PF row, for positive even heights2..254. It owns no RAM,
+frame/timer state, or object registers. User includes two independent instances
+and calls their inline draw() entries consecutively; no global geometry, eight-
+slot renderer, or private generator. A repeated call to the same instance and
+three distinct instances also pass. Existing previews and ancestor stay unchanged.
+
+IMPORTANT scope: this is scenery rendering, NOT the completed all-five section
+pipeline. Sections preserve held GRP/enable/NUSIZ/delay latches but do not advance
+object counters or start/stop objects vertically. Runtime player graphics, heights,
+independent row colours, and moving all-five seam crossing remain to integrate.
+Do not equate the held-enable transparency proof with vertical motion support.
+The installed/public ABI is not frozen and these new files remain experimental.
+
+Cycle contract: enter/exit at3. LDX immediate2 and two immediate palette writes5
+each reach the line body at15. PF1/PF2 left writes20/25, right PF2/PF1 writes48/53.
+DEX occurs BEFORE WSYNC; STA preserves its Z. At the next line's0, taken BEQ
+returns at3; untaken BEQ2,ten-cycle NOP pad and JMP3 resume the body at15. Exactly
+one WSYNC per configured line, no leading WSYNC or blank seam line. No ordinary
+JSR/RTS or extra vcs_ntsc_component_handoff() belongs between these sections.
+Labels prevent equal-immediate folding. Only A,X,flags clobbered. Caller owns
+PF0=0,CTRLPF reflected order, other object controls, and total visible budget.
+
+Compile-time validation: restricted #if cannot express the odd-height arithmetic.
+Simple range checks use it; initialized const array of size1-(height&1) rejects
+odd heights. It costs one ROM byte per instance, no RAM. DRA immediate X load
+normalizes hexadecimal height values; raw ASM parameter immediates would not.
+Compile gates reject0,1,3,255,256,-2 and out-of-byte colours;0xfe compiles.
+
+New auditable fixture test/fixtures/layers/sections.c26 composes intro plus two
+sections6/186 with distinct PF patterns/colours. Actual ROM399 bytes, RAM9 bytes
+(seven shared X/NUSIZ bytes plus two hardware-stack bytes); no section RAM.
+Build: driver/vcsc -I libraries/vcs test/fixtures/layers/sections.c26 -o OUTPUT.
+
+New normal-runner test/vcs_layers_sections.pl passes:
+- Full exact-RGB scenery for seams2,6,190; first/last lines and all pixels checked.
+- CPU harness checks all768 PF writes per visible frame, their exact registers
+  and20/25/48/53 phases, for420 frames; explicit --raw-lines264. Uniform adjacent
+  PF constants retain these phases. Removing one NOP must fail this phase check.
+- No added RAM. Same-instance repeat and three-instance192-line compositions.
+- All five objects held enabled remain visible through the6/186 palette seam;
+  compare complete RGB to captured flat fields, with nonempty witnesses at each
+  object's distinct horizontal position. This does NOT test vertical progress.
+- Pinned combined palette/private basedirs, shared60s snapshot deadline and
+  process-group cleanup. Workload timeout240s, unchanged global runner budgets.
+
+Independent-oracle finding: the existing all-five player-colour ancestor's LAST
+line clobbers the left PF2's final cell for the distinct0x3c96a569 row. Candidate
+has background atPNGx152..159,y204, ancestor has PF colour. Logical visual bit0
+of left byte0x96 is0, so the candidate is correct there. Do not copy that terminal
+quirk into this new primitive or mask those pixels. The new oracle takes exact
+palette RGB from an ordinary ancestor row, independently expands all32 visual
+bits (eight PNG pixels each, with32-pixel side borders), validates its ordinary
+row witness, then requires that bitmap on EVERY candidate visible line. It does
+not borrow the ancestor's terminal timing. The ancestor/frozen tests are NOT
+modified by this work; any ancestor correction is a separate future change.
+
+Final focused eight-worker run passes4/4: scenery sections,intro,hygiene,history
+format. No full-suite rerun for these new experimental components. Next actual
+renderer work is integrating shared vertical object state into the timed section
+slots, preserving pointer/height/NUSIZ/row-colour controls and seam continuity;
+not expanding geometry-specific monolithic schedules.
+
+2026-11-09 23:22:41 PDT, Banner fix and shared vertical preparation
+
+User reported a723-test run with722 passes, failing vcsc_branding.pl because
+libraries/vcs/layers/README.md lacked the VCSC FIGlet banner. Added the canonical
+banner; branding and hygiene pass. Local fix commit caa6fd43. Nothing pushed.
+
+User correctly stressed that all-five advancement is essential, not optional
+integration. Do not treat the scenery-only section as delivery of the requested
+design. Its cycle3 interface is provisional and must yield to the full shared
+object pipeline. The moving all-five/two-section gate still has NOT passed.
+
+Added experimental libraries/vcs/layers/all_five_objects.c26, included once as
+the shared vertical-state owner, not instantiated per section. It defines the
+intro's X/NUSIZ symbols and all runtime coordinates/heights/graphics pointers.
+layers_prepare_vertical() creates the certified48-byte BL/M1/M0 schedule and
+initial player counters/limits without biasing public coordinates/heights or
+changing pointers,NUSIZ,TIA state. Shared data76 bytes, preparation peak stack6.
+The familiar ancestor uses a cache and aliases counters into dead masks; this
+owner intentionally separates these lifetimes for an explicit eventual handoff.
+It does NOT yet supply the visible state consumer or integrate with section.c26.
+
+New normal-runner test/vcs_layers_objects.pl checks all48 bytes against direct
+interval membership, NOT a copy of the assembler byte/range construction. Five
+layouts cover wrap,high/offscreen positions,empty and full extents. Poison mask
+RAM first, prepare twice, verify public inputs and initial streams/counters.
+An incorrect Ball bias is a required failing mutation. Check both graphics
+pointer bytes independently using linked symbols. Its diagnostic uses90/128 RAM:
+76 shared data +2 test variables +6 compiler scratch/activation +6 stack. Runs
+200 frames with explicit --raw-lines264. No cartridge RAM or graphics mirrors.
+
+Extended vcs_layers_intro.pl with a TEST-ONLY bridge: replace the ancestor's
+vertical preparation, retain its independent priming/drawing, and copy prepared
+shared outputs into the old cache/aliased counter locations. Check full exact
+Stella RGB against untouched ancestor for four layouts: X edge coordinates;
+short and terminal-height/player poses; independent eight-row colours; exchanged
+runtime graphics pointers; runtime NUSIZ copies. Also checks420-frame timing for
+each shared-preparation/intro/ancestor composition, explicit --raw-lines264.
+This witness costs seven more
+RAM bytes than the old renderer and remains within128. It is NOT a section
+renderer, not a wrapper offered as the delivery architecture, and does not prove
+object motion through a section seam. Existing actual renderers stay unchanged.
+
+Focused eight-worker check passes6/6: intro,shared objects,scenery sections,
+branding,hygiene,history. Full compile-only eight-worker suite passes591/591.
+Full e2e eight-worker suite finished722/724: branding and all layers tests pass.
+Two unchanged tests timed out: global_static_compile_matrix (600s), and the
+repeated-section example build (180s). Rechecking those with the six focused
+checks, still8 workers and unchanged budgets. Do not call this a clean full-suite
+pass. No new verified handoff archive at this entry. Keep unrelated staged/pending
+work intact.
+
+2026-11-09 23:59:20 PDT, Timeout rechecks pass unchanged
+
+The two full-e2e timeout cases pass in an eight-worker focused rerun with their
+original600s/180s budgets. That rerun passes8/8, including the six layers/branding/
+hygiene/history checks. No timeout, snapshot deadline, runner process cleanup,
+renderer, or geometry test was weakened. This is591/591 compile-only,722/724 full
+e2e with two timeouts, then8/8 focused rechecks; NOT a clean single full-suite
+pass. Shared vertical preparation is committed as26e397ec; branding fix is
+caa6fd43. Section drawing still does not advance objects. Next is the actual
+cycle/TIA-state drawing handoff, not another scenery-only certification.

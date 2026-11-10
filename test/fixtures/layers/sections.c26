@@ -1,0 +1,23 @@
+// Experimental intro plus two independently instantiated scenery sections.
+// No object advancement yet; object latches are left untouched by sections.
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+uint8_t layers_object_x[5];
+uint8_t layers_player0_nusiz;
+uint8_t layers_player1_nusiz;
+instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/section.c26" as section1 (number_of_scanlines:=6, playfield_row:=0x81244596, pf_color:=0x46, bk_color:=0xc2)
+instantiate "layers/section.c26" as section2 (number_of_scanlines:=186, playfield_row:=0x3c96a569, pf_color:=0x8e, bk_color:=0x26)
+
+void main(void) {
+   VBLANK := 2; PF0 := 0; CTRLPF := 0x21;
+   layers_player0_nusiz := 0; layers_player1_nusiz := 0;
+   layers_object_x[0] := 20; layers_object_x[1] := 130;
+   layers_object_x[2] := 50; layers_object_x[3] := 110; layers_object_x[4] := 80;
+   while (1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank(); intro_establish();
+      vcs_ntsc_end_vblank(); section1_draw(); section2_draw();
+      vcs_ntsc_begin_overscan(); PF1 := 0; PF2 := 0; vcs_ntsc_end_overscan();
+   }
+}
