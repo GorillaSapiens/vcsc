@@ -42,8 +42,15 @@ $repo = abs_path($repo) or die "could not resolve repo\n";
 $tmp = abs_path($tmp);
 require File::Spec->catfile($repo, qw(test stella_test_lib.pl));
 
-# Displays 380 and up are outside every range the certification runners claim, so a
-# server appearing there is not one of ours to reuse.
+# Synthetic claims/sockets belong to this test, not the shared system namespace.
+# Fixed /tmp paths can already belong to another account (or another checkout's
+# concurrent test). Do not overwrite/unlink them, even if a display seems unused.
+# Override only the unit test's path functions; real runners keep shared claims.
+{
+   no warnings 'redefine';
+   *vcsc_x_socket_path = sub { File::Spec->catfile($tmp, '.X11-unix', "X$_[0]") };
+   *vcsc_x_reserve_path = sub { File::Spec->catfile($tmp, ".vcsc-xvfb-reserve.$_[0]") };
+}
 my $free_base = 380;
 
 sub spew_reservation {
@@ -66,7 +73,7 @@ my $self = scalar getpwuid($<);
 # proceed, so the absence is checked rather than assumed.
 {
    my $base = $free_base;
-   mkdir(File::Spec->catdir(File::Spec->tmpdir(), '.X11-unix'));
+   mkdir(File::Spec->catdir($tmp, '.X11-unix')) or die "could not create private socket directory: $!\n";
    for my $n ($base .. $base + 3) {
       -e vcsc_x_socket_path($n)
          and die "display $n is already serving; refusing to overwrite a real socket\n";
@@ -159,6 +166,12 @@ my $self = scalar getpwuid($<);
 use strict;
 use warnings;
 require $ARGV[0];
+my $root = $ARGV[4];
+{
+   no warnings qw(redefine once);
+   *vcsc_x_socket_path = sub { File::Spec->catfile($root, '.X11-unix', "X$_[0]") };
+   *vcsc_x_reserve_path = sub { File::Spec->catfile($root, ".vcsc-xvfb-reserve.$_[0]") };
+}
 $| = 1;                      # report on claiming, not on exit: the parent waits for these
 my ($n) = vcsc_reserve_x_display($ARGV[1], $ARGV[2]);
 print "$n\n";
@@ -179,7 +192,7 @@ CLAIM
          # Appending, not truncating: all twelve write to the same file and a '>'
          # open would have each of them discard the previous reports.
          open(STDOUT, '>>', $out) or die $!;
-         exec($^X, $claim, $lib, $base, 12, $release);
+         exec($^X, $claim, $lib, $base, 12, $release, $tmp);
          die "could not exec a claim: $!\n";
       }
       push @pids, $pid;

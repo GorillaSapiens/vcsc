@@ -263,3 +263,45 @@ at /tmp/opencode/layers-examples-suite.log; record its actual result separately.
 No worker reduction,deadline increase or ancestor expectation changes. Gameplay
 right-edge/shared-colour failures remain open; next work is schedule repair,
 not claiming these example leaves certify all X/NUSIZ combinations. Nothing pushed.
+
+2026-11-11 14:35:18 PDT, Isolate synthetic X claims from shared tmp
+
+User's Linux compile-only eight-worker run passed590/591 but failed
+vcs_stella_x_display_allocation.pl: could not plant a blank claim, Permission
+denied. The unit test used fixed display numbers380+ and actual shared/tmp
+reservation/socket paths. Existing foreign-account files, concurrent checkout
+tests or protected-regular settings can block the truncating open; the test
+must never overwrite or unlink those unrelated claims. Not a Stella/Xvfb
+executable override problem; no sudo or broad/tmp cleanup needed.
+
+Only in the unit test, override vcsc_x_socket_path/vcsc_x_reserve_path to put
+synthetic files beneath its runner-supplied private directory. All twelve exec'd
+contention workers receive the same private root and install the same overrides,
+so O_EXCL remains genuinely shared and contested inside one test. Distinct test
+runs no longer share synthetic files. The production stella_test_lib.pl and real
+cross-account display-reservation paths are unchanged. Socket rejection, live/
+dead/foreign/aged/blank-claim checks, contention and readiness failures still run.
+Two simultaneous standalone tests with separate private roots pass without
+warnings. User-style VCSC_STELLA=stella VCSC_XVFB=Xvfb compile-only run, eight
+workers, now passes591/591. Log /tmp/opencode/x-display-compile.log.
+
+The pending new-example full run finished1316/1317: only the deliberately strict
+example_assembly_allowlist.pl rejected the newly introduced source. Reviewed and
+pinned three leaf handoff/WSYNC/VBLANK blocks as beam-critical, plus the two-byte
+motion helper's carry-preserving scratch-free pointer/phase and NMOS BCD sequence
+as hardware-idiom. No existing fingerprints/policies removed or relaxed; source
+count38->42. Focused allowlist,new private example regression,hygiene/history
+passes4/4, log /tmp/opencode/layers-examples-allowlist-focused.log. This is not yet
+a clean full1317 run; rerun normally with eight workers. Right-edge gameplay
+defects remain open. Preserve unrelated user work; nothing pushed.
+
+2026-11-11 15:02:27 PDT, Full example and private-claim suite passes1317
+
+Fresh VCSC_STELLA=stella VCSC_XVFB=Xvfb perl test.pl --jobs8 passes1317/1317,
+zero failures/timeouts, on139604f4. Log:
+/tmp/opencode/layers-examples-final-suite.log. Includes independent presentation
+leaves, installed/source smoke equivalence, private exact motion/score regressions,
+reviewed example assembly, private synthetic X claims and all existing tests.
+Compile-only already passes591/591. This supersedes the prior1316/1317 result.
+Record-only followup; refresh make tar and retain only the latest verified archive.
+Gameplay right-edge/shared-colour defects remain open. Nothing pushed.
