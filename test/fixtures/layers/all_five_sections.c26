@@ -87,6 +87,31 @@ void main(void) {
       asm sta.z layers_player1_graphics;
       asm lda #>p1;
       asm sta.z layers_player1_graphics + 1;
+#ifdef LAYERS_CONTROLS
+      // Exercise all eight copy/stretch modes and runtime X without adding
+      // state. These bounded layouts avoid the still-open right-edge deadline.
+      asm lda.z motion;
+      asm and #7;
+      asm ora #32;
+      asm sta.z layers_player0_nusiz;
+      asm sta.z layers_player1_nusiz;
+      asm lda.z motion;
+      asm and #1;
+      asm clc;
+      asm adc #10;
+      asm sta.z layers_object_x;
+      asm adc #30;
+      asm sta.z layers_object_x + 1;
+      asm adc #25;
+      asm sta.z layers_object_x + 3;
+      asm adc #55;
+      asm sta.z layers_object_x + 4;
+      asm lda.z motion;
+      asm and #1;
+      asm clc;
+      asm adc #30;
+      asm sta.z layers_object_x + 2;
+#endif
 #endif
       vcs_ntsc_end_overscan();
       // Calibrate the complete frame to264 raw harness lines (Stella262).

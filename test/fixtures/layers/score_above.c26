@@ -1,0 +1,59 @@
+// Score above genuinely independent all-five sections, within stock RAM.
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+alias VCS_NTSC_EXTENDED_VBLANK
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "two_plus_two_score_support.c26"
+include "score_sprites.c26"
+include "layers/all_five_dense_objects.c26"
+instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/all_five_section.c26" as sky (number_of_scanlines:=64, playfield_row:=0x81244596, pf_color:=0x46, bk_color:=0xc2)
+instantiate "layers/all_five_section.c26" as ground (number_of_scanlines:=108, playfield_row:=0x3c96a569, pf_color:=0x8e, bk_color:=0x26)
+instantiate "layers/score.c26" as score (gameplay_scanlines:=172)
+#ifdef LAYERS_MOTION
+include "score_motion.c26"
+#endif
+
+void prepare_objects(void) {
+   layers_prepare_vertical(); score_prepare();
+}
+void main(void) {
+#ifdef LAYERS_MOTION
+   score_motion:=0;
+#endif
+   VBLANK:=2; PF0:=0; CTRLPF:=0x21;
+   // The fixed-duration visible-positioning entry supports X0..119.
+   layers_object_x[0]:=20; layers_object_x[1]:=100;
+   layers_object_x[2]:=50; layers_object_x[3]:=110; layers_object_x[4]:=80;
+   layers_player0_nusiz:=0x20; layers_player1_nusiz:=0x20;
+   layers_player0_y:=38; layers_player1_y:=38;
+   layers_missile0_y:=34; layers_missile1_y:=34; layers_ball_y:=33;
+   layers_player0_height:=7; layers_player1_height:=7;
+   layers_missile0_height:=5; layers_missile1_height:=7; layers_ball_height:=3;
+   layers_player0_graphics:=p0; layers_player1_graphics:=p1;
+   score_left_score:=12; score_right_score:=34;
+   while(1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank(); prepare_objects();
+      vcs_ntsc_end_vblank(); score_draw();
+      // The frame owner blanks and budgets eight setup lines after the score.
+      // No TIA object can leak while it is repositioned/primed. No timer restart.
+      asm lda #2;
+      asm sta VBLANK;
+      asm sta WSYNC;
+      vcs_ntsc_component_handoff();
+      intro_establish_visible(); layers_prime();
+      asm lda #0;
+      asm sta WSYNC;
+      asm sta VBLANK;
+      sky_first(); ground_draw();
+      asm nop;
+      //12 score +8 blanked intro +172 gameplay =192 lines.
+      vcs_ntsc_begin_overscan();
+      PF1:=0;PF2:=0;GRP0:=0;GRP1:=0;ENAM0:=0;ENAM1:=0;ENABL:=0;
+#ifdef LAYERS_MOTION
+      update_score_motion();
+#endif
+      vcs_ntsc_end_overscan();
+      asm sta WSYNC;
+   }
+}

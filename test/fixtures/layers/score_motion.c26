@@ -1,0 +1,51 @@
+// Optional stress motion for both score layouts; no user-facing generator.
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+uint8_t score_motion;
+void update_score_motion(void) {
+   asm inc.z score_motion;
+   asm lda.z score_motion;
+   asm and #15;
+   asm clc;
+   asm adc #30;
+   asm sta.z layers_player0_y;
+   asm sta.z layers_player1_y;
+   asm sec;
+   asm sbc #4;
+   asm sta.z layers_missile0_y;
+   asm sta.z layers_missile1_y;
+   asm sbc #1;
+   asm sta.z layers_ball_y;
+   asm lda.z score_motion;
+   asm and #3;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<p0;
+   asm sta.z layers_player0_graphics;
+   asm lda #>p0;
+   asm sta.z layers_player0_graphics + 1;
+   asm lda.z score_motion;
+   asm clc;
+   asm adc #1;
+   asm and #3;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<p1;
+   asm sta.z layers_player1_graphics;
+   asm lda #>p1;
+   asm sta.z layers_player1_graphics + 1;
+   // Exercise the runtime BCD inputs as well as the pointer-workspace lifetime.
+   asm sed;
+   asm lda.z score_left_score;
+   asm clc;
+   asm adc #1;
+   asm sta.z score_left_score;
+   asm lda.z score_right_score;
+   asm clc;
+   asm adc #1;
+   asm sta.z score_right_score;
+   asm cld;
+}

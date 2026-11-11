@@ -14,10 +14,23 @@ page const uint8_t TEMPLATE_reposition[16] := {
    0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
 };
 
-require inline void TEMPLATE_establish(void) {
+inline void TEMPLATE_establish(void) {
    asm sta WSYNC;
    asm ldx #4;
    asm bit.z $00;
+   TEMPLATE_position_all();
+}
+
+// Alternate entry for a frame-owner-blanked, allocated in-frame setup region.
+// Entry3; with every X in0..119, return is cycle15 five lines later. Other X
+// values remain valid for establish(), but can add positioning WSYNC lines.
+// This entry still does not prime vertical/TIA graphics state or own VBLANK.
+inline void TEMPLATE_establish_visible(void) {
+   asm ldx #4;
+   TEMPLATE_position_all();
+}
+
+inline void TEMPLATE_position_all(void) {
    asm lda.zx layers_object_x,x;
    asm sec;
    asm @ball:;

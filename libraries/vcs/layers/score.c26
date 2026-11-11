@@ -1,0 +1,148 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Experimental two-plus-two score cooperating with the dense all-five owner.
+// Include two_plus_two_score_support.c26 once. Mutable glyph pointers borrow
+// layers_object_masks[88..95]; total gameplay height MUST NOT exceed176 lines.
+// prepare() follows layers_prepare_vertical() during blanking. Never call the
+// latter again before drawing: it would overwrite the prepared score pointers.
+// Only two packed-BCD values own RAM. Positions/colours are instance parameters.
+// Derived from two_plus_two_score_component.c26, with a zero-cost RAM lifetime
+// overlay, all-five/PF cleanup, a separate HMOVE line, and next-HBlank clears.
+// Entry3; twelve full scanlines, then return at8. The caller's blank tail/setup
+// absorbs that partial return line; it must not assume the stock score's return0.
+parameter left_x := 32;
+parameter right_x := 96;
+parameter left_color := 14;
+parameter right_color := 14;
+parameter gameplay_scanlines := 176;
+#if TEMPLATE_gameplay_scanlines < 2 || TEMPLATE_gameplay_scanlines > 176
+extern const uint8_t TEMPLATE_bad_height[TEMPLATE_score_requires_at_most_176_gameplay_scanlines];
+#endif
+const uint8_t TEMPLATE_height_validation[1 - (TEMPLATE_gameplay_scanlines & 1)] := {0};
+#if TEMPLATE_left_x < 0 || TEMPLATE_left_x > 64 || TEMPLATE_right_x < 32 || TEMPLATE_right_x > 144
+extern const uint8_t TEMPLATE_bad_position[TEMPLATE_score_positions_out_of_range];
+#endif
+#if TEMPLATE_left_color < 0 || TEMPLATE_left_color > 255 || TEMPLATE_right_color < 0 || TEMPLATE_right_color > 255
+extern const uint8_t TEMPLATE_bad_color[TEMPLATE_score_colours_must_be_bytes];
+#endif
+recommend bcd8_t TEMPLATE_left_score := 0;
+recommend bcd8_t TEMPLATE_right_score := 0;
+
+inline void TEMPLATE_prepare_pair(void) {
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<vcs_two_plus_two_font_high;
+   asm sta.ay layers_object_masks + 88,y;
+   asm iny;
+   asm lda #>vcs_two_plus_two_font_high;
+   asm adc #0;
+   asm sta.ay layers_object_masks + 88,y;
+   asm iny;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<vcs_two_plus_two_font_low;
+   asm sta.ay layers_object_masks + 88,y;
+   asm iny;
+   asm lda #>vcs_two_plus_two_font_low;
+   asm adc #0;
+   asm sta.ay layers_object_masks + 88,y;
+   asm iny;
+}
+inline void TEMPLATE_prepare(void) {
+   asm ldy #0;
+   asm lda.z TEMPLATE_left_score;
+   TEMPLATE_prepare_pair();
+   asm lda.z TEMPLATE_right_score;
+   TEMPLATE_prepare_pair();
+}
+
+inline void TEMPLATE_draw(void) {
+   // Entry3. Clear PF/enables before the supplied gameplay objects reach the
+   // beam. The following GRP1 store also transfers the cleared Ball latch.
+   // Arbitrary hostile left-edge gameplay latches need separate certification.
+   asm lda #0;
+   asm sta COLUBK;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta GRP0;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta REFP0;
+   asm sta REFP1;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm lda #5;
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   COLUP0 := TEMPLATE_left_color;
+   asm @color_barrier:;
+   COLUP1 := TEMPLATE_right_color;
+   asm sta WSYNC;
+
+   // Direct immutable controls replace the stock component's mutable controls.
+   // LDY absolute costs one extra cycle; NOP instead of BIT compensates it.
+   asm ldy.a vcs_two_plus_two_position_table + TEMPLATE_left_x;
+   asm sty HMP0;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm nop;
+   asm @left_position:;
+   asm dex;
+   asm bne.same @left_position;
+   asm sta RESP0;
+   asm sta WSYNC;
+   asm ldy.a vcs_two_plus_two_position_table + TEMPLATE_right_x;
+   asm sty HMP1;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm nop;
+   asm @right_position:;
+   asm dex;
+   asm bne.same @right_position;
+   asm sta RESP1;
+   asm sta WSYNC;
+
+   asm sta HMOVE;
+   // Keep the HMOVE blanking bar off the first glyph row, including X0.
+   // This setup line is deliberately part of the twelve-line score contract.
+   asm sta WSYNC;
+   asm bit.z $00;
+   asm ldy #7;
+   asm @row:;
+   asm lda.iy (layers_object_masks + 88),y;
+   asm ora.iy (layers_object_masks + 90),y;
+   asm sta GRP0;
+   asm lda.iy (layers_object_masks + 92),y;
+   asm ora.iy (layers_object_masks + 94),y;
+   asm sta GRP1;
+   asm sta WSYNC;
+   asm dey;
+   asm bne.same @row;
+   asm lda.iy (layers_object_masks + 88),y;
+   asm ora.iy (layers_object_masks + 90),y;
+   asm sta GRP0;
+   asm lda.iy (layers_object_masks + 92),y;
+   asm ora.iy (layers_object_masks + 94),y;
+   asm sta GRP1;
+   // Keep both wide graphics live THROUGH the last row, including right X144.
+   // Clear in the following HBlank, not at the copy's first-pixel deadline.
+   // Return8 after twelve complete lines; the frame owner absorbs these eight
+   // cycles in its already allocated blank tail / score-above setup region.
+   asm sta WSYNC;
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+}

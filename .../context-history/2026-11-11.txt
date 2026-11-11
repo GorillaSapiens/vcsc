@@ -1,0 +1,213 @@
+2026-11-11 11:04:42 PDT, Runtime controls and two-byte RAM recovery
+
+User said continue. Extended the real cooperating-section regression, without
+changing the visible drawing schedule or promoting a frozen monolithic witness.
+The logical pixel oracle now models runtime X, all eight NUSIZ copy/stretch modes,
+independent missile widths and copy offsets, clipped pixels, and priority
+P0/M0 > P1/M1 > PF/Ball. Paint back to front rather than drawing the Ball over
+players. This permits overlapping copied objects without changing the oracle.
+Wide player graphics begin one pixel later than ordinary graphics; missiles
+inherit copy offsets but not player stretching. No table copies in the renderer.
+
+All eight modes pass every pixel of192 visible lines at object X coordinates
+[10,40,30,65,120]. Ordinary modes additionally pass [0,0,30,65,120],
+[1,1,30,65,120] and [80,100,50,110,80]. These are certified test layouts, NOT
+a proof of every X between them. Check public X values as well as runtime
+graphics pointers,NUSIZ,Y and heights unchanged after drawing. Original exact
+seam2/6/190 tests and40-frame all-five moving seam/four-animation test remain.
+
+Added -DLAYERS_MOTION -DLAYERS_CONTROLS fixture build: the same motion byte
+changes runtime positions, all eight NUSIZ modes, vertical pose and both graphics
+pointers. No extra RAM beyond the original motion build. A second40-consecutive-
+snapshot sweep must match the independent changing-control model, starting from
+one uniquely identified pose and advancing exactly one step per frame. It must
+contain every copy mode and all four animation frames. The original moving seam
+witness remains separate because copied/overlapping objects change its fixed
+visibility windows. Both sweep checks pass.
+
+IMPORTANT actual defects, not merely missing tests: P0 X150, P1 X150 in ordinary
+mode, and M1's mode2 copy at X142 (base110 +32) all fail the intended logical
+RGB row while420-frame exact CPU frame/write-phase checks still PASS. The first
+copy probe found the M1 colour mismatch at raster x284,line2. Shared COLUP1
+updates near the right edge can recolour a missile copy mid-row, too; this is
+not solely a player-graphics problem. Retain explicit known-defect probes that
+require a logical mismatch in the right-edge region, not a compile/timing failure.
+Once repaired, recertify them and convert to ordinary passing cases. Do not
+advertise full horizontal or NUSIZ coverage because bounded mode cases pass.
+
+Reduced peak stack from4 to2 bytes by replacing the preparer's nested raw JSR
+interval helper with an inline layers_consider_interval(). Its local labels are
+per-expansion hygienic; use JMP to its local end instead of RTS. Remove obsolete
+.callstackextra2. The ordinary prepare_objects() callback still has its real
+two-byte return address and remains separate from visible code for placement.
+No public input reuse, hidden lifetime alias, cartridge RAM, or data loss.
+All96 mask bytes, wrap/offscreen/full/seven-run layouts, final counters, input
+preservation and changing-motion checks pass with the expanded helper.
+
+Static RAM is now124/128 (122 data +2 stack); moving/control builds125/128
+(123 data +2 stack), three/four bytes free. Motion build uses1377 ROM bytes,
+still one4K drawing bank. This buys two genuine bytes, but is NOT a sufficient
+score RAM plan. Both score orders and the visible fixed-duration intro remain
+unfinished. Repair player/shared-colour deadlines before claiming general
+control certification; don't narrow runtime inputs into compiler constants.
+
+Verification: compile-only591/591; eight-worker focused8/8 (all-five, intro,
+compact objects, scenery, branding, tree hygiene, history format, manifest).
+Logs: /tmp/opencode/layers-controls-compile.log and
+/tmp/opencode/layers-controls-focused.log. The earlier clean1316/1316 full suite
+belongs to the previous revision, not this change. No new full-suite run claimed.
+No subagents, runner changes, timeouts, worker-count reductions or deadline
+extensions. New captures still use shared60s snapshot readiness and process-group
+cleanup. Preserve unrelated staged work; nothing pushed.
+
+2026-11-11 11:58:33 PDT, Both cooperating score orders work in stock RAM
+
+User initially found the fast motion fixture visually poor: all five bounced
+vertically. Acknowledged that this is a stress fixture, not a presentation demo.
+It derives Y from motion&15 and changes glyphs every frame. User asked Stella's
+speed keys: verified local Stella8 documentation, Ctrl+S faster,Ctrl+Shift+S
+slower,Ctrl+T turbo. After slowing it down, user said the behavior made sense,
+praised the progress and asked to keep going. Keep the fast fixture unchanged;
+do not substitute a cosmetic preview for actual renderer/score progress.
+
+Separate test/fixtures/layers/preview.c26 provides a quieter optional preview:
+three64-line scenery bands, rocket sprites, motion at two scanlines per four
+frames (about30pixels/sec), reversal only at screen endpoints, exhaust frames
+at7.5fps. Shared state remains one owner; three app bytes clock/Y/direction.
+RAM127/128, ROM1680 bytes. An800-frame independent CPU pose/rate/pointer model
+checks both turnarounds and clock wrap plus the existing exact PF/object phases.
+No stress fixture or default example was replaced.
+
+Main advance: libraries/vcs/layers/score.c26 cooperates through the real shared
+mask buffer. It uses the stock two_plus_two_score_support.c26 immutable tables
+and the certified two-plus-two raster schedule, not an eight-section gameplay
+wrapper. It owns only two packed-BCD values. Four glyph pointers occupy the
+last eight mask bytes88..95. Gameplay<=176 uses only bytes0..87, so both the
+active object stream AND score pointers remain live without alias collisions.
+No public player inputs/counters are borrowed; no per-section state, cartridge
+RAM, graphics mirrors or extra drawing bank. Prepare masks first, then score
+pointers in blanking; never prepare masks again between that and drawing.
+
+Score positions/colours are compile-time parameters left_x/right_x/left_color/
+right_color, unlike the stock score's mutable controls. The BCD values are
+runtime. Do not claim runtime score-position/colour support. Actual gameplay
+total is declared by gameplay_scanlines (default176, positive even2..176); the
+frame owner must match its section sum to that declaration. Independent sections
+still have only the four requested parameters and know no shared geometry list.
+Invalid declared totals reject. No changes to the existing score components.
+
+test/fixtures/layers/score_below.c26:176 gameplay (64+112) +11 score +5 blank tail
+=192. Last gameplay exit74 +NOP reaches next line0, standard handoff enters the
+score at3 without a separator. Its first setup line clears COLUBK/PF/enables and
+flushes delayed Ball/player state. Clearing COLUBK late initially FAILED exact
+RGB at the first score pixel; moved it to cycle8 before the beam. Setup clears
+are certified for supplied gameplay X, not arbitrary hostile left-edge latches.
+Score returns0; five blank tail lines complete the frame. Existing section seams
+and shared vertical progress are unchanged. Static RAM126, moving127/128.
+
+test/fixtures/layers/score_above.c26:11 score +8 frame-owner-blanked setup +172
+gameplay (64+108) +1 blank tail =192. Masks and score pointers are prepared once
+before the score. Afterward the frame owner masks positioning/priming with
+VBLANK (no timer restart); all five are positioned once after the score, then
+shared counters/latches are primed exactly once. Gameplay starts at line19.
+
+Added intro_establish_visible(): entry3, every X0..119, return15 five lines later.
+It shares the existing raw positioning body: entry3+LDX2 replaces the old
+WSYNC+LDX2+BIT3 preamble. Legacy establish() remains unmodified in effect and
+supports0..159 with X-dependent scanline cost. Neither intro entry owns VBLANK,
+vertical graphics state or the RIOT timer. establish() is no longer mandatory
+when selecting the alternate entry. The frame owner budgets the remaining
+priming/alignment lines. Larger visible-intro X values can add lines; do NOT
+extend that bound from the separate blanking-position tests.
+
+Both score compositions supply common ROM-only four-frame assets and optional
+-DLAYERS_MOTION. That build uses one clock byte to move all five across the64
+seam, change both runtime graphics pointers and increment both BCD values each
+frame using legal NMOS decimal arithmetic (CLD restored). Score motion is fast
+stress motion, not the slower preview. No-score RAM124/125 and score126/127;
+one4K bank in each case. No generated user configuration or fixed eight slots.
+
+test/vcs_layers_all_five.pl now checks full gameplay+score+setup/tail images in
+both orders against independent PF/player/enable and canonical decimal glyph
+models. Static values00/99,12/34,56/78,90/12 and four independent sprite frames
+pass. Each order additionally passes40 consecutive dynamic frames. The first
+runtime score is uniquely identified, then a unique pose/score phase; every
+following frame must advance one step with exact BCD rollover, glyph pointers,
+independent player palettes and an all-five seam crossing. Require all four
+animation frames,40 different score values, and a visibly complete crossing.
+
+CPU420-frame checks prove active mask bytes preserved, tail pointer values,
+all gameplay PF/object write phases, complete frame264 raw lines and the
+score-above19-line prefix. Every intro RESP is independently checked at line
+16-index and phase23+5*floor(X/15). All-zero,all119 and mixed-edge vectors pass.
+A mutant moving pointers from unused88..95 into active80..87 must fail the
+memory oracle, not merely compilation or timing. The stock score regression and
+old intro equivalence tests also pass; no ancestor/frozen expectations changed.
+
+Focused eight-worker8/8 passes (new all-five including both moving scores,
+intro,compact owner,scenery,stock two-plus-two score,branding,hygiene,history).
+Log /tmp/opencode/layers-score-focused.log. Added further score placement/colour
+edge profiles and priming-state variants afterward; a full normal eight-worker
+suite is running at /tmp/opencode/layers-score-suite.log. Record its actual
+result separately, not a predicted pass. No deadlines or workload budgets were
+increased. Snapshot waits remain shared60s and child process-group cleanup.
+
+Outstanding: actual right-edge P0/P1/M1-copy colour/graphics defects, generic
+hostile score-entry latches, runtime score position/colour controls if desired,
+finished independent example leaves, and installation/general geometry/control
+certification. Bounded runtime copy/X cases and both score orders now work but
+do not certify the entire horizontal range. Preserve unrelated staged work;
+nothing pushed. Only make tar for handoffs, retaining one latest archive in/tmp.
+
+2026-11-11 12:26:35 PDT, Fix score HMOVE and final wide-row clipping
+
+Full eight-worker suite completed1315/1316, not a clean pass. The only failure
+was vcs_layers_all_five.pl's newly added score-at-X0 placement profile: score
+below line3,x0. Gameplay seams and existing tests passed. The first score row
+shared the HMOVE line, so the hardware blanking bar clipped its left pixels.
+Do not use the old result to claim general score-edge certification.
+
+Moved HMOVE to a dedicated setup line, with WSYNC and BIT3 restoring the same
+glyph write phases on the following row. The next focused run then exposed a
+second real defect: line11,x292 at the right score X144. The inherited terminal
+clear deadline assumed a whole wide sprite would latch at its origin; Stella
+shows the early GRP1 clear actually truncating the last row during output.
+Keeping that clear before WSYNC does not preserve the full row.
+
+Fix: hold both graphics through the entire final glyph row, WSYNC, then clear
+GRP0/GRP1 in the following HBlank. Score contract is now entry3, twelve complete
+lines, return8 (NOT the stock score's return0). No additional RAM or score data
+mirror. The frame owner absorbs eight return cycles into already allocated blank
+tail/setup work. Both bound placements now pass exact first/last-row RGB.
+
+New complete layouts: below176 gameplay +12 score +4 blank tail =192; above
+12 score +8 blanked intro +172 gameplay =192, no final blank tail. Above moves
+its end-of-game object clears into overscan after begin_overscan; it no longer
+spends the old tail WSYNC. Thus timer/frame budget and264 raw lines stay exact.
+Above gameplay now starts exactly20 lines after the first score line. Intro
+RESP line=17-index, phase=23+5*floor(X/15). The score return8 plus the frame
+owner's five-cycle mask means VBLANK asserts at13; add an independent assertion
+for that score-return/blanking phase as well as the full20-line prefix.
+
+Eight-worker focused8/8 passes after both corrections, including first/final
+rows at score X0/X144, score X64/X32, distinct field colours, all decimal digits,
+four sprite frames, both40-frame changing-score/object sweeps, visible intro
+zero/max/mixed positions and priming-state variants, old intro/compact/scenery/
+stock-score tests,branding,hygiene,history. Log:
+/tmp/opencode/layers-score-hmove-focused.log. No timeout increases, worker-count
+reductions, snapshot deadline changes or frozen expectation changes. The old
+stock score implementation was not modified; the new cooperating score now
+documents its different return phase explicitly. Full clean rerun still needed;
+do not describe1315/1316 plus focused success as a clean full pass.
+
+2026-11-11 12:52:27 PDT, Clean full score regression passes1316
+
+The fresh normal full suite, perl test.pl --jobs8, passes1316/1316 with zero
+failures or timeouts on cfa7af5b. Log:
+/tmp/opencode/layers-score-hmove-suite.log. This clean run includes the score
+X0/X144 and X64/X32 image profiles, independent field colours, both changing-score
+motion sweeps, visible-intro RESP/priming checks, workspace-overlap mutation and
+all existing regressions. It supersedes the prior1315/1316 run as current full
+verification. Gameplay right-edge/shared-colour defects and remaining example
+leaf/general-control work are unchanged; score-edge fixes do not certify them.
+Record-only followup; nothing pushed. Refresh the verified make tar handoff.

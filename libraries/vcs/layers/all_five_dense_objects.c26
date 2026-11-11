@@ -2,7 +2,7 @@
 // Experimental shared state for all_five_section.c26. Include ONCE, instead
 // of all_five_objects.c26. One enable byte per pair removes eight-pair geometry
 // from the drawing handoff. D1=Ball, D2=M0, D3=M1. No graphics are copied.
-// Shared data122 bytes, including the section count; peak stack4 in the fixture.
+// Shared data122 bytes, including the section count; peak stack2 in the fixture.
 // Use extended VBLANK and perform preparation/intro/priming in a separate
 // ordinary blanking callback, as in test/fixtures/layers/all_five_sections.c26.
 uint8_t layers_object_x[5];
@@ -40,62 +40,10 @@ inline void layers_step_player1(void) {
    asm cpy.z layers_player1_limit;
 }
 
-inline void layers_prepare_vertical(void) {
-   // Counter/limit bytes and section count are scratch until @ready:
-   // p0counter=bits, p1counter=next event, p0limit=raw interval start,
-   // p1limit=raw interval end, remaining=cursor. X is the fill cursor.
-   // At most six transitions split the stream into seven constant runs.
-   asm .callstackextra 2;
-   asm ldx #0;
-   asm stx.z layers_section_remaining;
-   asm @range:;
-   asm lda #0;
-   asm sta.z layers_player0_counter;
-   asm lda #96;
-   asm sta.z layers_player1_counter;
-   asm lda.z layers_ball_y;
-   asm clc;
-   asm adc #2;
-   asm sta.z layers_player1_limit;
-   asm sec;
-   asm sbc.z layers_ball_height;
-   asm sta.z layers_player0_limit;
-   asm ldy #2;
-   asm jsr @consider;
-   asm lda.z layers_missile1_y;
-   asm clc;
-   asm adc #1;
-   asm sta.z layers_player1_limit;
-   asm sec;
-   asm sbc.z layers_missile1_height;
-   asm sta.z layers_player0_limit;
-   asm ldy #8;
-   asm jsr @consider;
-   asm lda.z layers_missile0_y;
-   asm clc;
-   asm adc #1;
-   asm sta.z layers_player1_limit;
-   asm sec;
-   asm sbc.z layers_missile0_height;
-   asm sta.z layers_player0_limit;
-   asm ldy #4;
-   asm jsr @consider;
-   asm lda.z layers_player0_counter;
-   asm @fill:;
-   asm sta.zx layers_object_masks,x;
-   asm inx;
-   asm cpx.z layers_player1_counter;
-   asm bcc.same @fill;
-   asm stx.z layers_section_remaining;
-   asm cpx #96;
-   asm bcs.same @done;
-   asm jmp @range;
-   asm @done:;
-   asm jmp @ready;
-
-   asm @consider:;
+inline void layers_consider_interval(void) {
    // A wrapped interval is initially on. Each event toggles its bit;
-   // future events compete to end the current constant run.
+   // future events compete to end the current constant run. Y is its bit.
+   // Inline deliberately: no nested JSR/RTS stack allocation during blanking.
    asm lda.z layers_player0_limit;
    asm cmp.z layers_player1_limit;
    asm beq.same @no_wrap;
@@ -126,16 +74,65 @@ inline void layers_prepare_vertical(void) {
    asm bcc.same @exited;
    asm beq.same @exited;
    asm cmp.z layers_player1_counter;
-   asm bcs.same @return;
+   asm bcs.same @done;
    asm sta.z layers_player1_counter;
-   asm rts;
+   asm jmp @done;
    asm @exited:;
    asm tya;
    asm eor.z layers_player0_counter;
    asm sta.z layers_player0_counter;
-   asm @return:;
-   asm rts;
+   asm @done:;
+}
 
+inline void layers_prepare_vertical(void) {
+   // Counter/limit bytes and section count are scratch until @ready:
+   // p0counter=bits, p1counter=next event, p0limit=raw interval start,
+   // p1limit=raw interval end, remaining=cursor. X is the fill cursor.
+   // At most six transitions split the stream into seven constant runs.
+   asm ldx #0;
+   asm stx.z layers_section_remaining;
+   asm @range:;
+   asm lda #0;
+   asm sta.z layers_player0_counter;
+   asm lda #96;
+   asm sta.z layers_player1_counter;
+   asm lda.z layers_ball_y;
+   asm clc;
+   asm adc #2;
+   asm sta.z layers_player1_limit;
+   asm sec;
+   asm sbc.z layers_ball_height;
+   asm sta.z layers_player0_limit;
+   asm ldy #2;
+   layers_consider_interval();
+   asm lda.z layers_missile1_y;
+   asm clc;
+   asm adc #1;
+   asm sta.z layers_player1_limit;
+   asm sec;
+   asm sbc.z layers_missile1_height;
+   asm sta.z layers_player0_limit;
+   asm ldy #8;
+   layers_consider_interval();
+   asm lda.z layers_missile0_y;
+   asm clc;
+   asm adc #1;
+   asm sta.z layers_player1_limit;
+   asm sec;
+   asm sbc.z layers_missile0_height;
+   asm sta.z layers_player0_limit;
+   asm ldy #4;
+   layers_consider_interval();
+   asm lda.z layers_player0_counter;
+   asm @fill:;
+   asm sta.zx layers_object_masks,x;
+   asm inx;
+   asm cpx.z layers_player1_counter;
+   asm bcc.same @fill;
+   asm stx.z layers_section_remaining;
+   asm cpx #96;
+   asm bcs.same @ready;
+   asm jmp @range;
    asm @ready:;
    asm lda.z layers_player0_y;
    asm sta.z layers_player0_counter;
