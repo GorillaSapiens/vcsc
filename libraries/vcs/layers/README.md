@@ -13,8 +13,16 @@ This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 adjacent, independently instantiated sections**. The minimum two-scanline section
 works. No-score, score-above and score-below fixtures now run in one4K bank and
 stock RAM, including runtime animation and score changes. This remains
-experimental: full horizontal/copy certification and finished example leaves
-are outstanding. Existing renderers and default examples are unchanged.
+experimental: full horizontal/copy certification is outstanding. Existing
+renderers and default examples are unchanged.
+
+Three independent, slower presentation examples are available in
+[`examples/04_renderers/cooperating_layers/`](../../../examples/04_renderers/cooperating_layers/):
+`no_score`, `score_above`, and `score_below`. Each has its own Makefile and edits
+its scenery directly in `main.c26`; none depends on test fixtures or another
+leaf. No-score uses126/128 RAM bytes; both score leaves use128/128 including
+stack, with two-byte app motion state. These bounded examples do not certify
+arbitrary horizontal placements.
 
 ## Working all-five composition
 
@@ -217,7 +225,7 @@ schedule change. Runtime controls are retained, not frozen constants.
 RAM remains tight: one byte is free in moving score/preview builds. General
 application controls still need a lifetime/RAM plan. Score cleanup at arbitrary
 hostile left-edge gameplay placements and runtime score-position/colour controls
-are not certified. Finished independent example leaves are still outstanding.
+are not certified. Independent example leaves are available as linked above.
 The new components remain uninstalled and do not replace the existing default
 or bounded-score renderers.
 

@@ -1,0 +1,83 @@
+// Frozen private two-byte motion and BCD lifetime regression.
+parameter maximum_y := 86;
+parameter with_score := 0;
+uint8_t TEMPLATE_clock;
+uint8_t TEMPLATE_phase;
+inline void TEMPLATE_apply_pose(void) {
+   asm lda.z TEMPLATE_phase;
+   asm cmp #TEMPLATE_maximum_y;
+   asm bcc.same @pose;
+   asm lda #{TEMPLATE_maximum_y * 2};
+   asm sec;
+   asm sbc.z TEMPLATE_phase;
+   asm @pose:;
+   asm clc;
+   asm adc #8;
+   asm sta.z layers_player0_y;
+   asm sta.z layers_player1_y;
+   asm sec;
+   asm sbc #2;
+   asm sta.z layers_missile0_y;
+   asm sta.z layers_missile1_y;
+   asm sbc #2;
+   asm sta.z layers_ball_y;
+   asm lda.z TEMPLATE_clock;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm and #3;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<demo_p0;
+   asm sta.z layers_player0_graphics;
+   asm lda #>demo_p0;
+   asm sta.z layers_player0_graphics + 1;
+   asm lda.z TEMPLATE_clock;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm and #3;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<demo_p1;
+   asm sta.z layers_player1_graphics;
+   asm lda #>demo_p1;
+   asm sta.z layers_player1_graphics + 1;
+}
+void TEMPLATE_init(void) {
+   TEMPLATE_clock:=0; TEMPLATE_phase:=10; TEMPLATE_apply_pose();
+}
+void TEMPLATE_update(void) {
+   asm inc.z TEMPLATE_clock;
+   asm lda.z TEMPLATE_clock;
+   asm and #3;
+   asm bne.same @ready;
+   asm inc.z TEMPLATE_phase;
+   asm lda.z TEMPLATE_phase;
+   asm cmp #{TEMPLATE_maximum_y * 2};
+   asm bcc.same @ready;
+   asm lda #0;
+   asm sta.z TEMPLATE_phase;
+   asm @ready:;
+   TEMPLATE_apply_pose();
+#if TEMPLATE_with_score
+   asm lda.z TEMPLATE_clock;
+   asm and #15;
+   asm bne.same @done;
+   asm sed;
+   asm lda.z score_left_score;
+   asm clc;
+   asm adc #1;
+   asm sta.z score_left_score;
+   asm lda.z score_right_score;
+   asm clc;
+   asm adc #1;
+   asm sta.z score_right_score;
+   asm cld;
+   asm @done:;
+#endif
+}

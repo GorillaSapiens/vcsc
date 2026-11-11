@@ -211,3 +211,55 @@ all existing regressions. It supersedes the prior1315/1316 run as current full
 verification. Gameplay right-edge/shared-colour defects and remaining example
 leaf/general-control work are unchanged; score-edge fixes do not certify them.
 Record-only followup; nothing pushed. Refresh the verified make tar handoff.
+
+2026-11-11 14:06:50 PDT, Independent cooperating-layer examples
+
+User asked to keep going after the clean1316/1316 score handoff. Added three
+independent leaves under examples/04_renderers/cooperating_layers/:
+no_score,score_above,score_below. Each owns main.c26,Makefile,README and supports
+make/play/clean. Family directory is an index only. No dependency on another
+leaf or on test fixtures; do not overwrite the unrelated all_five_sections work.
+Each leaf directly instantiates upper/middle/lower with the four required
+parameters and one asymmetric repeated row. All five use X20,100,50,110,80;
+do NOT claim arbitrary horizontal placement is fixed. Existing defaults unchanged.
+
+ROM-only rockets and two-byte app motion live in examples/_common/. Folded travel
+phase encodes Y/direction together, with a separate8-bit animation clock. Motion
+is two scanlines per four frames, exhaust7.5fps, score increments3.75Hz. Bodies
+remain upright, motion traverses both seams before reversing at screen ends.
+No joystick controls claimed. No-score192 gameplay,RAM126 including two stack
+bytes. Below176+12 score+4 tail,above12 score+8 setup+172 gameplay; both RAM128
+including stack. One4K bank per leaf, no cartridge RAM or sprite mirrors.
+Score examples have zero spare RAM; extra variables/nesting need fresh analysis.
+
+Added layer library entries to packaging/install.manifest so installed example
+builds can resolve them; no compile pipeline or default renderer replacement.
+Added three inventory entries and adjusted new-example count by three. Shared
+inventory/manifest/index docs also contain unrelated pre-existing changes;
+commit only this workstream's additions and preserve the rest.
+
+New test/vcs_layers_examples.pl: fixed private presentation composition/assets
+under test/fixtures/layers/examples/, exact CPU1600 frames per layout, independent
+folded-motion/animation/Y/counter/enable-stream/score-pointer/BCD models, PF and
+object deadlines, RAM/stack/bank budgets. Two40-frame exact-image windows per
+layout cover both64/128 seams with all five continuously crossing, independent
+player palettes, rockets/exhaust, score and blank setup/tail pixels. Unique
+runtime phase inferred independently. CPU span covers clock wraps, both endpoint
+turnarounds and BCD rollover. Shared60-second snapshot waits and process-group
+cleanup retained. Xvfb/Stella overrides resolve through PATH.
+
+Initial integration found two hygiene issues, fixed without weakening tests:
+resolve executable overrides explicitly; and separate fixed exact-image inputs
+from editable user-facing examples. No golden harness should fail when a user
+edits an example colour/glyph/score/motion constant. Private fixtures own exact
+checks. Actual editable examples instead get source/installed binary-equivalence,
+1600-frame generic timing smoke checks, make/clean and normal example-build
+shards. Installed builds use installed layer headers, not source-tree includes.
+
+Focused seven tests pass7/7 with eight workers: new examples,inventory,installation,
+actual all-five regression,branding,hygiene,history. Log:
+/tmp/opencode/layers-examples-focused.log. Full normal eight-worker suite running
+at /tmp/opencode/layers-examples-suite.log; record its actual result separately.
+No worker reduction,deadline increase or ancestor expectation changes. Gameplay
+right-edge/shared-colour failures remain open; next work is schedule repair,
+not claiming these example leaves certify all X/NUSIZ combinations. Nothing pushed.

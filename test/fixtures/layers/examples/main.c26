@@ -1,0 +1,74 @@
+// Private presentation regression composition, independent of editable examples.
+alias VCS_NTSC_EXTENDED_VBLANK
+include "vcs.c26"
+include "frame_ntsc.c26"
+#if DEMO_MODE
+include "two_plus_two_score_support.c26"
+#endif
+include "../../../_common/cooperating_layers_sprites.c26"
+include "layers/all_five_dense_objects.c26"
+instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/all_five_section.c26" as upper (number_of_scanlines:=64, playfield_row:=0x80000001, pf_color:=0x84, bk_color:=0x80)
+instantiate "layers/all_five_section.c26" as middle (number_of_scanlines:=64, playfield_row:=0xc0000003, pf_color:=0xb4, bk_color:=0xb0)
+#if DEMO_MODE == 0
+instantiate "layers/all_five_section.c26" as lower (number_of_scanlines:=64, playfield_row:=0xe0000007, pf_color:=0x24, bk_color:=0x20)
+instantiate "../../../_common/cooperating_layers_motion.c26" as motion (maximum_y:=86)
+#elif DEMO_MODE == 1
+instantiate "layers/all_five_section.c26" as lower (number_of_scanlines:=48, playfield_row:=0xe0000007, pf_color:=0x24, bk_color:=0x20)
+instantiate "layers/score.c26" as score (gameplay_scanlines:=176)
+instantiate "../../../_common/cooperating_layers_motion.c26" as motion (maximum_y:=78, with_score:=1)
+#else
+instantiate "layers/all_five_section.c26" as lower (number_of_scanlines:=44, playfield_row:=0xe0000007, pf_color:=0x24, bk_color:=0x20)
+instantiate "layers/score.c26" as score (gameplay_scanlines:=172)
+instantiate "../../../_common/cooperating_layers_motion.c26" as motion (maximum_y:=76, with_score:=1)
+#endif
+void prepare_objects(void) {
+   layers_prepare_vertical();
+#if DEMO_MODE
+   score_prepare();
+#endif
+#if DEMO_MODE != 2
+   intro_establish(); layers_prime();
+#endif
+}
+void main(void) {
+   VBLANK:=2; PF0:=0; CTRLPF:=0x21;
+   layers_object_x[0]:=20; layers_object_x[1]:=100;
+   layers_object_x[2]:=50; layers_object_x[3]:=110; layers_object_x[4]:=80;
+   layers_player0_nusiz:=0x20; layers_player1_nusiz:=0x20;
+   layers_player0_height:=7; layers_player1_height:=7;
+   layers_missile0_height:=5; layers_missile1_height:=7; layers_ball_height:=3;
+#if DEMO_MODE
+   score_left_score:=12; score_right_score:=34;
+#endif
+   motion_init();
+   while(1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank(); prepare_objects();
+      vcs_ntsc_end_vblank();
+#if DEMO_MODE == 2
+      score_draw();
+      asm lda #2;
+      asm sta VBLANK;
+      asm sta WSYNC;
+      vcs_ntsc_component_handoff(); intro_establish_visible(); layers_prime();
+      asm lda #0;
+      asm sta WSYNC;
+      asm sta VBLANK;
+#endif
+      upper_first(); middle_draw(); lower_draw();
+      asm nop;
+#if DEMO_MODE == 1
+      vcs_ntsc_component_handoff(); score_draw();
+      asm sta WSYNC;
+      asm sta WSYNC;
+      asm sta WSYNC;
+      asm sta WSYNC;
+#endif
+      vcs_ntsc_begin_overscan();
+#if DEMO_MODE != 1
+      PF1:=0;PF2:=0;GRP0:=0;GRP1:=0;ENAM0:=0;ENAM1:=0;ENABL:=0;
+#endif
+      motion_update(); vcs_ntsc_end_overscan();
+      asm sta WSYNC;
+   }
+}
