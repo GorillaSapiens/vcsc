@@ -1,0 +1,144 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Experimental cooperating section; uses all_five_dense_objects.c26 ONCE.
+// first(): entry3 after end_vblank, with object latches already primed.
+// draw(): entry74 on predecessor's last line; returns74 on its own last line.
+// No WSYNC, separator, repositioning, or private object state. X=shared pair
+// cursor, Y=last P0 selection. Preserve all registers/flags between sections.
+// See README for the still-uncertified player X/copy/score limits.
+parameter number_of_scanlines := 2;
+parameter playfield_row := 0;
+parameter pf_color := 14;
+parameter bk_color := 0;
+#if TEMPLATE_number_of_scanlines < 2 || TEMPLATE_number_of_scanlines > 254
+extern const uint8_t TEMPLATE_bad_height[TEMPLATE_section_height_must_be_positive_even_and_at_most_254];
+#endif
+const uint8_t TEMPLATE_height_validation[1 - (TEMPLATE_number_of_scanlines & 1)] := {0};
+#if TEMPLATE_pf_color < 0 || TEMPLATE_pf_color > 255 || TEMPLATE_bk_color < 0 || TEMPLATE_bk_color > 255
+extern const uint8_t TEMPLATE_bad_colour[TEMPLATE_section_colours_must_be_bytes];
+#endif
+alias TEMPLATE_reverse8(x) ( \
+   ((((x) & 1) << 7) | (((x) & 2) << 5) | (((x) & 4) << 3) | \
+    (((x) & 8) << 1) | (((x) & 16) >> 1) | (((x) & 32) >> 3) | \
+    (((x) & 64) >> 5) | (((x) & 128) >> 7)) )
+alias TEMPLATE_left1 (((TEMPLATE_playfield_row`uint32_t) >> 24) & 255)
+alias TEMPLATE_left2 TEMPLATE_reverse8(((TEMPLATE_playfield_row`uint32_t) >> 16) & 255)
+alias TEMPLATE_right2 (((TEMPLATE_playfield_row`uint32_t) >> 8) & 255)
+alias TEMPLATE_right1 TEMPLATE_reverse8((TEMPLATE_playfield_row`uint32_t) & 255)
+
+inline void TEMPLATE_first(void) {
+   asm @first_entry:;
+   PF1 := TEMPLATE_left1;
+   TEMPLATE_setup();
+   asm nop;
+   asm nop;
+   TEMPLATE_body();
+}
+inline void TEMPLATE_draw(void) {
+   asm @entry:;
+   PF1 := TEMPLATE_left1;
+   asm lda.zx layers_object_masks,x;
+   asm lsr;
+   asm sta ENAM0;
+   TEMPLATE_setup();
+   TEMPLATE_body();
+}
+inline void TEMPLATE_setup(void) {
+   asm @setup:;
+   layers_section_remaining := TEMPLATE_number_of_scanlines / 2 - 1;
+   asm @bk_load:;
+   COLUBK := TEMPLATE_bk_color;
+   asm @bk_barrier:;
+   COLUPF := TEMPLATE_pf_color;
+}
+inline void TEMPLATE_body(void) {
+   // Entry27. First-line PF stores3/32/48/53; second18/23/48/53.
+   asm @pair:;
+   PF2 := TEMPLATE_left2;
+   layers_step_player1();
+   asm @right_barrier:;
+   PF2 := TEMPLATE_right2;
+   asm @right1_barrier:;
+   PF1 := TEMPLATE_right1;
+   asm lda.zx layers_object_masks,x;
+   asm sta ENABL;
+   asm bcc.same @p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @p1_ready;
+   asm @p1_active:;
+   asm lda.ay layers_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (layers_player1_graphics),y;
+   asm @p1_ready:;
+   asm sta GRP1;
+   asm lda.zx layers_object_masks,x;
+   asm lsr;
+   asm lsr;
+   asm sta ENAM1;
+   asm @second_left:;
+   PF1 := TEMPLATE_left1;
+   asm @second_left2:;
+   PF2 := TEMPLATE_left2;
+   layers_step_player0();
+   asm dec.z layers_section_remaining;
+   // Taken exit crosses a page: four cycles. Untaken + NOP is also four.
+   asm bmi.cross @last;
+   asm nop;
+   asm @second_right:;
+   PF2 := TEMPLATE_right2;
+   asm @second_right1:;
+   PF1 := TEMPLATE_right1;
+   // Next-row P0 colour is folded into this balanced selector. Inactive P0
+   // retains its current colour; the glyph is blank and Y is normalized to0.
+   asm bcc.same @p0_active;
+   asm lda #0;
+   asm tay;
+   asm bit.a CXM0P;
+   asm nop;
+   asm bcs.same @p0_ready;
+   asm @p0_active:;
+   asm lda.ay layers_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.iy (layers_player0_graphics),y;
+   asm @p0_ready:;
+   asm sta.a GRP0;
+   asm inx;
+   asm @next_left:;
+   PF1 := TEMPLATE_left1;
+   asm lda.zx layers_object_masks,x;
+   asm lsr;
+   asm sta ENAM0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm jmp @pair;
+   asm @last:;
+   asm @last_right:;
+   PF2 := TEMPLATE_right2;
+   asm @last_right1:;
+   PF1 := TEMPLATE_right1;
+   asm bcc.same @last_p0_active;
+   asm lda #0;
+   asm tay;
+   asm bit.a CXM0P;
+   asm nop;
+   asm bcs.same @last_p0_ready;
+   // Both paths jump over this ROM-only island. Body235 + draw prefix21
+   // makes an ordinary instance exactly one page, preserving branch phase
+   // across ANY sequence of instances, independently of section heights.
+   asm @padding:;
+   asm .res {235 - {@padding - @pair} - 11};
+   asm @last_p0_active:;
+   asm lda.ay layers_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.iy (layers_player0_graphics),y;
+   asm @last_p0_ready:;
+   asm sta.a GRP0;
+   asm inx;
+}

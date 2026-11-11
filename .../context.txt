@@ -210,10 +210,10 @@ User has redirected the architecture: an intro positions all five objects once;
 repeatedly instantiated sections own PF/background colours and cooperate through
 shared object progress to enable/disable objects without restarting at seams.
 Section parameters: number_of_scanlines,playfield_row,pf_color,bk_color.
-libraries/vcs/layers/ has intro, provisional scenery sections and one76-byte
-all_five_objects.c26 vertical preparer. Its state/ancestor-raster checks pass;
-section drawing still DOES NOT advance objects. Next: the shared timed drawing
-handoff and a moving all-five/two-section proof. See layers.txt.
+libraries/vcs/layers/{all_five_dense_objects,all_five_section}.c26 now advance
+all five across independent sections: exact RGB passes seams2/6/190 and40 moving
+four-animation frames. RAM126 static/127 moving. Next: player X/copy deadlines,
+RAM headroom and both scores; NOT fully certified. See layers.txt and layers/README.
 Do not continue monolithic geometry-specific fixes as the delivery architecture.
 Preserve the existing examples/frozen regressions as implementation evidence.
 Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.

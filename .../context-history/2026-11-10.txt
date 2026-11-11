@@ -1,0 +1,109 @@
+2026-11-10 13:16:41 PDT, Cooperating all-five drawing passes first gate
+
+User said keep going. Implemented actual object advancement, not a scenery-only
+wrapper around a monolithic schedule. New files:
+libraries/vcs/layers/all_five_dense_objects.c26 (include once) and
+libraries/vcs/layers/all_five_section.c26 (instantiate each independent section).
+Four parameters remain number_of_scanlines,playfield_row,pf_color,bk_color.
+No eight-entry geometry, user-facing generator, horizontal repositioning during
+drawing, per-section object restart, cartridge RAM, mirrored graphics tables,
+or visible separator. Existing renderers/examples/defaults stay unchanged.
+
+The first all-five/two-section gate now PASSES, including the two-line minimum.
+Normal-runner test/vcs_layers_all_five.pl independently expands every visible
+pixel of PF,glyph rows,independent player colours and all three enable intervals.
+Only the exact palette RGB conversion comes from a separate calibration ROM.
+Seams2,6,190 pass exact full192-line RGB, with actual non-background object pixels
+required for P0,P1,M0,M1,Ball on BOTH sides. Short runtime heights,alternate
+graphics pointers,M0/M1 widths2/8 and Ball width2 pass as well as ordinary widths4.
+
+Forty consecutive Stella frames200..239 pass an independent pose/animation model:
+all five objects move vertically, counters continue across the6/186 boundary,
+both pointers select four different upright frames, and a complete all-five
+crossing is witnessed. Once independently identified, the first pose must be
+unique; subsequent frames must advance exactly one pose, not be independently
+matched to arbitrary layouts. Animated fixture uses one motion byte; no glyph
+mirror tables. Build with -DLAYERS_MOTION for the automatic moving preview.
+
+One ordinary blanking callback prepares shared vertical state, invokes the
+existing intro once, then primes TIA latches. Use extended63/13 VBLANK/overscan
+split. Public X/Y/heights/pointers/NUSIZ are not biased. One96-byte enable stream
+(D1 Ball,D2 M0,D3 M1) eliminates eight-pair mask phase from the section handoff.
+Construction toggles interval events and fills at most seven constant runs;
+counter/limit/count bytes are scratch during preparation, then initialized.
+Player graphics are immediate (VDELP0/P1=0); Ball alone uses delayed GRP1 transfer.
+P0 rows are on even lines, P1/M1/Ball transitions on odd lines after priming.
+Runtime player heights remain inclusive row limits0..7; row0 graphics are blank.
+
+Shared data122 bytes +4 hardware stack =126/128 static; motion adds one =127/128.
+The ordinary blanking callback owns an explicit JSR helper level and is placed
+separately from visible code, not called during drawing. This separates its
+branch-page constraints from the application inline section sequence. No private
+per-instance data. The two-section composition fits one4K bank with ample ROM.
+
+CRITICAL visible handoff: first() enters at3 after end_vblank; all draw() entries
+and exits are74 of the previous/final line. X is the live pair cursor, Y the last
+P0 selection; preserve all registers/flags/TIA latches between component calls.
+Each body executes exactly152 cycles per pair, including the last pair. The
+next section's initial PF1 write lands3 of its first line; M0 at12; BK/PF colours
+at22/27. First frame entry instead uses PF1 at8, with primed M0 and BK/PF18/23.
+Other PF stores: even32/48/53, odd18/23/48/53. GRP0=72,GRP1=2,M0=12,M1=13,BL=60.
+After final exit74, frame owner NOP completes the final visible line. One blanked
+WSYNC after end_overscan calibrates the complete frame to264 raw harness lines,
+matching the established CPU/Stella frame convention. It is NOT a seam gap.
+
+Page-contract breakthrough: section duration is initialized to pairs-1, then
+DEC/BMI.cross exits on negative. The taken exit takes4 cycles; untaken plus NOP
+also takes4. Both second-line right PF stores consequently land48/53 exactly.
+The earlier49-phase attempt matched uninterrupted flat fields but FAILED the
+independent logical PF bitmap at x164..167,line7; do not promote that attempt.
+Using .same made the exit one cycle short and ordinary alignment islands caused
+mutually incompatible placements. The final ROM-only island lies between the
+last selector's two unconditional-by-flags branch paths, never executed. It
+pads the body to235 bytes; ordinary draw prefix21 makes each inline instance256
+bytes. First prefix18 differs by3, exactly compensating the next draw's prefix
+difference, so every exit branch retains the same page phase across arbitrary
+heights/instance sequences. All .same/.cross contracts stay enforced. There is
+no raw-opcode branch trick, backend change, or generator in the delivered source.
+
+The new test also verifies all96 enable bytes from direct interval arithmetic,
+preserved public inputs/pointers/NUSIZ, final player counters, empty/wrapped/
+offscreen/full extents, and a worst seven-run preparation layout. CPU harness
+checks all768 PF writes, every visible object write phase, and exact192-line
+visible extent for420 frames, with explicit --raw-lines264. Repeated same-instance
+and three independently instantiated sections pass. Uniform/equal constants keep
+phases. Invalid heights/colours reject. Shifted GRP0 phase must reject; replacing
+DEY with an equal-cycle NOP must fail specifically on counter memory, not timing.
+Snapshot deadline remains shared60s; fresh basedirs and process-group cleanup;
+new test timeout240s. No runner budget or policy changes.
+
+Also extracted eleven-cycle player step primitives into the compact76-byte owner
+and updated its ancestor witness to use actual shared counters throughout drawing,
+not copies in old mask lanes. Compact state tests now verify A/X preservation,
+Y/index/C outputs,wrap and range boundaries,and a same-cycle frozen-step mutant.
+This old compact owner is an alternative witness, NOT included with dense owner.
+
+IMPORTANT LIMITS: exact logical-image certification currently uses P0 X20/P1 X130
+and ordinary player copies. P0 colour/graphic writes are late in the previous
+line; P1 colour is late in its first line. Player right-edge/repeated/stretched
+copies may violate those deadlines and are NOT certified. Intro positioning at
+0..159 is independently correct but does not prove this new visible schedule.
+Inputs/NUSIZ remain runtime; do not advertise broad control certification yet.
+Only one/two RAM bytes remain: score composition and general controls need a
+proved lifetime/RAM plan. Neither score order nor fixed-duration visible intro
+is implemented. New components are experimental/uninstalled. Do not silently
+switch default examples or wrap the old eight-section renderer as a fallback.
+
+Focused new all-five,compact state and intro tests pass. Other focused checks
+previously pass; a combined full eight-worker run was launched after this first
+gate. Record its actual result separately after completion. Preserve unrelated
+staged/pending work and publish only make tar handoffs, one latest archive in/tmp.
+
+2026-11-10 13:42:55 PDT, Full cooperating-section suite passes1316
+
+The combined normal-runner suite, perl test.pl --jobs8, passes1316/1316 with no
+timeouts or failures. This includes the new all-five section regression, compact
+shared-state/intro/scenery checks, branding, and both formerly timed-out build
+cases. Functional milestone commit0b2f35b7; nothing pushed. The limited player
+X/copy certification,RAM headroom and score limitations above remain unchanged;
+a clean suite does not certify those still-unimplemented cases.

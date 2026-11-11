@@ -92,10 +92,6 @@ my$bridge=<<'C26';
    asm sta.z TEMPLATE_row_cache + 5;
    asm lda.z layers_missile0_bits;
    asm sta.z TEMPLATE_row_cache + 6;
-   asm lda.z layers_player0_counter;
-   asm sta.z layers_object_masks;
-   asm lda.z layers_player1_counter;
-   asm sta.z layers_object_masks + 1;
    asm lda #0;
    asm sta.z layers_object_masks + 2;
 C26
@@ -103,6 +99,12 @@ $objects=~s!(require inline void TEMPLATE_vblank\(void\) \{).*?   intro_establis
 for my$p(0..1){
    $objects=~s/asm cpy.z layers_player${p}_height;/asm cpy.z layers_player${p}_limit;/g;
    $objects=~s/   asm dec.z layers_player${p}_height;\n// or die 'remove legacy height restore';
+   # Use the shared counters throughout drawing, not a one-time copy into the
+   # ancestor's dead mask lanes. Counter stepping now exercises the actual
+   # shared state consumer, at the ancestor's independently certified phases.
+   $objects=~s/\blayers_object_masks \+ $p;/layers_player${p}_counter;/g;
+   my$steps=($objects=~s/   asm ldy.z layers_player${p}_counter;\n   asm dey;\n   asm sty.z layers_player${p}_counter;\n   asm cpy.z layers_player${p}_limit;/   layers_step_player$p();/g);
+   $steps>=10 or die "missing P$p shared drawing steps";
 }
 save("$tmp/shared_vertical_and_draw.c26",$objects);
 my$source=readfile("$repo/test/fixtures/all_five_player_color_192/all_five_match.c26");
@@ -150,7 +152,13 @@ for my$case(0..3){
       elsif($kind eq'intro'){$1==$gold_ram or die 'intro adds private RAM';}
        else{
           $1==$gold_ram+7&&$1<=128 or die 'shared-state witness budget';
-          run("$tmp/timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
+          my$sym=readfile("$tmp/$n.sym");my@progress;
+          for my$p(0..1){
+             $c=~/layers_player${p}_y := (\d+);/ or die 'shared input Y';my$y=$1;
+             $sym=~/^layers_player${p}_counter\s+([0-9a-fA-F]{4})\s*$/m or die 'shared counter symbol';
+             push@progress,'--expect-memory',hex($1),($y+$p-96)&255;
+          }
+          run("$tmp/timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264',@progress);
        }
    }
    my$gold=snapshot("gold_$case");

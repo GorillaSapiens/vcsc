@@ -33,6 +33,26 @@ uint8_t layers_player1_counter;
 uint8_t layers_player0_limit;
 uint8_t layers_player1_limit;
 
+// Cycle-transparent drawing primitives. Each consumes ONE shared player row,
+// takes exactly eleven cycles, preserves A/X, and returns Y=the next graphics
+// index and C=(index >= limit). No private copy or per-section reset is allowed.
+// The caller must preserve C until selecting the active/blank graphics path.
+// These do not write graphics/colours: their deadlines belong to the enclosing
+// drawing schedule, which can separate the counter test from the TIA stores.
+inline void layers_step_player0(void) {
+   asm ldy.z layers_player0_counter;
+   asm dey;
+   asm sty.z layers_player0_counter;
+   asm cpy.z layers_player0_limit;
+}
+
+inline void layers_step_player1(void) {
+   asm ldy.z layers_player1_counter;
+   asm dey;
+   asm sty.z layers_player1_counter;
+   asm cpy.z layers_player1_limit;
+}
+
 inline void layers_prepare_vertical(void) {
    // Local JSR helpers use six stack bytes at peak (including the first JSR).
    asm .callstackextra 4;

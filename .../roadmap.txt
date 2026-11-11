@@ -24,7 +24,7 @@ height and PF/background colours, advancing shared object progress across a
 cycle-defined handoff. No fixed eight-slot monolith or per-section object restart.
 Define and prove intro plus two sections with all-five seam continuity before
 extending this composition. Prior private schedulers are evidence, not the API.
-Intro and scenery sections exist; shared vertical object advancement is next.
+All-five section advancement passes seams2/6/190; player edges/RAM/scores remain.
 The runnable score previews remain even seams2..26 and RAM128/128. Preserve all
 frozen exact-pixel gates and independent returns; no mirrored sprites.
 Keep user configuration in .c26 with existing language facilities, not JSON.

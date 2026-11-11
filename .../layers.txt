@@ -29,10 +29,10 @@ playfield_row,pf_color,bk_color. A new section changes pattern and/or colours;
 there is no separate PF-row schedule.
 Intro: libraries/vcs/layers/all_five_intro.c26; shared layers_object_x[5] and
 layers_player0_nusiz/player1_nusiz. No private RAM; blanking only, not fixed-duration.
-Scenery section: libraries/vcs/layers/section.c26; four parameters above, no RAM,
-entry/exit cycle3 with no separator. It preserves held TIA objects but does NOT
-advance them vertically. Next: integrate shared object progress, then prove all
-five moving across two sections. Preserve existing examples/tests.
+All-five: layers/{all_five_dense_objects,all_five_section}.c26. Shared96-byte
+enable stream; live counters advance through each instance. first() enters3,
+draw()/exit74. Exact RGB: seams2/6/190,40 moving/four-frame snapshots. RAM126/127.
+Next: player right-edge/copy deadlines,RAM headroom,both scores. Keep old tests.
 The private schedules below are implementation evidence, not the current design.
 
 PRIOR SCHEDULER IMPLEMENTATION
