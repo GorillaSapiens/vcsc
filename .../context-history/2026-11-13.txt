@@ -1,0 +1,22 @@
+2026-11-13 09:35:41 PDT, Full repaired-section suite passes1326
+
+The server restart cancelled the original full run after the right-edge repair;
+that cancellation was not a test failure or a clean pass. User asked whether
+sections were done and then said to keep going. Reran the committed repair
+2c738be6 unchanged with VCSC_STELLA=stella VCSC_XVFB=Xvfb and perl test.pl --jobs8.
+The complete suite passes1326/1326 with zero failures/timeouts. Log:
+/tmp/opencode/layers-edge-full-suite.log. Includes all eight exhaustive live-X
+shards (2560 full images), all even section splits2..190, both score compositions,
+private presentation images, source/installed smoke builds and existing tests.
+
+Core sections and the right-edge drawing repair are complete. No further section
+redesign is planned. The handoff remains first-entry3,draw/exit65,then
+layers_finish() after the final section to reach0; all task-owned callers use it.
+ROM/RAM budgets are unchanged from the repaired checkpoint. Separate documented
+limits remain: score-above positioning X0..119, unproven arbitrary left-edge
+gameplay-to-score cleanup, no spare RAM in the slow score examples, and shared
+player/missile colours. Do not confuse those with the fixed player right edge.
+
+Updated current records and layer README to reflect the actual full result.
+Record-only followup; refresh make tar and retain only the latest verified archive.
+Nothing pushed.

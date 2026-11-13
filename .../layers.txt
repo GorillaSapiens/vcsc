@@ -35,7 +35,7 @@ stream/live counters. first() enters3,draw()/exit65; layers_finish() reaches0.
 40 moving +40 control frames. RAM124/125; all8 modes pass bounded layouts.
 Both score orders now pass; RAM126/127, pointers borrow tail88..95 (game<=176).
 Above uses bounded X0..119 intro. cooperating_layers leaves: RAM126/128.
-Right-edge repair passes2560 live-X images +all even splits2..190; full pending.
+Right-edge repair passes2560 live-X images +all even splits2..190; full1326/1326.
 The private schedules below are implementation evidence, not the current design.
 
 PRIOR SCHEDULER IMPLEMENTATION

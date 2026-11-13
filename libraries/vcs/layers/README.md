@@ -254,8 +254,8 @@ and caught/fixed a fixture substitution collision specifically at height186.
 
 Runtime controls remain public inputs, not frozen constants. Missiles still
 share their player's colour, including its per-row changes; independent missile
-colours are not promised. The fresh whole-suite rerun is pending; these focused
-results must not be described as a new full-suite pass until it completes.
+colours are not promised. The fresh full eight-worker suite passes1326/1326,
+including these edge/geometry gates and both score compositions.
 
 RAM remains tight: one byte is free in moving score/preview builds. General
 application controls still need a lifetime/RAM plan. Score cleanup at arbitrary
