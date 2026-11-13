@@ -56,12 +56,12 @@ C26
    $src.='const uint8_t expected[48] := {'.join(',',@bytes)."};\nvoid main(void) {\n";
    $src.="failed:=0; VBLANK:=2; PF0:=0; CTRLPF:=1;\nlayers_player0_y:=$p0; layers_player1_y:=$p1; layers_player0_height:=$h0; layers_player1_height:=$h1;\n";
    for my$o(0..2){my$n=(qw(ball missile1 missile0))[$o];$src.="layers_${n}_y:=$ys->[$o]; layers_${n}_height:=$hs->[$o];\n";}
-   $src.="layers_player0_graphics:=glyph; layers_player1_graphics:=glyph; layers_player0_nusiz:=0x27; layers_player1_nusiz:=0x35;\n";
+   $src.="layers_player0_graphics:=glyph; layers_player1_graphics:=glyph;\n";
    $src.="layers_object_x[0]:=0; layers_object_x[1]:=13; layers_object_x[2]:=14; layers_object_x[3]:=150; layers_object_x[4]:=159;\n";
    # Validation runs outside the timed frame; it is not renderer work.
    $src.="for(i:=0;i<48;i++){layers_object_masks[i]:=255;} layers_prepare_vertical(); layers_prepare_vertical();\n";
    $src.="for(i:=0;i<48;i++){if(layers_object_masks[i]!=expected[i]){failed:=1;}}\n";
-   for my$v(['player0_counter',$p0],['player1_counter',($p1+1)&255],['player0_limit',$h0+1],['player1_limit',$h1+1],['ball_bits',$bytes[0]],['missile1_bits',$bytes[1]],['missile0_bits',$bytes[2]],['player0_y',$p0],['player1_y',$p1],['player0_height',$h0],['player1_height',$h1],['player0_nusiz',0x27],['player1_nusiz',0x35]){
+   for my$v(['player0_counter',$p0],['player1_counter',($p1+1)&255],['player0_limit',$h0+1],['player1_limit',$h1+1],['ball_bits',$bytes[0]],['missile1_bits',$bytes[1]],['missile0_bits',$bytes[2]],['player0_y',$p0],['player1_y',$p1],['player0_height',$h0],['player1_height',$h1]){
       $src.="if(layers_$v->[0]!=$v->[1]){failed:=1;}\n";
    }
    for my$o(0..2){my$n=(qw(ball missile1 missile0))[$o];$src.="if(layers_${n}_y!=$ys->[$o] || layers_${n}_height!=$hs->[$o]){failed:=1;}\n";}
@@ -94,10 +94,10 @@ C26
       my$build=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/$name.c26",'-o',"$tmp/$name.bin");
       my$map=readfile("$tmp/$name.map");my$state_bytes=0;
       $state_bytes+=hex($1) while $map=~/BSS\.__vcsc_object\$layers_\w+\s+run=\$[0-9A-Fa-f]+ size=\$([0-9A-Fa-f]+)/g;
-      $state_bytes==76 or die "shared state is $state_bytes bytes, not 76";
+       $state_bytes==74 or die "shared state is $state_bytes bytes, not 74";
       # The diagnostic's C expressions/loop also need six compiler
       # scratch/activation bytes, in addition to its failed/i variables.
-      $build=~/objects=84 bytes hardware-stack=6 bytes/ or die "diagnostic RAM/stack budget\n$build";
+       $build=~/objects=82 bytes hardware-stack=6 bytes/ or die "diagnostic RAM/stack budget\n$build";
       my$sym=readfile("$tmp/$name.sym");$sym=~/^failed\s+([0-9a-fA-F]{4})\s*$/m or die 'failed symbol';my$a=hex$1;
       $sym=~/^glyph\s+([0-9a-fA-F]{4})\s*$/m or die 'glyph symbol';my$glyph=hex$1;my@pointers;
       for my$p(qw(layers_player0_graphics layers_player1_graphics)){

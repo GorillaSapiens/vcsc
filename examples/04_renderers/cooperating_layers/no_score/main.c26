@@ -4,7 +4,7 @@ include "vcs.c26"
 include "frame_ntsc.c26"
 include "../../../_common/cooperating_layers_sprites.c26"
 include "layers/all_five_dense_objects.c26"
-instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/all_five_intro.c26" as intro (player0_nusiz:=0x20, player1_nusiz:=0x20)
 // Edit scenery HERE: each instance repeats one asymmetric row for its height.
 instantiate "layers/all_five_section.c26" as upper (
    number_of_scanlines:=64, playfield_row:=0x80000001, pf_color:=0x84, bk_color:=0x80
@@ -24,7 +24,6 @@ void main(void) {
    VBLANK:=2; PF0:=0; CTRLPF:=0x21;
    layers_object_x[0]:=20; layers_object_x[1]:=100;
    layers_object_x[2]:=50; layers_object_x[3]:=110; layers_object_x[4]:=80;
-   layers_player0_nusiz:=0x20; layers_player1_nusiz:=0x20;
    layers_player0_height:=7; layers_player1_height:=7;
    layers_missile0_height:=5; layers_missile1_height:=7; layers_ball_height:=3;
    motion_init();

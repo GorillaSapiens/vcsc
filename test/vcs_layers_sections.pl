@@ -110,7 +110,7 @@ sub source {
 }
 for my$height(2,6,190){
    my$name="sections_$height";my$build=build($name,source([$height,192-$height]));
-   $build=~/ram\s+used=(\d+) bytes/&&$1==9 or die 'sections must add no RAM to intro/app';
+   $build=~/ram\s+used=(\d+) bytes/&&$1==7 or die 'sections must add no RAM to intro/app';
    run("$tmp/timing","$tmp/$name.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
    my($w,$h,$rgb)=@{capture($name)};
    $w==$gold[0][0]&&$h==$gold[0][1] or die 'raster dimensions';

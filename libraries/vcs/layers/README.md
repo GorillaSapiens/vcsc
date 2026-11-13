@@ -21,7 +21,7 @@ Three independent, slower presentation examples are available in
 [`examples/04_renderers/cooperating_layers/`](../../../examples/04_renderers/cooperating_layers/):
 `no_score`, `score_above`, and `score_below`. Each has its own Makefile and edits
 its scenery directly in `main.c26`; none depends on test fixtures or another
-leaf. No-score uses126/128 RAM bytes; both score leaves use128/128 including
+leaf. No-score uses46/128 RAM bytes; both score leaves use56/128 including
 stack, with two-byte app motion state. These bounded examples do not certify
 arbitrary score-above placements.
 
@@ -52,7 +52,7 @@ instantiate "layers/all_five_section.c26" as ground (
 ```
 
 The application supplies page-safe `layers_player0_colors[8]` and
-`layers_player1_colors[8]`, runtime graphics pointers/heights/NUSIZ, and the
+`layers_player1_colors[8]`, runtime graphics pointers/heights, and the
 shared coordinates. Graphics row zero is blank. Coordinates/heights retain
 two-scanline units and inclusive extent limits. Player row colours are independent;
 no sprite graphics are copied or mirrored.
@@ -60,44 +60,51 @@ no sprite graphics are copied or mirrored.
 The frame owner selects extended VBLANK. Its ordinary blanking callback calls
 `layers_prepare_vertical(); intro_establish(); layers_prime();`. That callback
 is outside the visible drawing schedule and needs no geometry list. It prepares
-one96-byte Ball/M0/M1 enable stream, using at most seven constant runs, without
-changing public coordinates/heights/pointers/NUSIZ. Each section consumes that
-same stream and the same two player counters; it never initializes object progress.
+one14-byte Ball/M0/M1 run list, using at most seven constant runs, without
+changing public coordinates/heights/pointers. NUSIZ values are intro parameters,
+not RAM inputs. Each section consumes that
+same run list and two player counters; it never initializes object progress.
 
 After `vcs_ntsc_end_vblank()`, call `sky_first(); ground_draw();` with **nothing
 inserted between them**. `first()` enters at cycle3; subsequent `draw()` entries
-and all section exits are cycle65 of the preceding/final line. X is the live
-shared pair cursor, Y the normalized next P0 index, and the shared scratch byte
-holds its glyph. Registers, carry and live TIA enables are part of the handoff.
+and all section exits are cycle53 of the preceding/final line. X holds the next
+P0 glyph and Y its normalized row index. The event stack and live TIA enables
+are also part of the handoff.
 There is no WSYNC, horizontal positioning, or separator inside a section.
-After the final section, call **`layers_finish()`**: eleven transparent cycles
-finish its last line at cycle0 before overscan or a score handoff. Do not retain
+After the final section, call **`layers_finish()`**: it restores the ordinary
+hardware stack and finishes the last23 cycles at cycle0 before overscan or score.
+Do not retain
 the old NOP finish. A no-score frame has192 gameplay lines;
 the score compositions below allocate fewer gameplay lines within the same frame.
 
-First-line PF stores are at70 on the **preceding** line, then37/48/53 on the
-current line; the first frame entry instead writes PF1 at8. Second-line stores
-are22/27/48/53. The preceding-line PF1 preload occurs after the old right PF1 has
-finished and supplies the incoming section's own pattern. Both active/blank
+First-line PF stores are at18/33/48/51; a section boundary uses23 instead of18,
+and the first frame entry uses8. Second-line stores are19/24/48/53. Both active/blank
 player paths are balanced and all `.same` branch contracts are linker checked.
 
-Player colour/graphics transfer exclusively in horizontal blank: P0 at4/7,
-P1 at0/3. An existing shared byte stages one glyph; graphics tables are not
-mirrored and RAM usage is unchanged. Inner pairs use ordinary six-cycle JSR/RTS
-instead of a mutable section loop counter. Assembly `.repeat` emits the exact
-number of three-byte calls from the instance height, not a user-facing generator.
-First/terminal pairs stay inline to reserve boundary cycles for scenery setup.
-This costs more ROM than the former256-byte instances but keeps one drawing bank
-and the existing two-byte stack budget in the supplied inline frame loop. An
-out-of-line drawing wrapper would need two more live stack bytes; do not add one
-without checking the total RAM/stack budget. No calls may be inserted between
-sections.
+Player colour/graphics transfer exclusively in horizontal blank: P0 at10/13,
+P1 at0/3. NMOS LAX reads each original ROM glyph into A/X without a RAM graphics
+copy. Its explicit raw opcode is accepted by the ordinary assembler invocation.
+The immediate LAX zero operand is used only to produce unconditional zero.
+First, loop and terminal paths are explicit. All instances share one loop byte;
+the height remains the same direct C26 parameter. No graphics tables are mirrored.
 
-Ball now uses immediate enables, updated on odd-line cycle10, preserving the
-same visible geometry without the old GRP1 delay latch. M1 updates at17; M0 at16
-(21 at section boundaries), all before the beam. P1's counter is decremented one
-pair ahead during preparation/odd-line work; its public Y and visible rows do not
-change. Section background/PF colours arrive by12/28 at a boundary.
+Each event record is `[duration, mask]`, with D0=M1, D1=Ball and D2=M0. The first
+record supplies initial state; at most six further transitions need twelve bytes.
+The final duration255 prevents an offscreen read past the initialized records.
+Preparation merges coincident times. A countdown consumes the next record only
+when due, with event/no-event paths balanced. No-event islands live inside skipped
+player branches, avoiding an extra JMP on the worst-case event path.
+
+`first()` saves the ordinary stack pointer, then uses S to read the existing
+event array with PLA. This reuses the array itself; it does not reserve another
+fourteen stack bytes. **No ordinary calls, pushes or pops may occur from first()
+through the last draw().** `layers_finish()` must run before any score, overscan
+callback or return. The supplied inline frame loop retains a two-byte ordinary
+stack peak; additional wrappers still require checking the compiler's RAM report.
+
+Ball/M1 update on odd-line9/14; M0 on even-line3, all before the beam. Both player
+counters advance on the even line after P1 selection. Public Y and visible rows
+are unchanged. Boundary background/PF colours arrive by18/28.
 
 The runnable fixture is
 [all_five_sections.c26](../../../test/fixtures/layers/all_five_sections.c26).
@@ -111,9 +118,9 @@ driver/vcsc -DLAYERS_MOTION -DLAYERS_CONTROLS -I libraries/vcs test/fixtures/lay
 
 The second build moves all five objects vertically and selects four distinct
 animation frames through the runtime pointers. The third also changes runtime X
-and cycles all eight player/missile copy/stretch modes in the bounded layouts
-listed below. Static shared RAM is124/128 bytes
-(122 data +2 stack); motion uses125/128. Interval consideration is expanded
+with constant intro NUSIZ parameters. Separate builds cover all eight
+player/missile copy/stretch modes. Static shared RAM is44/128 bytes
+(42 data +2 stack); motion uses45/128. Interval consideration is expanded
 inline during blanking, avoiding the previous nested JSR/RTS and recovering
 two stack bytes without changing public inputs or visible timing.
 No per-section RAM or cartridge RAM is
@@ -126,7 +133,7 @@ seams, Stella defaults are Ctrl+Shift+S to slow down, Ctrl+S to speed up and
 Ctrl+T to toggle turbo. The separate
 [preview.c26](../../../test/fixtures/layers/preview.c26) traverses three64-line
 bands at about30 pixels/second, reversing at the screen ends without teleporting
-at scenery seams. Only its exhaust changes at7.5 fps. It uses127/128 RAM bytes.
+at scenery seams. Only its exhaust changes at7.5 fps. It uses47/128 RAM bytes.
 
 ```sh
 driver/vcsc -I libraries/vcs test/fixtures/layers/preview.c26 -o /tmp/opencode/layers-preview.bin
@@ -136,14 +143,13 @@ stella /tmp/opencode/layers-preview.bin
 ## Cooperating score compositions
 
 `score.c26` draws two packed-BCD fields using the shared immutable
-`two_plus_two_score_support.c26` tables. It owns only two mutable bytes:
-`left_score` and `right_score`. Its eight glyph-pointer bytes borrow
-`layers_object_masks[88..95]`; gameplay must therefore total **176 lines or
-fewer**, so none of those bytes is consumed by a section. No graphics or font
-tables are mirrored. The no-score state owner and drawing schedule are unchanged.
+`two_plus_two_score_support.c26` tables. It owns two BCD bytes, `left_score` and
+`right_score`, plus eight glyph-pointer bytes. These pointers no longer overlap
+the object schedule: there is no96-byte buffer tail to borrow. No graphics or
+font tables are mirrored. The no-score state owner and drawing schedule are unchanged.
 
 Call `layers_prepare_vertical()` **before** `score_prepare()` during blanking.
-Do not prepare the mask stream again between score preparation and drawing.
+Both preparers have independent storage. Do not rebuild object progress during drawing.
 The frame owner declares the actual even gameplay total with `gameplay_scanlines`
 (default176; allowed2..176); it is responsible for matching that declaration to
 the sum of section calls. Independent sections do not gain a shared geometry list.
@@ -158,11 +164,11 @@ Two runnable layouts:
 
 | Fixture | Frame layout | Static / motion RAM |
 | --- | --- | --- |
-| [score_below.c26](../../../test/fixtures/layers/score_below.c26) |176 gameplay +12 score +4 blank tail |126 /127 bytes |
-| [score_above.c26](../../../test/fixtures/layers/score_above.c26) |12 score +8 blanked intro +172 gameplay |126 /127 bytes |
+| [score_below.c26](../../../test/fixtures/layers/score_below.c26) |176 gameplay +12 score +4 blank tail |54 /55 bytes |
+| [score_above.c26](../../../test/fixtures/layers/score_above.c26) |12 score +8 blanked intro +172 gameplay |54 /55 bytes |
 
 Both gameplay layouts have independent scenery instances and an exact all-five
-crossing at gameplay line64. Runtime graphics pointers/heights/NUSIZ and both
+crossing at gameplay line64. Runtime graphics pointers/heights and both
 eight-row palettes remain shared, not reinitialized at the seam. Both fixtures
 provide four upright animation frames; `-DLAYERS_MOTION` moves all five through
 the seam, changes both graphics pointers and increments both runtime BCD scores.
@@ -198,10 +204,10 @@ sprite frames pass both layouts. Score placement pairs0/144 and64/32 also pass
 with different field colours, including the first and final digit rows. Each
 layout also passes40 consecutive moving
 frames with40 independently checked score values and a complete all-five seam
-crossing. CPU checks cover420 frames, active stream bytes, reserved pointer
+crossing. CPU checks cover420 frames, event records, dedicated pointer
 bytes, all PF/object phases and score-above RESP phases. Zero/max119/mixed X
-vectors retain the positioning deadline. A mutant moving the score workspace
-into active stream bytes must fail the memory oracle. Invalid declared gameplay
+vectors retain the positioning deadline. A mutant shifting score pointer stores
+must fail the memory oracle. Invalid declared gameplay
 totals reject. The slower preview has a separate800-frame rate/pose/animation
 model, covering both end-of-screen turnarounds and clock wrap.
 
@@ -211,9 +217,15 @@ from an independent solid-background witness. All five objects must be visibly
 present on both sides of seams2,6,190. Short heights and alternate pointers pass;
 40 consecutive moving frames must follow the independent pose model, include a
 complete all-five seam crossing, and use all four animation frames. Additional
-checks cover all96 enable bytes, preserved inputs, final counters, seven-run/wrap
+checks cover all initialized event bytes, preserved inputs, final counters, seven-run/wrap
 preparation, repeated/three-instance compositions, equal constants, parameter
 rejection, shifted-write rejection, and420-frame exact PF/object-write timing.
+
+`test/vcs_layers_events.pl` independently decodes all96 pair masks from the compact
+records during4096 frames of varied positions/extents, including wrapping and
+coincident transitions. It checks initial state, final sentinel, unchanged public
+inputs and an untouched poisoned tail/stack canary. This preparation-only oracle
+is separate from exact visible images and never substitutes for them.
 
 The logical oracle also models runtime horizontal positions, all eight NUSIZ
 copy/stretch modes, missile copy offsets/widths and hardware overlap priority
@@ -223,7 +235,7 @@ All eight modes pass complete images at X coordinates `[10,40,30,65,120]`
 player modes also pass `[0,0,30,65,120]`, `[1,1,30,65,120]` and
 `[80,100,50,110,80]`. These overlap cases complement the isolated exhaustive
 player sweeps below; they do not enumerate every combination of five positions.
-Public X values, NUSIZ and graphics pointers are checked unchanged after drawing.
+Public X values and graphics pointers are checked unchanged after drawing.
 Another40 consecutive snapshots verify the live control changes against the
 pose model, with all eight modes and four animation frames required to appear.
 The original40-frame all-five visible seam-crossing test remains unchanged.
@@ -239,10 +251,10 @@ the hardware instead of silently clipping right-edge pixels.
 
 The exhaustive two-player/eight-mode/**X0..159** matrix passes all2560 full images.
 Each player is tested unoccluded with its missile and Ball, both extreme glyph
-bits exercised, four animation frames and missile widths varying across the
-sweep. The16 private ROMs change X, graphics pointers and missile width at runtime;
+bits exercised, four animation frames and all four missile widths across the
+sweep. The16 private ROMs change X and graphics pointers at runtime;
 each contributes160 consecutive snapshots, not just a stationary compiled layout.
-Each also passes420 CPU frames with independent per-frame X/pointer/NUSIZ/counter/
+Each also passes420 CPU frames with independent per-frame X/pointer/counter/
 mask checks. Eight shards run with eight workers and300-second workload budgets;
 each snapshot sequence retains the common60-second deadline and process cleanup.
 
@@ -252,12 +264,12 @@ heights192..254 compile/link, without claiming that a254-line section fits a
 192-line NTSC visible budget. The geometry proof retains all branch contracts
 and caught/fixed a fixture substitution collision specifically at height186.
 
-Runtime controls remain public inputs, not frozen constants. Missiles still
+X, heights and graphics pointers remain runtime inputs. Missiles still
 share their player's colour, including its per-row changes; independent missile
-colours are not promised. The fresh full eight-worker suite passes1326/1326,
-including these edge/geometry gates and both score compositions.
+colours are not promised. The event kernel passes the focused edge/geometry gates
+and both score compositions. Its fresh full eight-worker suite passes1327/1327.
 
-RAM remains tight: one byte is free in moving score/preview builds. General
+RAM headroom is now73 bytes in moving score builds and72 in presentation scores. General
 application controls still need a lifetime/RAM plan. Score cleanup at arbitrary
 hostile left-edge gameplay placements and runtime score-position/colour controls
 are not certified. Independent example leaves are available as linked above.
@@ -267,7 +279,7 @@ the existing default or bounded-score renderers.
 ## Horizontal intro
 
 `all_five_intro.c26` owns no RAM. Its `establish()` entry positions P0, P1, M0,
-M1 and Ball, applies HMOVE once, and restores both runtime NUSIZ values. It does
+M1 and Ball, applies HMOVE once, and restores both constant NUSIZ values. It does
 not reset vertical progress or touch graphics pointers, palettes, delayed
 graphics configuration, or object enables.
 
@@ -276,14 +288,20 @@ Define the shared objects once, outside the component:
 ```c
 include "vcs.c26"
 uint8_t layers_object_x[5];
-uint8_t layers_player0_nusiz;
-uint8_t layers_player1_nusiz;
-instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/all_five_intro.c26" as intro (
+   player0_nusiz:=0x20, player1_nusiz:=0x20
+)
 ```
 
 Object indices are P0, P1, M0, M1, Ball. X coordinates use the certified
 divide-by-fifteen convention, 0 through 159. These are actual shared linker
 symbols; C26 expression aliases do not substitute raw assembly operands.
+
+`player0_nusiz` and `player1_nusiz` are compile-time byte parameters, both
+defaulting to `0x20`. They include player copy/stretch and missile-width bits.
+The intro restores them after score drawing without any RAM shadows. Runtime
+NUSIZ changes are no longer part of this component's interface. The two immediate
+loads plus padding preserve the former total setup timing for both entry paths.
 
 Call `intro_establish()` during blanking, after any preceding component that
 changes horizontal positioning. Its WSYNC cost depends on X; the enclosing
@@ -355,8 +373,8 @@ From the repository root it can be built with:
 driver/vcsc -I libraries/vcs test/fixtures/layers/sections.c26 -o /tmp/opencode/sections.bin
 ```
 
-It uses 399 ROM bytes and 9 RAM bytes, including two hardware-stack bytes. The
-seven data bytes belong to the intro's shared X/NUSIZ inputs, not the sections.
+It uses 7 RAM bytes, including two hardware-stack bytes. The
+five data bytes belong to the intro's shared X inputs, not the sections.
 `test/vcs_layers_sections.pl` checks complete exact-RGB scenery at seams 2/6/190,
 held-enable transparency for all five objects, repeated and three-instance
 composition, parameter rejection, and 420-frame timing with all four PF writes
@@ -367,11 +385,11 @@ inheriting the old renderer's terminal-row PF schedule.
 ## Compact-state preparation witness
 
 `all_five_objects.c26` now supplies a single shared vertical-state owner. Include
-it once after `vcs.c26`, **instead of** separately declaring the intro's X/NUSIZ
-inputs. Set its public coordinates, heights, graphics pointers and NUSIZ inputs,
+it once after `vcs.c26`, **instead of** separately declaring the intro's X
+inputs. Set its public coordinates, heights and graphics pointers,
 then call `layers_prepare_vertical()` once during blanking, before the intro.
 It builds the BL/M1/M0 masks and initial player counters without changing any
-public input or TIA register. It owns 76 RAM bytes; its preparation helper needs
+public input or TIA register. It owns 74 RAM bytes; its preparation helper needs
 six hardware-stack bytes at peak. This is shared state, not per-section storage.
 
 Coordinates and inclusive height limits retain the certified renderer's
@@ -381,7 +399,7 @@ player colour tables. The normal sprite-table page contracts still apply.
 
 `test/vcs_layers_objects.pl` checks its masks against direct interval arithmetic,
 including wrapping and empty extents, poisoned initial RAM, repeated preparation,
-and unchanged input pointers/coordinates/heights/NUSIZ. A wrong Ball bias must
+and unchanged input pointers/coordinates/heights. A wrong Ball bias must
 fail. `test/vcs_layers_intro.pl` also adapts this state into the independent,
 unchanged ancestor drawing schedule and checks complete exact images with
 independent player-row colours, alternate pointers, short heights and NUSIZ
@@ -390,5 +408,5 @@ copies. **That test adapter is not a section implementation.**
 Its eleven-cycle `layers_step_player0/1()` primitives preserve A/X and return
 the shared row index in Y and the range test in C. The ancestor witness now
 consumes those shared counters directly throughout drawing, rather than copying
-them into old mask lanes. `all_five_section.c26` instead uses the dense stream;
+them into old mask lanes. `all_five_section.c26` instead uses the compact event list;
 the compact owner is retained as independently tested implementation evidence.

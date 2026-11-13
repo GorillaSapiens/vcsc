@@ -19,7 +19,7 @@ page const uint8_t p1[32] := {
    GLYPH(0x7e,0x60,0x60,0x7c,0x60,0x60,0x7e,0)
 };
 include "layers/all_five_dense_objects.c26"
-instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/all_five_intro.c26" as intro (player0_nusiz:=0x20, player1_nusiz:=0x20)
 instantiate "layers/all_five_section.c26" as sky (number_of_scanlines:=6, playfield_row:=0x81244596, pf_color:=0x46, bk_color:=0xc2)
 instantiate "layers/all_five_section.c26" as ground (number_of_scanlines:=186, playfield_row:=0x3c96a569, pf_color:=0x8e, bk_color:=0x26)
 #ifdef LAYERS_MOTION
@@ -36,7 +36,6 @@ void main(void) {
    VBLANK:=2; PF0:=0; CTRLPF:=0x21;
    layers_object_x[0]:=20; layers_object_x[1]:=130;
    layers_object_x[2]:=50; layers_object_x[3]:=110; layers_object_x[4]:=80;
-   layers_player0_nusiz:=0x20; layers_player1_nusiz:=0x20;
    layers_player0_y:=9; layers_player1_y:=9;
    layers_missile0_y:=5; layers_missile1_y:=5; layers_ball_y:=4;
    layers_player0_height:=7; layers_player1_height:=7;
@@ -88,13 +87,8 @@ void main(void) {
       asm lda #>p1;
       asm sta.z layers_player1_graphics + 1;
 #ifdef LAYERS_CONTROLS
-      // Exercise all eight copy/stretch modes and runtime X without adding
+       // Exercise runtime X with constant intro modes, without adding
       // state. These bounded layouts avoid the still-open right-edge deadline.
-      asm lda.z motion;
-      asm and #7;
-      asm ora #32;
-      asm sta.z layers_player0_nusiz;
-      asm sta.z layers_player1_nusiz;
       asm lda.z motion;
       asm and #1;
       asm clc;

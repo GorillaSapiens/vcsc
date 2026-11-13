@@ -16,6 +16,6 @@ make clean
 ```
 
 Automatic slow motion through three independent64-line sections, with two
-upright animated rockets, both missiles and Ball. Uses126/128 RAM bytes and one
+upright animated rockets, both missiles and Ball. Uses46/128 RAM bytes and one
 4K bank. Edit all scenery directly in `main.c26`; no generator or score leaf is
 required. See the [family guide](../README.md) for shared controls and limits.

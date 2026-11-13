@@ -1,12 +1,11 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 // Experimental two-plus-two score cooperating with the dense all-five owner.
-// Include two_plus_two_score_support.c26 once. Mutable glyph pointers borrow
-// layers_object_masks[88..95]; total gameplay height MUST NOT exceed176 lines.
-// prepare() follows layers_prepare_vertical() during blanking. Never call the
-// latter again before drawing: it would overwrite the prepared score pointers.
-// Only two packed-BCD values own RAM. Positions/colours are instance parameters.
-// Derived from two_plus_two_score_component.c26, with a zero-cost RAM lifetime
-// overlay, all-five/PF cleanup, a separate HMOVE line, and next-HBlank clears.
+// Include two_plus_two_score_support.c26 once. Eight private glyph-pointer bytes
+// coexist with the compact event schedule; no active schedule bytes are overlaid.
+// Gameplay height MUST NOT exceed176 lines for the supplied frame composition.
+// Two packed-BCD values also own RAM. Positions/colours are instance parameters.
+// Derived from two_plus_two_score_component.c26, with all-five/PF cleanup,
+// a separate HMOVE line, and next-HBlank clears.
 // Entry3; twelve full scanlines, then return at8. The caller's blank tail/setup
 // absorbs that partial return line; it must not assume the stock score's return0.
 parameter left_x := 32;
@@ -26,6 +25,7 @@ extern const uint8_t TEMPLATE_bad_color[TEMPLATE_score_colours_must_be_bytes];
 #endif
 recommend bcd8_t TEMPLATE_left_score := 0;
 recommend bcd8_t TEMPLATE_right_score := 0;
+uint8_t TEMPLATE_glyphs[8];
 
 inline void TEMPLATE_prepare_pair(void) {
    asm tax;
@@ -33,11 +33,11 @@ inline void TEMPLATE_prepare_pair(void) {
    asm lsr;
    asm clc;
    asm adc #<vcs_two_plus_two_font_high;
-   asm sta.ay layers_object_masks + 88,y;
+   asm sta.ay TEMPLATE_glyphs,y;
    asm iny;
    asm lda #>vcs_two_plus_two_font_high;
    asm adc #0;
-   asm sta.ay layers_object_masks + 88,y;
+   asm sta.ay TEMPLATE_glyphs,y;
    asm iny;
    asm txa;
    asm and #$0f;
@@ -46,11 +46,11 @@ inline void TEMPLATE_prepare_pair(void) {
    asm asl;
    asm clc;
    asm adc #<vcs_two_plus_two_font_low;
-   asm sta.ay layers_object_masks + 88,y;
+   asm sta.ay TEMPLATE_glyphs,y;
    asm iny;
    asm lda #>vcs_two_plus_two_font_low;
    asm adc #0;
-   asm sta.ay layers_object_masks + 88,y;
+   asm sta.ay TEMPLATE_glyphs,y;
    asm iny;
 }
 inline void TEMPLATE_prepare(void) {
@@ -122,20 +122,20 @@ inline void TEMPLATE_draw(void) {
    asm bit.z $00;
    asm ldy #7;
    asm @row:;
-   asm lda.iy (layers_object_masks + 88),y;
-   asm ora.iy (layers_object_masks + 90),y;
+   asm lda.iy (TEMPLATE_glyphs),y;
+   asm ora.iy (TEMPLATE_glyphs + 2),y;
    asm sta GRP0;
-   asm lda.iy (layers_object_masks + 92),y;
-   asm ora.iy (layers_object_masks + 94),y;
+   asm lda.iy (TEMPLATE_glyphs + 4),y;
+   asm ora.iy (TEMPLATE_glyphs + 6),y;
    asm sta GRP1;
    asm sta WSYNC;
    asm dey;
    asm bne.same @row;
-   asm lda.iy (layers_object_masks + 88),y;
-   asm ora.iy (layers_object_masks + 90),y;
+   asm lda.iy (TEMPLATE_glyphs),y;
+   asm ora.iy (TEMPLATE_glyphs + 2),y;
    asm sta GRP0;
-   asm lda.iy (layers_object_masks + 92),y;
-   asm ora.iy (layers_object_masks + 94),y;
+   asm lda.iy (TEMPLATE_glyphs + 4),y;
+   asm ora.iy (TEMPLATE_glyphs + 6),y;
    asm sta GRP1;
    // Keep both wide graphics live THROUGH the last row, including right X144.
    // Clear in the following HBlank, not at the copy's first-pixel deadline.

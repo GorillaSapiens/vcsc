@@ -4,15 +4,12 @@ include "vcs.c26"
 include "frame_ntsc.c26"
 
 uint8_t layers_object_x[5];
-uint8_t layers_player0_nusiz;
-uint8_t layers_player1_nusiz;
-instantiate "layers/all_five_intro.c26" as intro
+instantiate "layers/all_five_intro.c26" as intro (player0_nusiz:=0, player1_nusiz:=0)
 instantiate "layers/section.c26" as section1 (number_of_scanlines:=6, playfield_row:=0x81244596, pf_color:=0x46, bk_color:=0xc2)
 instantiate "layers/section.c26" as section2 (number_of_scanlines:=186, playfield_row:=0x3c96a569, pf_color:=0x8e, bk_color:=0x26)
 
 void main(void) {
    VBLANK := 2; PF0 := 0; CTRLPF := 0x21;
-   layers_player0_nusiz := 0; layers_player1_nusiz := 0;
    layers_object_x[0] := 20; layers_object_x[1] := 130;
    layers_object_x[2] := 50; layers_object_x[3] := 110; layers_object_x[4] := 80;
    while (1) {

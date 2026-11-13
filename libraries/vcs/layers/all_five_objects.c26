@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 // Experimental SINGLE shared object-state owner. Include once, not once per
 // section. Include vcs.c26 first. Preparation is not a visible renderer.
-// The public coordinates/heights/pointers/NUSIZ are never biased in place.
+// The public coordinates/heights/pointers are never biased in place.
 // Coordinates use the ancestor's two-scanline units. Heights are inclusive
 // extent limits (player height 7 selects eight rows, with row zero blank).
 // Player graphics must obey the ancestor's indexed-read page contract; this
@@ -19,8 +19,6 @@ uint8_t layers_player1_height;
 uint8_t layers_missile0_height;
 uint8_t layers_missile0_y;
 uint8_t layers_ball_height;
-uint8_t layers_player0_nusiz;
-uint8_t layers_player1_nusiz;
 
 // The certified three-object mask representation: each eight-pair group has
 // BL/M1/M0 streams, then packed eighth bits in D1/D2/D3 respectively.

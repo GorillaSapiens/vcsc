@@ -14,9 +14,9 @@ not the older fixed-eight-section renderer:
 
 | Example | Visible composition | ROM used | RAM, including stack |
 | --- | --- | --- | --- |
-| [No score](no_score/) | Three64-line sections |2266 bytes |126/128 bytes |
-| [Score above](score_above/) |12 score +8 blanked positioning +172 gameplay |2812 bytes |128/128 bytes |
-| [Score below](score_below/) |176 gameplay +12 score +4 blank tail |2802 bytes |128/128 bytes |
+| [No score](no_score/) | Three64-line sections |2041 bytes |46/128 bytes |
+| [Score above](score_above/) |12 score +8 blanked positioning +172 gameplay |2617 bytes |56/128 bytes |
+| [Score below](score_below/) |176 gameplay +12 score +4 blank tail |2601 bytes |56/128 bytes |
 
 From the repository root:
 
@@ -42,7 +42,7 @@ without horizontal repositioning or separator scanlines between them.
 The two-byte motion helper is app code in `examples/_common/`, not part of the
 drawing library. A folded travel phase encodes direction without another RAM
 byte. Score pointers share the unused mask tail, never live gameplay bytes.
-Runtime player graphics pointers, heights, NUSIZ and independent eight-row
+Runtime player graphics pointers, heights and independent eight-row
 palettes remain available. There is one4K drawing bank and no cartridge RAM.
 
 ## Limits
@@ -52,6 +52,8 @@ repaired: independent runtime-X sweeps pass every X0..159 for both players in
 all eight modes. Score-above's distinct fixed positioning entry still requires
 all X0..119. Score
 positions/colours are compile-time parameters; its two BCD values are runtime.
-The score leaves use all128 RAM bytes, so adding variables or nested calls needs
+NUSIZ values are intro parameters (`player0_nusiz` and `player1_nusiz`, default
+`0x20`), not RAM variables. The score leaves leave72 RAM bytes free; adding
+variables or nested calls still needs
 a fresh lifetime/stack analysis. Existing examples and renderer defaults are
 unchanged. See [the layer contracts](../../../libraries/vcs/layers/README.md).

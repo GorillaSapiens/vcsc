@@ -1,13 +1,16 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 // Experimental horizontal intro for cooperating all-five drawing sections.
-// Include vcs.c26 and define the three shared objects below in the application
+// Include vcs.c26 and define the shared coordinate array below in the application
 // or shared-state owner. These are real linker symbols, not textual aliases.
 // No private RAM, vertical state, graphics, palettes, or frame ownership.
 // establish() runs during blanking; it does NOT start a visible section.
 // The caller's blanking deadline absorbs the position-dependent WSYNC work.
 extern uint8_t layers_object_x[5];
-extern uint8_t layers_player0_nusiz;
-extern uint8_t layers_player1_nusiz;
+parameter player0_nusiz := 0x20;
+parameter player1_nusiz := 0x20;
+#if TEMPLATE_player0_nusiz < 0 || TEMPLATE_player0_nusiz > 255 || TEMPLATE_player1_nusiz < 0 || TEMPLATE_player1_nusiz > 255
+extern const uint8_t TEMPLATE_bad_nusiz[TEMPLATE_intro_nusiz_must_be_bytes];
+#endif
 
 page const uint8_t TEMPLATE_reposition[16] := {
    0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
@@ -100,8 +103,8 @@ inline void TEMPLATE_position_all(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm sta HMOVE;
-   asm lda.z layers_player0_nusiz;
-   asm sta NUSIZ0;
-   asm lda.z layers_player1_nusiz;
-   asm sta NUSIZ1;
+   NUSIZ0 := TEMPLATE_player0_nusiz;
+   asm nop;
+   asm @nusiz_barrier:;
+   NUSIZ1 := TEMPLATE_player1_nusiz;
 }

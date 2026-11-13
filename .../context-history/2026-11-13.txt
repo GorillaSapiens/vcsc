@@ -20,3 +20,175 @@ player/missile colours. Do not confuse those with the fixed player right edge.
 Updated current records and layer README to reflect the actual full result.
 Record-only followup; refresh make tar and retain only the latest verified archive.
 Nothing pushed.
+
+2026-11-13 12:18:27 PDT, Sparse event prototype exposes raster budget
+
+User requested committing the current constant-NUSIZ changes before trying a
+compact Ball/M0/M1 event schedule. NUSIZ checkpoint b82d4303; followup db4052fb
+records its clean1326/1326 full eight-worker result. Both precede the experiment.
+
+Prototype is isolated in /tmp/opencode/layers-events/, not installed or selected
+by any application. event_objects.c26 is a copy of the dense owner with its
+96-byte stream replaced by seven run masks, eight start times (including the
+255 sentinel) and one cursor:16 bytes total. Seven runs comprise the initial
+state plus at most six transitions. Preparation reuses the existing interval
+arithmetic and emits one record per constant run instead of filling every pair.
+Other object inputs and player counters retain their existing semantics.
+
+prepare.c26 varies all three non-player positions/extents and check_prepare.py
+instruments the existing CPU harness. It verifies strictly sorted event times,
+0 initial time, sentinel and1..7 runs, and decodes all96 pairs against independent
+interval arithmetic at every visible entry.4096 requested frames pass4093 complete
+frames at262 lines, including all256 Y values and many wrapped/empty/coincident
+interval cases. This is a preparation-only proof, NOT an image/drawing proof.
+An initial65540-frame attempt hit the unchanged100-million-instruction harness
+limit; reduced the experiment's requested sample, not the harness limit. Do not
+claim exhaustive Y/height combinations from the4096-frame sample.
+
+event_section.c26 is a straightforward balanced sparse decoder: even HBlank
+compares the pair X to the next event, advances the cursor when due, and selects
+the current mask; odd HBlank reads that same mask. M0 remains even, Ball/M1 odd.
+It compiles in one4K bank with42 total RAM bytes (40 data +2 stack), compared with
+122 for the checked-in static dense fixture: an80-byte potential saving. Score
+overlay pointers would additionally need their own8-byte allocation once the
+old96-byte stream tail no longer exists. No score prototype has been attempted.
+
+However this decoder adds19 cycles per pair on the even side and3 on the odd
+side. Its compiled main.bin FAILS the unchanged frame harness:292 raw lines vs
+264 expected (live frame3 has22192 cycles vs20064). The extra22*95 inner pairs
+accounts for the drift. Balanced branches prevent event jitter but do not make
+those extra cycles disappear. No exact-image success or completed renderer is
+claimed. The former12-cycle JSR/RTS budget is already consumed by boundary
+scenery setup; replacing only the read cannot fit without an internal pipeline
+change. A simple sparse replacement is therefore NOT ready to replace production.
+
+Reproduce from the repository with driver/vcsc -I libraries/vcs on the prototype
+main.c26 or prepare.c26; run python3 /tmp/opencode/layers-events/check_prepare.py
+for the preparation-only oracle. The timing binary in that directory is built
+from unmodified test/vcs_frame_timing.cpp and reports the failing live extent.
+Production code remains exactly at the clean constant-NUSIZ checkpoint. Further
+event work must budget the worst event AND no-event path through section seams,
+retain player HBlank transfers and score composition, and pass existing images.
+
+2026-11-13 10:45:34 PDT, Intro NUSIZ parameters recover two RAM bytes
+
+User asked where RAM went, then specifically requested constant NUSIZ parameters
+on the intro. Added player0_nusiz/player1_nusiz byte parameters, default0x20,
+with out-of-range rejection. Removed both RAM shadows from dense and compact
+owners and all task-owned callers. The intro still restores gameplay NUSIZ after
+score drawing. Immediate loads plus one NOP preserve the former total12-cycle
+restore budget, so ordinary and bounded visible intro returns remain unchanged.
+The barrier between assignments prevents equal constants folding the second load.
+Editable leaves expose both values on their intro instantiation line.
+
+New RAM totals including stack: dense static122,motion123; static score124,
+moving score125; presentation no-score124 and both score leaves126. This frees
+two bytes in every composition, rather than only deleting unused example state.
+Presentation ROM now2261/2807/2797 for no-score/above/below. Compact owner74 data
+bytes (was76). Diagnostic and scenery witness budgets updated accordingly.
+
+Removed runtime NUSIZ mutation from stress fixtures and live edge ROMs because
+the requested interface no longer permits it. All eight modes and all four
+missile widths are instead covered through constant parameters in separate
+builds; X/pointers/animation/heights remain runtime. Eight exhaustive edge shards
+pass8/8 with all2560 full images. Five focused core/example/intro/owner/scenery
+tests pass5/5. New intro rejection tests check each parameter at-1 and256.
+First full run1325/1326: new negative-parameter test expected the byte-range
+diagnostic, but the compiler rejects negative instantiation arguments earlier.
+Corrected that exact expectation;256 still requires the component range error.
+Second full run1325/1326: all rendering/code tests pass, but this history entry
+used PST instead of the format checker's required literal PDT label. Fixed the
+record, not the checker. Focused intro/history/hygiene checks pass3/3 afterward.
+Full eight-worker rerun passes1326/1326 with zero failures/timeouts at
+/tmp/opencode/layers-nusiz-clean-suite.log. User requested a checkpoint before
+trying event scheduling; committed the NUSIZ work as b82d4303 before experimenting.
+Nothing pushed.
+
+2026-11-13 13:53:53 PDT, Event-stack kernel clears exact-image gates
+
+User said to fix the failed sparse decoder. Reworked the actual timed kernel,
+not its frame budget or image expectations. Production working tree now uses a
+14-byte run list: initial state plus at most six transitions, each[duration,mask].
+D0=M1,D1=Ball,D2=M0. Final duration255 stops all offscreen pops. Preparation uses
+the existing independent interval geometry and writes at most seven records.
+Initial mask/countdown are separate working bytes. First() saves ordinary S,
+sets S to initial-record end, and PLA reads successive event records only when
+the countdown expires. The event array itself occupies those stack addresses;
+there is no second stack copy or fourteen-byte additional reservation. The
+ordinary hardware stack remains two bytes; finish restores saved S before any
+score/overscan/callback/return. No JSR/RTS or arbitrary pushes/pops during drawing.
+
+Removed the inner pair JSR/RTS chain and staged graphics byte. NMOS LAX(ptr),Y
+reads source ROM into A/X, holding P0 glyph across a section seam. The exact raw
+opB3 form keeps normal driver flags; opAB#0 is used only with zero, whose result
+is unconditional even on implementations where nonzero immediate LAX is unstable.
+P1's blank-row colour has one cached byte. A single shared section-loop counter
+is initialized on the second pair, leaving first/terminal pairs cycle-exact for
+two-line sections. The incoming section handles its own scenery without geometry
+metadata. There is no graphics mirroring, cartridge RAM or user-facing generator.
+
+Worst-case event path falls through directly. No-event handlers are skipped ROM
+islands in balanced player branches, not an extra JMP on the event path. The
+initial placement inside late P0 branches caused incompatible page contracts in
+the three-section preview. Moving forward no-event islands into P1's skipped
+branch reduced their span; the backward loop island remains near P0. All .same
+contracts retained. Exploratory padding searches/alignments were discarded; final
+working source has no executable padding islands or page-contract relaxation.
+
+Entry first3,draw/exit53. X=P0 next glyph,Y=normalized row. Finish uses23 cycles
+including restoring S to reach0. P0 colour/GRP10/13; P1 colour/GRP0/3. M0=3,
+Ball=9,M1=14. PF even18/33/48/51, first-ever PF1=8, boundary PF1=23; odd19/24/48/53.
+Boundary BK/PF colour18/28. Phase tests assert exact physical lines as well as
+modulo76, selecting the boundary PF1 phase from its actual BK write. Both event
+and no-event paths are balanced, including simultaneous transitions. Both player
+counters decrement on the even line after P1 selection; final values unchanged.
+
+Score glyph pointers now own eight bytes, no longer borrowing masks88..95. The
+96-byte array is gone, not renamed or hidden elsewhere. Two BCD bytes and all
+score parameters/geometry remain unchanged. RAM including ordinary stack: static
+44,motion45,preview47,static score54,moving score55,slow no-score46,slow scores56.
+Measured slow example ROM2041/2617/2601 for no-score/above/below, all one4K bank.
+This frees78 bytes without score or70 bytes with score versus the NUSIZ checkpoint.
+
+Eight live-X/mode shards pass8/8: all2560 independent full images, retained CPU
+checks, shared60s snapshot deadlines and eight workers. Core image/score and
+private presentation tests pass as well. Geometry initially caught a folded
+two-cycle loop-count load at split68 where N-2 equals the left PF1 literal;
+added an explicit initialization barrier. The complete even2..190 sweep then
+passes, including compile/link heights192..254. Uniform scenery caught matching
+right PF loads too; retained explicit odd-right and boundary BK barriers.
+
+New test/vcs_layers_events.pl and its private fixture check4096 frames of varied
+wrapped/empty/coincident positions/extents. Independent arithmetic reconstructs
+every one of96 masks from at most14 record bytes, validates final sentinel, initial
+mask/countdown and untouched poisoned tail/stack canary/public inputs. This is
+separate from visible rendering tests. Four focused tests pass4/4 after the final
+barrier: core,private examples,geometry,new event preparation. Logs:
+/tmp/opencode/layers-events-matrix.log (10/11 before the split68 barrier),
+/tmp/opencode/layers-events-geometry.log and layers-events-final-focused.log.
+Full eight-worker regression is next; do not claim a full event-kernel pass yet.
+User's prior b82d4303/db4052fb checkpoints remain intact; no event commit yet.
+
+Final review adds explicit entry barriers for equal PF/colour literals on the
+first/two-line-tail body, plus six extra constant-fold timing cases (heights4/6,
+rows0,all-ones,and left PF2 matching colour14). A new full-image case at seam8
+requires all six distinct enable transitions/seven runs. The4096-frame preparation
+test now also requires actual maximum-run, merged-transition, wrap and empty
+witnesses rather than merely allowing them. Full run at
+/tmp/opencode/layers-events-full-suite.log is in progress; rerun these final
+focused additions if that run had already loaded their earlier source versions.
+
+The first full run completed1326/1327. Its sole failure was the new maximum-run
+fixture's additional all-object seam-visibility witness, not a pixel mismatch.
+Keep that extra fixture as a seven-run exact-image test without a visibility
+witness; all original per-object seam witnesses remain enabled. Final focused
+core/preparation rerun passes2/2 at layers-events-final-extra-cases.log. Renderer
+and test checkpoint committed locally as a63944fe. Full clean rerun is active at
+/tmp/opencode/layers-events-clean-suite.log; documentation/archive sign-off pending.
+
+Clean full eight-worker event-kernel suite now passes1327/1327, zero failures.
+Log: /tmp/opencode/layers-events-clean-suite.log. Renderer checkpoint a63944fe
+includes the final equal-literal barriers, maximum-run image and preparation
+witness requirements. Documentation updated to the verified event-kernel budgets
+and full-suite result. Nothing pushed; refresh the single make tar handoff after
+committing these records.

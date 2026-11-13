@@ -1,0 +1,40 @@
+// Private sparse-event preparation oracle fixture. No visible drawing kernel.
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+alias VCS_NTSC_EXTENDED_VBLANK
+include "vcs.c26"
+include "frame_ntsc.c26"
+page const uint8_t layers_player0_colors[8] := {14,14,14,14,14,14,14,14};
+page const uint8_t layers_player1_colors[8] := {238,238,238,238,238,238,238,238};
+include "layers/all_five_dense_objects.c26"
+uint8_t phase;
+uint8_t extent;
+void prepare_objects(void) {
+   layers_prepare_vertical();
+}
+void main(void) {
+   VBLANK:=2; phase:=0; extent:=0;
+   layers_player0_y:=9; layers_player1_y:=11;
+   layers_player0_height:=7; layers_player1_height:=3;
+   layers_player0_graphics:=layers_player0_colors;
+   layers_player1_graphics:=layers_player1_colors;
+   while(1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank();
+      layers_missile0_y:=phase;
+      layers_missile1_y:=phase*5+extent;
+      layers_ball_y:=phase*11+extent*3;
+      layers_missile0_height:=extent*17;
+      layers_missile1_height:=phase^(extent*7);
+      layers_ball_height:=(255-phase)*3+extent;
+      for(uint8_t i:=0;i<14;i++){layers_event_data[i]:=0xa5;}
+      layers_saved_stack:=0xa5;
+      prepare_objects(); vcs_ntsc_end_vblank();
+      asm .repeat 192;
+      asm sta WSYNC;
+      asm .endrepeat;
+      vcs_ntsc_begin_overscan();
+      phase++;
+      if(phase==0){extent++;}
+      vcs_ntsc_end_overscan();
+      asm sta WSYNC;
+   }
+}

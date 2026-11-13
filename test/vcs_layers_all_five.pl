@@ -43,7 +43,7 @@ $helpers=~s/\n\@ARGV>=2.*\z//s or die 'PNG helper boundary';eval$helpers;die$@if
 my$timing=slurp("$repo/test/vcs_frame_timing.cpp");
 my$hook=<<'CPP';
       static bool layers_visible = false;
-      static unsigned layers_pf = 0;
+      static unsigned layers_pf = 0, layers_boundary = ~0u;
       static uint64_t layers_start = 0;
       if (!(event.address & 0x1080)) {
          const unsigned reg = event.address & 63;
@@ -54,22 +54,25 @@ my$hook=<<'CPP';
                }
             }
             layers_visible = !(event.value & 2);
-            if (layers_visible) { layers_pf=0; layers_start=virtual_cycles; }
-         } else if (layers_visible && (reg == 14 || reg == 15)) {
+             if (layers_visible) { layers_pf=0; layers_boundary=~0u; layers_start=virtual_cycles; }
+          } else if (layers_visible && reg==9) {
+             layers_boundary=(virtual_cycles-layers_start+3)/76;
+          } else if (layers_visible && (reg == 14 || reg == 15)) {
             static const unsigned regs[] = {14,15,15,14};
-             static const unsigned even[] = {70,37,48,53};
-             static const unsigned odd[] = {22,27,48,53};
+              static const unsigned even[] = {18,33,48,51};
+              static const unsigned odd[] = {19,24,48,53};
             const unsigned line = layers_pf/4, slot=layers_pf++%4;
             unsigned phase = (line&1)?odd[slot]:even[slot];
-            if (!line && !slot) phase=8;
+             if (!(line&1) && !slot && line==layers_boundary) phase=23;
+             if (!line && !slot) phase=8;
              const unsigned raster=(virtual_cycles-layers_start+3)/76;
-             const unsigned expected_line=line-(!slot && !(line&1) && line>0);
+              const unsigned expected_line=line;
              if (reg != regs[slot] || virtual_cycles%76 != phase || raster!=expected_line) {
                std::fprintf(stderr,"layers PF phase mismatch: line=%u slot=%u reg=%u phase=%llu expected=%u\n",line,slot,reg,(unsigned long long)(virtual_cycles%76),phase); std::exit(1);
             }
          } else if (layers_visible && reg >= 27 && reg <= 31) {
-             static const unsigned phases[] = {7,3,16,17,10};
-             if (virtual_cycles%76 != phases[reg-27] && !(reg==29 && virtual_cycles%76==21)) {
+              static const unsigned phases[] = {13,3,3,14,9};
+              if (virtual_cycles%76 != phases[reg-27]) {
                std::fprintf(stderr,"layers object phase mismatch: reg=%u phase=%llu\n",reg,(unsigned long long)(virtual_cycles%76)); std::exit(1);
             }
          }
@@ -112,6 +115,7 @@ my@cases=(
    {seam=>2,ys=>[7,7,2,2,2],hs=>[7,7,5,7,3]},
    {seam=>190,ys=>[99,99,95,95,94],hs=>[7,7,5,7,3]},
    {seam=>6,ys=>[5,4,5,5,4],hs=>[3,1,5,7,3],frames=>[1,2],nusiz=>[0x10,0x30],ball_width=>2},
+   {seam=>8,ys=>[9,9,4,5,5],hs=>[7,7,3,3,3],no_witness=>1}, # six transitions, seven runs; seam witnesses above
 );
 sub source {
    my($case)=@_;my$s=$fixture;
@@ -124,7 +128,7 @@ sub source {
    if($case->{frames}){for my$p(0..1){my$off=$case->{frames}[$p]*8;
       $s=~s/layers_player${p}_graphics:=p$p;/asm lda #<{p$p + $off}; asm sta.z layers_player${p}_graphics; asm lda #>{p$p + $off}; asm sta.z layers_player${p}_graphics + 1;/ or die 'frame pointer';
    }}
-   if($case->{nusiz}){for my$p(0..1){$s=~s/layers_player${p}_nusiz:=0x20;/layers_player${p}_nusiz:=$case->{nusiz}[$p];/ or die 'runtime width';}}
+   if($case->{nusiz}){for my$p(0..1){$s=~s/player${p}_nusiz:=0x20/player${p}_nusiz:=$case->{nusiz}[$p]/ or die 'intro width parameter';}}
    if($case->{ball_width}){$s=~s/CTRLPF:=0x21;/CTRLPF:=0x11;/ or die 'Ball width';}
    if($case->{xs}){for my$i(0..4){$s=~s/(layers_object_x\[$i\]:=)\d+;/$1$case->{xs}[$i];/ or die 'runtime X';}}
    if($case->{high_bits}){
@@ -139,18 +143,25 @@ sub masks {
    for my$t(1..96){my$b=0;
       for my$o(2..4){my$last=($c->{ys}[$o]+($o==4?2:1))&255;my$first=($last-$c->{hs}[$o])&255;
          my$on=$first<=$last?($t>=$first&&$t<=$last):($t>=$first||$t<=$last);
-          $b|=(4,8,2)[$o-2] if$on;
+          $b|=(4,1,2)[$o-2] if$on;
       }push@result,$b;
    }return@result;
 }
+sub event_bytes {
+   my$c=shift;my@m=masks($c);my@starts=(0,grep{$m[$_]!=$m[$_-1]}1..95);my@events;
+   for my$i(0..$#starts){push@events,($i==$#starts?255:$starts[$i+1]-$starts[$i]),$m[$starts[$i]];}
+   @events<=14 or die 'more than six enable transitions';return@events;
+}
+sub event_expect {
+   my($n,$c)=@_;my@events=event_bytes($c);my$a=address($n,'layers_event_data');my@expect;
+   push@expect,'--expect-memory',$a+$_,$events[$_]for 0..$#events;return@expect;
+}
 sub timing {
-   my($n,$c,$frames)=@_;$frames//=420;my@expect;my$a=address($n,'layers_object_masks');my@m=masks($c);
-   push@expect,'--expect-memory',$a+$_,$m[$_]for 0..95;
+   my($n,$c,$frames)=@_;$frames//=420;my@expect=event_expect($n,$c);
    for my$p(0..1){push@expect,'--expect-memory',address($n,"layers_player${p}_counter"),($c->{ys}[$p]-97)&255;}
    for my$p(0..1){
       my$frame=$c->{frames}?$c->{frames}[$p]:0;my$ptr=address($n,"p$p")+$frame*8;my$a=address($n,"layers_player${p}_graphics");
-      push@expect,'--expect-memory',$a,$ptr&255,'--expect-memory',$a+1,$ptr>>8,
-         '--expect-memory',address($n,"layers_player${p}_nusiz"),$c->{nusiz}?$c->{nusiz}[$p]:0x20;
+       push@expect,'--expect-memory',$a,$ptr&255,'--expect-memory',$a+1,$ptr>>8;
    }
    for my$i(0..4){push@expect,'--expect-memory',address($n,"layers_$objects[$i]_y"),$c->{ys}[$i],'--expect-memory',address($n,"layers_$objects[$i]_height"),$c->{hs}[$i];}
    my$xbase=address($n,'layers_object_x');my@xs=$c->{xs}?@{$c->{xs}}:(20,130,50,110,80);
@@ -211,7 +222,7 @@ sub logical_image {
                 paint_wrapped(\$want,$xs[$p]-1+($scale==1?0:1)+$offset+$b*$scale,$scale,$rgb{$colors[$p][$r]});
             }}
          }
-          my$index=$p?$i1:$i0;next unless$m[$index]&($p?8:4);
+          my$index=$p?$i1:$i0;next unless$m[$index]&($p?1:4);
          my$init=$c->{ys}[$p]-1+$p;
          my$color=$r>$c->{hs}[$p]?$colors[$p][$init<=$c->{hs}[$p]?$init:0]:$colors[$p][$r<0?0:$r];
           for my$offset(@{$copy_offsets[$mode]}){paint_wrapped(\$want,$xs[2+$p]-2+$offset,$p?$mw1:$mw0,$rgb{$color});}
@@ -253,7 +264,7 @@ if(defined$edge_mode){
    for my$p(0,1){
       my@xs=(20,80,50,110,80);$xs[$p]=0;$xs[2+$p]=0;
       my@ys=(255,255,255,255,4);$ys[$p]=9;$ys[2+$p]=5;
-      my$nusiz=[0x20,0x20];$nusiz->[$p]=$edge_mode;
+       my$nusiz=[0x20,0x20];$nusiz->[$p]=(($edge_mode&3)<<4)|$edge_mode;
       my$c={seam=>6,ys=>\@ys,hs=>[7,7,5,7,3],xs=>\@xs,nusiz=>$nusiz,
          frames=>[0,1],high_bits=>1};
       my$update=<<ASM;
@@ -265,15 +276,6 @@ if(defined$edge_mode){
       asm sta.z layers_object_x + $p;
       asm \@edge_no_wrap:;
       asm sta.z layers_object_x + @{[2+$p]};
-      asm lsr;
-      asm lsr;
-      asm and #3;
-      asm asl;
-      asm asl;
-      asm asl;
-      asm asl;
-      asm ora #$edge_mode;
-      asm sta.z layers_player${p}_nusiz;
 ASM
       for my$player(0,1){
          $update.="asm lda.z layers_object_x + $p;\n";
@@ -282,30 +284,29 @@ ASM
       }
       my$n="sweep_p${p}_mode$edge_mode";my$s=source($c);
       $s=~s/(      vcs_ntsc_end_overscan\(\);)/$update\n$1/ or die 'edge overscan update';
-      my$budget=build($n,$s);$budget=~/objects=122 bytes hardware-stack=2 bytes/ or die 'edge sweep RAM/stack budget';
+       my$budget=build($n,$s);$budget=~/objects=42 bytes hardware-stack=2 bytes/ or die 'edge sweep RAM/stack budget';
       my$xbase=address($n,'layers_object_x');my@g=map{address($n,"layers_player${_}_graphics")}0..1;
-      my@tables=map{address($n,"p$_")}0..1;my@sz=map{address($n,"layers_player${_}_nusiz")}0..1;
+      my@tables=map{address($n,"p$_")}0..1;
       my@counter=map{address($n,"layers_player${_}_counter")}0..1;
-      my$a=address($n,'layers_object_masks');my@m=masks($c);
+       my$a=address($n,'layers_event_data');my@m=event_bytes($c);
       my$model=<<CPP;
       if (!(event.address & 0x1080) && (event.address & 63)==1 && !(event.value & 2)) {
          static unsigned frame=0;
          const unsigned x=frame++%160;
          const unsigned xs[]={@{[join ',',@xs]}}, pointers[]={@{[join ',',@g]}}, tables[]={@{[join ',',@tables]}};
-         const unsigned sizes[]={@{[join ',',@sz]}}, counters[]={@{[join ',',@counter]}}, ys[]={@{[join ',',@ys[0,1]]}};
+         const unsigned counters[]={@{[join ',',@counter]}}, ys[]={@{[join ',',@ys[0,1]]}};
          static const unsigned masks[]={@{[join ',',@m]}};
          for(unsigned i=0;i<5;++i) if(peek_memory($xbase+i)!=((i==$p || i==@{[2+$p]})?x:xs[i])) {
             std::fprintf(stderr,"edge live X sequence mismatch\\n"); std::exit(1);
          }
          for(unsigned i=0;i<2;++i) {
             const unsigned ptr=tables[i]+((x+i)&3)*8;
-            const unsigned size=i==$p?(((x>>2)&3)<<4)|$edge_mode:32;
             if(peek_memory(pointers[i])!=(ptr&255) || peek_memory(pointers[i]+1)!=(ptr>>8) ||
-               peek_memory(sizes[i])!=size || peek_memory(counters[i])!=((ys[i]-1)&255)) {
+               peek_memory(counters[i])!=((ys[i]-1)&255)) {
                std::fprintf(stderr,"edge live pointer/mode/prime mismatch\\n"); std::exit(1);
             }
          }
-         for(unsigned i=0;i<96;++i) if(peek_memory($a+i)!=masks[i]) {
+         for(unsigned i=0;i<sizeof(masks)/sizeof(masks[0]);++i) if(peek_memory($a+i)!=masks[i]) {
             std::fprintf(stderr,"edge live enable stream mismatch\\n"); std::exit(1);
          }
       }
@@ -315,7 +316,7 @@ CPP
       run($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,"$tmp/edge_timing.cpp",$obj,'-o',"$tmp/edge_timing");
       run("$tmp/edge_timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
       my$pose=sub{my$x=shift;my@positions=@xs;$positions[$p]=$positions[2+$p]=$x;
-         my@sizes=@$nusiz;$sizes[$p]=((($x>>2)&3)<<4)|$edge_mode;
+         my@sizes=@$nusiz;
          return{%$c,xs=>\@positions,nusiz=>\@sizes,frames=>[$x&3,($x+1)&3]};
       };
       my$images=capture($n,160);my@matches;
@@ -332,10 +333,10 @@ CPP
 }
 my$first;
 for my$index(0..$#cases){my$c=$cases[$index];my$s=source($c);my$n="sections_$index";
-   my$b=build($n,$s);$b=~/objects=122 bytes hardware-stack=2 bytes/ or die 'shared RAM/stack budget';timing($n,$c);
+   my$b=build($n,$s);$b=~/objects=42 bytes hardware-stack=2 bytes/ or die 'shared RAM/stack budget';timing($n,$c);
    my$image=capture($n)->[0];
    if(!defined$first){my@visible=grep{substr($image->[2],($_*$w+20)*3,3)eq$rgb{0xc2}}0..$image->[1]-1;@visible==$c->{seam}or die 'visible origin';$first=$visible[0];}
-   logical_image($image,$c,$first,1);
+   logical_image($image,$c,$first,!$c->{no_witness});
 }
 for my$mode(0..7){
    my$c={%{$cases[0]},xs=>[10,40,30,65,120],nusiz=>[0x20|$mode,0x20|$mode]};
@@ -367,11 +368,11 @@ for my$mode(0..7){for my$p(0,1){for my$x(0,127,143,150,159){
 for my$controls(0,1){
    my$name=$controls?'motion_controls':'motion';
    my$b=build($name,"alias LAYERS_MOTION\n".($controls?"alias LAYERS_CONTROLS\n":'').$fixture);
-   $b=~/ram\s+used=125 bytes.*objects=123 bytes hardware-stack=2 bytes/s or die 'animated shared RAM budget';
+     $b=~/ram\s+used=45 bytes.*objects=43 bytes hardware-stack=2 bytes/s or die 'animated shared RAM budget';
    run("$tmp/timing","$tmp/$name.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
    my$frames=capture($name,40);my$pose;my%animation;my%modes;my$crossed=0;
    my$pose_case=sub{my$p=shift;my$c={seam=>6,ys=>[$p,$p,$p-4,$p-4,($p-5)&255],hs=>[7,7,5,7,3],frames=>[($p-4)&3,($p-3)&3]};
-      if($controls){my$delta=$p&1;my$mode=0x20|(($p-4)&7);$c->{nusiz}=[$mode,$mode];$c->{xs}=[map{$_+$delta}(10,40,30,65,120)];}
+       if($controls){my$delta=$p&1;$c->{nusiz}=[0x20,0x20];$c->{xs}=[map{$_+$delta}(10,40,30,65,120)];}
       return$c;
    };
    my@matches;
@@ -381,11 +382,11 @@ for my$controls(0,1){
       $crossed=1 if$pose==9;$animation{$c->{frames}[0]}=1;$modes{$c->{nusiz}[0]&7}=1 if$controls;$pose=4+(($pose-3)&15);
    }
    $crossed&&keys(%animation)==4 or die 'motion lacks a complete seam/four-frame sweep';
-   keys(%modes)==8 or die 'runtime controls lack all eight NUSIZ modes' if$controls;
+    keys(%modes)==1 or die 'intro mode must remain constant' if$controls;
 }
 {
    my$n='human_preview';my$b=build($n,slurp("$repo/test/fixtures/layers/preview.c26"));
-   $b=~/ram\s+used=127 bytes.*objects=125 bytes hardware-stack=2 bytes/s or die 'preview RAM budget';
+     $b=~/ram\s+used=47 bytes.*objects=45 bytes hardware-stack=2 bytes/s or die 'preview RAM budget';
    my@ys=map{address($n,"layers_${_}_y")}@objects;
    my@graphics=map{address($n,"layers_player${_}_graphics")}0..1;
    my@sources=map{address($n,"preview_p$_")}0..1;
@@ -428,7 +429,7 @@ CPP
 for my$order(qw(below above)){
    my$n="score_$order";my$s=slurp("$repo/test/fixtures/layers/$n.c26");
    $s=~s#include "score_sprites.c26"#include "$repo/test/fixtures/layers/score_sprites.c26"# or die 'score assets';
-   my$b=build($n,$s);$b=~/ram\s+used=126 bytes.*objects=124 bytes hardware-stack=2 bytes/s or die 'score RAM budget';
+     my$b=build($n,$s);$b=~/ram\s+used=54 bytes.*objects=52 bytes hardware-stack=2 bytes/s or die 'score RAM budget';
    my$c={lines=>($order eq'below'?176:172),seam=>64,ys=>[38,38,34,34,33],hs=>[7,7,5,7,3]};
    $c->{xs}=[20,100,50,110,80]if$order eq'above';
    my$cpu=$timing;
@@ -438,7 +439,7 @@ for my$order(qw(below above)){
    if($order eq'above'){
       my$above_hook=<<'CPP';
       static bool layers_visible=false;
-      static unsigned layers_pf=0, layers_stage=0, layers_resp=0;
+       static unsigned layers_pf=0, layers_stage=0, layers_resp=0, layers_boundary=~0u;
       static uint64_t layers_start=0, layers_frame_start=0;
       if (!(event.address & 0x1080)) {
          const unsigned reg=event.address & 63;
@@ -467,23 +468,26 @@ for my$order(qw(below above)){
                   if (virtual_cycles-layers_frame_start!=20*76 || layers_resp!=5) {
                      std::fprintf(stderr,"score-above positioning deadline mismatch\n"); std::exit(1);
                   }
-                  layers_visible=true; layers_pf=0; layers_start=virtual_cycles;
+                   layers_visible=true; layers_pf=0; layers_boundary=~0u; layers_start=virtual_cycles;
                }
             }
-         } else if (layers_visible && (reg==14 || reg==15)) {
+          } else if (layers_visible && reg==9) {
+             layers_boundary=(virtual_cycles-layers_start+3)/76;
+          } else if (layers_visible && (reg==14 || reg==15)) {
             static const unsigned regs[]={14,15,15,14};
-            static const unsigned even[]={70,37,48,53}, odd[]={22,27,48,53};
+             static const unsigned even[]={18,33,48,51}, odd[]={19,24,48,53};
             const unsigned line=layers_pf/4, slot=layers_pf++%4;
             unsigned phase=(line&1)?odd[slot]:even[slot];
-            if (!line && !slot) phase=8;
+             if (!(line&1) && !slot && line==layers_boundary) phase=23;
+             if (!line && !slot) phase=8;
             const unsigned raster=(virtual_cycles-layers_start+3)/76;
-            const unsigned expected_line=line-(!slot && !(line&1) && line>0);
+             const unsigned expected_line=line;
             if (reg!=regs[slot] || virtual_cycles%76!=phase || raster!=expected_line) {
                std::fprintf(stderr,"score-above gameplay PF deadline mismatch\n"); std::exit(1);
             }
          } else if (layers_visible && reg>=27 && reg<=31) {
-            static const unsigned phases[]={7,3,16,17,10};
-            if (virtual_cycles%76!=phases[reg-27] && !(reg==29 && virtual_cycles%76==21)) {
+             static const unsigned phases[]={13,3,3,14,9};
+             if (virtual_cycles%76!=phases[reg-27]) {
                std::fprintf(stderr,"score-above object deadline mismatch\n"); std::exit(1);
             }
          }
@@ -494,11 +498,10 @@ CPP
    }
    save("$tmp/score_timing.cpp",$cpu);
    run($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,"$tmp/score_timing.cpp",$obj,'-o',"$tmp/score_timing");
-   my@m=masks($c);my@expect;my$a=address($n,'layers_object_masks');
-   push@expect,'--expect-memory',$a+$_,$m[$_]for 0..87;
+   my@expect=event_expect($n,$c);my$a=address($n,'score_glyphs');
    for my$entry([0,'high',1],[2,'low',2],[4,'high',3],[6,'low',4]){
       my($offset,$table,$digit)=@$entry;my$ptr=address($n,"vcs_two_plus_two_font_$table")+$digit*8;
-      push@expect,'--expect-memory',$a+88+$offset,$ptr&255,'--expect-memory',$a+89+$offset,$ptr>>8;
+      push@expect,'--expect-memory',$a+$offset,$ptr&255,'--expect-memory',$a+1+$offset,$ptr>>8;
    }
    run("$tmp/score_timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264',@expect);
    if($order eq'above'){
@@ -555,7 +558,7 @@ CPP
       my$alt="alias LAYERS_MOTION\n".$s;
       $alt=~s#include "score_motion.c26"#include "$repo/test/fixtures/layers/score_motion.c26"# or die 'score motion asset';
       my$variant="${n}_motion";my$budget=build($variant,$alt);
-      $budget=~/ram\s+used=127 bytes.*objects=125 bytes hardware-stack=2 bytes/s or die 'moving score RAM budget';
+        $budget=~/ram\s+used=55 bytes.*objects=53 bytes hardware-stack=2 bytes/s or die 'moving score RAM budget';
       address($variant,'layers_object_x')==address($n,'layers_object_x')or die 'moving score RAM layout changed';
       run("$tmp/score_timing","$tmp/$variant.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
       my$images=capture($variant,40);my@left;
@@ -579,13 +582,13 @@ CPP
    }
    {
       my$bad=slurp("$repo/libraries/vcs/layers/score.c26");
-      $bad=~s/layers_object_masks \+ (88|90|92|94)/'layers_object_masks + '.($1-8)/eg;
-      save("$tmp/overlapping_score.c26",$bad);
-      my$alt=$s;$alt=~s!layers/score.c26!$tmp/overlapping_score.c26!;
-      my$variant="${n}_overlap";build($variant,$alt);
+       $bad=~s/sta.ay TEMPLATE_glyphs,y/sta.ay TEMPLATE_glyphs + 1,y/g or die 'score pointer mutation';
+       save("$tmp/wrong_score_pointer.c26",$bad);
+       my$alt=$s;$alt=~s!layers/score.c26!$tmp/wrong_score_pointer.c26!;
+       my$variant="${n}_wrong_pointer";build($variant,$alt);
       eval{run("$tmp/score_timing","$tmp/$variant.bin",'200','--no-audio','--released-inputs','--raw-lines','264',@expect);1}
-         and die 'score workspace overlaps active mask bytes';
-      $@=~/memory .*expected/ or die 'score overlap rejected for wrong reason';
+          and die 'wrong score pointer bytes were accepted';
+       $@=~/memory .*expected/ or die 'score pointer mutation rejected for wrong reason';
    }
    for my$height(0,1,175,178,192){
       my$alt=$s;
@@ -618,6 +621,14 @@ for my$mode(qw(three uniform repeated)){
    }
    build($mode,$s);run("$tmp/timing","$tmp/$mode.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
 }
+for my$row('0x00000000','0xffffffff','0x00700000') {for my$height(4,6){
+   my$c={%{$cases[0]},seam=>$height};my$s=source($c);
+   $s=~s/playfield_row:=0x[0-9a-f]+/playfield_row:=$row/g;
+   $s=~s/pf_color:=0x[0-9a-f]+/pf_color:=14/g;
+   $s=~s/bk_color:=0x[0-9a-f]+/bk_color:=0/g;
+   my$n="constant_fold_${row}_$height";build($n,$s);
+   run("$tmp/timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
+}}
 for my$height(0,1,3,255,256,-2){my$s=source($cases[0]);$s=~s/number_of_scanlines:=6/number_of_scanlines:=$height/;
    eval{build("bad_height_$height",$s);1}and die"invalid height $height accepted";
 }
@@ -627,7 +638,7 @@ for my$mutation(['pf_color:=0x46','pf_color:=256'],['bk_color:=0xc2','bk_color:=
 }
 {
    my$bad=slurp("$repo/libraries/vcs/layers/all_five_section.c26");
-   $bad=~s/asm sty GRP0;/asm nop; asm sty GRP0;/ or die 'phase mutation';save("$tmp/wrong_phase_component.c26",$bad);
+   $bad=~s/asm stx GRP0;/asm nop; asm stx GRP0;/ or die 'phase mutation';save("$tmp/wrong_phase_component.c26",$bad);
    my$s=source($cases[0]);$s=~s!layers/all_five_section.c26!$tmp/wrong_phase_component.c26!g;
    eval{build('bad_phase',$s);run("$tmp/timing","$tmp/bad_phase.bin",'200','--no-audio','--released-inputs','--raw-lines','264');1}
       and die 'shifted object phase accepted';

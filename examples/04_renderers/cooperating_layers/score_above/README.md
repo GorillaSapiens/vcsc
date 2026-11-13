@@ -18,5 +18,5 @@ make clean
 A12-line two-plus-two score, eight frame-owner-blanked positioning lines, then
 172 gameplay lines (64+64+44). Objects slowly traverse both scenery seams; both
 runtime scores increase. The fixed positioning entry requires all X0..119.
-Uses128/128 RAM bytes, including stack, and one4K bank. Edit `main.c26`; no other
+Uses56/128 RAM bytes, including stack, and one4K bank. Edit `main.c26`; no other
 example leaf is required. See the [family guide](../README.md) for contracts.

@@ -68,7 +68,7 @@ my$fixtures="$repo/test/fixtures/layers/examples";
 my$mos="$repo/simulator/mos6502";my$obj=-f"$mos/mos6502.o"?"$mos/mos6502.o":"$mos/mos6502.cpp";
 my$original=slurp("$repo/test/vcs_frame_timing.cpp");
 my$hook=<<'CPP';
-      static unsigned frame=0,stage=0,pf=0;
+       static unsigned frame=0,stage=0,pf=0,boundary=~0u;
       static uint64_t first=0,start=0;
       static bool game=false;
       if (!(event.address & 0x1080)) {
@@ -104,9 +104,15 @@ my$hook=<<'CPP';
                if(peek_memory(C0)!=y+8-prime || peek_memory(C1)!=y+9-2*prime) {
                   std::fprintf(stderr,"example vertical preparation/prime mismatch\n");std::exit(1);
                }
-               for(unsigned i=0;i<(MODE?88:96);++i) {
-                  const unsigned t=i+1,b=((t>=y+2&&t<=y+7)?4:0)|((t>=y&&t<=y+7)?8:0)|((t>=y+3&&t<=y+6)?2:0);
-                  if(peek_memory(MASK+i)!=b) {
+                unsigned cursor=0,remaining=peek_memory(MASK),mask=peek_memory(MASK+1);
+                for(unsigned i=0;i<96;++i) {
+                   if(i && --remaining==0) {
+                      cursor+=2;
+                      if(cursor>=14){std::fprintf(stderr,"example event cursor overflow\n");std::exit(1);}
+                      remaining=peek_memory(MASK+cursor);mask=peek_memory(MASK+cursor+1);
+                   }
+                   const unsigned t=i+1,b=((t>=y+2&&t<=y+7)?4:0)|((t>=y&&t<=y+7)?1:0)|((t>=y+3&&t<=y+6)?2:0);
+                   if(mask!=b) {
                      std::fprintf(stderr,"example enable stream/lifetime mismatch\n");std::exit(1);
                   }
                }
@@ -115,7 +121,7 @@ my$hook=<<'CPP';
                for(unsigned side=0;side<2;++side) {
                   const unsigned v=values[side];
                   if(peek_memory(scores[side])!=((v/10)<<4)+(v%10) ||
-                     word(MASK+88+side*4)!=FONT_H+(v/10)*8 || word(MASK+90+side*4)!=FONT_L+(v%10)*8) {
+                      word(GLYPHS+side*4)!=FONT_H+(v/10)*8 || word(GLYPHS+2+side*4)!=FONT_L+(v%10)*8) {
                      std::fprintf(stderr,"example runtime score/workspace mismatch\n");std::exit(1);
                   }
                }
@@ -125,21 +131,23 @@ my$hook=<<'CPP';
                   if(MODE==2 && virtual_cycles-first!=20*76) {
                      std::fprintf(stderr,"example score-above prefix mismatch\n");std::exit(1);
                   }
-                  start=virtual_cycles;pf=0;
+                   start=virtual_cycles;pf=0;boundary=~0u;
                }
             }
-         } else if(game && virtual_cycles-start<GAME_LINES*76 && (reg==14||reg==15)) {
-            const unsigned regs[]={14,15,15,14},even[]={70,37,48,53},odd[]={22,27,48,53};
+          } else if(game && reg==9) {
+             boundary=(virtual_cycles-start+3)/76;
+          } else if(game && virtual_cycles-start<GAME_LINES*76 && (reg==14||reg==15)) {
+             const unsigned regs[]={14,15,15,14},even[]={18,33,48,51},odd[]={19,24,48,53};
             const unsigned line=pf/4,slot=pf++%4;
-            const unsigned phase=!line&&!slot?8:(line&1?odd[slot]:even[slot]);
+             const unsigned phase=!line&&!slot?8:(!(line&1)&&!slot&&line==boundary?23:(line&1?odd[slot]:even[slot]));
             const unsigned raster=(virtual_cycles-start+3)/76;
-            const unsigned expected_line=line-(!slot && !(line&1) && line>0);
+             const unsigned expected_line=line;
             if(reg!=regs[slot] || virtual_cycles%76!=phase || raster!=expected_line) {
                std::fprintf(stderr,"example PF write deadline mismatch\n");std::exit(1);
             }
          } else if(game && virtual_cycles-start<GAME_LINES*76 && reg>=27&&reg<=31) {
-            const unsigned phases[]={7,3,16,17,10};
-            if(virtual_cycles%76!=phases[reg-27] && !(reg==29 && virtual_cycles%76==21)) {
+             const unsigned phases[]={13,3,3,14,9};
+             if(virtual_cycles%76!=phases[reg-27]) {
                std::fprintf(stderr,"example object write deadline mismatch\n");std::exit(1);
             }
          }
@@ -150,15 +158,15 @@ for my$mode(0..2){my$leaf=$leaves[$mode];my$stem="$tmp/layers_$leaf";
    my$source=slurp("$fixtures/main.c26");$source=~s/DEMO_MODE/$mode/g;
    $source=~s!\.\./\.\./\.\./_common!$fixtures/_common!g;save("$stem.c26",$source);
    my$out=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$stem.map","$stem.c26",'-o',"$stem.bin");
-   my$ram=$mode?128:126;my$data=$mode?126:124;
+    my$ram=$mode?56:46;my$data=$mode?54:44;
    $out=~/ram\s+used=$ram bytes.*objects=$data bytes hardware-stack=2 bytes/s or die "$leaf RAM/stack budget";
    push@stems,$stem;-s"$stem.bin"==4096 or die 'example bank budget';
    my%defines=(MODE=>$mode,GAME_LINES=>($mode==0?192:$mode==1?176:172),MAX_Y=>($mode==0?86:$mode==1?78:76));
-   my%names=(CLOCK=>'motion_clock',PHASE=>'motion_phase',XS=>'layers_object_x',MASK=>'layers_object_masks',
+    my%names=(CLOCK=>'motion_clock',PHASE=>'motion_phase',XS=>'layers_object_x',MASK=>'layers_event_data',
       Y0=>'layers_player0_y',Y1=>'layers_player1_y',YM0=>'layers_missile0_y',YM1=>'layers_missile1_y',YB=>'layers_ball_y',
       G0=>'layers_player0_graphics',G1=>'layers_player1_graphics',P0=>'demo_p0',P1=>'demo_p1',
       C0=>'layers_player0_counter',C1=>'layers_player1_counter');
-   %names=(%names,S0=>'score_left_score',S1=>'score_right_score',FONT_H=>'vcs_two_plus_two_font_high',FONT_L=>'vcs_two_plus_two_font_low')if$mode;
+    %names=(%names,S0=>'score_left_score',S1=>'score_right_score',GLYPHS=>'score_glyphs',FONT_H=>'vcs_two_plus_two_font_high',FONT_L=>'vcs_two_plus_two_font_low')if$mode;
    $defines{$_}=address($stem,$names{$_})for keys%names;
    my$cpu=join('',map{"#define $_ $defines{$_}\n"}sort keys%defines).$original;
    $cpu=~s/(   for \(const WriteEvent &event : writes\) \{)/$1\n$hook/ or die 'CPU hook';

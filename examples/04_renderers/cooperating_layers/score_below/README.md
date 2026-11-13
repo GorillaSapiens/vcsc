@@ -17,6 +17,6 @@ make clean
 
 176 gameplay lines (64+64+48), a12-line two-plus-two score, then four blank tail
 lines. Objects slowly traverse both scenery seams; both runtime scores increase.
-Uses128/128 RAM bytes, including stack, and one4K bank. Score pointers occupy
-only mask bytes88..95, outside the active gameplay stream. Edit `main.c26`;
+Uses56/128 RAM bytes, including stack, and one4K bank. Score pointers occupy
+eight private bytes, independent of the fourteen-byte event schedule. Edit `main.c26`;
 no other example leaf is required. See the [family guide](../README.md).

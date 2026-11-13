@@ -145,13 +145,18 @@ for my$case(0..3){
          $c=~s!instantiate "renderers/all_five_player_color_192/all_five_player_color_192.c26" as game!include "layers/all_five_objects.c26"\n$bindings\ninstantiate "$tmp/shared_vertical_and_draw.c26" as game! or die 'shared component marker';
          for my$n(@shared){$c=~s/\bgame_$n\b/layers_$n/g;}
       }
+      if($kind ne'gold'){
+         my($p0,$p1)=$case>=2?(0x26,0x35):(0x20,0x20);
+         $c=~s/(as intro)\n/$1 (player0_nusiz:=$p0, player1_nusiz:=$p1)\n/ or die 'intro parameters';
+         $c=~s/(?:layers_player[01]_nusiz|game_PLAYER[01]_NUSIZ) := 0x[0-9a-f]+;//g if$kind eq'objects';
+      }
       my$n="${kind}_$case";save("$tmp/$n.c26",$c);
       my$build=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/$n.c26",'-o',"$tmp/$n.bin");
       $build=~/ram\s+used=(\d+) bytes/ or die 'missing RAM budget';
       if($kind eq'gold'){$gold_ram=$1;}
       elsif($kind eq'intro'){$1==$gold_ram or die 'intro adds private RAM';}
        else{
-          $1==$gold_ram+7&&$1<=128 or die 'shared-state witness budget';
+          $1==$gold_ram+5&&$1<=128 or die 'shared-state witness budget';
           my$sym=readfile("$tmp/$n.sym");my@progress;
           for my$p(0..1){
              $c=~/layers_player${p}_y := (\d+);/ or die 'shared input Y';my$y=$1;
@@ -175,4 +180,14 @@ for my$case(0..3){
       $gold ne snapshot('no_position') or die 'missing intro is not detected';
    }
 }
+for my$p(0,1){for my$value(-1,256){
+   my$n="invalid_nusiz_${p}_$value";
+   save("$tmp/$n.c26",qq{include "vcs.c26"\nuint8_t layers_object_x[5];\ninstantiate "layers/all_five_intro.c26" as intro (player${p}_nusiz:=$value)\nvoid main(void) { intro_establish(); }\n});
+   eval{run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$tmp/$n.c26",'-o',"$tmp/$n.bin");1}
+      and die 'invalid intro NUSIZ accepted';
+   my$error=$@;
+   if($value<0){$error=~/instantiation argument 'player${p}_nusiz' requires an integer literal/
+      or die "unexpected negative NUSIZ rejection: $error";}
+   else{$error=~/intro_nusiz_must_be_bytes/ or die "unexpected NUSIZ rejection: $error";}
+}}
 print "vcs_layers_intro ok\n";

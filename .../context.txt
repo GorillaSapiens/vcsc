@@ -213,7 +213,7 @@ Section parameters: number_of_scanlines,playfield_row,pf_color,bk_color.
 layers/ now has cooperating no-score and both score orders, one4K bank, stock
 RAM124/125 no-score,126/127 scores. Score pointers borrow unused mask tail88..95;
 gameplay<=176. Above uses a bounded X0..119 blanked intro. Exact images/moving
-Edge sweeps pass2560 images; draw/exit65+finish(). Full1326/1326. RAM unchanged.
+Intro NUSIZ parameters. Events44 static,46/56 leaves; full1327/1327 passes.
 NOT fully certified. See layers.txt and libraries/vcs/layers/README.md.
 Do not continue monolithic geometry-specific fixes as the delivery architecture.
 Preserve the existing examples/frozen regressions as implementation evidence.
