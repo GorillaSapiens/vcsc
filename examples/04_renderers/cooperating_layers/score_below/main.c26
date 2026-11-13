@@ -33,7 +33,7 @@ void main(void) {
    while(1) {
       vcs_ntsc_vsync(); vcs_ntsc_begin_vblank(); prepare_objects();
       vcs_ntsc_end_vblank(); upper_first(); middle_draw(); lower_draw();
-      asm nop;
+      layers_finish();
       vcs_ntsc_component_handoff(); score_draw();
       //176 gameplay +12 score +4 blank tail =192. Score returns at cycle8.
       asm sta WSYNC;

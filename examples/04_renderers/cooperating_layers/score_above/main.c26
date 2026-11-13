@@ -43,7 +43,7 @@ void main(void) {
       asm sta WSYNC;
       asm sta VBLANK;
       upper_first(); middle_draw(); lower_draw();
-      asm nop;
+      layers_finish();
       //12 score +8 blanked intro +172 gameplay =192 lines.
       vcs_ntsc_begin_overscan();
       PF1:=0;PF2:=0;GRP0:=0;GRP1:=0;ENAM0:=0;ENAM1:=0;ENABL:=0;

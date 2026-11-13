@@ -12,6 +12,8 @@ use IPC::Open3;
 use POSIX qw(:sys_wait_h setpgid);
 use Symbol qw(gensym);
 my($repo,$tmp)=@ARGV;$repo=abs_path($repo);make_path($tmp);$tmp=abs_path($tmp);
+my$edge_mode=$ARGV[2];
+!defined($edge_mode)||$edge_mode=~/^(?:[0-7]|geometry)$/ or die 'edge mode must be0..7 or geometry';
 require "$repo/test/stella_test_lib.pl";
 sub slurp {open my$f,'<:raw',$_[0] or die$!;local$/;return <$f>;}
 sub save {open my$f,'>:raw',$_[0] or die$!;print $f $_[1];}
@@ -55,17 +57,19 @@ my$hook=<<'CPP';
             if (layers_visible) { layers_pf=0; layers_start=virtual_cycles; }
          } else if (layers_visible && (reg == 14 || reg == 15)) {
             static const unsigned regs[] = {14,15,15,14};
-            static const unsigned even[] = {3,32,48,53};
-            static const unsigned odd[] = {18,23,48,53};
+             static const unsigned even[] = {70,37,48,53};
+             static const unsigned odd[] = {22,27,48,53};
             const unsigned line = layers_pf/4, slot=layers_pf++%4;
             unsigned phase = (line&1)?odd[slot]:even[slot];
             if (!line && !slot) phase=8;
-            if (reg != regs[slot] || virtual_cycles%76 != phase) {
+             const unsigned raster=(virtual_cycles-layers_start+3)/76;
+             const unsigned expected_line=line-(!slot && !(line&1) && line>0);
+             if (reg != regs[slot] || virtual_cycles%76 != phase || raster!=expected_line) {
                std::fprintf(stderr,"layers PF phase mismatch: line=%u slot=%u reg=%u phase=%llu expected=%u\n",line,slot,reg,(unsigned long long)(virtual_cycles%76),phase); std::exit(1);
             }
          } else if (layers_visible && reg >= 27 && reg <= 31) {
-            static const unsigned phases[] = {72,2,12,13,60};
-            if (virtual_cycles%76 != phases[reg-27]) {
+             static const unsigned phases[] = {7,3,16,17,10};
+             if (virtual_cycles%76 != phases[reg-27] && !(reg==29 && virtual_cycles%76==21)) {
                std::fprintf(stderr,"layers object phase mismatch: reg=%u phase=%llu\n",reg,(unsigned long long)(virtual_cycles%76)); std::exit(1);
             }
          }
@@ -92,7 +96,7 @@ sub capture {
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
       '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1',
-      '-audio.enabled','0','-bs','4K','-framesnap',($count==1?'200':'200-239'),'-snapsavedir',$d,
+      '-audio.enabled','0','-bs','4K','-framesnap',($count==1?'200':'200-'.(199+$count)),'-snapsavedir',$d,
       '-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$u,"$tmp/$n.bin");
    my@png=vcsc_stella_wait_snapshots("$d/*.png",$count);stop($p);
    @png>=$count or die "$n missing snapshots";return[map{[decode_rgb($_)]}@png];
@@ -111,8 +115,8 @@ my@cases=(
 );
 sub source {
    my($case)=@_;my$s=$fixture;
-   $s=~s/number_of_scanlines:=6,/number_of_scanlines:=$case->{seam},/ or die 'first height';
-   my$rest=192-$case->{seam};$s=~s/number_of_scanlines:=186,/number_of_scanlines:=$rest,/ or die 'second height';
+   $s=~s/(as sky \(number_of_scanlines:=)6,/$1$case->{seam},/ or die 'first height';
+   my$rest=192-$case->{seam};$s=~s/(as ground \(number_of_scanlines:=)186,/$1$rest,/ or die 'second height';
    for my$i(0..4){
       $s=~s/(layers_$objects[$i]_y:=)\d+;/$1$case->{ys}[$i];/ or die 'pose';
       $s=~s/(layers_$objects[$i]_height:=)\d+;/$1$case->{hs}[$i];/ or die 'height';
@@ -123,6 +127,11 @@ sub source {
    if($case->{nusiz}){for my$p(0..1){$s=~s/layers_player${p}_nusiz:=0x20;/layers_player${p}_nusiz:=$case->{nusiz}[$p];/ or die 'runtime width';}}
    if($case->{ball_width}){$s=~s/CTRLPF:=0x21;/CTRLPF:=0x11;/ or die 'Ball width';}
    if($case->{xs}){for my$i(0..4){$s=~s/(layers_object_x\[$i\]:=)\d+;/$1$case->{xs}[$i];/ or die 'runtime X';}}
+   if($case->{high_bits}){
+      $s=~s/GLYPH\((0x[0-9a-fx,]+)\)/
+         my@r=split(',',$1);$r[$_]=sprintf('0x%02x',oct($r[$_])^128)for 0..6;
+         'GLYPH('.join(',',@r).')'/eg;
+   }
    return$s;
 }
 sub masks {
@@ -130,14 +139,14 @@ sub masks {
    for my$t(1..96){my$b=0;
       for my$o(2..4){my$last=($c->{ys}[$o]+($o==4?2:1))&255;my$first=($last-$c->{hs}[$o])&255;
          my$on=$first<=$last?($t>=$first&&$t<=$last):($t>=$first||$t<=$last);
-         $b|=(4,8,2)[$o-2] if$on;
+          $b|=(4,8,2)[$o-2] if$on;
       }push@result,$b;
    }return@result;
 }
 sub timing {
-   my($n,$c)=@_;my@expect;my$a=address($n,'layers_object_masks');my@m=masks($c);
+   my($n,$c,$frames)=@_;$frames//=420;my@expect;my$a=address($n,'layers_object_masks');my@m=masks($c);
    push@expect,'--expect-memory',$a+$_,$m[$_]for 0..95;
-   for my$p(0..1){push@expect,'--expect-memory',address($n,"layers_player${p}_counter"),($c->{ys}[$p]+$p-97)&255;}
+   for my$p(0..1){push@expect,'--expect-memory',address($n,"layers_player${p}_counter"),($c->{ys}[$p]-97)&255;}
    for my$p(0..1){
       my$frame=$c->{frames}?$c->{frames}[$p]:0;my$ptr=address($n,"p$p")+$frame*8;my$a=address($n,"layers_player${p}_graphics");
       push@expect,'--expect-memory',$a,$ptr&255,'--expect-memory',$a+1,$ptr>>8,
@@ -146,7 +155,7 @@ sub timing {
    for my$i(0..4){push@expect,'--expect-memory',address($n,"layers_$objects[$i]_y"),$c->{ys}[$i],'--expect-memory',address($n,"layers_$objects[$i]_height"),$c->{hs}[$i];}
    my$xbase=address($n,'layers_object_x');my@xs=$c->{xs}?@{$c->{xs}}:(20,130,50,110,80);
    push@expect,'--expect-memory',$xbase+$_,$xs[$_]for 0..4;
-   run("$tmp/timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264',@expect);
+   run("$tmp/timing","$tmp/$n.bin",$frames,'--no-audio','--released-inputs','--raw-lines','264',@expect);
 }
 
 # Independent palette RGB witness, not candidate/scenery timing. Twelve unique
@@ -173,6 +182,10 @@ sub paint {
    my($row,$x,$length,$color)=@_;
    for my$i(0..$length-1){my$at=$x+$i;next if$at<0||$at>=160;substr($$row,$at*6,6)=$color x2;}
 }
+sub paint_wrapped {
+   my($row,$x,$length,$color)=@_;
+   for my$i(0..$length-1){my$at=($x+$i)%160;substr($$row,$at*6,6)=$color x2;}
+}
 sub logical_image {
    my($image,$c,$first,$witness)=@_;my($width,$height,$actual)=@$image;
    $width==320 or die 'unexpected raster width';my@m=masks($c);my%seen;
@@ -188,22 +201,23 @@ sub logical_image {
       my$bw=$c->{ball_width}//4;
       # CTRLPF priority=0: P0/M0 > P1/M1 > PF/BL. Paint back to front so
       # runtime placements may overlap without changing the logical oracle.
-      paint(\$want,$xs[4]-2,$bw,$pf)if$m[$i1]&2;
+       paint_wrapped(\$want,$xs[4]-2,$bw,$pf)if$m[$i1]&2;
       for my$p(1,0){
          my$r=$row[$p];my$mode=$c->{nusiz}?($c->{nusiz}[$p]&7):0;
          my$scale=$mode==5?2:$mode==7?4:1;
          if($r>=0&&$r<=$c->{hs}[$p]){my$frame=$c->{frames}?$c->{frames}[$p]:0;my$glyph=$graphics[$p][$frame][$r];
-            for my$offset(@{$copy_offsets[$mode]}){for my$b(0..7){next unless$glyph&(128>>$b);
-               paint(\$want,$xs[$p]-1+($scale==1?0:1)+$offset+$b*$scale,$scale,$rgb{$colors[$p][$r]});
+             $glyph^=128 if$c->{high_bits}&&$r;
+             for my$offset(@{$copy_offsets[$mode]}){for my$b(0..7){next unless$glyph&(128>>$b);
+                paint_wrapped(\$want,$xs[$p]-1+($scale==1?0:1)+$offset+$b*$scale,$scale,$rgb{$colors[$p][$r]});
             }}
          }
-         my$index=$p?$i1:$i0;next unless$m[$index]&($p?8:4);
+          my$index=$p?$i1:$i0;next unless$m[$index]&($p?8:4);
          my$init=$c->{ys}[$p]-1+$p;
          my$color=$r>$c->{hs}[$p]?$colors[$p][$init<=$c->{hs}[$p]?$init:0]:$colors[$p][$r<0?0:$r];
-         for my$offset(@{$copy_offsets[$mode]}){paint(\$want,$xs[2+$p]-2+$offset,$p?$mw1:$mw0,$rgb{$color});}
+          for my$offset(@{$copy_offsets[$mode]}){paint_wrapped(\$want,$xs[2+$p]-2+$offset,$p?$mw1:$mw0,$rgb{$color});}
       }
       my$got=substr($actual,($first+$line)*$width*3,$width*3);
-      if($got ne$want){for my$x(0..$width-1){substr($got,$x*3,3)eq substr($want,$x*3,3)or die"logical RGB mismatch seam=$c->{seam} line=$line x=$x\n";}}
+       if($got ne$want){for my$x(0..$width-1){substr($got,$x*3,3)eq substr($want,$x*3,3)or die"logical RGB mismatch seam=$c->{seam} line=$line x=$x got=".unpack('H*',substr($got,$x*3,3))." want=".unpack('H*',substr($want,$x*3,3))."\n";}}
       if($witness&&$line>=$c->{seam}-2&&$line<=$c->{seam}+1){
          my$side=$line<$c->{seam}?0:1;
          for my$o(['P0',2*$xs[0]-2,2*$xs[0]+14],['P1',2*$xs[1]-2,2*$xs[1]+14],
@@ -214,6 +228,107 @@ sub logical_image {
       }
    }
    if($witness){for my$n(qw(P0 P1 M0 M1 BL)){for my$s(0,1){$seen{"$n/$s"}or die"$n not visibly crossing seam $c->{seam} side$s";}}}
+}
+if(defined($edge_mode)&&$edge_mode eq'geometry'){
+   build('geometry_origin',source($cases[0]));my$origin=capture('geometry_origin')->[0];
+   my@visible=grep{substr($origin->[2],($_*$w+20)*3,3)eq$rgb{0xc2}}0..$origin->[1]-1;
+   @visible==6 or die 'geometry visible origin';my$first=$visible[0];
+   for my$height(map{2*$_}1..95){my$y=$height/2+6;
+      my$c={seam=>$height,ys=>[$y,$y,$y-4,$y-4,$y-5],hs=>[7,7,5,7,3]};
+      my$n="height_$height";build($n,source($c));timing($n,$c,60);
+      logical_image(capture($n)->[0],$c,$first,1);
+   }
+   for my$height(map{2*$_}96..127){my$s=source($cases[0]);
+      $s=~s/number_of_scanlines:=6/number_of_scanlines:=$height/;
+      $s=~s/ground_draw\(\);//;
+      my$n="large_height_$height";build($n,$s);
+      run("$tmp/timing","$tmp/$n.bin",'60','--no-audio','--released-inputs','--raw-lines','264')if$height==192;
+   }
+   print "vcs_layers_all_five ok\n";exit 0;
+}
+if(defined$edge_mode){
+   build('edge_origin',source($cases[0]));my$origin=capture('edge_origin')->[0];
+   my@visible=grep{substr($origin->[2],($_*$w+20)*3,3)eq$rgb{0xc2}}0..$origin->[1]-1;
+   @visible==6 or die 'edge visible origin';my$first=$visible[0];
+   for my$p(0,1){
+      my@xs=(20,80,50,110,80);$xs[$p]=0;$xs[2+$p]=0;
+      my@ys=(255,255,255,255,4);$ys[$p]=9;$ys[2+$p]=5;
+      my$nusiz=[0x20,0x20];$nusiz->[$p]=$edge_mode;
+      my$c={seam=>6,ys=>\@ys,hs=>[7,7,5,7,3],xs=>\@xs,nusiz=>$nusiz,
+         frames=>[0,1],high_bits=>1};
+      my$update=<<ASM;
+      asm inc.z layers_object_x + $p;
+      asm lda.z layers_object_x + $p;
+      asm cmp #160;
+      asm bcc.same \@edge_no_wrap;
+      asm lda #0;
+      asm sta.z layers_object_x + $p;
+      asm \@edge_no_wrap:;
+      asm sta.z layers_object_x + @{[2+$p]};
+      asm lsr;
+      asm lsr;
+      asm and #3;
+      asm asl;
+      asm asl;
+      asm asl;
+      asm asl;
+      asm ora #$edge_mode;
+      asm sta.z layers_player${p}_nusiz;
+ASM
+      for my$player(0,1){
+         $update.="asm lda.z layers_object_x + $p;\n";
+         $update.="asm clc; asm adc #1;\n"if$player;
+         $update.="asm and #3; asm asl; asm asl; asm asl; asm clc; asm adc #<p$player; asm sta.z layers_player${player}_graphics; asm lda #>p$player; asm sta.z layers_player${player}_graphics + 1;\n";
+      }
+      my$n="sweep_p${p}_mode$edge_mode";my$s=source($c);
+      $s=~s/(      vcs_ntsc_end_overscan\(\);)/$update\n$1/ or die 'edge overscan update';
+      my$budget=build($n,$s);$budget=~/objects=122 bytes hardware-stack=2 bytes/ or die 'edge sweep RAM/stack budget';
+      my$xbase=address($n,'layers_object_x');my@g=map{address($n,"layers_player${_}_graphics")}0..1;
+      my@tables=map{address($n,"p$_")}0..1;my@sz=map{address($n,"layers_player${_}_nusiz")}0..1;
+      my@counter=map{address($n,"layers_player${_}_counter")}0..1;
+      my$a=address($n,'layers_object_masks');my@m=masks($c);
+      my$model=<<CPP;
+      if (!(event.address & 0x1080) && (event.address & 63)==1 && !(event.value & 2)) {
+         static unsigned frame=0;
+         const unsigned x=frame++%160;
+         const unsigned xs[]={@{[join ',',@xs]}}, pointers[]={@{[join ',',@g]}}, tables[]={@{[join ',',@tables]}};
+         const unsigned sizes[]={@{[join ',',@sz]}}, counters[]={@{[join ',',@counter]}}, ys[]={@{[join ',',@ys[0,1]]}};
+         static const unsigned masks[]={@{[join ',',@m]}};
+         for(unsigned i=0;i<5;++i) if(peek_memory($xbase+i)!=((i==$p || i==@{[2+$p]})?x:xs[i])) {
+            std::fprintf(stderr,"edge live X sequence mismatch\\n"); std::exit(1);
+         }
+         for(unsigned i=0;i<2;++i) {
+            const unsigned ptr=tables[i]+((x+i)&3)*8;
+            const unsigned size=i==$p?(((x>>2)&3)<<4)|$edge_mode:32;
+            if(peek_memory(pointers[i])!=(ptr&255) || peek_memory(pointers[i]+1)!=(ptr>>8) ||
+               peek_memory(sizes[i])!=size || peek_memory(counters[i])!=((ys[i]-1)&255)) {
+               std::fprintf(stderr,"edge live pointer/mode/prime mismatch\\n"); std::exit(1);
+            }
+         }
+         for(unsigned i=0;i<96;++i) if(peek_memory($a+i)!=masks[i]) {
+            std::fprintf(stderr,"edge live enable stream mismatch\\n"); std::exit(1);
+         }
+      }
+CPP
+      my$cpu=$timing;$cpu=~s/\Q$hook\E/$hook\n$model/ or die 'edge live hook';
+      save("$tmp/edge_timing.cpp",$cpu);
+      run($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,"$tmp/edge_timing.cpp",$obj,'-o',"$tmp/edge_timing");
+      run("$tmp/edge_timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
+      my$pose=sub{my$x=shift;my@positions=@xs;$positions[$p]=$positions[2+$p]=$x;
+         my@sizes=@$nusiz;$sizes[$p]=((($x>>2)&3)<<4)|$edge_mode;
+         return{%$c,xs=>\@positions,nusiz=>\@sizes,frames=>[$x&3,($x+1)&3]};
+      };
+      my$images=capture($n,160);my@matches;
+      for my$x(0..159){push@matches,$x if eval{logical_image($images->[0],$pose->($x),$first,0);1};}
+      @matches==1 or die "$n: live edge origin not uniquely identifiable";
+      my$x=$matches[0];my%seen;
+      for my$image(@$images){
+         eval{logical_image($image,$pose->($x),$first,0);1}or die"$n X$x: $@";
+         $seen{$x}=1;$x=($x+1)%160;
+      }
+      keys(%seen)==160 or die 'edge sweep omitted a coordinate';
+   }
+   print "vcs_layers_all_five ok\n";exit 0;
 }
 my$first;
 for my$index(0..$#cases){my$c=$cases[$index];my$s=source($c);my$n="sections_$index";
@@ -232,8 +347,7 @@ for my$xs([0,0,30,65,120],[1,1,30,65,120],[80,100,50,110,80]){
    build($n,source($c));timing($n,$c);
    eval{logical_image(capture($n)->[0],$c,$first,0);1}or die"$n: $@";
 }
-# Known visible-deadline defects: retain independent failing witnesses rather
-# than interpreting an unchanged frame length as full horizontal certification.
+# Previously failing witnesses are now positive complete-image regressions.
 for my$probe(
    ['p0_right',[150,80,50,110,80],[0x20,0x20]],
    ['p1_right',[20,150,50,110,80],[0x20,0x20]],
@@ -241,11 +355,15 @@ for my$probe(
 ){
    my($name,$xs,$nusiz)=@$probe;my$c={%{$cases[0]},xs=>$xs,nusiz=>$nusiz};
    build($name,source($c));timing($name,$c);my$image=capture($name)->[0];
-   eval{logical_image($image,$c,$first,0);1}and die"known deadline defect $name unexpectedly passed; recertify and remove this witness";
-   my$error=$@;save("$tmp/$name.failure",$error);
-   $error=~/logical RGB mismatch seam=6 line=\d+ x=(\d+)/&&$1>=280
-      or die"$name failed outside its known right-edge deadline region: $error";
+   logical_image($image,$c,$first,0);
 }
+for my$mode(0..7){for my$p(0,1){for my$x(0,127,143,150,159){
+   my@xs=(20,80,50,110,80);$xs[$p]=$x;
+   my$nusiz=[0x20,0x20];$nusiz->[$p]|=$mode;
+   my$c={%{$cases[0]},xs=>\@xs,nusiz=>$nusiz};
+   my$n="edge_p${p}_mode${mode}_x$x";build($n,source($c));timing($n,$c);
+   eval{logical_image(capture($n)->[0],$c,$first,0);1}or die"$n: $@";
+}}}
 for my$controls(0,1){
    my$name=$controls?'motion_controls':'motion';
    my$b=build($name,"alias LAYERS_MOTION\n".($controls?"alias LAYERS_CONTROLS\n":'').$fixture);
@@ -354,16 +472,18 @@ for my$order(qw(below above)){
             }
          } else if (layers_visible && (reg==14 || reg==15)) {
             static const unsigned regs[]={14,15,15,14};
-            static const unsigned even[]={3,32,48,53}, odd[]={18,23,48,53};
+            static const unsigned even[]={70,37,48,53}, odd[]={22,27,48,53};
             const unsigned line=layers_pf/4, slot=layers_pf++%4;
             unsigned phase=(line&1)?odd[slot]:even[slot];
             if (!line && !slot) phase=8;
-            if (reg!=regs[slot] || virtual_cycles%76!=phase) {
+            const unsigned raster=(virtual_cycles-layers_start+3)/76;
+            const unsigned expected_line=line-(!slot && !(line&1) && line>0);
+            if (reg!=regs[slot] || virtual_cycles%76!=phase || raster!=expected_line) {
                std::fprintf(stderr,"score-above gameplay PF deadline mismatch\n"); std::exit(1);
             }
          } else if (layers_visible && reg>=27 && reg<=31) {
-            static const unsigned phases[]={72,2,12,13,60};
-            if (virtual_cycles%76!=phases[reg-27]) {
+            static const unsigned phases[]={7,3,16,17,10};
+            if (virtual_cycles%76!=phases[reg-27] && !(reg==29 && virtual_cycles%76==21)) {
                std::fprintf(stderr,"score-above object deadline mismatch\n"); std::exit(1);
             }
          }
@@ -507,7 +627,7 @@ for my$mutation(['pf_color:=0x46','pf_color:=256'],['bk_color:=0xc2','bk_color:=
 }
 {
    my$bad=slurp("$repo/libraries/vcs/layers/all_five_section.c26");
-   $bad=~s/asm sta.a GRP0;/asm sta GRP0;/ or die 'phase mutation';save("$tmp/wrong_phase_component.c26",$bad);
+   $bad=~s/asm sty GRP0;/asm nop; asm sty GRP0;/ or die 'phase mutation';save("$tmp/wrong_phase_component.c26",$bad);
    my$s=source($cases[0]);$s=~s!layers/all_five_section.c26!$tmp/wrong_phase_component.c26!g;
    eval{build('bad_phase',$s);run("$tmp/timing","$tmp/bad_phase.bin",'200','--no-audio','--released-inputs','--raw-lines','264');1}
       and die 'shifted object phase accepted';

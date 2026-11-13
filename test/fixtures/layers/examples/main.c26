@@ -56,7 +56,7 @@ void main(void) {
       asm sta VBLANK;
 #endif
       upper_first(); middle_draw(); lower_draw();
-      asm nop;
+      layers_finish();
 #if DEMO_MODE == 1
       vcs_ntsc_component_handoff(); score_draw();
       asm sta WSYNC;

@@ -12,11 +12,11 @@
 Three independently buildable examples use the actual cooperating components,
 not the older fixed-eight-section renderer:
 
-| Example | Visible composition | RAM, including stack |
-| --- | --- | --- |
-| [No score](no_score/) | Three64-line sections |126/128 bytes |
-| [Score above](score_above/) |12 score +8 blanked positioning +172 gameplay |128/128 bytes |
-| [Score below](score_below/) |176 gameplay +12 score +4 blank tail |128/128 bytes |
+| Example | Visible composition | ROM used | RAM, including stack |
+| --- | --- | --- | --- |
+| [No score](no_score/) | Three64-line sections |2266 bytes |126/128 bytes |
+| [Score above](score_above/) |12 score +8 blanked positioning +172 gameplay |2812 bytes |128/128 bytes |
+| [Score below](score_below/) |176 gameplay +12 score +4 blank tail |2802 bytes |128/128 bytes |
 
 From the repository root:
 
@@ -47,9 +47,10 @@ palettes remain available. There is one4K drawing bank and no cartridge RAM.
 
 ## Limits
 
-These are **bounded, experimental** layouts, not full horizontal certification.
-Keep the supplied X values: known right-edge gameplay colour/graphics defects
-remain, and score-above's fixed positioning entry requires all X0..119. Score
+These remain experimental layouts. The former right-edge player corruption is
+repaired: independent runtime-X sweeps pass every X0..159 for both players in
+all eight modes. Score-above's distinct fixed positioning entry still requires
+all X0..119. Score
 positions/colours are compile-time parameters; its two BCD values are runtime.
 The score leaves use all128 RAM bytes, so adding variables or nested calls needs
 a fresh lifetime/stack analysis. Existing examples and renderer defaults are

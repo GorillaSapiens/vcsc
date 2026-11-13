@@ -13,8 +13,9 @@ This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 adjacent, independently instantiated sections**. The minimum two-scanline section
 works. No-score, score-above and score-below fixtures now run in one4K bank and
 stock RAM, including runtime animation and score changes. This remains
-experimental: full horizontal/copy certification is outstanding. Existing
-renderers and default examples are unchanged.
+experimental: score-above positioning and full application RAM still have the
+limits documented below. Right-edge player output now passes the full X sweep.
+Existing renderers and default examples are unchanged.
 
 Three independent, slower presentation examples are available in
 [`examples/04_renderers/cooperating_layers/`](../../../examples/04_renderers/cooperating_layers/):
@@ -22,7 +23,7 @@ Three independent, slower presentation examples are available in
 its scenery directly in `main.c26`; none depends on test fixtures or another
 leaf. No-score uses126/128 RAM bytes; both score leaves use128/128 including
 stack, with two-byte app motion state. These bounded examples do not certify
-arbitrary horizontal placements.
+arbitrary score-above placements.
 
 ## Working all-five composition
 
@@ -65,20 +66,38 @@ same stream and the same two player counters; it never initializes object progre
 
 After `vcs_ntsc_end_vblank()`, call `sky_first(); ground_draw();` with **nothing
 inserted between them**. `first()` enters at cycle3; subsequent `draw()` entries
-and all section exits are cycle74 of the preceding/final line. X is the live
-shared pair cursor, Y the last P0 index. Registers, flags and delayed Ball state
-are part of the handoff. There is no WSYNC, horizontal positioning, or separator
-inside a section. After the final section, a NOP finishes its last two cycles
-before the frame owner begins overscan. A no-score frame has192 gameplay lines;
+and all section exits are cycle65 of the preceding/final line. X is the live
+shared pair cursor, Y the normalized next P0 index, and the shared scratch byte
+holds its glyph. Registers, carry and live TIA enables are part of the handoff.
+There is no WSYNC, horizontal positioning, or separator inside a section.
+After the final section, call **`layers_finish()`**: eleven transparent cycles
+finish its last line at cycle0 before overscan or a score handoff. Do not retain
+the old NOP finish. A no-score frame has192 gameplay lines;
 the score compositions below allocate fewer gameplay lines within the same frame.
 
-First-line PF stores are at3/32/48/53 (the first frame entry uses8 instead of3);
-second-line stores are18/23/48/53. Both active/blank player branches are balanced.
-The final pair uses a **four-cycle `.cross` branch**; ordinary pairs use the
-untaken branch plus NOP, also four cycles. A never-executed ROM island makes
-ordinary inline instances256 bytes, preserving these page contracts across any
-sequence of heights. It adds ROM bytes, not scanlines or runtime delay. All
-`.same`/`.cross` contracts remain checked by the assembler/linker.
+First-line PF stores are at70 on the **preceding** line, then37/48/53 on the
+current line; the first frame entry instead writes PF1 at8. Second-line stores
+are22/27/48/53. The preceding-line PF1 preload occurs after the old right PF1 has
+finished and supplies the incoming section's own pattern. Both active/blank
+player paths are balanced and all `.same` branch contracts are linker checked.
+
+Player colour/graphics transfer exclusively in horizontal blank: P0 at4/7,
+P1 at0/3. An existing shared byte stages one glyph; graphics tables are not
+mirrored and RAM usage is unchanged. Inner pairs use ordinary six-cycle JSR/RTS
+instead of a mutable section loop counter. Assembly `.repeat` emits the exact
+number of three-byte calls from the instance height, not a user-facing generator.
+First/terminal pairs stay inline to reserve boundary cycles for scenery setup.
+This costs more ROM than the former256-byte instances but keeps one drawing bank
+and the existing two-byte stack budget in the supplied inline frame loop. An
+out-of-line drawing wrapper would need two more live stack bytes; do not add one
+without checking the total RAM/stack budget. No calls may be inserted between
+sections.
+
+Ball now uses immediate enables, updated on odd-line cycle10, preserving the
+same visible geometry without the old GRP1 delay latch. M1 updates at17; M0 at16
+(21 at section boundaries), all before the beam. P1's counter is decremented one
+pair ahead during preparation/odd-line work; its public Y and visible rows do not
+change. Section background/PF colours arrive by12/28 at a boundary.
 
 The runnable fixture is
 [all_five_sections.c26](../../../test/fixtures/layers/all_five_sections.c26).
@@ -154,8 +173,9 @@ driver/vcsc -DLAYERS_MOTION -I libraries/vcs test/fixtures/layers/score_below.c2
 driver/vcsc -DLAYERS_MOTION -I libraries/vcs test/fixtures/layers/score_above.c26 -o /tmp/opencode/layers-score-above.bin
 ```
 
-Score-below enters the score at cycle3 immediately after the last gameplay line;
-its first setup line clears scenery/enables and flushes delayed Ball/player
+Score-below calls `layers_finish()` then enters the score at cycle3 immediately
+after the last gameplay line;
+its first setup line clears scenery/enables and flushes Ball/player
 graphics. HMOVE owns a separate setup line so it cannot clip the first digit row
 at X0. After twelve complete lines, both player graphics are cleared in the
 following horizontal blank; the score returns at **cycle8**, not cycle0. The
@@ -201,7 +221,8 @@ copy/stretch modes, missile copy offsets/widths and hardware overlap priority
 All eight modes pass complete images at X coordinates `[10,40,30,65,120]`
 (P0/P1/M0/M1/Ball), including overlapping copies and stretched players. Ordinary
 player modes also pass `[0,0,30,65,120]`, `[1,1,30,65,120]` and
-`[80,100,50,110,80]`. These are tested layouts, not a proved continuous X range.
+`[80,100,50,110,80]`. These overlap cases complement the isolated exhaustive
+player sweeps below; they do not enumerate every combination of five positions.
 Public X values, NUSIZ and graphics pointers are checked unchanged after drawing.
 Another40 consecutive snapshots verify the live control changes against the
 pose model, with all eight modes and four animation frames required to appear.
@@ -209,25 +230,39 @@ The original40-frame all-five visible seam-crossing test remains unchanged.
 
 ### Remaining limits
 
-The immediate-player schedule writes P0 colour/graphics late in the previous
-line and P1 colour late in its first line. Right-edge failures are now
-**reproduced**, not merely uncertified: ordinary P0 at X150, ordinary P1 at X150,
-and an M1 copy at X142 (base110 + mode2 offset32) fail the logical row image while
-still passing all CPU frame/write-phase checks. The test retains explicit
-known-defect witnesses for those right-edge pixels; they must be recertified
-and converted into passing cases when the schedule is repaired. Shared player
-colour deadlines therefore affect missiles as well as players.
+The former right-edge failures at ordinary P0/P1 X150 and M1-copy X142 are now
+positive full-image regressions. Player graphics and independent row colours no
+longer change during right-edge output. An additional80 cases cover both players,
+all eight modes and X0/127/143/150/159, including stretched and wrapped copies.
+The independent model wraps player, missile and Ball output modulo160, matching
+the hardware instead of silently clipping right-edge pixels.
 
-**Do not infer full horizontal correctness** from the passing NUSIZ matrix or
-the intro's separate positioning tests. These deadline cases still need a
-schedule change. Runtime controls are retained, not frozen constants.
+The exhaustive two-player/eight-mode/**X0..159** matrix passes all2560 full images.
+Each player is tested unoccluded with its missile and Ball, both extreme glyph
+bits exercised, four animation frames and missile widths varying across the
+sweep. The16 private ROMs change X, graphics pointers and missile width at runtime;
+each contributes160 consecutive snapshots, not just a stationary compiled layout.
+Each also passes420 CPU frames with independent per-frame X/pointer/NUSIZ/counter/
+mask checks. Eight shards run with eight workers and300-second workload budgets;
+each snapshot sequence retains the common60-second deadline and process cleanup.
+
+All95 even splits2..190 also pass full images, all-five crossings and60-frame
+timing/memory checks. A single192-line instance passes timing; all even component
+heights192..254 compile/link, without claiming that a254-line section fits a
+192-line NTSC visible budget. The geometry proof retains all branch contracts
+and caught/fixed a fixture substitution collision specifically at height186.
+
+Runtime controls remain public inputs, not frozen constants. Missiles still
+share their player's colour, including its per-row changes; independent missile
+colours are not promised. The fresh whole-suite rerun is pending; these focused
+results must not be described as a new full-suite pass until it completes.
 
 RAM remains tight: one byte is free in moving score/preview builds. General
 application controls still need a lifetime/RAM plan. Score cleanup at arbitrary
 hostile left-edge gameplay placements and runtime score-position/colour controls
 are not certified. Independent example leaves are available as linked above.
-The new components remain uninstalled and do not replace the existing default
-or bounded-score renderers.
+The components are installed for the independent examples, but do not replace
+the existing default or bounded-score renderers.
 
 ## Horizontal intro
 

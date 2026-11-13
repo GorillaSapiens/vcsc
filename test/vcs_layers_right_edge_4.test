@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_layers_all_five.pl @REPO@ @TMP@ 4
+# phase: e2e
+# timeout: 300
+# expectstdout: vcs_layers_all_five ok
+# expectexit: 0

@@ -2,7 +2,7 @@
 // Experimental shared state for all_five_section.c26. Include ONCE, instead
 // of all_five_objects.c26. One enable byte per pair removes eight-pair geometry
 // from the drawing handoff. D1=Ball, D2=M0, D3=M1. No graphics are copied.
-// Shared data122 bytes, including the section count; peak stack2 in the fixture.
+// Shared data122 bytes, including glyph scratch; peak stack2 in the fixture.
 // Use extended VBLANK and perform preparation/intro/priming in a separate
 // ordinary blanking callback, as in test/fixtures/layers/all_five_sections.c26.
 uint8_t layers_object_x[5];
@@ -26,6 +26,8 @@ uint8_t layers_player1_counter;
 uint8_t layers_player0_limit;
 uint8_t layers_player1_limit;
 uint8_t layers_section_remaining;
+// Preparation uses the byte above as a fill cursor; visible drawing reuses it
+// for ONE staged graphics byte. There is no mutable per-section loop counter.
 
 inline void layers_step_player0(void) {
    asm ldy.z layers_player0_counter;
@@ -151,8 +153,9 @@ inline void layers_prepare_vertical(void) {
 }
 
 inline void layers_prime(void) {
-   // Player graphics are immediate; only Ball is delayed through GRP1.
-   VDELP0 := 0; VDELP1 := 0; VDELBL := 1;
+   // All graphics/enables are immediate. Ball changes with M1 on odd HBlanks,
+   // reproducing the former delayed-Ball row phase without a latch dependency.
+   VDELP0 := 0; VDELP1 := 0; VDELBL := 0;
    asm ldx #0;
    asm lda.zx layers_object_masks,x;
    asm sta ENABL;
@@ -176,10 +179,21 @@ inline void layers_prime(void) {
    asm sta COLUP1;
    asm lda.iy (layers_player1_graphics),y;
    asm sta GRP1;
+   // Next P1 index is prepared before the visible first pair. Subsequent
+   // decrements run on odd lines, outside the following even PF deadline.
+   asm dec.z layers_player1_counter;
    asm ldy.z layers_player0_counter;
    asm cpy.z layers_player0_limit;
    asm bcc.same @p0_index;
    asm ldy #0;
    asm @p0_index:;
    asm ldx #0;
+}
+
+inline void layers_finish(void) {
+   // Last section returns65 on its final visible line, with no private WSYNC.
+   // Eleven transparent cycles reach0; do not transfer an offscreen next row.
+   asm bit.a CXM0P;
+   asm bit.a CXM0P;
+   asm bit.z $00;
 }

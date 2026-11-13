@@ -101,7 +101,7 @@ my$hook=<<'CPP';
                   std::fprintf(stderr,"example graphics/animation mismatch\n");std::exit(1);
                }
                const unsigned prime=MODE==2 && stage==1?0:1;
-               if(peek_memory(C0)!=y+8-prime || peek_memory(C1)!=y+9-prime) {
+               if(peek_memory(C0)!=y+8-prime || peek_memory(C1)!=y+9-2*prime) {
                   std::fprintf(stderr,"example vertical preparation/prime mismatch\n");std::exit(1);
                }
                for(unsigned i=0;i<(MODE?88:96);++i) {
@@ -129,15 +129,17 @@ my$hook=<<'CPP';
                }
             }
          } else if(game && virtual_cycles-start<GAME_LINES*76 && (reg==14||reg==15)) {
-            const unsigned regs[]={14,15,15,14},even[]={3,32,48,53},odd[]={18,23,48,53};
+            const unsigned regs[]={14,15,15,14},even[]={70,37,48,53},odd[]={22,27,48,53};
             const unsigned line=pf/4,slot=pf++%4;
             const unsigned phase=!line&&!slot?8:(line&1?odd[slot]:even[slot]);
-            if(reg!=regs[slot] || virtual_cycles%76!=phase) {
+            const unsigned raster=(virtual_cycles-start+3)/76;
+            const unsigned expected_line=line-(!slot && !(line&1) && line>0);
+            if(reg!=regs[slot] || virtual_cycles%76!=phase || raster!=expected_line) {
                std::fprintf(stderr,"example PF write deadline mismatch\n");std::exit(1);
             }
          } else if(game && virtual_cycles-start<GAME_LINES*76 && reg>=27&&reg<=31) {
-            const unsigned phases[]={72,2,12,13,60};
-            if(virtual_cycles%76!=phases[reg-27]) {
+            const unsigned phases[]={7,3,16,17,10};
+            if(virtual_cycles%76!=phases[reg-27] && !(reg==29 && virtual_cycles%76==21)) {
                std::fprintf(stderr,"example object write deadline mismatch\n");std::exit(1);
             }
          }
@@ -212,7 +214,16 @@ for my$mode(0..2){for my$range('40-79','200-239'){
    my@sky=grep{substr($images->[0][2],($_*$w+20)*3,3)eq$rgb{0x80}}0..$images->[0][1]-1;
    @sky==64 or die 'example sky extent';$first=$sky[0]-($mode==2?20:0);
    my@candidates=grep{pixels($mode,$_)eq substr($images->[0][2],$first*$w*3,192*$w*3)}0..511;
-   @candidates or die 'example first pose is not independently matched';
+   if(!@candidates){
+      my$actual=substr($images->[0][2],$first*$w*3,192*$w*3);my($best,$frame,$expected);
+      for my$f(0..511){my$want=pixels($mode,$f);my$diff=$want^$actual;my$count=($diff=~tr/\0//c);
+         if(!defined($best)||$count<$best){($best,$frame,$expected)=($count,$f,$want);}
+      }
+      for my$p(0..192*$w-1){my$got=substr($actual,3*$p,3);my$want=substr($expected,3*$p,3);
+         if($got ne$want){die sprintf("example %s first pose mismatch nearest_frame=%d bytes=%d line=%d x=%d got=%s want=%s\n",
+            $leaves[$mode],$frame,$best,int($p/$w),$p%$w,unpack('H*',$got),unpack('H*',$want));}
+      }
+   }
    for my$i(1..39){@candidates=grep{pixels($mode,$_+$i)eq substr($images->[$i][2],$first*$w*3,192*$w*3)}@candidates;
       @candidates or die "example $leaves[$mode] motion/score RGB mismatch at snapshot$i";}
    @candidates==1 or die 'example moving phase is not unique';

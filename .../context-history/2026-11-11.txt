@@ -305,3 +305,129 @@ reviewed example assembly, private synthetic X claims and all existing tests.
 Compile-only already passes591/591. This supersedes the prior1316/1317 result.
 Record-only followup; refresh make tar and retain only the latest verified archive.
 Gameplay right-edge/shared-colour defects remain open. Nothing pushed.
+
+2026-11-11 16:50:36 PDT, Right-edge HBlank repair passes initial images
+
+After discussing the remaining bounded drawing limitation, user explicitly
+accepted missiles sharing player row colours and asked to fix the player edge
+defects. Do not promise independent missile colours or call avoidable player
+corruption a hardware limit. Preserve stock RAM, one drawing bank, independent
+section state/handoffs, all-five continuity, runtime pointers/heights/NUSIZ and
+independent eight-row palettes. No agents were delegated.
+
+Reworked all_five_section.c26: preload the next P0 glyph into the old shared
+section-counter byte, normalize its index, hand off at cycle65. The incoming
+section preloads ITS left PF1 at70 after the old right PF1 expires, loads P0
+colour/indexed glyph, and stores COLUP0/GRP0 only at next-line4/7. P1 transfers
+colour/graphics at0/3 of its odd row. Both players now remain stable through
+right-edge output. No added mutable bytes, no copied/mirrored graphics tables.
+
+Removed the mutable per-section pair counter. First/last pairs stay inline;
+interior pairs use ordinary6-cycle JSR/RTS and compile-time .repeat of three-byte
+calls from number_of_scanlines. This is library assembly, not user configuration
+generation. It preserves the two-byte peak hardware stack; costs ROM instead.
+Balanced active/inactive branches retain explicit .same contracts. First entry3
+is unchanged. Every section exits65 on its final odd line; layers_finish() uses
+eleven transparent cycles to reach0 before overscan/score handoff. Updated all
+five task-owned fixtures and three editable leaves; the old NOP is NOT valid.
+
+The old next-row P1 decrement moves to preparation and odd-line dead work,
+preserving its visible row formula but leaving its counter one step further
+ahead. Cursor X is advanced with even M0 enables; odd Ball/M1 reads masks-1,X.
+Mask encoding stays D1=Ball,D2=M0,D3=M1. All96 bytes and public inputs unchanged.
+Ball now has VDELBL=0 and immediate odd-line enable10, reproducing the old delayed
+Ball geometry. M1 writes17, M0 ordinary16/boundary21. Moving Ball off even HBlank
+was necessary to set incoming COLUPF by28 before the first left-PF1 pixel; an
+earlier prototype passed the asymmetric A/B fixture but missed one coloured
+pixel at the sparse demo's line64,x32. The independent example oracle caught it.
+
+New PF phases: logical even slots70 on the preceding odd line,37/48/53 on its
+own line (first-ever PF1 is8); odd22/27/48/53. Tests verify both phase and actual
+physical line, not merely modulo76. First/left and odd left/right barriers retain
+loads even when constants are equal; the equal-value regression caught two
+initial folded-load shifts. Three-instance,repeated,two-line,short-height,
+runtime motion/control and both score-order tests pass on the revised schedule.
+
+The old P0X150,P1X150,M1-copyX142 negative witnesses are positive full-image cases.
+Another80 images cover each player,all8 modes,X0/127/143/150/159. Hardware objects
+and copies wrap modulo160; the old independent paint oracle silently clipped
+offscreen pixels. Extended it explicitly to wrap player/missile/Ball pixels.
+This fixes oracle omissions, not raster corruption: all previous exact images
+remain required and pass, and frame/write-phase checks remain separate.
+
+Core vcs_layers_all_five.pl and private vcs_layers_examples.pl pass2/2 with
+unchanged shared RAM124/125,score126/127,slow example126/128 budgets. Log
+/tmp/opencode/layers-edge-focused.log (earlier core run); new80-case pass at
+/tmp/opencode/layers-edge-matrix.log. New eight-worker exhaustive tests cover
+each isolated player and its missile at all160 X values and all8 NUSIZ modes,
+four frames, varied missile widths and high-bit artwork. All2560 captures use
+the same independent full-image oracle and private fixtures. Each case checks
+60 CPU frames (normal harness minimum40 complete frames); original420/800/1600
+checks are retained. The first attempt asked for10 frames and correctly failed
+the unchanged minimum; fixed the new workload, not the harness. Current sweep
+log /tmp/opencode/layers-edge-sweep.log; result not yet recorded. New geometry
+entry covers all even splits2..190 and compile/link heights192..254.
+
+No existing test deadlines increased. New sweep shards have explicit300-second
+workload budgets, shared60-second snapshot deadlines, process-group cleanup and
+eight-worker execution. Need sweep/geometry success, focused old intro/owner/
+scenery/score/build/assembly checks and a fresh full suite before final claims.
+Score-above still requires X0..119 for its distinct bounded positioning budget;
+hostile left-edge score cleanup and extra game-control RAM remain separate limits.
+Nothing committed or pushed for this repair yet; preserve unrelated work.
+
+2026-11-11 17:05:09 PDT, Exhaustive live edge and geometry gates pass
+
+The first exhaustive sweep attempted320 separate builds/Stella launches per mode.
+All eight shards reached roughly193 cases without a pixel failure but timed out
+at the unchanged300-second budget; runner cleanup also logged busy portal cache
+directories. Do not call that a successful sweep or increase deadlines. Replaced
+the new workload with two private live-X ROMs per mode, retaining all2560 images
+and eight workers. No production graphics/frame coverage or deadlines reduced.
+
+Each ROM varies the selected player AND its missile X through0..159 every frame,
+cycles four graphics pointers, and varies the missile width. Other player and
+missile are offscreen to prevent occlusion hiding defects. Ball remains visible.
+All four source frames exercise both outer glyph bits, including high bits absent
+from the original letter artwork. X values and pointer/width controls are real
+public runtime inputs, changed in overscan and positioned by the ordinary intro.
+No additional app state byte. The frame emulator independently checks all public
+X values, both graphics pointers,NUSIZ,primed counters and all96 mask bytes on
+each of420 frames, as well as complete frame/PF/object deadlines. Snapshot range
+200..359 yields160 consecutive full images per ROM within one shared60s wait.
+The first X is uniquely identified by the independent image model; every following
+image must advance by one, including159->0, with all160 X values required.
+
+Result: eight mode shards pass8/8 with eight workers. All2560 full images pass,
+not merely CPU timings. Log /tmp/opencode/layers-edge-live-sweep.log. No independent
+missile colour behavior promised; shared player colours and missile widths/copies
+are included in the exact comparisons and currently pass too. This certifies each
+player/mode at every X, not the Cartesian product of all five X values, heights,
+graphics and widths. Existing overlap/copy/priority and moving cases are retained.
+
+New geometry gate passes95 even splits2..190: full192-line independent RGB,
+all-five actual crossings, memory/counter inputs and60-frame timing per layout.
+Also timings for a single192-line instance and compile/link every even height
+192..254, all in4K. Fixed a SOURCE BUILDER bug uncovered at split186: replacing
+the first6 with186 then searching the next186 accidentally changed the first
+section back to6. Anchor replacements to sky/ground instance names instead.
+No renderer timing or pixel comparator was relaxed for this failure.
+
+Ten focused composition tests pass10/10 with eight workers: core all-five including
+80 static edge profiles and both score orders, private presentation images/installed
+smoke,exhaustive geometry,old intro,compact owner,scenery,stock score,reviewed asm,
+hygiene/history. Log /tmp/opencode/layers-edge-composition.log. Updated the three
+editable leaf assembly fingerprints only for replacing their final NOP with
+layers_finish(); other assembly and strict classification unchanged. The motion
+helper is unchanged. RAM remains124/125 static/stress,126/127 static/moving score,
+126/128 slow no-score/score leaves, including peak stack. Internal pair calls use
+two stack bytes, so an extra out-of-line drawing wrapper requires fresh RAM proof.
+Direct example rebuilds use2266 ROM bytes no-score,2812 score-above,2802 below;
+all still fit one4K bank with at least1278 bytes of usable ROM headroom.
+
+Full normal suite is now running with VCSC_STELLA=stella VCSC_XVFB=Xvfb and
+--jobs8 at /tmp/opencode/layers-edge-full-suite.log. Record its actual result
+separately. New tests add eight edge shards and one geometry entry. Until that
+finishes, claim only the focused results above. Score-above's X0..119 positioning
+bound, hostile left-edge score entry cleanup and general app/control RAM are
+separate limits; this repair does not remove them. Nothing pushed.
