@@ -75,10 +75,12 @@ while(1) {
          unlink$png or die$!;
       }
       rmdir$images or die$!;
-      unlink$raw or die"remove $raw: $!";
-      unlink"$work/build.log",$log;
+      if(!$ENV{VCSC_KEEP_RAWSTREAM}) {
+         unlink$raw or die"remove $raw: $!";
+         unlink"$work/build.log",$log;
+      }
       unlink"$work/inprogress"or die$!;
-      rmdir$work or die"remove $work: $!";
+      if(!$ENV{VCSC_KEEP_RAWSTREAM}){rmdir$work or die"remove $work: $!";}
       exit 0;
    }
    if(waitpid($pid,WNOHANG)==$pid){my$s=$?;delete$children{$pid};die"Stella exited before capture completed (status $s); recording: $raw; converter: $log\n";}

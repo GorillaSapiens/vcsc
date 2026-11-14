@@ -194,7 +194,14 @@ Immediate TODO
 --------------
 Active user task: finish VCSC-only RawStream migration. Converter is under
 test/rawstream2png; migrated all selected-frame callers, unchanged RGB references.
-Full eight-worker verification is running: /tmp/opencode/rawstream-full-suite.log.
+First eight-worker run1324/1328: /tmp/opencode/rawstream-full-suite.log. Hygiene
+and banner fixed; followup7/7 passes, including layers within unchanged240s and
+heart score. This is not a clean full-suite rerun. Upstream
+Stella clears startup hold inputs after500ms HOST time (EventHandler.cxx140..144),
+causing heart-score frame200 nondeterminism under recording/parallel load. Kept
+streams confirm logical P0 X68 versus159 at identical frame200. Do not weaken
+assertions/change frames/patch Stella. Followup results in
+/tmp/opencode/rawstream-failure-followup.log (complete7/7). No full-suite sign-off.
 Do not edit Stella. See test/rawstream2png/README.md for pipeline and inventory.
 
 Layers/sections agreed scope is complete at a63944fe/373af8a6: independent even

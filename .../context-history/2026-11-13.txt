@@ -258,3 +258,30 @@ tests retain their intentional non-selected-frame behavior. No Stella internals
 were changed or rebuilt. Full eight-worker suite in progress:
 /tmp/opencode/rawstream-full-suite.log. Final contracts contain changes after
 that run's discovery, so a clean full rerun is still needed before sign-off.
+
+RawStream followup: broad run finished1324/1328. Failures: hygiene resolver
+(already fixed), new README FIGlet banner (now fixed), base layers all-five
+unchanged240s timeout, and heart below move-right frame200 exact-pixel mismatch.
+Did not change deadlines, pixel oracles, requested frames or Stella internals.
+Read-only upstream EventHandler::reset() source lines140..144 explicitly clears
+startup hold events after500ms HOST time. Sequential and eight-way probe captures
+show differing movement under load; retained FRAM200 RAM at demo_object_x0=$aa
+proves X68 versus159 for same ROM/frame. Source path:
+/tmp/opencode/stella-rawstream-reference/src/emucore/EventHandler.cxx.
+Evidence recordings /tmp/opencode/rawstream-heart-probe/run65/rawstream-BRwvX8/
+capture.raw and run66/rawstream-doPhAg/capture.raw; converter --list metadata
+in check65.txt/check66.txt under that probe directory. Supported threads0 and
+zoom1/vsync0 probes did not make held inputs deterministic; not applied to tests.
+This is a Stella-owner blocker, not permission to patch it or accept new digests.
+Adapter now supports explicit VCSC_KEEP_RAWSTREAM=1 for successful-capture
+diagnostics, without changing selection. Current seven-test followup log:
+/tmp/opencode/rawstream-failure-followup.log. Full-suite sign-off pending.
+
+Followup finished7/7: layers base within unchanged240s, heart score, branding,
+hygiene, real RawStream identity, synthetic converter and fake-producer capture
+contracts all pass. Focused success does not invalidate the independently proven
+host-time held-input nondeterminism or replace a clean full-suite run.
+
+User authorized removal of addons/stella-framesnap.patch after migration.
+Removed the obsolete VCSC-side addon and updated converter documentation;
+historical records remain unchanged and the patch remains available in Git.

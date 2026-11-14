@@ -1,3 +1,10 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 # Stella RawStream to PNG
 
 `rawstream2png` is a standalone C++17 converter, not a Stella plugin or patch.
@@ -74,6 +81,9 @@ and reaps Stella's process group, removes the successfully converted recording,
 and publishes the complete selected PNG set. A shared60-second deadline and
 512MiB recording cap bound failure; TERM/KILL cleanup handles interruption.
 Builds are serialized across parallel callers with a lock in this directory.
+For investigation, set `VCSC_KEEP_RAWSTREAM=1` to retain successful capture files
+and converter logs as well (use a private test directory and remove them yourself
+afterwards). This does not alter frame selection or assertions.
 
 Failures distinguish Stella exit, converter errors, timeout and growth limits;
 recordings and converter logs remain under `snap/rawstream-*/`. The existing
@@ -122,7 +132,26 @@ non-overwriting publication and immediate propagation through the shared waiter.
 
 Some separate interactive/reset/startup tests intentionally use upstream snapshot
 key/sequence facilities; those were not selected-frame callers and remain intact.
-The old addon patch is historical only and is not required by any migrated test.
+The obsolete FrameSnap addon patch has been removed; its history remains in Git.
 No Stella source or documentation is modified by this migration. Unrelated
 emulator mapper requirements are unchanged; report upstream deficiencies instead
 of maintaining or patching Stella here.
+
+### Current verification blockers
+
+The first broad eight-worker run passed1324/1328 tests. Its hygiene and README
+banner failures are fixed. The followup passed all seven selected tests, including
+the layers base driver within its unchanged240-second budget and the heart-score
+test. That focused pass does not erase the reproducible input nondeterminism below
+or constitute a clean full-suite run. Do not interpret this as full certification.
+
+The unchanged heart-score movement assertion exposes an upstream input issue:
+Stella `EventHandler::reset()` clears startup hold inputs after500 milliseconds
+of **host time**, not a specified emulated frame. Raw recording/parallel load
+can let this expire before the player reaches X159. Identical ROM/selection runs
+then produce different frame200 pixels. Read-only reference source:
+`src/emucore/EventHandler.cxx:140–144` in the supplied Stella archive. Captured
+RAM independently confirms P0 X68 versus X159 at the same recorded frame200.
+Neither converter frame identity nor the assertion is changed to conceal it.
+This needs resolution by the Stella owner before reliable held-input certification;
+no Stella patch, retries, alternate accepted digests or later frames are used here.
