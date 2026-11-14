@@ -46,6 +46,11 @@ periods. The visible display is a fixed 48-line scene centered inside the
 4x4 orbit markers moving around them. The hexadecimal glyphs come directly from
 `fonts/big_hex.c26`.
 
+The final blank gap uses the plain scanline wait so overscan asserts VBLANK
+inside horizontal blanking, after all 192 complete visible lines. The calibrated
+component-tail delay is not appropriate for this scene's return phase; it would
+leave a partly blue extra scanline at the bottom.
+
 The fire button is pin 6: INPT4 on the left and INPT5 on the right. Current
 Stella does not auto-detect Indy 500 driving controllers from a ROM. Before
 running this example in Stella, go to **Options -> Game Properties ->

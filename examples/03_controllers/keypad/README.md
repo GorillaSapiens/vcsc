@@ -40,6 +40,10 @@ every four frames.
 port is preserved. The public example keeps all keypad work in overscan so
 input-dependent branches cannot disturb the VBLANK-to-visible deadline.
 
+The final visible wait uses the plain scanline helper so VBLANK starts inside
+HBLANK after 192 complete blue rows. The calibrated component-tail helper adds
+an inappropriate delay here and would expose a coloured fragment of row 193.
+
 Current Stella auto-detects controller types by recognizing ROM access idioms.
 The component therefore uses recognizable BIT/branch reads for the keypad INPT
 registers while preserving SWCHA through an indexed read that does not falsely

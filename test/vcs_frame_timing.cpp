@@ -32,6 +32,14 @@ constexpr uint64_t kExpectedDisplayedScanlines = 262;
 constexpr uint64_t kDefaultVsyncIntervalScanlines = 263;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kVblank = 0x0001;
+bool report_visible_boundaries = false;
+bool require_safe_visible_boundaries = false;
+unsigned visible_boundary_checks = 0;
+bool boundary_blanked = true;
+uint64_t boundary_visible_start = 0;
+uint64_t boundary_colubk = 0, boundary_colupf = 0;
+uint8_t boundary_bk_value = 0, boundary_pf_value = 0;
+uint8_t boundary_tia[64]{};
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kResp0 = 0x0010;
 constexpr uint16_t kResp1 = 0x0011;
@@ -580,6 +588,42 @@ void verify_stable_tia_write_phase_previous_frame() {
    }
 }
 
+// This is a scanline-edge oracle, not a TIA pixel renderer. A late VBLANK
+// transition is harmless only when the caller has already left a black gap.
+// Real native-pixel smoke tests independently cover the affected caller families.
+void observe_visible_boundary(uint16_t address, uint8_t value) {
+   boundary_tia[address] = value;
+   if (address == 9) { boundary_colubk = virtual_cycles; boundary_bk_value = value; }
+   if (address == 8) { boundary_colupf = virtual_cycles; boundary_pf_value = value; }
+   if (address != kVblank) return;
+   const bool next = (value & 2) != 0;
+   if (!next && boundary_blanked) boundary_visible_start = virtual_cycles;
+   if (next && !boundary_blanked && vsync_assertions.size() > 2) {
+      const bool ink = (boundary_tia[9] & 0xfe) ||
+         (((boundary_tia[0x0d] & 0xf0) || boundary_tia[0x0e] || boundary_tia[0x0f] ||
+            (boundary_tia[0x1f] & 2)) && (boundary_tia[8] & 0xfe)) ||
+         ((boundary_tia[0x1b] || (boundary_tia[0x1d] & 2)) && (boundary_tia[6] & 0xfe)) ||
+         ((boundary_tia[0x1c] || (boundary_tia[0x1e] & 2)) && (boundary_tia[7] & 0xfe));
+      const uint64_t phase = virtual_cycles % kCyclesPerScanline;
+      ++visible_boundary_checks;
+      if (require_safe_visible_boundaries && ink && phase > 22) {
+         std::fprintf(stderr,"vcs_frame_timing: coloured overscan fragment at frame %zu cycle %llu\n",
+            vsync_assertions.size(), static_cast<unsigned long long>(phase));
+         std::exit(1);
+      }
+      if (report_visible_boundaries) {
+         std::printf("boundary frame=%zu lines=%llu start=%llu end=%llu ink=%u bk=%u@%lld pf=%u@%lld\n",
+            vsync_assertions.size(),
+            static_cast<unsigned long long>(virtual_cycles / kCyclesPerScanline - boundary_visible_start / kCyclesPerScanline),
+            static_cast<unsigned long long>(boundary_visible_start % kCyclesPerScanline),
+            static_cast<unsigned long long>(phase), ink ? 1u : 0u,
+            boundary_bk_value, static_cast<long long>(boundary_colubk) - static_cast<long long>(boundary_visible_start),
+            boundary_pf_value, static_cast<long long>(boundary_colupf) - static_cast<long long>(boundary_visible_start));
+      }
+   }
+   boundary_blanked = next;
+}
+
 void apply_writes() {
    for (const WriteEvent &event : writes) {
       // 3F owns writes in $00-$3F.  Treat classic 3E the same way here so
@@ -590,6 +634,8 @@ void apply_writes() {
          (!three_mapper() || event.address >= 0x0040u);
       const uint16_t tia_address = tia_write
          ? static_cast<uint16_t>(event.address & 0x003fu) : event.address;
+      if ((report_visible_boundaries || require_safe_visible_boundaries) && tia_write)
+         observe_visible_boundary(tia_address, event.value);
       if (tia_write && !vsync_assertions.empty()) {
          const uint64_t frame_line =
             (virtual_cycles - vsync_assertions.back()) / kCyclesPerScanline;
@@ -683,6 +729,8 @@ void apply_writes() {
             if (vsync_assertions.size() > 3) {
                const size_t n = vsync_assertions.size();
                const uint64_t delta = vsync_assertions[n - 1] - vsync_assertions[n - 2];
+               if (report_visible_boundaries)
+                  std::printf("period frame=%zu cycles=%llu\n", n-1, static_cast<unsigned long long>(delta));
                const uint64_t live_expected = raw_line_memory_oracle.enabled
                   ? frame_expected_raw_cycles[n - 2]
                   : live_expected_raw_cycles;
@@ -795,6 +843,9 @@ int main(int argc, char **argv) {
       std::fprintf(stderr,
          "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--stop-pc ADDR] [--minimum-checked-frames N] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--paddle-lines L0,L1,L2,L3] [--require-stable-tia-write-phase ADDR LINE]... [--expect-memory ADDR VALUE]... [--expect-memory-equal ADDR COUNT]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
+      std::fprintf(stderr,
+          "  --require-safe-visible-boundaries rejects coloured overscan fragments in addition to ordinary checks.\n"
+          "  --report-visible-boundaries prints VBLANK phases, colours and raw periods instead of ordinary timing/audio assertions.\n");
       return 2;
    }
 
@@ -810,6 +861,12 @@ int main(int argc, char **argv) {
    for (int i = 3; i < argc; ++i) {
       if (std::strcmp(argv[i], "--no-audio") == 0) {
          require_audio = false;
+      }
+      else if (std::strcmp(argv[i], "--report-visible-boundaries") == 0) {
+         report_visible_boundaries = true;
+      }
+      else if (std::strcmp(argv[i], "--require-safe-visible-boundaries") == 0) {
+         require_safe_visible_boundaries = true;
       }
       else if (std::strcmp(argv[i], "--stop-pc") == 0) {
          if (++i >= argc) fail("--stop-pc requires an address");
@@ -1209,7 +1266,7 @@ int main(int argc, char **argv) {
       }
    }
    const uint64_t expected_raw_cycles = expected_raw_lines * kCyclesPerScanline;
-   live_expected_raw_cycles = raw_line_memory_oracle.enabled ? 0 : expected_raw_cycles;
+   live_expected_raw_cycles = (raw_line_memory_oracle.enabled || report_visible_boundaries) ? 0 : expected_raw_cycles;
 
    char *end = nullptr;
    const long requested = std::strtol(argv[2], &end, 10);
@@ -1350,6 +1407,9 @@ int main(int argc, char **argv) {
    if (vsync_assertions.size() < static_cast<size_t>(requested)) {
       fail("instruction limit reached before enough frames");
    }
+   if (require_safe_visible_boundaries && !visible_boundary_checks)
+      fail("no complete visible boundaries checked");
+   if (report_visible_boundaries) return 0;
    if (timer_overrun_read) {
       fail("overscan timer underflowed before the player finished");
    }

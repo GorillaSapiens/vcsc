@@ -98,7 +98,9 @@ private:
    int active_side_=-1; Scenario scenario_=Scenario::Clockwise; bool example_=false;
    int reads_per_group_=1; uint64_t swcha_reads_=0;
    uint64_t cpu_cycles_=0, virtual_cycles_=0;
-   int frame_=0; bool vsync_=false;
+    int frame_=0; bool vsync_=false;
+    bool vblank_=true;
+    uint64_t visible_start_=0;
    std::vector<uint64_t> starts_;
    std::vector<Snapshot> snapshots_;
    std::vector<Pending> pending_;
@@ -207,9 +209,22 @@ private:
             vsync_=next;
          } else if(w.address==kSwacnt) {
             swacnt_=w.value;
-         } else if(w.address==kSwcha) {
-            swcha_latch_=w.value;
-         } else if(w.address>=kTim1t && w.address<=kT1024t) {
+          } else if(w.address==kSwcha) {
+             swcha_latch_=w.value;
+          } else if(w.address==kVblank && example_) {
+             const bool next=(w.value&2)!=0;
+             if(!next && vblank_) visible_start_=virtual_cycles_;
+             if(next && !vblank_ && frame_>0) {
+                const uint64_t lines=virtual_cycles_/kCyclesPerLine-visible_start_/kCyclesPerLine;
+                const uint64_t phase=virtual_cycles_%kCyclesPerLine;
+                // The TIA's 160 visible colour clocks follow 68 HBLANK clocks
+                // (22 2/3 CPU cycles). No partial extra blue line may escape.
+                if(lines!=192 || phase>22)
+                   fail("visible end is %llu lines at cycle %llu; expected 192 lines then HBLANK",
+                      static_cast<unsigned long long>(lines),static_cast<unsigned long long>(phase));
+             }
+             vblank_=next;
+          } else if(w.address>=kTim1t && w.address<=kT1024t) {
             load_timer(w.address,w.value);
          }
       }

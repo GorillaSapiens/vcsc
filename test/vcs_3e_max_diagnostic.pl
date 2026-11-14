@@ -67,7 +67,7 @@ $src =~ /spinner_frame\+\+.*?spinner_frame\s*==\s*15.*?spinner_index\+\+/s
    or die "3E max spinner no longer advances every 15 NTSC frames\n";
 $src =~ /ram_phase\).*?torture_batch\s*:=\s*2.*?torture_batch\s*:=\s*10.*?step_3e_max_torture\(\).*?ram_phase\).*?torture_batch\s*:=\s*2.*?torture_batch\s*:=\s*8.*?step_3e_max_torture\(\)/s
    or die "3E max torture no longer uses bounded compiler-swapram/ROM VBLANK and overscan batches\n";
-$src =~ /vcs_ntsc_wait_component_scanlines\(80\).*?status_result_draw\(\).*?lda #\$fb.*?sta \$3f.*?WSYNC\s*:=\s*\$A.*?vcs_ntsc_component_handoff\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(81\)/s
+$src =~ /vcs_ntsc_wait_component_scanlines\(80\).*?status_result_draw\(\).*?lda #\$fb.*?sta \$3f.*?WSYNC\s*:=\s*\$A.*?vcs_ntsc_component_handoff\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_scanlines\(81\)/s
    or die "3E max banked-label handoff no longer preserves the 192-line visible frame\n";
 read_file($cart_font) =~ /Characters:\s*"3E max"/ or die "3E max font no longer encodes exact second line\n";
 my $status_text=read_file($status_font);
@@ -189,7 +189,7 @@ my @memory_oracle=(
    '--expect-memory',sprintf('0x%04X',$sym{ram_lfsr}+1),'0x5f',
 );
 my($timing_out,$timing_err)=require_ok('time and verify complete 3E max run',$timing,$bin,'22000',
-   '--no-audio','--raw-lines','264',@memory_oracle);
+   '--no-audio','--raw-lines','264','--require-safe-visible-boundaries',@memory_oracle);
 $timing_out eq "vcs_frame_timing ok: 21997 frames at 262 lines, 1 AUDV0 writes\n"
    or die "3E max complete WAIT/result frame timing was not exactly 262 scanlines:\n$timing_out";
 $timing_err eq '' or die "3E max frame timing wrote stderr:\n$timing_err";

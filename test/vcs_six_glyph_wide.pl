@@ -108,7 +108,7 @@ $rc==0 && !$sig or die "public wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public wide example wrote output\n$out$err";
 -s $public_bin==2048 or die "public wide example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1207 bytes/ or die "public wide example ROM accounting changed\n";
+$public_map_text =~ /rom\s+used=1199 bytes/ or die "public wide example ROM accounting changed\n";
 $public_map_text =~ /ram\s+used=33 bytes.*objects=29 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';

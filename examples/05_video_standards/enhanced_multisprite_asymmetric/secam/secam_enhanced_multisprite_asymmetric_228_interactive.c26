@@ -105,7 +105,8 @@ bank1 void render_visible_frame(void) {
    game_vblank();
    vcs_secam_end_vblank();
    game_draw();
-   vcs_secam_component_to_overscan_handoff();
+   // This banked draw returns at cycle9, not cycle0. Adding the generic
+   // handoff would expose part of an extra coloured line before VBLANK.
    vcs_secam_begin_overscan();
 }
 

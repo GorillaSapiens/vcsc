@@ -64,7 +64,7 @@ $e =~ /lda #42/ && $e =~ /lda #122/ && $e =~ /asm ldy #15/ &&
 $e =~ /asm \@glyph_rows:;\s*asm sta WSYNC;\s*drive_apply_missiles\(\);\s*asm lda\.iy \(left_glyph_pointer\),y;\s*asm sta GRP0/s &&
 $e =~ /drive_prepare_left_missile\(\)/ && $e =~ /drive_prepare_right_missile\(\)/ &&
 $e =~ /vcs_ntsc_wait_component_scanlines\(71\)/ &&
-$e =~ /vcs_ntsc_wait_visible_tail_scanlines\(72\)/ &&
+   $e =~ /vcs_ntsc_wait_scanlines\(72\)/ &&
 $e =~ /asm cpx #48/
    or die "public driving example lost centered P0\/P1 glyph-and-orbit raster or one-line-ahead missile scheduling\n";
 

@@ -64,7 +64,7 @@ bank255 void draw_3e_max_visible(void) {
    WSYNC := $A;
    vcs_ntsc_component_handoff();
    cart_type_draw();
-   vcs_ntsc_wait_visible_tail_scanlines(81);
+   vcs_ntsc_wait_scanlines(81);
    vcs_ntsc_begin_overscan();
 }
 

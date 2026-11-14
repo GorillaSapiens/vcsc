@@ -86,7 +86,7 @@ bank0 void draw_result(void) {
       status_result_draw();
       vcs_ntsc_component_handoff();
       cart_type_draw();
-      vcs_ntsc_wait_visible_tail_scanlines(81);
+      vcs_ntsc_wait_scanlines(81);
       vcs_ntsc_begin_overscan();
       status_result_overscan();
       cart_type_overscan();

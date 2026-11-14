@@ -25,6 +25,59 @@ It runs three kinds of files:
 
 ## Editable examples versus golden fixtures
 
+`vcs_driving.pl` and `vcs_keypad.pl` check controller behaviour and overscan entry
+during HBLANK after 192 complete visible lines. `vcs_driving_stella.pl` now checks
+native frames 200–201 for eleven public examples: driving, keypad, all five
+standalone score displays, representative E0/F8 mapper diagnostics, and both
+PAL/SECAM asymmetric displays. It checks contiguous fields, complete first/last
+visible rows and uniform blank margins, without pinning RGB, glyphs or positions.
+PAL blanking uses the recorded palette's dark-grey entry rather than RGB000000.
+
+### Example scanline-edge audit
+
+The eight editable-example build shards now also run
+`vcs_frame_timing.cpp --report-visible-boundaries --require-safe-visible-boundaries`
+on every supported mapper profile (106 of the 119 ordinary entry points in the
+current inventory). The guard rejects VBLANK asserted after cycle 22 when colour
+output remains enabled. An already-black trailing gap is safe; this distinction
+keeps the field diagnostic's intentional black tail and internal score blanking
+valid. This minimal timing core is not a full TIA raster simulator: real native
+PNG checks independently cover the affected caller families. The three generated
+maximum-size diagnostics have the same guard in their dedicated long-run timing
+tests. Existing raw-period, CPU-state and pixel-reference checks are retained.
+
+For an inventory that maps public sources to their built ROMs and mapper profiles:
+
+```sh
+perl test/vcs_examples_build.pl "$PWD" /tmp/opencode/example-audit \
+    --manifest /tmp/opencode/example-audit.tsv --shard 1/8
+```
+
+`--report-visible-boundaries` is an inspection mode: it prints start/end phases,
+colour-write timing and raw periods **instead of** ordinary period/audio
+assertions. `--require-safe-visible-boundaries` alone adds the edge guard to the
+ordinary assertions; it does not disable them.
+
+The 2026-11-13 audit rebuilt/round-tripped all 119 ordinary entry points and examined
+native captures from 118 supported examples at frames 198–200. The remaining OMNI
+example was source-reviewed and its identical late-tail call corrected, but is
+not emulator-certified: installed Stella reports `F4* (32K)` even with `-bs OMNI`,
+and the supplied upstream CartCreator has no OMNI implementation. Apparent images
+from that fallback are not a valid OMNI pass. Stella ownership remains external.
+
+The fix is public-caller-specific: plain final scanline waits replace the late
+calibrated tail in keypad, standalone scores and mapper diagnostics; PAL/SECAM
+banked asymmetric draws omit a handoff intended for a cycle-zero return, because
+they actually return at cycle 9. Coloured ends now blank at cycles 19/20 or 14,
+respectively. All 106 measured default raw frame periods stayed unchanged. Shared
+scheduler contracts and private golden PNGs remain unchanged. Pre-existing whole-
+line layout differences were not normalized as part of this partial-line fix.
+
+Final eight-worker verification: **1329/1330 passed**. All example, boundary and
+mapper gates passed within their existing deadlines. The sole failure was the
+previously reproduced heart-score held-input digest mismatch; upstream Stella's
+host-time input expiry remains unresolved. This is not a clean full-suite pass.
+
 Everything under `examples/` is user-facing and deliberately editable. The
 suite smoke-builds all examples through eight `vcs_examples_build_*of8.test`
 shards backed by `vcs_examples_build.pl`; the round-robin split lets the outer

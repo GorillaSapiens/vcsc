@@ -349,7 +349,11 @@ void main(void) {
       // blank lines for that first WSYNC to complete.
       vcs_ntsc_wait_component_scanlines(71);
       drive_draw_scene();
-      vcs_ntsc_wait_visible_tail_scanlines(72);
+       // The scene returns early in the following blank line. Use the plain
+       // wait here: the calibrated component-tail delay would assert VBLANK
+       // at cycle 40, leaking a partly blue extra line into overscan. Without
+       // that delay the transition is at cycle 19, still inside HBLANK.
+       vcs_ntsc_wait_scanlines(72);
 
       vcs_ntsc_begin_overscan();
       drive_sample_pair();

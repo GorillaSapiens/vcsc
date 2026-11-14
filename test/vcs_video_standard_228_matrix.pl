@@ -48,12 +48,15 @@ for my$f(@families) {
       }},$root);
       @matches==1 or die "$standard $family native-228 example count is ".scalar(@matches).", expected 1\n";
       my$text=read_file($matches[0]);
-      $text =~ /vcs_${standard}_end_vblank\(\).*?game_draw\(\).*?vcs_${standard}_component_to_overscan_handoff\(\).*?vcs_${standard}_begin_overscan\(\)/s
+      my$handoff=$family eq 'enhanced_multisprite_asymmetric' ? '' : "vcs_${standard}_component_to_overscan_handoff\\(\\);";
+      $text =~ /vcs_${standard}_end_vblank\(\).*?game_draw\(\).*?$handoff.*?vcs_${standard}_begin_overscan\(\)/s
          or die "$matches[0] does not hand a native 228-line renderer directly from VBLANK to overscan\n";
       $text !~ /wait_component_scanlines|wait_visible_tail_scanlines|border_handoff|hide_border/
          or die "$matches[0] reintroduced synthetic visible padding\n";
       if ($family eq 'enhanced_multisprite_asymmetric') {
-         $text =~ /bank1\s+void\s+render_visible_frame\s*\(void\)\s*\{.*?game_vblank\(\);.*?vcs_\Q$standard\E_end_vblank\(\);.*?game_draw\(\);.*?vcs_\Q$standard\E_component_to_overscan_handoff\(\);.*?vcs_\Q$standard\E_begin_overscan\(\);.*?\}/s
+         $text !~ /vcs_\Q$standard\E_component_to_overscan_handoff\(\)/
+            or die "$matches[0] adds a cycle-zero handoff to the banked cycle-nine return\n";
+         $text =~ /bank1\s+void\s+render_visible_frame\s*\(void\)\s*\{.*?game_vblank\(\);.*?vcs_\Q$standard\E_end_vblank\(\);.*?game_draw\(\);.*?vcs_\Q$standard\E_begin_overscan\(\);.*?\}/s
             or die "$matches[0] lost the bank-resident enhanced visible-phase bridge\n";
          $text =~ /vcs_\Q$standard\E_begin_vblank\(\);\s*render_visible_frame\(\);\s*game_overscan\(\);/s
             or die "$matches[0] switches into the enhanced renderer bank too late\n";

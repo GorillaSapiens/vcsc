@@ -314,7 +314,9 @@ void main(void) {
 
       vcs_ntsc_wait_component_scanlines(90);
       keypad_draw_glyphs();
-      vcs_ntsc_wait_visible_tail_scanlines(92);
+      // Finish the 192-line field with overscan still inside HBLANK. The
+      // calibrated component-tail delay would expose part of an extra line.
+      vcs_ntsc_wait_scanlines(92);
 
       vcs_ntsc_begin_overscan();
 

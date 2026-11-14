@@ -677,7 +677,7 @@ my $big_wide_make=slurp(File::Spec->catfile($repo,'examples','02_components','bi
 index($big_wide_source,'include "fonts/big_decimal.c26"')>=0 &&
 index($big_wide_source,'instantiate "six_glyph_big_wide_component.c26" as score')>=0 &&
 index($big_wide_source,'vcs_ntsc_wait_component_scanlines(87)')>=0 &&
-index($big_wide_source,'vcs_ntsc_wait_visible_tail_scanlines(86)')>=0 &&
+index($big_wide_source,'vcs_ntsc_wait_scanlines(86)')>=0 &&
 index($big_wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','fonts','big_decimal.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','fonts','big_hex.c26') &&

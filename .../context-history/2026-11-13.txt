@@ -285,3 +285,66 @@ host-time held-input nondeterminism or replace a clean full-suite run.
 User authorized removal of addons/stella-framesnap.patch after migration.
 Removed the obsolete VCSC-side addon and updated converter documentation;
 historical records remain unchanged and the patch remains available in Git.
+
+2026-11-13 18:37:50 PDT, driving partial bottom row
+
+User observed coloured-left/black-right final line in examples/03_controllers/
+driving. No per-frame COLUBK clear exists: the cause was VBLANK asserted at
+cycle40 on the line following192 complete visible scanlines. The scene's return
+phase differs from calibrated renderer tails, so wait_visible_tail_scanlines72
+adds an inappropriate21-cycle delay. Replaced only that call with the plain
+wait_scanlines72; overscan now asserts VBLANK at cycle19, inside horizontal
+blanking. Raw264-line CPU frame period and all controller/button/orbit-state
+checks unchanged; no shared frame-scheduler behavior changed.
+
+Extended vcs_driving.cpp oracle to reject overscan entry after192 lines outside
+HBLANK. Regression fails on original ROM with cycle40, passes fixed ROM. Added
+vcs_driving_stella.pl public-example smoke property (not a golden scene): exact
+frames200..201 have192 consecutive nonblack rows, full-width first/last background
+rows and black outside. No RGB/glyph/orbit-coordinate oracle is pinned. Confirmed
+that same pixel test on retained original ROM fails with193 nonblack rows, and
+fixed ROM passes. Before CPU/pixel diagnostics:
+/tmp/opencode/driving-bottom-regression-before.log and driving-stella-before.log.
+Final5/5 pass: /tmp/opencode/driving-bottom-tests-final.log (CPU controller test,
+Stella pixels, unchanged assembly allowlist, source hygiene and branding).
+Updated example/test documentation. Full suite not rerun for this local fix.
+
+2026-11-13 19:45:00 PDT, public example scanline-edge audit
+
+User reported the same partial bottom line in keypad and requested an audit of
+all public examples. Corrected keypad, all five standalone score displays and
+mapper-diagnostic final waits: use the plain helper, not the calibrated tail
+that asserts VBLANK at cycle40. PAL/SECAM banked asymmetric displays instead omit
+the cycle-zero handoff because their draw returns at cycle9. Corrected callers
+blank inside HBLANK; shared scheduler helpers and golden PNGs remain unchanged.
+
+Rebuilt/round-tripped119 ordinary entry points in eight shards. All106 default
+ROMs supported by the minimal CPU oracle pass the final edge guard; their raw
+frame periods are unchanged. Examined native frames198..200 from118 supported
+examples. OMNI remains explicitly unverified: Stella silently reports F4 even
+with -bs OMNI, and supplied upstream CartCreator has no OMNI implementation.
+Corrected OMNI's identical source tail but do not claim its fallback image passes.
+
+Permanent gates: build shards check visible boundaries; keypad CPU test checks
+192 complete lines and HBLANK entry; expanded native frames200..201 smoke test
+covers eleven caller variants; all three max-diagnostic long-run timing tests
+also check the edge guard without removing their existing assertions. The new
+guard rejects the retained original keypad ROM. The eleven-case pixel gate,
+controller checks and all three max-diagnostic tests pass focused followup.
+Public score ROMs lose eight bytes; exact accounting expectations updated.
+
+First broad run1320/1330; followup11/15. Corrected stale source/size expectations
+and the prior history header format. Remaining followup failures were two
+unchanged-budget timeouts, independently known upstream held-input nondeterminism,
+and history checked before its final correction. SDL video initialization caused
+the first run's negative-raster test failure; that negative test passes followup.
+Final isolated eight-worker suite finished1329/1330. Only heart-score held-right
+digest fails; all example shards, generated max diagnostics, boundary tests,
+layers and repeated-section budget gates pass within unchanged deadlines. This
+is not a clean full-suite sign-off: upstream held-input nondeterminism remains.
+Final log: /tmp/opencode/examples-boundary-final-suite.log; failure diagnostics
+retained in /tmp/vcsc_generic_0F2G. Diagnostics and inventories are in
+/tmp/opencode/examples-boundary-audit and examples-boundary-after; broad/followup
+logs are /tmp/opencode/examples-boundary-full-suite.log and
+/tmp/opencode/examples-boundary-followup.log. No Stella changes or relaxed pixel
+oracles, timing limits, retries or alternative digests were introduced.

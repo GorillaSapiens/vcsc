@@ -47,7 +47,7 @@ $e =~ /keypad_font\[130\]/ && $e !~ /fonts\/big_ascii\.c26/ &&
 $e =~ /alias VCS_FONT_GLYPH\(a,b,c,d,e,f,g,h,i,j\)/ &&
 $e =~ /asm ldy #9/ &&
 $e =~ /vcs_ntsc_wait_component_scanlines\(90\)/ &&
-$e =~ /vcs_ntsc_wait_visible_tail_scanlines\(92\)/
+$e =~ /vcs_ntsc_wait_scanlines\(92\)/
    or die "keypad example must use the trimmed 13-glyph 8x10 Big subset\n";
 $e =~ /lda #36/ && $e =~ /lda #116/ && $e =~ /COLUBK := KEYPAD_BLUE/ &&
 $e =~ /COLUP0 := KEYPAD_WHITE/ && $e =~ /COLUP1 := KEYPAD_WHITE/

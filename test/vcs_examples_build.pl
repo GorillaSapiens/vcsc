@@ -9,7 +9,7 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
-sub usage { die "usage: $0 REPO TMP [--shard INDEX/COUNT|--repeated-colour-sections]\n"; }
+sub usage { die "usage: $0 REPO TMP [--manifest FILE] [--shard INDEX/COUNT|--repeated-colour-sections]\n"; }
 sub slurp_fh { my($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub capture {
    my(@cmd)=@_; my $err=gensym; my $pid=open3(my $in,my $out,$err,@cmd); close($in);
@@ -36,6 +36,11 @@ my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
 my $repeated_sections=@ARGV && $ARGV[0] eq '--repeated-colour-sections';
 shift @ARGV if $repeated_sections;
+my $manifest;
+if (@ARGV && $ARGV[0] eq '--manifest') {
+   shift @ARGV;
+   $manifest=shift @ARGV // usage();
+}
 my($shard_index,$shard_count);
 if (@ARGV) {
    shift @ARGV eq '--shard' or usage();
@@ -210,6 +215,37 @@ for my $source (@example_sources) {
 @examples=sort { $a->[0] cmp $b->[0] || $a->[1] cmp $b->[1] } @examples;
 @examples or die "no editable examples found under $examples_root\n";
 my $all_example_count=scalar(@examples);
+my $manifest_fh;
+if (defined($manifest)) {
+   open($manifest_fh,'>:raw',$manifest) or die "write $manifest: $!";
+}
+my $boundary_oracle;
+sub check_visible_boundary {
+   my($profile,$bin,$source)=@_;
+   # Unsupported profiles remain outside this CPU guard; see the native-pixel
+   # example audit in test/README.md, including the OMNI emulator limitation.
+   return unless $profile =~ /\A(?:2k|4k|f8|f8sc|f4|f4sc|e0|f0|fc|3f|3e|3ex)\z/;
+   if (!defined($boundary_oracle)) {
+      $boundary_oracle=File::Spec->catfile($tmp,'visible-boundary-oracle');
+      my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
+      my $obj=File::Spec->catfile($mos,'mos6502.o');
+      my($rc,$sig,$out,$err)=capture($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES',
+         '-I',$mos,File::Spec->catfile($repo,qw(test vcs_frame_timing.cpp)),
+         (-f$obj?$obj:File::Spec->catfile($mos,'mos6502.cpp')),'-o',$boundary_oracle);
+      !$rc && !$sig or die "boundary oracle build failed\n$out$err";
+   }
+   my $input=$bin;
+   if ($profile eq '2k') {
+      # Mirror the physical 2K image, as the 6507 cartridge bus does.
+      $input=File::Spec->catfile($tmp,'visible-boundary-2k.rom');
+      open(my $fh,'>:raw',$input) or die "write $input: $!";
+      my $rom=read_file($bin);
+      print {$fh} $rom,$rom;
+      close($fh) or die "close $input: $!";
+   }
+   my($rc,$sig,$out,$err)=capture($boundary_oracle,$input,'10','--released-inputs','--report-visible-boundaries','--require-safe-visible-boundaries');
+   !$rc && !$sig or die "$source visible boundary failed\n$out$err";
+}
 if (defined($shard_index)) {
    my @selected;
    for my $i (0..$#examples) {
@@ -283,6 +319,8 @@ for my $entry (@examples) {
    without_cartridge_usage($out) eq '' or die "$dir wrote unexpected stdout:\n$out";
    $err eq '' or die "$dir wrote stderr:\n$err";
    my $rom=read_file($bin);
+   check_visible_boundary($profile,$bin,$source);
+   print {$manifest_fh} join("\t",File::Spec->abs2rel($source,$repo),$profile,$bin),"\n" if defined($manifest);
    my $tigervision_banks=tigervision_bank_count_from_source($source_text);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192

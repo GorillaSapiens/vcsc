@@ -361,7 +361,7 @@ $source_text =~ /#ifdef\s+POISONED_RESULT.*status_small_glyphs\s*\[\s*56\s*\]/s
    or die "diagnostic poison cart type is not six question marks\n";
 $source_text !~ /asm\s+lda\s+#(?:<|>)\{?(?:status_(?:big|small)_glyphs|cart_type_glyphs)/
    or die "diagnostic glyph-pointer setup still uses inline asm\n";
-$source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*81\s*\).*status_result_draw\s*\(\s*\).*vcs_ntsc_component_handoff\s*\(\s*\).*cart_type_draw\s*\(\s*\).*vcs_ntsc_wait_visible_tail_scanlines\s*\(\s*81\s*\)/s
+$source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*81\s*\).*status_result_draw\s*\(\s*\).*vcs_ntsc_component_handoff\s*\(\s*\).*cart_type_draw\s*\(\s*\).*vcs_ntsc_wait_scanlines\s*\(\s*81\s*\)/s
    or die "diagnostic two-line display is not centered in the 192-line visible field\n";
 $source_text =~ /status_result_color\s*:=\s*0x0e/ &&
 $source_text =~ /COLUP0\s*:=\s*0x0e/ &&
