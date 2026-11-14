@@ -1,0 +1,43 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+alias VCS_NTSC_EXTENDED_VBLANK
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "two_plus_two_score_support.c26"
+include "../../../_common/cooperating_layers_interactive_sprites.c26"
+include "layers/all_five_dense_objects.c26"
+instantiate "layers/all_five_intro.c26" as intro (player0_nusiz:=0x20, player1_nusiz:=0x20)
+instantiate "layers/all_five_section.c26" as upper (
+   number_of_scanlines:=64, playfield_row:=0x80000001, pf_color:=0x84, bk_color:=0x80
+)
+instantiate "layers/all_five_section.c26" as middle (
+   number_of_scanlines:=64, playfield_row:=0xc0000003, pf_color:=0xb4, bk_color:=0xb0
+)
+instantiate "layers/all_five_section.c26" as lower (
+   number_of_scanlines:=44, playfield_row:=0xe0000007, pf_color:=0x24, bk_color:=0x20
+)
+instantiate "layers/score.c26" as score (gameplay_scanlines:=172)
+// The fixed in-frame positioning entry supports only X0..119.
+instantiate "../../../_common/cooperating_layers_controls.c26" as controls (maximum_x:=119, maximum_y:=85, with_score:=1)
+
+void prepare_objects(void) { layers_prepare_vertical(); score_prepare(); }
+void main(void) {
+   VBLANK:=2; PF0:=0; CTRLPF:=0x21; controls_init();
+   while (1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank(); prepare_objects();
+      vcs_ntsc_end_vblank(); score_draw();
+      asm lda #2;
+      asm sta VBLANK;
+      asm sta WSYNC;
+      vcs_ntsc_component_handoff();
+      intro_establish_visible(); layers_prime();
+      asm lda #0;
+      asm sta WSYNC;
+      asm sta VBLANK;
+      upper_first(); middle_draw(); lower_draw(); layers_finish();
+      // 12 score +8 blanked intro +172 gameplay =192 scanlines.
+      vcs_ntsc_begin_overscan();
+      PF1:=0; PF2:=0; GRP0:=0; GRP1:=0; ENAM0:=0; ENAM1:=0; ENABL:=0;
+      controls_update(); vcs_ntsc_end_overscan();
+      asm sta WSYNC;
+   }
+}

@@ -1,0 +1,25 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// The same four-frame artwork as all_five/no_score/all_five_192_interactive.c26,
+// expressed top-to-bottom here and stored in the cooperating renderer's order.
+include "color_ntsc.c26"
+alias LAYERS_INTERACTIVE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+page const uint8_t layers_player0_colors[8] := {
+   VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE,
+   VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE
+};
+page const uint8_t layers_player1_colors[8] := {
+   VCS_NTSC_ORCHID,VCS_NTSC_ORCHID,VCS_NTSC_ORCHID,VCS_NTSC_ORCHID,
+   VCS_NTSC_ORCHID,VCS_NTSC_ORCHID,VCS_NTSC_ORCHID,VCS_NTSC_ORCHID
+};
+page const uint8_t layers_p0_animation[32] := {
+   LAYERS_INTERACTIVE_GLYPH(0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66),
+   LAYERS_INTERACTIVE_GLYPH(0x24,0x5a,0xbd,0xff,0xdb,0x7e,0x5a,0x99),
+   LAYERS_INTERACTIVE_GLYPH(0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x5a,0x81),
+   LAYERS_INTERACTIVE_GLYPH(0x81,0x5a,0xbd,0xff,0xdb,0x7e,0x3c,0x24)
+};
+page const uint8_t layers_p1_animation[32] := {
+   LAYERS_INTERACTIVE_GLYPH(0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c),
+   LAYERS_INTERACTIVE_GLYPH(0x54,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c),
+   LAYERS_INTERACTIVE_GLYPH(0x24,0x5a,0x81,0xff,0xdb,0xff,0x66,0x3c),
+   LAYERS_INTERACTIVE_GLYPH(0x2a,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c)
+};

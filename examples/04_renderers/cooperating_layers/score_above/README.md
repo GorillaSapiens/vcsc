@@ -15,6 +15,15 @@ make play
 make clean
 ```
 
+For joystick control, run `make play-interactive` (`make interactive` only builds).
+`interactive.c26` uses the standard example sprites: console SELECT chooses an
+object, left joystick moves it, and right joystick left/right selects a score
+digit. Right joystick up/down changes its decimal weight once per press. Fire is unused.
+Console RESET restores the scene.
+X is bounded to 0..119 for the in-frame positioning entry; Y is 0..85 in
+two-scanline units. See the [family controls](../README.md#interactive-controls).
+The default automatic rocket preview is unchanged.
+
 A12-line two-plus-two score, eight frame-owner-blanked positioning lines, then
 172 gameplay lines (64+64+44). Objects slowly traverse both scenery seams; both
 runtime scores increase. The fixed positioning entry requires all X0..119.

@@ -17,13 +17,17 @@ experimental: score-above positioning and full application RAM still have the
 limits documented below. Right-edge player output now passes the full X sweep.
 Existing renderers and default examples are unchanged.
 
-Three independent, slower presentation examples are available in
+Three independent presentation layouts are available in
 [`examples/04_renderers/cooperating_layers/`](../../../examples/04_renderers/cooperating_layers/):
 `no_score`, `score_above`, and `score_below`. Each has its own Makefile and edits
-its scenery directly in `main.c26`; none depends on test fixtures or another
-leaf. No-score uses46/128 RAM bytes; both score leaves use56/128 including
-stack, with two-byte app motion state. These bounded examples do not certify
-arbitrary score-above placements.
+its automatic scenery directly in `main.c26`; `interactive.c26` adds independent
+joystick control using the established example sprites. Run `make play` for the
+automatic preview or `make play-interactive` for controls. Neither variant
+depends on test fixtures or another leaf. Automatic no-score uses46/128 RAM
+bytes; automatic score leaves use56/128 including stack. Interactive versions
+use46/58/58 bytes respectively. Score-above clamps object X to0..119; the others
+allow0..159. These bounded examples do not certify arbitrary score-above
+placements. Controls are documented in the example family guide.
 
 ## Working all-five composition
 

@@ -35,9 +35,21 @@ PAL blanking uses the recorded palette's dark-grey entry rather than RGB000000.
 
 ### Example scanline-edge audit
 
+`vcs_layers_interactive.pl` covers all three cooperating-layer interactive entry
+points. An independent CPU/input model checks SELECT and direction debouncing, every
+object's independent X/Y movement through both section seams, saturation at each
+layout's limits, position-driven animation pointers, four-digit score selection,
+selection wraparound, decimal-weight edits, BCD carry/borrow, ignored fire, and RESET.
+The timed pass retains the raw 264-line CPU contract and safe-boundary guard;
+a separate RESET pass permits the intentional interrupted frame. Native public
+ROM captures at frames 200–201 check idle stability and the three visible
+compositions without pinning art/RGB. Installed Makefile builds must reproduce
+the source ROMs and clean both variants. These tests do not use Stella's
+host-time startup-held inputs. The existing automatic-preview oracle is retained.
+
 The eight editable-example build shards now also run
 `vcs_frame_timing.cpp --report-visible-boundaries --require-safe-visible-boundaries`
-on every supported mapper profile (106 of the 119 ordinary entry points in the
+on every supported mapper profile (109 of the 122 ordinary entry points in the
 current inventory). The guard rejects VBLANK asserted after cycle 22 when colour
 output remains enabled. An already-black trailing gap is safe; this distinction
 keeps the field diagnostic's intentional black tail and internal score blanking
@@ -73,7 +85,7 @@ respectively. All 106 measured default raw frame periods stayed unchanged. Share
 scheduler contracts and private golden PNGs remain unchanged. Pre-existing whole-
 line layout differences were not normalized as part of this partial-line fix.
 
-Final eight-worker verification: **1329/1330 passed**. All example, boundary and
+Boundary-fix eight-worker verification: **1329/1330 passed**. All example, boundary and
 mapper gates passed within their existing deadlines. The sole failure was the
 previously reproduced heart-score held-input digest mismatch; upstream Stella's
 host-time input expiry remains unresolved. This is not a clean full-suite pass.

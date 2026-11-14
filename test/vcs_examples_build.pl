@@ -258,7 +258,9 @@ if (defined($shard_index)) {
 for my $entry (@examples) {
    my($dir,$file)=@$entry;
    my $source=File::Spec->catfile($examples_root,$dir,$file);
-   my $tag=$dir; $tag =~ s{[^A-Za-z0-9_.-]+}{__}g;
+   # A leaf may contain both automatic and interactive cartridge entry points.
+   # Include the source stem so unsharded builds never overwrite another ROM.
+   my $tag="$dir/$file"; $tag =~ s/\.c26\z//; $tag =~ s{[^A-Za-z0-9_.-]+}{__}g;
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
    my $profile=profile_from_source($source);

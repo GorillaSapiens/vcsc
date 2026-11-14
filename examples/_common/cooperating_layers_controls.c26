@@ -1,0 +1,120 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// App-only controls, not renderer state. SELECT cycles P0/P1/M0/M1/Ball;
+// the left joystick moves only that object. Coordinates saturate, never wrap.
+parameter maximum_x := 159;
+parameter maximum_y := 95;
+parameter with_score := 0;
+uint8_t TEMPLATE_selected_object;
+uint8_t TEMPLATE_select_ready;
+#if TEMPLATE_with_score
+// Display order: left tens, left ones, right tens, right ones.
+uint8_t TEMPLATE_selected_score_digit;
+uint8_t TEMPLATE_joystick_ready;
+page const bcd8_t TEMPLATE_digit_weight[4] := {10,1,10,1};
+#endif
+
+inline void TEMPLATE_animate(void) {
+   layers_player0_graphics := layers_p0_animation;
+   layers_player0_graphics += ((layers_object_x[0] ^ layers_player0_y) & 3) << 3;
+   layers_player1_graphics := layers_p1_animation;
+   layers_player1_graphics += ((layers_object_x[1] ^ layers_player1_y) & 3) << 3;
+}
+
+void TEMPLATE_init(void) {
+   SWACNT:=0; SWBCNT:=0;
+   TEMPLATE_selected_object:=0; TEMPLATE_select_ready:=1;
+   layers_object_x[0]:=20; layers_object_x[1]:=100;
+   layers_object_x[2]:=50; layers_object_x[3]:=110; layers_object_x[4]:=80;
+   layers_player0_y:=18; layers_player1_y:=70;
+   layers_missile0_y:=34; layers_missile1_y:=62; layers_ball_y:=48;
+   layers_player0_height:=7; layers_player1_height:=7;
+   layers_missile0_height:=5; layers_missile1_height:=7; layers_ball_height:=3;
+#if TEMPLATE_with_score
+   score_left_score:=12; score_right_score:=34;
+   TEMPLATE_selected_score_digit:=0; TEMPLATE_joystick_ready:=0x0f;
+#endif
+   TEMPLATE_animate();
+}
+
+void TEMPLATE_update(void) {
+   if (!(SWCHB & 1)) { hard_reset(); }
+   if (SWCHB & 2) { TEMPLATE_select_ready:=1; }
+   else {
+      if (TEMPLATE_select_ready) {
+         TEMPLATE_selected_object++;
+         if (TEMPLATE_selected_object == 5) { TEMPLATE_selected_object:=0; }
+         TEMPLATE_select_ready:=0;
+      }
+   }
+   if (!(SWCHA & 0x40)) {
+      if (layers_object_x[TEMPLATE_selected_object] > 0) {
+         layers_object_x[TEMPLATE_selected_object]--;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (layers_object_x[TEMPLATE_selected_object] < TEMPLATE_maximum_x) {
+            layers_object_x[TEMPLATE_selected_object]++;
+         }
+      }
+   }
+   if (!(SWCHA & 0x10)) {
+      switch (TEMPLATE_selected_object) {
+         case 0: if (layers_player0_y > 0) { layers_player0_y--; } break;
+         case 1: if (layers_player1_y > 0) { layers_player1_y--; } break;
+         case 2: if (layers_missile0_y > 0) { layers_missile0_y--; } break;
+         case 3: if (layers_missile1_y > 0) { layers_missile1_y--; } break;
+         case 4: if (layers_ball_y > 0) { layers_ball_y--; } break;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         switch (TEMPLATE_selected_object) {
+            case 0: if (layers_player0_y < TEMPLATE_maximum_y) { layers_player0_y++; } break;
+            case 1: if (layers_player1_y < TEMPLATE_maximum_y) { layers_player1_y++; } break;
+            case 2: if (layers_missile0_y < TEMPLATE_maximum_y) { layers_missile0_y++; } break;
+            case 3: if (layers_missile1_y < TEMPLATE_maximum_y) { layers_missile1_y++; } break;
+            case 4: if (layers_ball_y < TEMPLATE_maximum_y) { layers_ball_y++; } break;
+         }
+      }
+   }
+   TEMPLATE_animate();
+#if TEMPLATE_with_score
+   // Match the fixed-position score examples: horizontal presses select a
+   // visible digit; vertical presses edit its decimal weight. Fire is unused.
+   if (TEMPLATE_joystick_ready) {
+      TEMPLATE_joystick_ready := SWCHA & 0x0f;
+      if (TEMPLATE_joystick_ready != 0x0f) {
+         if (!(TEMPLATE_joystick_ready & 4)) {
+            if (TEMPLATE_selected_score_digit == 0) { TEMPLATE_selected_score_digit:=3; }
+            else { TEMPLATE_selected_score_digit--; }
+         }
+         else {
+            if (!(TEMPLATE_joystick_ready & 8)) {
+               TEMPLATE_selected_score_digit++;
+               if (TEMPLATE_selected_score_digit == 4) { TEMPLATE_selected_score_digit:=0; }
+            }
+         }
+         if (!(TEMPLATE_joystick_ready & 1)) {
+            if (TEMPLATE_selected_score_digit < 2) {
+               score_left_score += TEMPLATE_digit_weight[TEMPLATE_selected_score_digit];
+            }
+            else { score_right_score += TEMPLATE_digit_weight[TEMPLATE_selected_score_digit]; }
+         }
+         else {
+            if (!(TEMPLATE_joystick_ready & 2)) {
+               if (TEMPLATE_selected_score_digit < 2) {
+                  score_left_score -= TEMPLATE_digit_weight[TEMPLATE_selected_score_digit];
+               }
+               else { score_right_score -= TEMPLATE_digit_weight[TEMPLATE_selected_score_digit]; }
+            }
+         }
+         TEMPLATE_joystick_ready:=0;
+      }
+   }
+   else {
+      TEMPLATE_joystick_ready := SWCHA & 0x0f;
+      if (TEMPLATE_joystick_ready != 0x0f) { TEMPLATE_joystick_ready:=0; }
+   }
+#endif
+}

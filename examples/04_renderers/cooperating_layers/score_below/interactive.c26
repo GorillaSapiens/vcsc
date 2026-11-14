@@ -1,0 +1,38 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+alias VCS_NTSC_EXTENDED_VBLANK
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "two_plus_two_score_support.c26"
+include "../../../_common/cooperating_layers_interactive_sprites.c26"
+include "layers/all_five_dense_objects.c26"
+instantiate "layers/all_five_intro.c26" as intro (player0_nusiz:=0x20, player1_nusiz:=0x20)
+instantiate "layers/all_five_section.c26" as upper (
+   number_of_scanlines:=64, playfield_row:=0x80000001, pf_color:=0x84, bk_color:=0x80
+)
+instantiate "layers/all_five_section.c26" as middle (
+   number_of_scanlines:=64, playfield_row:=0xc0000003, pf_color:=0xb4, bk_color:=0xb0
+)
+instantiate "layers/all_five_section.c26" as lower (
+   number_of_scanlines:=48, playfield_row:=0xe0000007, pf_color:=0x24, bk_color:=0x20
+)
+instantiate "layers/score.c26" as score (gameplay_scanlines:=176)
+instantiate "../../../_common/cooperating_layers_controls.c26" as controls (maximum_x:=159, maximum_y:=87, with_score:=1)
+
+void prepare_objects(void) {
+   layers_prepare_vertical(); score_prepare(); intro_establish(); layers_prime();
+}
+void main(void) {
+   VBLANK:=2; PF0:=0; CTRLPF:=0x21; controls_init();
+   while (1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank(); prepare_objects();
+      vcs_ntsc_end_vblank(); upper_first(); middle_draw(); lower_draw();
+      layers_finish(); vcs_ntsc_component_handoff(); score_draw();
+      // 176 gameplay +12 score +4 blank tail =192 scanlines.
+      asm sta WSYNC;
+      asm sta WSYNC;
+      asm sta WSYNC;
+      asm sta WSYNC;
+      vcs_ntsc_begin_overscan(); controls_update(); vcs_ntsc_end_overscan();
+      asm sta WSYNC;
+   }
+}

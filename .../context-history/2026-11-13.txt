@@ -348,3 +348,42 @@ retained in /tmp/vcsc_generic_0F2G. Diagnostics and inventories are in
 logs are /tmp/opencode/examples-boundary-full-suite.log and
 /tmp/opencode/examples-boundary-followup.log. No Stella changes or relaxed pixel
 oracles, timing limits, retries or alternative digests were introduced.
+
+2026-11-13 21:49:15 PDT, interactive cooperating-layer examples
+
+User requested interactive no-score, score-above and score-below examples after
+asking where the automatic preview rockets came from. Added interactive.c26 in
+each existing leaf; main.c26 and make/play remain the automatic previews. New
+make interactive/play-interactive targets build/run standard four-frame player
+artwork, SELECT-cycled P0/P1/M0/M1/Ball, independent left-joystick movement and
+position-driven player animation. Following user correction, score layouts use
+right left/right to select a visible digit and right up/down for edge-triggered
+BCD decimal-weight edits; fire is unused. RESET restores all app state.
+X clamps to0..159 except score-above0..119; Y clamps to95/85/87 respectively.
+App controls run only after layers_finish in overscan, never inside the shared
+event-stack drawing span. Renderer code, scheduler helpers and previews unchanged.
+
+ROM used2298/3053/3037; RAM including ordinary stack46/58/58. All remain one4K bank
+with no cartridge RAM. New asm allowlist entries pin only exact copies of the
+three preview frame-boundary/score-composition sequences; controls use C26 only.
+Example build tags now include the source stem so automatic and interactive
+entry points cannot overwrite one another in unsharded builds. Packaging already
+discovers both new app helpers and all three entry points through its example tree.
+
+New vcs_layers_interactive.pl independently models per-frame controller inputs,
+all five independent coordinates, limits/seam travel, SELECT/direction holds,
+four-digit selection/wrap, ignored fire, graphics pointers, BCD rollover/borrow
+and reset. Raw264-line timing and safe-boundary guard
+remain enabled for the normal run. A separate inspection-mode reset run verifies
+reinitialization without treating an intentionally interrupted frame as periodic.
+Native public ROM frames200..201 check idle stability and each visible layout;
+installed Makefile builds reproduce source ROMs and clean interactive outputs.
+Automatic preview's original independent CPU/pixel test is retained and passes.
+No host-time Stella startup-held inputs, alternate digests or relaxed deadlines.
+Initial focused pass4/6: interactive and automatic functional tests, inventory and
+branding passed; hygiene needed the usual PATH resolver, and new copied frame
+assembly needed explicit allowlist review. Both corrections now pass directly.
+Corrected-control focused run4/4 passes: new CPU/native/install gate, hygiene,
+assembly review and branding. An earlier full run began before the control
+correction and cannot certify the final revision. Final eight-worker verification
+pending. Nothing pushed.
