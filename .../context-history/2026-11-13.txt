@@ -393,4 +393,13 @@ both target/dependency/ROM launch pairings and the orientation audit to compare
 every new hex-literal frame numerically against the existing reviewed standard
 artwork, verify row order, and verify both position-driven selectors. Existing
 multi-bin loop and sprite checks remain intact. Both updated audits pass directly.
-New final eight-worker run pending. Nothing pushed.
+Final eight-worker run finished1327/1331. All new interactive CPU/native/install,
+automatic preview, source/asset/Makefile audits and all eight example-build shards
+passed. Remaining failures: global-static colour-section compile matrix timeout,
+repeated-section build timeout, layers-all-five240s timeout, and the independently
+known upstream held-input heart-score digest mismatch. No timeout or assertion
+was relaxed. This is not a clean full-suite sign-off. Log:
+/tmp/opencode/layers-interactive-final-suite.log. Diagnostics retained under
+/tmp/vcsc_generic_FDMi, /tmp/vcsc_generic_eIgj, /tmp/vcsc_generic_1Glx and
+/tmp/vcsc_generic_UYVz respectively. Implementation commit
+6c94e235; nothing pushed. Refresh make-tar handoff after recording this result.

@@ -33,6 +33,70 @@ PAL/SECAM asymmetric displays. It checks contiguous fields, complete first/last
 visible rows and uniform blank margins, without pinning RGB, glyphs or positions.
 PAL blanking uses the recorded palette's dark-grey entry rather than RGB000000.
 
+### Deterministic heart-score composition sequences
+
+`test/fixtures/heart_score/composition_sequence.c26` displays the six reviewed
+heart/gameplay states in order: neutral, health up, health down, markers down,
+markers up, and P0 at X159. Each lasts 16 emulated frames; the 96-frame sequence
+repeats. There are no joystick reads. Build either visible order from the root:
+
+```sh
+driver/vcsc -I libraries/vcs -DHEART_COMPOSITION_BELOW=0 \
+    test/fixtures/heart_score/composition_sequence.c26 -o /tmp/opencode/heart-above-sequence.bin
+driver/vcsc -I libraries/vcs -DHEART_COMPOSITION_BELOW=1 \
+    test/fixtures/heart_score/composition_sequence.c26 -o /tmp/opencode/heart-below-sequence.bin
+```
+
+`vcs_heart_score_stella.pl` captures exact recorded frames
+200,216,232,248,264,280 and 296,312,328,344,360,376, comparing both cycles against
+the twelve composition digests. Six above-order digests were corrected after
+the handoff bug described below; the other 48 raster digests are unchanged.
+The standalone heart, marker and low-count raster checks remain unchanged. The private scene
+freezes the reviewed artwork/layout rather than making editable public examples
+serve as golden images. Capture uses the bounded RawStream adapter; failure
+diagnostics are retained and process groups are cleaned on success or failure.
+
+`vcs_heart_score_controls.pl` independently executes the real public interactive
+ROMs with frame-indexed CPU bus inputs: individual P0/P1/Ball motion, all limits,
+SELECT debounce, one-shot right-stick actions, health/marker saturation, direction
+roll suppression and RESET. It learns the editable initial pose, then checks
+relative effects; it does not compare public art or RGB. The same driver verifies
+600 frames of each preset ROM against an independent state/phase model, rejects
+any joystick/console reads by that fixture, and checks its fixed 266-line raw
+minimal-harness period and safe visible boundary. Both public and private ROMs
+must restore players at the independent cycle `17+5*(1+(X+2)/15)` and keep the
+20216-cycle raw harness period. Only RESET may interrupt a frame. A negative
+control reinstates the historical ten-cycle delay and must fail the phase guard.
+
+`vcs_heart_handoff_positions.pl` independently checks native pixels at 24 X
+coordinates (all 15 fine-motion residues and both endpoints) for both players,
+score-above, score-below and the retained no-score 192-line renderer. Solid-color
+sprite masks must occupy exactly eight columns, wrapping modulo160, at the
+retained hardware origin X-1; their height must remain16 rows. It uses arithmetic
+and the pinned palette, not recorded goldens, to derive the expected masks.
+`source_tree_hygiene.pl` also audits examples, fixtures and libraries for work
+between a caller's WSYNC and `vcs_ntsc_component_handoff()`.
+
+The heart score-above caller and its private sequence fixture previously restored
+COLUPF/CTRLPF after the separating WSYNC. Those ten cycles shifted P1 right and,
+at large X, added a visible line. Restoring registers before WSYNC fixes both.
+The earlier attribution to a worst-case controller/overscan path was incorrect.
+
+This replaces the heart composition test's unreliable startup-held input—not
+Stella itself. Its 500 ms host-time clearing behaviour is unchanged, but these
+composition pixel checks no longer depend on it. No alternate digests, retries,
+or weakened raster assertions are used.
+
+Eight-worker focused verification passed **8/8**, including heart raster/control
+coverage and all RawStream parser/capture/identity contracts. At that time all54
+original raster digests were unchanged, including the misplaced-P1 goldens.
+The pre-handoff-fix full eight-worker suite passed
+**1332/1332**, with zero failures and unchanged deadlines/assertions. This
+superseded the earlier partial results but did not detect this positioning bug.
+The handoff correction then passed a fresh full eight-worker suite:
+**1333/1333**, zero failures, including native positions, phase/period assertions,
+the historical-delay negative control and all eight example-build shards.
+
 ### Example scanline-edge audit
 
 `vcs_layers_interactive.pl` covers all three cooperating-layer interactive entry
@@ -46,6 +110,13 @@ ROM captures at frames 200–201 check idle stability and the three visible
 compositions without pinning art/RGB. Installed Makefile builds must reproduce
 the source ROMs and clean both variants. These tests do not use Stella's
 host-time startup-held inputs. The existing automatic-preview oracle is retained.
+
+Interactive-layer final eight-worker verification: **1327/1331 passed**, including
+the new interactive checks, automatic previews, integration audits and all eight
+example-build shards. Remaining failures were the global-static colour-section
+compile matrix, repeated-section build and layers-all-five workload timeouts,
+plus the known upstream heart-score held-input mismatch. Existing deadlines and
+pixel assertions were retained; this result is not a clean full-suite pass.
 
 The eight editable-example build shards now also run
 `vcs_frame_timing.cpp --report-visible-boundaries --require-safe-visible-boundaries`

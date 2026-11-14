@@ -1,0 +1,77 @@
+2026-11-14 00:21:18 PDT, deterministic heart composition test ROMs
+
+User challenged the host-time startup-held input test and requested a binary
+that displays the desired frames in sequence instead of requiring joystick input.
+Added private test/fixtures/heart_score/composition_sequence.c26. Six16-frame slots
+repeat every96 emulated frames: neutral5.5/8 markers,6.0 health,5.0 health,7 markers,
+9 markers, and P0 X159. Either score-above or score-below build remains one4K bank.
+The scene freezes the existing reviewed art/layout; no public example or Stella
+source is changed. Manual binaries are /tmp/opencode/heart-sequence/sequence_above.bin
+and sequence_below.bin; build commands are in test/README.md.
+
+vcs_heart_score_stella.pl now captures exact recorded identities200,216,232,248,
+264,280 and296,312,328,344,360,376. Both cycles match the original twelve composition
+digests unchanged. Standalone heart, marker and low-count assertions remain intact.
+No startup hold flags, retries, alternative accepted hashes or timing guesses.
+The first focused pixel run passes. Process-owning spawn/END cleanup now reaps
+Stella/Xvfb groups even after capture/digest failure; recordings/diagnostics retain
+the existing bounded RawStream behaviour. No capture deadlines were raised.
+
+Added vcs_heart_score_controls.pl: actual public interactive ROMs execute against
+frame-indexed CPU bus input and an independent relative-state model. Checks all
+P0/P1/Ball limits, SELECT holds, health/marker one-shots and saturation, direction
+rolls, publication to renderer state and RESET. Initial editable pose is learned,
+not frozen as golden art. Each private sequence build is independently checked
+for600 frames of exact state/phase, no joystick/console reads, stable266-line raw
+CPU period and safe visible boundary. Public control stress can take267 raw lines
+on pre-existing worst-case paths; that functional smoke pass deliberately does not
+introduce a new fixed-period contract or change public scheduler behaviour.
+Focused controls/examples/hygiene3/3 pass. Final eight-worker focused run8/8 passes:
+heart raster, CPU controls/sequence, example wiring, component oracle, real FRAM
+identity, synthetic converter, capture cleanup/failure and source hygiene. Log:
+/tmp/opencode/heart-sequence-focused.log. All54 original raster digests are
+byte-for-byte unchanged. The first full run was cancelled by a server restart;
+temporary logs/binaries were cleared. Rebuilt both sequence ROMs and started a
+fresh eight-worker suite without changing code, assertions or deadlines.
+Final result:1332/1332 passed, zero failures. Log:
+/tmp/opencode/heart-sequence-full-suite.log. This is the clean full-suite sign-off
+for the deterministic heart fixture and interactive cooperating-layer changes.
+Stella's500ms host-time input clearing remains unchanged, but these pixel and
+controller checks no longer depend on it. Nothing pushed.
+
+2026-11-14 11:11:25 PDT, repair heart gameplay component entry phase
+
+User saw P1 on opposite edges in the timing demo, then requested a fix everywhere
+and regression coverage. Diagnosis in native Stella: two color/control writes
+after the score-above separator WSYNC delay gameplay entry by10 CPU cycles.
+P1 shifts right and high X adds one visible scanline (264/265 native frame lines).
+The previous attribution to worst-case controller/overscan work was wrong.
+Whole examples/test/libraries audit found the public heart-above leaf and its
+private composition_sequence fixture; move both writes before WSYNC in each.
+Shared scheduler behaviour is not changed. Document its no-work-after-alignment
+contract. The original54 hashes preserved this bug; correct only six above-order
+composition hashes after inspecting corrected captures.48 hashes remain intact.
+
+Add vcs_heart_handoff_positions.pl and private handoff_positions fixture. Native
+arithmetic pixel masks cover24 coordinates including all fine-motion residues,
+P0/P1, score-above/below and retained192-line no-score baseline. Retained hardware
+origin is X-1 modulo160; require exact eight-column masks including wrap and16-row
+height. No screenshot-derived coordinates/hashes serve as the spatial oracle.
+Enhance public/private CPU control tests with independent RESP phase17+5*(1+(X+2)/15)
+and fixed20216-cycle raw-harness period except RESET. A synthesized ten-cycle-late
+negative control must fail the phase assertion. Source hygiene audits all c26
+callers for work after WSYNC before component_handoff. Manual negative control
+failed frame1 P1 phase67 expected57. First focused run passed spatial/CPU checks;
+old hash and hot-record-size failures then corrected. Final focused six checks
+pass; strengthened source audit also passes. Audited133 handoffs in123 source
+files, including assembly WSYNC callers; first-visible entries were checked too.
+Full eight-worker run active: /tmp/opencode/handoff-full-suite.log.
+Rebuilt /tmp/opencode/heart-sequence/sequence_above.bin and sequence_below.bin;
+the original user-facing position_demo.bin path now contains the corrected ROM.
+Kept position_demo-before-fix.bin as reproduction evidence. Nothing pushed.
+
+Full eight-worker handoff-fix verification completed:1333/1333 passed, zero failures.
+Log: /tmp/opencode/handoff-full-suite.log. Includes the new native coordinate oracle,
+public/private restore-phase and period guards, historical-delay negative control,
+corrected raster hashes, source audit and all eight editable-example build shards.
+No deadlines/budgets were raised and no Stella source or documentation changed.

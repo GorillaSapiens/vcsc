@@ -192,17 +192,20 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Active user task: finish VCSC-only RawStream migration. Converter is under
-test/rawstream2png; migrated all selected-frame callers, unchanged RGB references.
-First eight-worker run1324/1328: /tmp/opencode/rawstream-full-suite.log. Hygiene
-and banner fixed; followup7/7 passes, including layers within unchanged240s and
-heart score. This is not a clean full-suite rerun. Upstream
-Stella clears startup hold inputs after500ms HOST time (EventHandler.cxx140..144),
-causing heart-score frame200 nondeterminism under recording/parallel load. Kept
-streams confirm logical P0 X68 versus159 at identical frame200. Do not weaken
-assertions/change frames/patch Stella. Followup results in
-/tmp/opencode/rawstream-failure-followup.log (complete7/7). No full-suite sign-off.
-Do not edit Stella. See test/rawstream2png/README.md for pipeline and inventory.
+Active task: fix late component handoffs everywhere, with independent regression
+coverage. User noticed P1 wrapping in the no-input demo. Root cause: heart-above
+caller/sequence fixture restore COLUPF/CTRLPF after WSYNC, adding10 cycles before
+game_draw. Move writes before WSYNC. This is NOT controller/overscan overhead:
+Stella confirms misplaced P1 and264/265-line frames, stable264 after correction.
+Audit found those two affected callers. Added native spatial oracle (24 coordinates,
+both players/orders and192-line baseline, retained origin X-1 modulo160), public
+and private CPU restore-phase/period assertions, historical-delay negative control,
+and whole-tree WSYNC/handoff source guard. Six above composition hashes corrected;
+48 others unchanged. Prior1332/1332 passing suite preserved the bad goldens, not a
+sign-off for this fix. Final full eight-worker verification passed1333/1333, zero
+failures (/tmp/opencode/handoff-full-suite.log). Keep the deterministic six-slot
+heart sequence and exact FRAM selections; no Stella changes or host-time holds.
+See context-history/2026-11-14.txt for history. Keep eight workers/deadlines/budgets.
 
 Layers/sections agreed scope is complete at a63944fe/373af8a6: independent even
 sections>=2, all five crossing seams, both score orders, one4K drawing bank,

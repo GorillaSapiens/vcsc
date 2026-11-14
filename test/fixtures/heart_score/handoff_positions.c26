@@ -1,0 +1,75 @@
+// CC0-1.0; see examples/LICENSE.txt. Spatial oracle, not a golden image.
+include "4K/mapper.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+#if HEART_POSITION_BASELINE
+instantiate "renderers/player_color/player_color.c26" as game (lines:=192)
+#else
+instantiate "renderers/player_color/player_color.c26" as game (lines:=181)
+#endif
+#if !HEART_POSITION_BASELINE
+instantiate "heart_score_component.c26" as score (line_markers:=1)
+#endif
+#if HEART_POSITION_BASELINE
+page const uint8_t game_playfield[48] := {0};
+#else
+page const uint8_t game_playfield[44] := {0};
+#endif
+page const uint8_t game_player0_graphics_data[8] := {255,255,255,255,255,255,255,255};
+page const uint8_t game_player1_graphics_data[8] := {255,255,255,255,255,255,255,255};
+page const uint8_t game_player0_colors[8] := {0x46,0x46,0x46,0x46,0x46,0x46,0x46,0x46};
+page const uint8_t game_player1_colors[8] := {0xc6,0xc6,0xc6,0xc6,0xc6,0xc6,0xc6,0xc6};
+page const uint8_t positions[24] := {
+   0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,108,119,132,133,140,151,152,159
+};
+uint8_t tick;
+inline void draw_visible_components(void) {
+#if HEART_POSITION_BASELINE
+   game_draw();
+#elif HEART_COMPOSITION_BELOW
+   game_draw();
+   WSYNC := $A;
+   vcs_ntsc_component_handoff();
+   score_draw();
+#else
+   score_draw();
+   COLUPF:=0; CTRLPF:=0x21;
+   WSYNC := $A;
+   vcs_ntsc_component_handoff();
+   game_draw();
+#endif
+}
+void main(void) {
+   VBLANK:=2;
+   game_player0_graphics:=game_player0_graphics_data;
+   game_player1_graphics:=game_player1_graphics_data;
+   game_player0_height:=7; game_player1_height:=7;
+   game_PLAYER0_NUSIZ:=0; game_PLAYER1_NUSIZ:=0;
+   game_BALL_X:=78; game_ball_y:=80; game_ball_height:=0;
+   game_playfield_position:=8;
+#if !HEART_POSITION_BASELINE
+   score_score:=5; score_half:=1; score_lines:=8;
+   score_color:=0x86; score_line_color:=0x86;
+   score_init();
+#endif
+   tick:=0; game_init();
+   while(1) {
+      vcs_ntsc_vsync(); vcs_ntsc_begin_vblank();
+      game_PLAYER0_X:=positions[tick >> 3];
+      game_PLAYER1_X:=positions[tick >> 3];
+      game_player0_y:=20; game_player1_y:=50;
+      game_vblank();
+#if !HEART_POSITION_BASELINE
+      score_vblank();
+#endif
+      COLUBK:=0; COLUPF:=0; CTRLPF:=0x21;
+      vcs_ntsc_end_vblank(); draw_visible_components();
+      vcs_ntsc_begin_overscan(); game_overscan();
+#if !HEART_POSITION_BASELINE
+      score_overscan();
+#endif
+      tick++; if(tick==192){tick:=0;}
+      vcs_ntsc_end_overscan();
+   }
+}

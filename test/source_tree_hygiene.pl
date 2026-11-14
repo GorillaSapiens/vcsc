@@ -1119,6 +1119,21 @@ my @test_files=sort map { File::Spec->catfile($test,$_) }
 closedir($tdh);
 my %text=map { $_ => slurp($_) } @test_files;
 
+# A WSYNC followed by the cycle-3 handoff is an alignment boundary, not a
+# place for register restoration. Work after that WSYNC shifts the successor.
+# Audit callers in examples, private fixtures and libraries, not just goldens.
+find({no_chdir=>1,wanted=>sub {
+   return unless -f $_ && /\.c26\z/;
+   my$body=slurp($_); $body=~s{//[^\n]*|/\*.*?\*/}{}gs;
+   while($body=~/((?:WSYNC\s*:=\s*[^;]+|asm\s+sta\s+WSYNC);)((?:(?!WSYNC|\w+_(?:draw|finish)\(|\{|\}).){0,350}?)vcs_ntsc_component_handoff\(\);/sg) {
+      $2!~/\S/ or die "work after WSYNC before component handoff: $_\n";
+   }
+   while($body=~/([^;{}\n]+;)\s*vcs_ntsc_component_handoff\(\);/g) {
+      $1=~/^\s*(?:WSYNC\s*:=\s*[^;]+|asm\s+sta\s+WSYNC|\w+_(?:draw|finish)\(\));$/
+         or die "component handoff does not immediately follow aligned draw/finish/WSYNC: $_\n";
+   }
+}},map{File::Spec->catdir($repo,$_)}qw(examples test libraries));
+
 # User-facing examples are smoke-tested separately. Exact regression drivers
 # must consume private fixtures so changing a color, sprite, score, tune, or
 # motion constant in examples/ cannot invalidate a golden harness.

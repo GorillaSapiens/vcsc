@@ -12,14 +12,21 @@ use Cwd qw(abs_path);
 use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
-use POSIX qw(:sys_wait_h);
+use POSIX qw(:sys_wait_h setpgid);
 use Symbol qw(gensym);
 
 sub slurp_fh { my($f)=@_; local $/; return <$f> // ''; }
 sub capture { my(@c)=@_; my$e=gensym; my$p=open3(my$i,my$o,$e,@c); close$i; my$so=slurp_fh($o); my$se=slurp_fh($e); waitpid($p,0); return($?>>8,$?&127,$so,$se); }
 sub ok { my($label,@c)=@_; my($r,$s,$o,$e)=capture(@c); $r==0&&!$s or die "$label failed rc=$r sig=$s\n@c\n$o$e"; return($o,$e); }
 sub findexe { my($n)=@_; return abs_path($n) if $n=~m{/}&&-x$n; for(split(/:/,$ENV{PATH}//'')){my$p="$_/$n";return abs_path($p)if-x$p} return undef; }
-sub terminate { my($p)=@_; return unless$p; kill 'TERM',$p; for(1..20){my$d=waitpid($p,WNOHANG);return if$d==$p||$d==-1;select undef,undef,undef,.05} kill 'KILL',$p;waitpid($p,0); }
+my%children;
+sub terminate { my($p)=@_; return unless$p && delete$children{$p}; kill 'TERM',-$p; for(1..20){my$d=waitpid($p,WNOHANG);return if$d==$p||$d==-1;select undef,undef,undef,.05} kill 'KILL',-$p;waitpid($p,0); }
+END { local$?; terminate($_) for keys%children; }
+sub spawn {
+   my($log,@cmd)=@_; my$p=fork(); defined$p or die "fork: $!\n";
+   if(!$p) { setpgid(0,0); open STDOUT,'>:raw',$log or die$!; open STDERR,'>&STDOUT' or die$!; exec@cmd; die$!; }
+   eval { setpgid($p,$p) }; $children{$p}=1; return$p;
+}
 
 @ARGV==2 or die "usage: $0 REPO TMP\n";
 my $repo=abs_path($ARGV[0]) or die "resolve repo\n";
@@ -80,12 +87,11 @@ my @wanted_lines=(
 
 my($display)=vcsc_reserve_x_display(180,50);
 my $d=":$display";
-my $xpid=fork(); defined$xpid or die "fork Xvfb\n";
-if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
+my $xpid=spawn("$tmp/xvfb.log",$xvfb,$d,'-ac','-screen','0','1024x768x24');
 select undef,undef,undef,.2;
 # Fail here, not later inside Stella, if the X server did not come up.
 vcsc_xvfb_assert_ready($d,$xpid);
-local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
+local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy'; local $ENV{SDL_VIDEODRIVER}='x11';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user);
 
 for my $half (0,1) {
@@ -98,8 +104,7 @@ for my $half (0,1) {
       my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
          '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
-      my $pid=fork(); defined$pid or die "fork Stella\n";
-      if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${score}_${half}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+       my $pid=spawn("$tmp/stella_${score}_${half}.log",@cmd);
       ok("snapshot heart score $label",$perl,$keys,'--fast');
       my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
       terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for score $label\n";
@@ -122,8 +127,7 @@ for my $lines (0..11) {
    my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
       '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
       '-exitlauncher','0','-confirmexit','0','-userdir',$line_user,$rom);
-   my $pid=fork(); defined$pid or die "fork Stella\n";
-   if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_lines_${lines}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+    my $pid=spawn("$tmp/stella_lines_${lines}.log",@cmd);
    ok("snapshot heart line markers $lines",$perl,$keys,'--fast');
    my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for line markers $lines\n";
@@ -133,21 +137,19 @@ for my $lines (0..11) {
       or die "heart line markers $lines raster differs: actual=$actual wanted=$wanted_lines[$lines]\n";
 }
 
-# Composition certification: the real 181-line player-color renderer and the
-# ten-line line-marker heart profile must coexist in either visible order.
-# The initial 5.5 health / 8-marker state plus held right-joystick UP/DOWN locks
-# one health transition in each direction (6.0 and 5.0), while LEFT/RIGHT locks
-# one marker transition (7 and 9). Held left-joystick RIGHT locks real gameplay motion
-# of the initially selected P0 so these cartridges cannot regress to static
-# "interactive" demos again.
+# Composition certification: a private ROM displays all six reviewed states in
+# emulated-frame order, without joystick input or host-time startup holds. The
+# public interactive controls are executed separately by vcs_heart_score_controls.pl.
+# Above-order digests include the corrected cycle-3 gameplay handoff. Separate
+# spatial and CPU phase oracles prevent blessing misplaced sprites as goldens.
 my %demo_wanted=(
    above=>{
-      neutral=>'320 x 228 1389335a8e55df76bd622f95e91d177f9214c4cb8118cfef527dac69d7f245aa',
-      score_up=>'320 x 228 1e769aa3a15696abbd4769cd5f0ac57726bff7d344307faee64d2773cd3460f5',
-      score_down=>'320 x 228 9223e9789442e4bbe7d151edd1b1540521c2e69125153d88773f4082597c726c',
-      lines_down=>'320 x 228 d6b06220ce708da14e3db3098e3e579b0811f26d71b3507b10f643d925f2bfbc',
-      lines_up=>'320 x 228 550b63c1b2acf1ff2be11098893c6349a7cabbbccd0046fc3c55be28f264e195',
-      move_right=>'320 x 228 6e1ea7f420b097a75a7155a28ad672d94c81009056f9547045157cebf9656373',
+      neutral=>'320 x 228 a563140d2f1bcd0a5ec2f207c870e6fa389d5ac9e2f23c934d3315308669d4c5',
+      score_up=>'320 x 228 8ea44325a4305e6860e9ef717d4126dc62b2b12208f1abf1d3f1f84f112fcbb2',
+      score_down=>'320 x 228 0e0875faeae323359b2f6a80233a4213eb5636ca71e3717133b6e5c7e7505980',
+      lines_down=>'320 x 228 2013f79716a3128c9d3b9ad6a81e3b300e9d06fc23b9e15ad676a397091effa8',
+      lines_up=>'320 x 228 fc29f671b0b7264fc72f9b4e22e8999f98b60aa122ec029212b49ad4ab75af4e',
+      move_right=>'320 x 228 478b0778b7b1f3024af0c12687f452f6e0908c1327a96cc551503fbee012fb5d',
    },
    below=>{
       neutral=>'320 x 228 884d7a705fe3610575d7ddb0d1f94f67d68af50c38f0b373acd05802421132d7',
@@ -158,47 +160,33 @@ my %demo_wanted=(
       move_right=>'320 x 228 552137179d1db22cfee2f9474ba600e5e3457678b76af89eff3caf08f4f07365',
    },
 );
-# The frame every interactive-demo capture is taken at.  See the note at the
-# capture site for why this number is what it is.
-my $demo_frame=200;
-
-my @demo_inputs=(
-   [neutral=>[]],
-   [score_up=>['-holdjoy1','U']],
-   [score_down=>['-holdjoy1','D']],
-   [lines_down=>['-holdjoy1','L']],
-   [lines_up=>['-holdjoy1','R']],
-   [move_right=>['-holdjoy0','R']],
-);
+my @demo_states=qw(neutral score_up score_down lines_down lines_up move_right);
+# Six sixteen-frame slots repeat every96 frames. Sample the middle of each
+# slot in two complete cycles, after display autodetection. Selection always
+# refers to the recorded FRAM identity, never stream position or host time.
+my @demo_frames=map { my$cycle=$_; map {200+$cycle*96+$_*16} 0..5 } 0..1;
+my $sequence_source=File::Spec->catfile($repo,qw(test fixtures heart_score composition_sequence.c26));
 for my $kind (qw(above below)) {
-   my $demo_source=File::Spec->catfile($repo, qw(examples 04_renderers player_color), "score_${kind}", "heart", "heart_score_${kind}_interactive.c26");
-   my $rom=File::Spec->catfile($tmp,"heart_score_${kind}_interactive.bin");
-   ok("build heart score $kind composition",$driver,'-I',$vcs,$demo_source,'-o',$rom);
+   my $rom=File::Spec->catfile($tmp,"heart_score_${kind}_sequence.bin");
+   ok("build heart score $kind sequence",$driver,'-I',$vcs,
+      '-DHEART_COMPOSITION_BELOW='.($kind eq 'below'?1:0),$sequence_source,'-o',$rom);
    -s $rom==4096 or die "heart score $kind composition is not a 4K ROM\n";
-   for my $case (@demo_inputs) {
-      my($label,$joy)=@$case;
-      unlink glob("$snap/*.png");
-      my $demo_user=File::Spec->catdir($tmp,"user_${kind}_${label}"); make_path($demo_user);
-       my @cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-          @$joy,'--capture-frames',$demo_frame,'--capture-dir',$snap,
-         '-exitlauncher','0','-confirmexit','0','-userdir',$demo_user,$rom);
-      my $pid=fork(); defined$pid or die "fork Stella\n";
-      if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${kind}_${label}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-      my $actual;
-      # Stella writes the snapshot itself, at this exact frame.  Nothing here
-      # presses a key, so the capture does not depend on a window being mapped in
-      # time, on host snapshot throughput, or on how busy the machine is.
-      #
-      # The frame has to clear the movement case: RIGHT is held from startup and
-      # P0 needs 115 frames to reach the public X=159 clamp.  Measured on this
-      # fixture, 120 through 250 all produce the pinned raster and 100 does not,
-      # so the margin above the requirement is real but not unbounded.
-      my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
-      terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
-       my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,'--stella-raster',$png[0]);
-      $ae eq '' or die $ae; chomp $value; $actual=$value;
+   my $demo_user=File::Spec->catdir($tmp,"user_${kind}_sequence");
+   my $demo_snap=File::Spec->catdir($tmp,"snap_${kind}_sequence"); make_path($demo_user,$demo_snap);
+   my @cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$demo_user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+      '--capture-frames',join(',',@demo_frames),'--capture-dir',$demo_snap,
+      '-exitlauncher','0','-confirmexit','0','-userdir',$demo_user,$rom);
+   my $pid=spawn("$tmp/stella_${kind}_sequence.log",@cmd);
+   my @png=vcsc_stella_wait_snapshots("$demo_snap/*.png",scalar@demo_frames);
+   terminate($pid); @png==@demo_frames or die "missing heart score $kind sequence frames\n";
+   for my$i(0..$#demo_frames) {
+      my$frame=$demo_frames[$i]; my$label=$demo_states[$i%6];
+      my$path=File::Spec->catfile($demo_snap,sprintf('frame_%08d.png',$frame));
+      -f$path or die "missing selected frame$frame\n";
+      my($actual,$ae)=ok("digest heart score $kind $label frame$frame",$perl,$digest,'--stella-raster',$path);
+      $ae eq '' or die $ae; chomp$actual;
       $actual eq $demo_wanted{$kind}{$label}
-         or die "heart score $kind $label raster differs: actual=$actual wanted=$demo_wanted{$kind}{$label}\n";
+         or die "heart score $kind $label frame$frame raster differs: actual=$actual wanted=$demo_wanted{$kind}{$label}\n";
    }
 }
 
@@ -227,8 +215,7 @@ for my $case (@below_low) {
    my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
       '-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
       '-exitlauncher','0','-confirmexit','0','-userdir',$low_user,$rom);
-   my $pid=fork(); defined$pid or die "fork Stella\n";
-   if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_below_low_${score}_${half}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
+    my $pid=spawn("$tmp/stella_below_low_${score}_${half}.log",@cmd);
    ok("snapshot bottom composition $label",$perl,$keys,'--fast');
    my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for bottom composition $label\n";

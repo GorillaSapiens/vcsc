@@ -137,7 +137,16 @@ No Stella source or documentation is modified by this migration. Unrelated
 emulator mapper requirements are unchanged; report upstream deficiencies instead
 of maintaining or patching Stella here.
 
-### Current verification blockers
+### Verification history and startup holds
+
+Pre-handoff-fix full verification after the deterministic heart composition change:
+**1332/1332 passed with eight workers**, zero failures. No deadlines, raster
+digests or assertions were relaxed. That run did not catch the misplaced-P1
+goldens. The subsequent handoff correction moves register restoration before
+WSYNC in the public heart-above caller and private sequence, and corrects six
+above-order digests. Independent native-coordinate, CPU phase/period and source
+guards now cover this bug. That correction passed a fresh full eight-worker suite:
+**1333/1333**, zero failures, with unchanged deadlines and workload budgets.
 
 The first broad eight-worker run passed1324/1328 tests. Its hygiene and README
 banner failures are fixed. The followup passed all seven selected tests, including
@@ -145,13 +154,22 @@ the layers base driver within its unchanged240-second budget and the heart-score
 test. That focused pass does not erase the reproducible input nondeterminism below
 or constitute a clean full-suite run. Do not interpret this as full certification.
 
-The unchanged heart-score movement assertion exposes an upstream input issue:
+The original heart-score movement capture exposed an upstream input issue:
 Stella `EventHandler::reset()` clears startup hold inputs after500 milliseconds
 of **host time**, not a specified emulated frame. Raw recording/parallel load
 can let this expire before the player reaches X159. Identical ROM/selection runs
 then produce different frame200 pixels. Read-only reference source:
 `src/emucore/EventHandler.cxx:140–144` in the supplied Stella archive. Captured
 RAM independently confirms P0 X68 versus X159 at the same recorded frame200.
-Neither converter frame identity nor the assertion is changed to conceal it.
-This needs resolution by the Stella owner before reliable held-input certification;
-no Stella patch, retries, alternate accepted digests or later frames are used here.
+This upstream behaviour remains unchanged. At the user's request, heart-score
+composition raster certification now uses a private scripted ROM instead of
+startup-held input: six prescribed states run for16 emulated frames each and
+repeat every96 frames. Exact recorded identities200,216,232,248,264,280 and a
+second cycle296,312,328,344,360,376 are compared with twelve composition digests
+(six above-order digests corrected for the later handoff fix). This is a new deterministic fixture sequence, not a later
+capture hoping a host-timed input lasts longer. All standalone/marker/low-count
+assertions remain intact. Separate CPU tests execute the real public controller
+code with frame-indexed bus inputs and check movement, limits, debounce and
+health/marker changes. The preset ROMs are also independently checked for state,
+phase and absence of input reads. No Stella changes, retries or alternate accepted
+digests are involved. See `../README.md` for build commands and coverage details.

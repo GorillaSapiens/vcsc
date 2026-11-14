@@ -86,6 +86,9 @@ inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
 // phase produced by clearing VBLANK. A component returns at cycle zero after
 // its final WSYNC. Insert this bridge between adjacent visible components so
 // every component sees the same entry phase without spending another line.
+// If a caller inserts a blank WSYNC line, restore colors/control registers
+// BEFORE that WSYNC. No work belongs between it, this bridge and draw(): ten
+// late cycles move a RESP strobe thirty pixels and can consume another line.
 inline void vcs_ntsc_component_handoff(void) {
    asm bit.z $00;
 }
