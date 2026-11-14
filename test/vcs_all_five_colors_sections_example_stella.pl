@@ -50,16 +50,16 @@ sub snapshot {
    my($name)=@_;my$snap="$tmp/snap_$name";my$user="$tmp/user_$name";
    !-e$snap or die "capture directory already exists: $snap";
    make_path($snap,$user);
-   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0',
+   my@cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0',
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0',
-      '-bs','F8','-framesnap','200','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+       '-bs','F8','--capture-frames','200','--capture-dir',$snap,
       '-exitlauncher','0','-confirmexit','0','-userdir',$user,"$tmp/$name.bin");
    my$p=fork();defined$p or die$!;
    if(!$p){open(STDOUT,'>',"$tmp/stella_$name.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    $children{$p}=1;my@png=vcsc_stella_wait_snapshots("$snap/*.png",1);terminate($p);
    @png==1 or die"$name produced ".scalar(@png)." snapshots";
-   return[decode_rgb($png[0])];
+   return[decode_stella_rgb($png[0])];
 }
 my$actual=snapshot('actual');
 my$ordinary=slurp($source);

@@ -168,13 +168,12 @@ maintained Stella raster/mapper certifications are ordinary e2e tests rather
 than an opt-in tier. `make unit` remains compile-only. Stella-bearing tests
 resolve `VCSC_STELLA`/`VCSC_XVFB` as either absolute paths or command names
 through PATH, use explicit deterministic Stella power-on settings unless
-randomization is the behavior under test, and capture with `-framesnap` at a
-named emulated frame rather than pressing F12 and hoping. That option is a local
-Stella addition kept at `addons/stella-framesnap.patch`, not stock upstream;
-`test/vcs_stella_framesnap_contract.pl` asserts it is advertised and functional,
-because an unpatched Stella would ignore it and every certification would quietly
-fall back to timing-dependent capture. Captures must name a frame past Stella's
-~60 frame PAL/NTSC detection pre-roll, where frames can be delivered twice. A
+randomization is the behavior under test, and select named completed frames using
+upstream -rawstream plus test/rawstream2png (C++17/libpng, no Python). The shared
+launcher owns bounded recording/conversion; no Stella source changes are allowed.
+test/vcs_stella_rawstream_contract.pl checks exact identities and pixels. Use FRAM
+identities, not stream positions; startup detection frames are omitted. Captures
+retain their original selected frame numbers. A
 runner that wants a SEQUENCE of frames is not a single-frame capture and must not
 be marked as one; `vcs_startup_tia_stella` stays `# serial` because which early
 frame it lands on is the thing under test. Every maintained
@@ -193,31 +192,18 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Continue item63: combined-colour sections, all five continuous objects, stock128
-RAM, one drawing bank, no mirrored sprites. All configured heights must be
-positive/even (>=2); do not extend historical frozen zero-height contracts.
-Runnable leaves: examples/04_renderers/all_five_colors_sections/. Default no-score
-retains the alternating-PF scheduler; scores remain bounded to even seams2..26
-with128/128 RAM and independent returns. No seam28 extension or public ABI.
-No-score `make repeated` now builds a separate native repeated-pair preview from
-the same driver: twelve distinct PF rows, four animation frames, fixed two-byte
-dispatch, no stolen S. Row-aligned layouts now have a passing isolated first-row
-P0/P1 handoff; later rows and fine-event layouts remain uncertified. Equal PF
-constants now retain timed loads; uniform aligned/fine default-pose probes pass.
-Frozen terminal profiles retain edge/control/uniform proofs; larger supplied
-controls still exceed bank0. Other fine handoffs/scores remain unfinished; opt-in.
-User has redirected the architecture: an intro positions all five objects once;
-repeatedly instantiated sections own PF/background colours and cooperate through
-shared object progress to enable/disable objects without restarting at seams.
-Section parameters: number_of_scanlines,playfield_row,pf_color,bk_color.
-layers/ now has cooperating no-score and both score orders, one4K bank, stock
-RAM124/125 no-score,126/127 scores. Score pointers borrow unused mask tail88..95;
-gameplay<=176. Above uses a bounded X0..119 blanked intro. Exact images/moving
-Intro NUSIZ parameters. Events44 static,46/56 leaves; full1327/1327 passes.
-NOT fully certified. See layers.txt and libraries/vcs/layers/README.md.
-Do not continue monolithic geometry-specific fixes as the delivery architecture.
-Preserve the existing examples/frozen regressions as implementation evidence.
-Native source: examples/_common/all_five_colors_sections_repeated_preview.c26.
+Active user task: finish VCSC-only RawStream migration. Converter is under
+test/rawstream2png; migrated all selected-frame callers, unchanged RGB references.
+Full eight-worker verification is running: /tmp/opencode/rawstream-full-suite.log.
+Do not edit Stella. See test/rawstream2png/README.md for pipeline and inventory.
+
+Layers/sections agreed scope is complete at a63944fe/373af8a6: independent even
+sections>=2, all five crossing seams, both score orders, one4K drawing bank,
+stock RAM, runtime sprite controls and independent player palettes. Intro NUSIZ
+parameters; compact events use44 static RAM,46/56 presentation RAM. Full1327/1327
+passes. Bounded score-above X0..119; hostile left-edge gameplay/score cleanup is
+not certified. See libraries/vcs/layers/README.md for contracts. Preserve frozen
+monolithic examples/regressions as evidence, not the delivery architecture.
 Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt,
 2026-11-06.txt, 2026-11-08.txt and 2026-11-09.txt.
 Keep eight workers, shared60s snapshot deadlines, workload budgets and child-group

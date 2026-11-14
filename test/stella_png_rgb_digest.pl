@@ -10,8 +10,10 @@ sub paeth { my($a,$b,$c)=@_; my $p=$a+$b-$c; my($pa,$pb,$pc)=(abs($p-$a),abs($p-
 my $first_lit = 0;
 my @mask_rows;
 my $dark_rect;
+my $stella_raster=0;
 while (@ARGV && $ARGV[0] =~ /^--/) {
    my $arg=shift @ARGV;
+   if ($arg eq '--stella-raster') { $stella_raster=1; next; }
    if ($arg eq '--first-lit-row') { $first_lit = 1; next; }
    if ($arg eq '--assert-dark-rect') {
       @ARGV or die "--assert-dark-rect requires X0,Y0,X1,Y1\n";
@@ -31,7 +33,7 @@ while (@ARGV && $ARGV[0] =~ /^--/) {
    }
    die "unknown option $arg\n";
 }
-@ARGV==1 or die "usage: $0 [--first-lit-row] [--assert-dark-rect X0,Y0,X1,Y1] [--mask-rows START-END] SNAPSHOT.png\n";
+@ARGV==1 or die "usage: $0 [--stella-raster] [--first-lit-row] [--assert-dark-rect X0,Y0,X1,Y1] [--mask-rows START-END] SNAPSHOT.png\n";
 my $path=$ARGV[0]; my $png=read_file($path);
 substr($png,0,8) eq "\x89PNG\r\n\x1a\n" or die "$path is not PNG\n";
 my($w,$h,$depth,$ct,$interlace,$palette,$idat); ($palette,$idat)=('','');
@@ -47,6 +49,8 @@ while($o<length($png)) {
 defined($w) && $depth==8 && $interlace==0 or die "$path uses unsupported PNG encoding\n";
 my %ch=(0=>1,2=>3,3=>1,4=>2,6=>4); exists($ch{$ct}) or die "$path uses unsupported PNG color type $ct\n";
 my $c=$ch{$ct}; my $rowbytes=$w*$c; my $raw=uncompress($idat); defined($raw) or die "$path has invalid compressed data\n";
+if($stella_raster){$w==160 or die "RawStream PNG must be native160\n";}
+my $assert_width=$stella_raster?320:$w;
 length($raw)==($rowbytes+1)*$h or die "$path has unexpected scanline bytes\n";
 my @prev=(0)x$rowbytes; my $pos=0; my $rgb=''; my $first_lit_row;
 for my $y (0..$h-1) {
@@ -64,9 +68,10 @@ for my $y (0..$h-1) {
       elsif($ct==3){my $p=$row[$i]*3; $row_rgb.=substr($palette,$p,3)}
       else{$row_rgb.=pack('C3',@row[$i,$i+1,$i+2])}
    }
-   if ($dark_rect && $y >= $dark_rect->[1] && $y <= $dark_rect->[3]) {
+    if($stella_raster){$row_rgb=join('',map{$_.$_}unpack('(a3)*',$row_rgb));}
+    if ($dark_rect && $y >= $dark_rect->[1] && $y <= $dark_rect->[3]) {
       my($x0,undef,$x1)=@$dark_rect;
-      $x1 < $w or die "dark rectangle exceeds PNG width\n";
+       $x1 < $assert_width or die "dark rectangle exceeds raster width\n";
       for my $x ($x0..$x1) {
          my @pixel=unpack('C3',substr($row_rgb,$x*3,3));
          if (grep { $_ > 16 } @pixel) {
@@ -76,7 +81,7 @@ for my $y (0..$h-1) {
    }
    for my $range (@mask_rows) {
       if ($y >= $range->[0] && $y <= $range->[1]) {
-         $row_rgb="\0" x ($w*3);
+          $row_rgb="\0" x ($assert_width*3);
          last;
       }
    }
@@ -91,5 +96,5 @@ if ($first_lit) {
    defined($first_lit_row) or die "$path has no lit pixels above threshold\n";
    print "$first_lit_row\n";
 } else {
-   print "$w x $h ",sha256_hex($rgb),"\n";
+    print "$assert_width x $h ",sha256_hex($rgb),"\n";
 }

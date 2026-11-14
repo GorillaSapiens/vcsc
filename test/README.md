@@ -9,6 +9,14 @@
 
 `test/test.pl` is the single test runner for this tree.
 
+Selected-frame visual regressions now use upstream Stella `-rawstream` and the
+standalone C++ converter in [rawstream2png/](rawstream2png/README.md). That document
+describes dependencies, exact decimal frame selection, the shared capture helper,
+failure reproduction and the complete migrated-caller inventory. PNGs retain
+native dimensions; existing doubled-X assertions use an explicit lossless test
+view. No patched screenshot implementation is required. Failed generic tests
+retain their diagnostic temporary directories; successful runs remove them.
+
 It runs three kinds of files:
 
 - `.c26` source tests ... compiler-only checks by default, or full end-to-end `vcsc-cc1 -> vcsc-as -> vcsc-ld -> vcsc-sim` when the header requests link/sim behavior

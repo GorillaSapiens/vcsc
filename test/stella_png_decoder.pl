@@ -62,4 +62,9 @@ for my$ct(sort{$a<=>$b}keys%channels){
 }
 my$bad="$tmp/bad_filter.png";save_png($bad,1,1,2,"\x05\0\0\0",'');
 eval{decode_rgb($bad)};$@=~/unknown PNG filter 5/ or die 'unknown filter accepted';
+my$native="$tmp/native.png";my$native_rgb=pack('C*',map{($_*37)&255}0..479);
+save_png($native,160,1,2,"\0".$native_rgb,'');
+my($nw,$nh,$view)=decode_stella_rgb($native);
+$nw==320&&$nh==1&&$view eq join('',map{$_.$_}unpack('(a3)*',$native_rgb))or die'lossless native assertion adapter';
+eval{decode_stella_rgb("$tmp/type2_filter0.png")};$@=~/native width160/ or die'non-native assertion input accepted';
 print "stella_png_decoder ok\n";

@@ -179,8 +179,8 @@ for my $kind (qw(above below)) {
       my($label,$joy)=@$case;
       unlink glob("$snap/*.png");
       my $demo_user=File::Spec->catdir($tmp,"user_${kind}_${label}"); make_path($demo_user);
-      my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-         @$joy,'-framesnap',$demo_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+       my @cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+          @$joy,'--capture-frames',$demo_frame,'--capture-dir',$snap,
          '-exitlauncher','0','-confirmexit','0','-userdir',$demo_user,$rom);
       my $pid=fork(); defined$pid or die "fork Stella\n";
       if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_${kind}_${label}.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
@@ -195,7 +195,7 @@ for my $kind (qw(above below)) {
       # so the margin above the requirement is real but not unbounded.
       my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
       terminate($pid); @png==1 or die "Stella produced ".scalar(@png)." snapshots for heart score $kind $label\n";
-      my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,$png[0]);
+       my($value,$ae)=ok("digest heart score $kind $label",$perl,$digest,'--stella-raster',$png[0]);
       $ae eq '' or die $ae; chomp $value; $actual=$value;
       $actual eq $demo_wanted{$kind}{$label}
          or die "heart score $kind $label raster differs: actual=$actual wanted=$demo_wanted{$kind}{$label}\n";

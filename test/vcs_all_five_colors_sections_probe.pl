@@ -885,18 +885,18 @@ sub capture {
    make_path($snap,$user);
    my$p=fork();defined$p or die$!;
    if(!$p){open(STDOUT,'>',"$tmp/stella_$name.log");open(STDERR,'>&STDOUT');
-      exec($stella,vcsc_stella_palette_args($repo,$user),
+       exec(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),
          '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
          '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
          '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
-         '-bs',(-s$bin==8192?'F8':'4K'),'-framesnap','200-239','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+          '-bs',(-s$bin==8192?'F8':'4K'),'--capture-frames','200-239','--capture-dir',$snap,
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,$bin);die$!}
    $children{$p}=1;my@png;
    @png=vcsc_stella_wait_snapshots("$snap/*.png",40);
    # Let the final PNG writer close before terminating the emulator.
    select undef,undef,undef,.025;terminate($p);
    @png==40 or die "$name snapshot count !=40\n";
-   my%frames;for(@png){/_([0-9A-F]{8})\.png$/ or die 'snapshot name';$frames{hex$1}=[decode_rgb($_)];}
+   my%frames;for(@png){/_([0-9]{8,10})\.png$/ or die 'RawStream PNG name';$frames{0+$1}=[decode_stella_rgb($_)];}
    return\%frames;
 }
 my@gold;

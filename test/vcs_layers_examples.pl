@@ -51,14 +51,14 @@ local$ENV{DISPLAY}=$display;local$ENV{XAUTHORITY}='/dev/null';local$ENV{SDL_AUDI
 sub capture {
    my($name,$bin,$count,$frames)=@_;my$d="$tmp/snap_$name";my$u="$tmp/user_$name";
    !-e$d or die 'stale snapshots';make_path($d,$u);
-   my$p=spawn("$tmp/$name.log",$stella,vcsc_stella_palette_args($repo,$u),
+   my$p=spawn("$tmp/$name.log",vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$u),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
       '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-      '-framesnap',($frames//($count==1?'200':'200-239')),'-snapsavedir',$d,'-snapname','rom','-sssingle','1','-ss1x','1',
+       '--capture-frames',($frames//($count==1?'200':'200-239')),'--capture-dir',$d,
       '-exitlauncher','0','-confirmexit','0','-userdir',$u,$bin);
    my@png=vcsc_stella_wait_snapshots("$d/*.png",$count);stop($p);@png>=$count or die 'missing snapshots';
-   return[map{[decode_rgb($_)]}@png];
+   return[map{[decode_stella_rgb($_)]}@png];
 }
 
 # Exact checks use private fixtures, never the editable presentation sources.

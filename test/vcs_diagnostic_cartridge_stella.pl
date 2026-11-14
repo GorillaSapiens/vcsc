@@ -117,8 +117,8 @@ for my$standard (
 
       my$snap=File::Spec->catdir($tmp,"snap-$name"); my$user=File::Spec->catdir($tmp,"user-$name");
       make_path($snap,$user); unlink glob("$snap/*.png");
-      my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,
-         '-bs','F4SC','-bc',$stella_controller,'-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname',$name,'-sssingle','1','-ss1x','1',
+       my@cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,
+          '-bs','F4SC','-bc',$stella_controller,'--capture-frames',$snap_frame,'--capture-dir',$snap,
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
       my$pid=fork(); defined$pid or die"fork Stella\n";
       if(!$pid){open(STDOUT,'>:raw',"$tmp/$name.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
@@ -151,7 +151,7 @@ for my$standard (
       # The Stella launcher installs the pinned NTSC/PAL/SECAM user palette,
       # so all three standards are certified with exact RGB outside live rows.
       my@digest_mask=('--mask-rows','125-133','--mask-rows','138-146');
-      my($actual_row,$are)=ok("$name actual first lit row",$perl,$digest,'--first-lit-row',$actual_png);
+       my($actual_row,$are)=ok("$name actual first lit row",$perl,$digest,'--stella-raster','--first-lit-row',$actual_png);
       my($reference_row,$rre)=ok("$name reference first lit row",$perl,$digest,'--first-lit-row',$reference);
       $are eq ''&&$rre eq '' or die$are.$rre;
       $actual_row eq $reference_row
@@ -160,7 +160,7 @@ for my$standard (
          # P1's live row ends at x=173 with no controller input.  badpatch.patch
          # exposed a nondeterministic staging failure that emitted extra glyphs
          # to the right; keep this assertion outside the masked live-row digest.
-         ok("$name P1 trailing blank",$perl,$digest,'--assert-dark-rect','174,121,220,126',$actual_png);
+          ok("$name P1 trailing blank",$perl,$digest,'--stella-raster','--assert-dark-rect','174,121,220,126',$actual_png);
       }
 
       # The two controller-detail text rows are intentionally live input.
@@ -168,7 +168,7 @@ for my$standard (
       # happened to land relative to the phased UI refresh (driving mode was
       # especially visible).  Ignore only those rows; the controller heading,
       # switch rows, collision bitmap, and collision lanes remain pixel-exact.
-      my($actual,$ae)=ok("$name actual digest",$perl,$digest,@digest_mask,$actual_png);
+       my($actual,$ae)=ok("$name actual digest",$perl,$digest,'--stella-raster',@digest_mask,$actual_png);
       my($wanted,$we)=ok("$name reference digest",$perl,$digest,@digest_mask,$reference);
       $ae eq ''&&$we eq '' or die$ae.$we;
       $actual eq $wanted or die"$name diagnostic Stella raster differs: actual=$actual reference=$wanted";

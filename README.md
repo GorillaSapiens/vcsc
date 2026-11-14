@@ -107,6 +107,11 @@ which pins the NTSC, PAL, and SECAM RGB tables from `compiler/builtin_rgb.c`.
 Stella raster references therefore use exact RGB without depending on the host
 Stella version's built-in palette or saved settings.
 
+Selected emulated frames are recorded with upstream Stella `-rawstream`, then
+converted to native PNGs by `test/rawstream2png/`. Visual tests require a Stella
+build advertising `-rawstream`, plus pkg-config and libpng development files for
+the standalone C++ converter. See [capture and reproduction instructions](test/rawstream2png/README.md).
+
 Installation and release payloads are owned by `packaging/install.manifest`.
 `make install`, `make uninstall`, `make package`, `make linux`, and
 `make windows` all consume that manifest rather than maintaining separate file

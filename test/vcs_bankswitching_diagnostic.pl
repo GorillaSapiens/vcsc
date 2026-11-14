@@ -247,9 +247,9 @@ sub run_stella_certification {
       my $snapdir=File::Spec->catdir($snap_root,$label); make_path($snapdir);
       unlink glob(File::Spec->catfile($snapdir,'*.png'));
       my $run_user=File::Spec->catdir($user_root,$label); make_path($run_user);
-      my @cmd=($stella,vcsc_stella_palette_args($repo,$run_user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
-               '-bs',$arg{mapper},'-framesnap',$snap_frame,'-snapsavedir',$snapdir,'-snapname','rom',
-               '-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0',
+       my @cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$run_user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
+                '-bs',$arg{mapper},'--capture-frames',$snap_frame,'--capture-dir',$snapdir,
+                '-exitlauncher','0','-confirmexit','0',
                '-userdir',$run_user);
       push @cmd,'-startbank',$arg{start} if defined $arg{start};
       push @cmd,'-dev.settings','1','-dev.bankrandom','1' if $arg{random};

@@ -46,14 +46,14 @@ select undef,undef,undef,.2;
 vcsc_xvfb_assert_ready($d,$xpid);
 local $ENV{DISPLAY}=$d; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
 my $snap=File::Spec->catdir($tmp,'snap'); my$user=File::Spec->catdir($tmp,'user'); make_path($snap,$user); unlink glob("$snap/*.png");
-my @cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
-   '-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+ my @cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K',
+    '--capture-frames',$snap_frame,'--capture-dir',$snap,
    '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
 my $pid=fork(); defined$pid or die "fork Stella\n";
 if(!$pid){open(STDOUT,'>:raw',"$tmp/stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-# -framesnap has Stella write this frame itself; nothing presses a key.
+# RawStream selects the completed emulated frame without key presses.
 my @png=vcsc_stella_wait_snapshots("$snap/*.png",1);
 terminate($pid); terminate($xpid); @png==1 or die "Stella produced ".scalar(@png)." snapshots\n";
-my($actual,$ae)=ok('actual digest',$perl,$digest,$png[0]); my($wanted,$we)=ok('reference digest',$perl,$digest,$reference);
+my($actual,$ae)=ok('actual digest',$perl,$digest,'--stella-raster',$png[0]); my($wanted,$we)=ok('reference digest',$perl,$digest,$reference);
 $ae eq ''&&$we eq '' or die $ae.$we; $actual eq $wanted or die "wide Stella raster differs: actual=$actual reference=$wanted";
 chomp $actual; print "Stella wide score raster passed: $actual\n";

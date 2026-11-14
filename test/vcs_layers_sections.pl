@@ -48,15 +48,15 @@ vcsc_xvfb_assert_ready($display,$xp);
 local$ENV{DISPLAY}=$display;local$ENV{XAUTHORITY}='/dev/null';local$ENV{SDL_AUDIODRIVER}='dummy';
 sub capture {
    my($name)=@_;my$snap="$tmp/snap_$name";my$user="$tmp/user_$name";make_path($snap,$user);
-   my$p=spawn("$tmp/stella_$name.log",$stella,vcsc_stella_palette_args($repo,$user),
+   my$p=spawn("$tmp/stella_$name.log",vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
       '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1',
-      '-audio.enabled','0','-bs','4K','-framesnap','200','-snapsavedir',$snap,
-      '-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0',
+       '-audio.enabled','0','-bs','4K','--capture-frames','200','--capture-dir',$snap,
+       '-exitlauncher','0','-confirmexit','0',
       '-userdir',$user,"$tmp/$name.bin");
    my@png=vcsc_stella_wait_snapshots("$snap/*.png",1);stop($p);
-   @png==1 or die "$name missing snapshot";return [decode_rgb($png[0])];
+   @png==1 or die "$name missing snapshot";return [decode_stella_rgb($png[0])];
 }
 sub build {
    my($name,$src)=@_;save("$tmp/$name.c26",$src);

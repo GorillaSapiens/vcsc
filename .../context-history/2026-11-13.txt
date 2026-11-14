@@ -192,3 +192,69 @@ includes the final equal-literal barriers, maximum-run image and preparation
 witness requirements. Documentation updated to the verified event-kernel budgets
 and full-suite result. Nothing pushed; refresh the single make tar handoff after
 committing these records.
+
+2026-11-13 17:17:50 PDT, VCSC RawStream migration
+
+User supplied /tmp/stella.tar.gz and /tmp/framesnapmigration.md, then requested
+implementation with the extractor under test/rawstream2png. Scope is strictly
+VCSC; no Stella modifications, builds, patches or Python migration tools. Read
+both supplied docs, and inspected extracted upstream RawStream, frame-manager
+and palette sources as read-only references in /tmp/opencode/stella-rawstream-reference.
+Installed stella advertises upstream -rawstream and works with the new reader.
+
+Standalone C++17/libpng converter added under test/rawstream2png. Explicit
+little-endian version1 chunk reader, recorded FRAM identities (not ordinals),
+HEAD/PALT changes, indexed native160 PNGs, preserved heights, deterministic
+exclusive/atomic output, strict merged uint32 selections, all/list/prefix/help.
+Lists ROM, timing, frame extent, audio count, RAM and jump metadata. Unknown
+chunks/v1 extension tails skipped; unsupported versions/truncation/missing
+frames/duplicate selected identities/collisions fail. Input stays incremental.
+Ordinary files require END; explicit follow/finish-selected mode tolerates a live
+unfinished tail only after all requested complete frames. Overall deadline and
+byte/allocation limits bound capture. No Python and no Stella source dependency.
+
+All24 previous selected-frame callers now use a list-valued shared launcher in
+stella_test_lib.pl, retaining original emulator settings, frames/ranges, snapshot
+waits, Xvfb isolation/reservations, process control and independent pixel oracles.
+Adapter stella_rawstream_capture.pl owns unique regular recording, converter,
+child groups, 60s/512MiB bounds, successful extraction cleanup and full-set PNG
+publication. A progress marker prevents observing an unfinished capture; failure
+markers surface actual emulator/converter diagnostics promptly. Generic test
+runner now retains failure directories (its old CLEANUP1 deleted retained raw
+recordings), and removes successful ones. Fake-producer tests cover process
+reaping, invalid stream retention, emulator exit and non-overwriting publication.
+
+Native PNGs are160 wide, historical screenshots320. Existing pixel/digest
+assertions use an explicit lossless doubled-X in-memory adapter; native-coordinate
+multisprite/viewport tests directly assert160. No PNG scaling, palette normalization,
+reference regeneration or weakened raster comparisons. Decimal filenames replace
+old hexadecimal session names. Synthetic PNG tests verify the adapter separately.
+
+Replaced old capability contract with vcs_stella_rawstream_contract.pl: actual
+alternating solid frames200,201..203,205 captured twice, exact colour/identity
+and deterministic PNG bytes checked. All TIA writes remain in VBLANK. Its first
+oracle incorrectly treated user-palette bytes as displayed RGB; source inspection
+confirmed upstream PaletteHandler's neutral-option gamma/hue presentation mapping.
+Deriving those two expected colours independently from the pinned fixture fixes
+the oracle. FRAM number increments before capture; startup partial frame1 means
+first complete ROM iteration/phase1 ends at frame2. No guessed stream offset.
+
+Converter synthetic contract checks palettes/TV/header changes, extensions,
+unknown chunks, all/strict/overlap selections, frame0/UINT32_MAX filenames,
+64-bit cycles, RAM metadata, malformed/missing/truncated/duplicate records,
+collision, live partial delivery, deadline and byte limit. New fake-producer
+contract plus decoder/waiter/hygiene gates pass6/6 at
+/tmp/opencode/rawstream-final-contracts.log. Initial live group passes5/5 at
+rawstream-focused.log, including pinned RGB/player score/mapper tests. Second
+live group passes6/7 (the subsequently corrected colour oracle only failure):
+PAL/SECAM, examples, multisprite, layers and16-frame sections all pass.
+
+Build/test Makefiles, package CI dependency/converter coverage, public README,
+test README, converter README and current developer instructions updated.
+Complete migration inventory is test/rawstream2png/README.md. All original
+FrameSnap options are gone from test callers; historical addon patch and cold
+history remain unused/unmodified. Separate upstream interactive key/sequence
+tests retain their intentional non-selected-frame behavior. No Stella internals
+were changed or rebuilt. Full eight-worker suite in progress:
+/tmp/opencode/rawstream-full-suite.log. Final contracts contain changes after
+that run's discovery, so a clean full rerun is still needed before sign-off.

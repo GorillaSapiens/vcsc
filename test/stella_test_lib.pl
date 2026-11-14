@@ -10,6 +10,14 @@ use Socket qw(PF_UNIX SOCK_STREAM sockaddr_un);
 use Digest::SHA qw(sha256_hex);
 use Time::HiRes ();
 
+# List-valued launcher: callers retain their original Stella arguments and
+# process management, but select PNGs using --capture-frames/--capture-dir.
+# The adapter owns bounded raw recording, conversion and successful cleanup.
+sub vcsc_stella_capture_launcher {
+   my($repo,$stella)=@_;
+   return($^X,File::Spec->catfile($repo,qw(test stella_rawstream_capture.pl)),$repo,$stella);
+}
+
 # A deadline, not a fixed delay: fast captures return immediately. Give loaded
 # parallel runs time to start/render without retrying or changing the frame.
 sub vcsc_stella_wait_snapshots {
@@ -19,8 +27,16 @@ sub vcsc_stella_wait_snapshots {
       or die "vcsc_stella_wait_snapshots requires PATTERN, COUNT and positive timeout\n";
    my$deadline=Time::HiRes::time()+$timeout;
    while(1) {
+      my(undef,$directory)=File::Spec->splitpath($pattern);
+      for my$failure(glob(File::Spec->catfile($directory,'rawstream-*','failure.txt'))) {
+         open(my$f,'<',$failure)or die"read $failure: $!";
+         local$/;my$text=<$f>;
+         die "RawStream capture failed: $text\n";
+      }
       my@png=grep{-s$_}glob($pattern);
-      return @png if @png >= $expected || Time::HiRes::time() >= $deadline;
+      my@pending=glob(File::Spec->catfile($directory,'rawstream-*','inprogress'));
+      return @png if @png >= $expected && !@pending;
+      return @pending ? () : @png if Time::HiRes::time() >= $deadline;
       Time::HiRes::sleep(.05);
    }
 }
@@ -34,12 +50,15 @@ sub vcsc_stella_private_env {
    my$data=File::Spec->catdir($xdg,'data');
    my$state=File::Spec->catdir($xdg,'state');
    my$cache=File::Spec->catdir($xdg,'cache');
-   make_path($config,$data,$state,$cache);
+   my$runtime=File::Spec->catdir($xdg,'runtime');
+   make_path($config,$data,$state,$cache,$runtime);
+   chmod 0700,$runtime or die "chmod $runtime: $!";
    $ENV{HOME}=$basedir;
    $ENV{XDG_CONFIG_HOME}=$config;
    $ENV{XDG_DATA_HOME}=$data;
    $ENV{XDG_STATE_HOME}=$state;
    $ENV{XDG_CACHE_HOME}=$cache;
+   $ENV{XDG_RUNTIME_DIR}=$runtime;
 }
 
 sub vcsc_stella_palette_args {

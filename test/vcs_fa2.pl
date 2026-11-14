@@ -271,8 +271,8 @@ my $snap_frame=200;
    vcsc_xvfb_assert_ready($display,$xpid);
    local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null'; local $ENV{HOME}=$tmp; local $ENV{XDG_CONFIG_HOME}=$xdg; local $ENV{SDL_AUDIODRIVER}='dummy';
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
-   if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
-# -framesnap has Stella write this frame itself; nothing presses a key.
+   if($pid==0){ open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')); open(STDERR,'>&STDOUT'); exec(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','FA2','--capture-frames',$snap_frame,'--capture-dir',$snap,'-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible); die "exec Stella: $!\n"; }
+# RawStream selects the completed emulated frame without key presses.
    my @png;
    @png=vcsc_stella_wait_snapshots(File::Spec->catfile($snap,'*.png'),1);
    terminate_child($pid); terminate_child($xpid); @png==1 or die "Stella FA2 produced ".scalar(@png)." snapshots\n";

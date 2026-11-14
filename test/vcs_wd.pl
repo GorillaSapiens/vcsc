@@ -272,12 +272,12 @@ my $snap_frame=200;
    my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
    if ($pid==0) {
       open(STDOUT,'>',File::Spec->catfile($tmp,'stella.log')) or die $!; open(STDERR,'>&STDOUT') or die $!;
-      exec($stella,vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','WD',
-           '-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+       exec(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-video','software','-turbo','1','-audio.enabled','0','-bs','WD',
+            '--capture-frames',$snap_frame,'--capture-dir',$snap,
            '-exitlauncher','0','-confirmexit','0','-userdir',$user,$visible);
       die "exec Stella: $!\n";
    }
-   # -framesnap has Stella write this frame itself; nothing presses a key.
+   # RawStream selects the completed emulated frame without key presses.
    my @png=vcsc_stella_wait_snapshots(File::Spec->catfile($snap,'*.png'),1);
    terminate_child($pid); terminate_child($xpid);
    @png==1 or die "Stella WD produced ".scalar(@png)." snapshots\n";

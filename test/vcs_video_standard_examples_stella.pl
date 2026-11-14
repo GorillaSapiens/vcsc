@@ -101,10 +101,10 @@ for my$case(
    select undef,undef,undef,.2;local$ENV{DISPLAY}=$d;local$ENV{XAUTHORITY}='/dev/null';local$ENV{HOME}="$tmp/home-$tag";local$ENV{SDL_AUDIODRIVER}='dummy';make_path($ENV{HOME});
    my$snap="$tmp/snap-$tag";my$user="$tmp/user-$tag";make_path($snap,$user);unlink glob("$snap/*.png");
    my$bs=$family eq 'enhanced-asymmetric' ? 'F8' : '4K';
-   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,'-bs',$bs,'-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname',$tag,'-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my@cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-format',$format,'-bs',$bs,'--capture-frames',$snap_frame,'--capture-dir',$snap,'-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork();defined$pid or die"fork Stella\n";if(!$pid){open(STDOUT,'>:raw',"$tmp/$tag.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-     # -framesnap has Stella write this frame itself; nothing presses a key.
+      # RawStream selects the exact completed emulated frame; no key presses.
       my@png=vcsc_stella_wait_snapshots("$snap/*.png",1);terminate($pid);terminate($xpid);@png==1 or die"$tag Stella produced ".scalar(@png)." snapshots\n";
-   my($w,$h)=png_dimensions($png[0]);$w==320&&$h==274 or die"$tag example snapshot ${w}x${h}, expected 320x274\n";
+   my($w,$h)=png_dimensions($png[0]);$w==160&&$h==274 or die"$tag example snapshot ${w}x${h}, expected native160x274\n";
 }
 print "vcs_video_standard_examples_stella ok\n";

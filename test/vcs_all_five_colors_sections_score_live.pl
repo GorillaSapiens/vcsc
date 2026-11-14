@@ -9,6 +9,7 @@
 # pointer preparation against the independent ordinary score implementation.
 use strict;
 use warnings;
+use Cwd qw(abs_path);
 use File::Path qw(make_path);
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -28,13 +29,16 @@ sub slurp {open(my$f,'<',$_[0])or die$!;local$/;return<$f>;}
 sub save {open(my$f,'>',$_[0])or die$!;print{$f}$_[1];close$f or die$!;}
 sub run {my$e=gensym;my$p=open3(my$i,my$o,$e,@_);close$i;local$/;my$o2=<$o>//'';my$e2=<$e>//'';waitpid($p,0);$?==0 or die "@_ failed\n$o2$e2";}
 require "$repo/test/stella_test_lib.pl";
+sub findexe {my$n=shift;return abs_path($n)if-x$n;for(split/:/,$ENV{PATH}//''){return abs_path("$_/$n")if-x"$_/$n";}die"required executable $n";}
+my$stella=findexe($ENV{VCSC_STELLA}||$ENV{STELLA}||'stella');
+my$xvfb=findexe($ENV{VCSC_XVFB}||$ENV{XVFB}||'Xvfb');
 my$helpers=slurp("$repo/test/stella_png_sequence.pl");$helpers=~s/\n\@ARGV>=2.*\z//s or die 'PNG boundary';eval$helpers;die$@if$@;
 my%children;
 sub terminate {my$p=shift;kill'TERM',$p;waitpid($p,0);delete$children{$p};}
 END {local$?;terminate($_)for keys%children;}
 my(undef,$display)=vcsc_reserve_x_display(250,40);
 my$xp=fork();defined$xp or die$!;
-if(!$xp){open(STDOUT,'>',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec('Xvfb',$display,'-ac','-screen','0','1024x768x24');die$!;}
+if(!$xp){open(STDOUT,'>',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$display,'-ac','-screen','0','1024x768x24');die$!;}
 $children{$xp}=1;vcsc_xvfb_assert_ready($display,$xp);
 local$ENV{DISPLAY}=$display;local$ENV{XAUTHORITY}='/dev/null';local$ENV{SDL_AUDIODRIVER}='dummy';
 sub capture {
@@ -43,16 +47,16 @@ sub capture {
    my$snap="$tmp/snap_$name";my$user="$tmp/user_$name";make_path($snap,$user);
    my$p=fork();defined$p or die$!;
    if(!$p){open(STDOUT,'>',"$tmp/$name.log");open(STDERR,'>&STDOUT');
-      exec('stella',vcsc_stella_palette_args($repo,$user),
+       exec(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),
          '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
          '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
          '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
-         '-bs','F8','-framesnap','200-201','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+          '-bs','F8','--capture-frames','200-201','--capture-dir',$snap,
          '-exitlauncher','0','-confirmexit','0','-userdir',$user,"$tmp/$name.bin");die$!;
    }
    $children{$p}=1;my@png=vcsc_stella_wait_snapshots("$snap/*.png",2);
    select undef,undef,undef,.025;terminate($p);@png==2 or die 'missing live snapshots';
-   my%frames;for(@png){/_([0-9A-F]{8})\.png$/ or die 'frame name';$frames{hex$1}=[decode_rgb($_)];}return\%frames;
+   my%frames;for(@png){/_([0-9]{8,10})\.png$/ or die 'RawStream PNG name';$frames{0+$1}=[decode_stella_rgb($_)];}return\%frames;
 }
 for my$order(qw(above below)){
    next if defined($mutation)&&$mutation ne 'independent'&&!$prefix&&!$later&&$order eq 'above';

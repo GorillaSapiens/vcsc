@@ -17,13 +17,16 @@ test: stella-deps
 	VCSC_STELLA="$(STELLA)" VCSC_XVFB="$(XVFB)" ./test.pl --jobs $(TEST_JOBS) --timings "$(TEST_TIMINGS)" --compile-only
 	VCSC_STELLA="$(STELLA)" VCSC_XVFB="$(XVFB)" ./test.pl --jobs $(TEST_JOBS) --timings "$(TEST_TIMINGS)" --timings-append --e2e-only
 
-stella-deps:
+stella-deps: rawstream2png
 	@command -v "$(STELLA)" >/dev/null 2>&1 || { echo "required Stella executable not found: $(STELLA)" >&2; exit 1; }
 	@command -v "$(XVFB)" >/dev/null 2>&1 || { echo "required Xvfb executable not found: $(XVFB)" >&2; exit 1; }
+
+rawstream2png:
+	$(MAKE) -C rawstream2png
 
 slow-tests:
 	@test -s "$(TEST_TIMINGS)" || { echo "missing timing report: $(TEST_TIMINGS)" >&2; exit 1; }
 	@printf 'seconds\tstatus\tphase\ttest\n'
 	@tail -n +2 "$(TEST_TIMINGS)" | sort -nr | head -n $(TEST_SLOWEST)
 
-.PHONY: all unit e2e test stella-deps slow-tests
+.PHONY: all unit e2e test stella-deps slow-tests rawstream2png

@@ -721,8 +721,18 @@ sub ruvcsc_e2e_case {
 
 sub ruvcsc_generic_case {
    my ($case) = @_;
+   # Converter/emulator diagnostics must survive a failed certification. The
+   # old CLEANUP=>1 deleted even recordings explicitly retained on failure.
+   my $tmp = tempdir("vcsc_generic_XXXX", TMPDIR => 1, CLEANUP => 0);
+   my $result = ruvcsc_generic_in_directory($case, $tmp);
+   if ($result->{ok}) { remove_tree($tmp); }
+   else { $result->{message} .= "\nDiagnostics retained in $tmp"; }
+   return $result;
+}
+
+sub ruvcsc_generic_in_directory {
+   my ($case, $tmp) = @_;
    my $meta = $case->{meta};
-   my $tmp = tempdir("vcsc_generic_XXXX", TMPDIR => 1, CLEANUP => 1);
    my $ctx = {
       '@REPO@' => $repo_root,
       '@TEST_ROOT@' => $test_root,

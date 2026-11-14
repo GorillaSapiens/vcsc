@@ -73,6 +73,14 @@ sub decode_rgb {
    }
    return($w,$h,$rgb);
 }
+sub decode_stella_rgb {
+   # Lossless assertion-coordinate adapter, NOT PNG resampling. RawStream PNGs
+   # stay native160; historical certification coordinates/digests use320. Every
+   # native RGB pixel is checked twice against the unchanged independent oracle.
+   my($w,$h,$rgb)=decode_rgb(@_);
+   $w==160 or die "RawStream certification PNG must have native width160\n";
+   return(320,$h,join('',map{$_.$_}unpack('(a3)*',$rgb)));
+}
 sub histogram_key {
    my($w,$h,$rgb)=@_;
    my %count;

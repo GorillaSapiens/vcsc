@@ -398,8 +398,18 @@ my $stella_palette_contract=File::Spec->catfile($test,'stella_palette_contract.p
 -f $stella_lib && -f $stella_palette && -s $stella_palette == 792 && -f $stella_palette_contract
    or die "pinned Stella palette contract is incomplete\n";
 for my $path (@stella_test_scripts) {
+   next if $path eq File::Spec->catfile($test,'source_tree_hygiene.pl');
    my $text=slurp($path);
-   next unless $text =~ /(?:exec\(\$stella|my ?\@cmd=\(\$stella)/;
+   index($text,'-frame'.'snap')<0 or die "$path still depends on retired selected screenshots\n";
+   if($text =~ /^# runner:/m && index($text,'--capture-frames')>=0) {
+      index($text,'vcsc_stella_capture_launcher')>=0
+         or die "$path bypasses the shared RawStream capture launcher\n";
+   }
+}
+for my $path (@stella_test_scripts) {
+   my $text=slurp($path);
+   next unless $text =~ /^# runner:/m; # certification drivers, not launch adapters
+   next unless $text =~ /(?:exec\(\$stella|my ?\@cmd=\(\$stella|vcsc_stella_capture_launcher\(\$repo,\$stella\))/;
    index($text,'stella_test_lib.pl') >= 0 && index($text,'vcsc_stella_palette_args') >= 0
       or die "$path does not use the pinned Stella palette helper\n";
 }

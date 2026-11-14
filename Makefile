@@ -121,6 +121,7 @@ clean:
 	@$(MAKE) --no-print-directory -C ./simulator clean
 	@$(MAKE) --no-print-directory -C ./driver clean
 	@$(MAKE) --no-print-directory -C ./disassembler clean
+	@$(MAKE) --no-print-directory -C ./test/rawstream2png clean
 
 docs:
 	mkdir -p doxygen

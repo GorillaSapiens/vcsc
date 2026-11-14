@@ -485,11 +485,11 @@ my%frames;
 for my$name(@captures) {
    my$snap="$tmp/snap_$name"; my$user="$tmp/user_$name";
    remove_tree($snap,$user); make_path($snap,$user);
-   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),
+   my@cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
       '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
-      '-bs','4K','-framesnap','200-215','-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1',
+       '-bs','4K','--capture-frames','200-215','--capture-dir',$snap,
       '-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom{$name});
    my$pid=fork(); defined$pid or die "fork Stella\n";
    if(!$pid){open(STDOUT,'>:raw',"$tmp/stella_$name.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
@@ -497,9 +497,9 @@ for my$name(@captures) {
    my@png=vcsc_stella_wait_snapshots("$snap/*.png",16);
    terminate($pid); @png==16 or die "$name captured ".scalar(@png)." frames, expected 16\n";
    for my$path(@png) {
-      $path =~ /_([0-9A-F]{8})\.png$/ or die "unrecognised framesnap filename: $path\n";
-      my$f=hex($1); $f>=200&&$f<=215 or die "wrong capture frame $f\n";
-      $frames{$name}{$f}=[decode_rgb($path)];
+       $path =~ /_([0-9]{8,10})\.png$/ or die "unrecognised RawStream PNG filename: $path\n";
+       my$f=0+$1; $f>=200&&$f<=215 or die "wrong capture frame $f\n";
+       $frames{$name}{$f}=[decode_stella_rgb($path)];
    }
 }
 my%motion_rasters;

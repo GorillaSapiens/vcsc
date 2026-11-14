@@ -95,14 +95,14 @@ sub build {
 sub capture {
    my($n,$count)=@_;$count//=1;
    my$d="$tmp/snap_$n";my$u="$tmp/user_$n";make_path($d,$u);
-   my$p=spawn("$tmp/$n.log",$stella,vcsc_stella_palette_args($repo,$u),
+   my$p=spawn("$tmp/$n.log",vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$u),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
       '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1',
-      '-audio.enabled','0','-bs','4K','-framesnap',($count==1?'200':'200-'.(199+$count)),'-snapsavedir',$d,
-      '-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$u,"$tmp/$n.bin");
+       '-audio.enabled','0','-bs','4K','--capture-frames',($count==1?'200':'200-'.(199+$count)),'--capture-dir',$d,
+       '-exitlauncher','0','-confirmexit','0','-userdir',$u,"$tmp/$n.bin");
    my@png=vcsc_stella_wait_snapshots("$d/*.png",$count);stop($p);
-   @png>=$count or die "$n missing snapshots";return[map{[decode_rgb($_)]}@png];
+    @png>=$count or die "$n missing snapshots";return[map{[decode_stella_rgb($_)]}@png];
 }
 sub address {
    my($name,$symbol)=@_;my$s=slurp("$tmp/$name.sym");

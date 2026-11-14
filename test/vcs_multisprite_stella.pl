@@ -45,10 +45,10 @@ sub decode_png_rgb {
 }
 
 sub color_extent {
-   my($png,$want,$ymin,$ymax)=@_; my($w,$h,$rgb)=decode_png_rgb($png); $w==320 or die "$png unexpected Stella width $w\n";
+   my($png,$want,$ymin,$ymax)=@_; my($w,$h,$rgb)=decode_png_rgb($png); $w==160 or die "$png unexpected native Stella width $w\n";
    $ymin=0 if !defined$ymin; $ymax=$h-1 if !defined$ymax || $ymax>=$h;
    my(%x,%y);
-   for my$yy($ymin..$ymax){for my$xx(0..$w-1){my$i=3*($yy*$w+$xx);next unless substr($rgb,$i,3) eq $want;$x{int($xx/2)}=1;$y{$yy}=1}}
+   for my$yy($ymin..$ymax){for my$xx(0..$w-1){my$i=3*($yy*$w+$xx);next unless substr($rgb,$i,3) eq $want;$x{$xx}=1;$y{$yy}=1}}
    my@x=sort{$a<=>$b}keys%x; my@y=sort{$a<=>$b}keys%y; return(\@x,\@y);
 }
 sub expect_x { my($label,$actual,@want)=@_; my$a=join(',',@$actual); my$w=join(',',@want); $a eq $w or die "$label X pixels [$a], expected [$w]\n"; }
@@ -81,9 +81,9 @@ sub snapshot_case {
    my$rom=File::Spec->catfile($tmp,"$name.bin"); eval { ok("build $name",$driver,'-I',$vcs,'-Wa,--illegals',$case_src,'-o',$rom); 1 } or do { my$e=$@; unlink$case_src; die$e; }; unlink$case_src;
    my$work=File::Spec->catdir($tmp,$name); remove_tree($work); make_path(File::Spec->catdir($work,'snap'),File::Spec->catdir($work,'user'));
    my$snap=File::Spec->catdir($work,'snap'); my$user=File::Spec->catdir($work,'user');
-   my@cmd=($stella,vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K','-framesnap',$snap_frame,'-snapsavedir',$snap,'-snapname','rom','-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my@cmd=(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,$user),'-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0','-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0','-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0','-bs','4K','--capture-frames',$snap_frame,'--capture-dir',$snap,'-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork(); defined$pid or die "fork Stella\n"; if(!$pid){open(STDOUT,'>:raw',"$work/stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
-   # -framesnap has Stella write this frame itself; nothing presses a key.
+   # RawStream selects the exact completed emulated frame; no key presses.
    my@png=vcsc_stella_wait_snapshots("$snap/*.png",1);
    terminate($pid); @png==1 or die "$name produced ".scalar(@png)." snapshots\n"; return$png[0];
 }

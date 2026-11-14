@@ -477,7 +477,8 @@ HOW TO REPRODUCE THE VERIFICATION
 
     render: reserve a display with vcsc_reserve_x_display() from
             test/stella_test_lib.pl, run stella under Xvfb with
-            -framesnap 200 -snapsavedir <dir> -snapname <n> -ss1x 1, then decode
+            via vcsc_stella_capture_launcher with --capture-frames 200 and
+            --capture-dir <dir> (upstream RawStream), then decode
             the PNG by lifting read_file/paeth/decode_rgb out of
             test/stella_png_sequence.pl and calling decode_rgb on it.
 
