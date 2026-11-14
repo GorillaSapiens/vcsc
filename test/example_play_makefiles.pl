@@ -45,6 +45,26 @@ find({no_chdir=>1,wanted=>sub {
    $rel =~ s{\\}{/}g;
    push @multi,$rel;
 
+   # Automatic previews and interactive variants intentionally have separate
+   # launch targets, rather than forcing users through both ROMs in one loop.
+   # Validate both output/dependency/launch pairings, not a blanket exemption.
+   if ($text =~ /^INTERACTIVE\s*:=\s*([A-Za-z0-9_+.-]+\.bin)\s*$/m) {
+      my$interactive=$1;
+      $text =~ /^TARGET\s*:=\s*([A-Za-z0-9_+.-]+\.bin)\s*$/m
+         or die "interactive example lacks automatic TARGET: $rel\n";
+      keys(%bins)==2 && $bins{$1} && $bins{$interactive}
+         or die "interactive example has unpaired ROMs: $rel\n";
+      for my$pair (['play','all','TARGET'],['play-interactive','interactive','INTERACTIVE']) {
+         my($play,$build,$variable)=@$pair;
+         $text =~ /^\Q$build\E:\s*\$\(\Q$variable\E\)\s*$/m
+            or die "$rel lacks $build dependency on $variable\n";
+         my($body)=$text =~ /^\Q$play\E:\s*\Q$build\E\s*\n((?:\t[^\n]*\n|[ \t]*\n)*)/m;
+         defined($body) && $body =~ /\bstella\b[^\n]*"\$\(CURDIR\)\/\$\(\Q$variable\E\)"/
+            or die "$rel $play does not launch its matching ROM\n";
+      }
+      return;
+   }
+
    my($play_header,$play_body)=$text =~ /^(play:[^\n]*)\n((?:\t[^\n]*\n|\s*\n)*)/m;
    defined($play_header) or die "multi-bin example lacks play target: $rel\n";
    $play_body =~ /\bfor\s+\w+\s+in\s+.+;\s*do\b/s

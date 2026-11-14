@@ -385,5 +385,12 @@ branding passed; hygiene needed the usual PATH resolver, and new copied frame
 assembly needed explicit allowlist review. Both corrections now pass directly.
 Corrected-control focused run4/4 passes: new CPU/native/install gate, hygiene,
 assembly review and branding. An earlier full run began before the control
-correction and cannot certify the final revision. Final eight-worker verification
-pending. Nothing pushed.
+correction and cannot certify the final revision. It finished1326/1331: two
+integration audits did not recognize separate play-interactive targets or the
+shared cooperating artwork name; two unchanged-budget tests timed out and the
+known upstream held-input heart digest failed. Updated the play audit to verify
+both target/dependency/ROM launch pairings and the orientation audit to compare
+every new hex-literal frame numerically against the existing reviewed standard
+artwork, verify row order, and verify both position-driven selectors. Existing
+multi-bin loop and sprite checks remain intact. Both updated audits pass directly.
+New final eight-worker run pending. Nothing pushed.

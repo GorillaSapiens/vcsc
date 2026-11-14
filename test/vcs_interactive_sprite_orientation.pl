@@ -55,6 +55,19 @@ sub same_frames {
    }
 }
 
+# Cooperating-layer app artwork uses equivalent hexadecimal row literals and
+# its own reverse-storage macro. Normalize values, not source spelling, while
+# retaining the same independently reviewed standard visual frames.
+sub numeric_frames {
+   my($frames)=@_;
+   return [map { [map {
+      my$v=$_;
+      if($v =~ /^0x[0-9a-f]+$/i) { hex($v); }
+      elsif($v =~ /^0b[X.01]+$/) { $v=~tr/X./10/; oct($v); }
+      else { die "unrecognized sprite row $v\n"; }
+   } @$_] } @$frames];
+}
+
 sub animation_frames {
    my($text,$name)=@_;
    my$block=initializer($text,$name,32);
@@ -179,6 +192,17 @@ my $p0c=plain_values(initializer($baseline,'game_player0_colors'));
 my $p1c=plain_values(initializer($baseline,'game_player1_colors'));
 my @p0c_reverse=reverse @$p0c;
 my @p1c_reverse=reverse @$p1c;
+my$cooperating_art=read_file(File::Spec->catfile($repo,qw(examples _common cooperating_layers_interactive_sprites.c26)));
+$cooperating_art =~ /alias\s+LAYERS_INTERACTIVE_GLYPH\(a,b,c,d,e,f,g,h\)\s+h,g,f,e,d,c,b,a/
+   or die "cooperating sprite storage order changed\n";
+my$cooperating_controls=read_file(File::Spec->catfile($repo,qw(examples _common cooperating_layers_controls.c26)));
+for my$n(0,1) {
+   same_frames(numeric_frames(frames(initializer($cooperating_art,"layers_p${n}_animation",32),'LAYERS_INTERACTIVE_GLYPH')),
+      numeric_frames($n?$p1_frames:$p0_frames),"cooperating P$n");
+   $cooperating_controls =~ /layers_player${n}_graphics\s*:=\s*layers_p${n}_animation\s*;/ &&
+   $cooperating_controls =~ /layers_player${n}_graphics\s*\+=\s*\(\(layers_object_x\[$n\]\s*\^\s*layers_player${n}_y\)\s*&\s*3\)\s*<<\s*3/
+      or die "cooperating P$n position-driven animation selector changed\n";
+}
 $baseline =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
    or die "standard P0 animation selector changed\n";
 $baseline =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
@@ -314,8 +338,15 @@ find(sub {
 for my $path (@leaves) {
    my $text=local_include_closure($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
-               $text =~ /\bp0_animation\s*\[32\]/ ||
-               $text =~ /\bgame_graphics\s*\[145\]/;
+                $text =~ /\bp0_animation\s*\[32\]/ ||
+                $text =~ /\bgame_graphics\s*\[145\]/;
+   if($text =~ /\blayers_p0_animation\s*\[32\]/) {
+      for my$n(0,1) {
+         same_frames(numeric_frames(frames(initializer($text,"layers_p${n}_animation",32),'LAYERS_INTERACTIVE_GLYPH')),
+            numeric_frames($n?$p1_frames:$p0_frames),"$path cooperating P$n");
+      }
+      $covered=1;
+   }
    $covered or die "$path does not use a normalized interactive sprite definition\n";
 }
 
