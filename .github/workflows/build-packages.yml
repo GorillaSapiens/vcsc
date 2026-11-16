@@ -36,6 +36,46 @@ jobs:
             libpng-dev \
             zip
 
+      - name: Record runner and MinGW toolchain
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cat /etc/os-release
+          git rev-parse HEAD
+          x86_64-w64-mingw32-gcc -v
+          readlink -f "$(command -v x86_64-w64-mingw32-gcc)"
+          dpkg-query -W '*mingw*'
+          printf '#include "host_stdio.h"\n#include <inttypes.h>\n' |
+            x86_64-w64-mingw32-gcc -std=c11 -I. -dM -E -x c - |
+            grep -E '__MINGW|__USE_MINGW_ANSI_STDIO|__MSVCRT|_UCRT|__GNUC|PRIu64|PRIX64'
+
+      - name: Check MinGW stdio before package compilation
+        shell: bash
+        run: |
+          set -euxo pipefail
+          probe="$RUNNER_TEMP/vcsc-mingw-stdio.c"
+          cat > "$probe" <<'C'
+          #include "host_stdio.h"
+          #include <inttypes.h>
+          #if !defined(__MINGW32__) || __USE_MINGW_ANSI_STDIO != 1
+          #error Expected MinGW C99 stdio
+          #endif
+          int main(void) {
+              size_t n = 171;
+              uint64_t wide = UINT64_C(4294967467);
+              char text[128];
+              if (snprintf(text, sizeof(text), "%zu/%zx/%02zX/%" PRIu64 "/%" PRIX64,
+                           n, n, n, wide, wide) < 0) return 1;
+              return fprintf(stdout, "%zu/%zx/%02zX/%" PRIu64 "/%" PRIX64 "\n",
+                             n, n, n, wide, wide) < 0;
+          }
+          C
+          for mode in 0 1; do
+            x86_64-w64-mingw32-gcc -std=c11 -Wall -Wextra -Werror -pedantic -O2 \
+              -I "$GITHUB_WORKSPACE" -D__USE_MINGW_ANSI_STDIO="$mode" \
+              "$probe" -o "$RUNNER_TEMP/vcsc-mingw-stdio-$mode.exe"
+          done
+
       - name: Build Windows and Linux packages
         shell: bash
         run: |
