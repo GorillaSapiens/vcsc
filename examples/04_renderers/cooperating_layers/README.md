@@ -47,8 +47,7 @@ variants. The existing `make` and `make play` still select the automatic preview
 - **Console SELECT:** cycle P0 → P1 → M0 → M1 → Ball → P0. Holding it does not
   repeat; release it before selecting the next object.
 - **Left joystick:** move only the selected object. Opposing directions prefer
-  left/up. X saturates at 0..159, except score-above uses 0..119 because its
-  blanked in-frame positioning entry has that stricter contract.
+  left/up. X saturates at 0..159 in all three layouts.
 - Y uses two-scanline units: 0..95 without a score, 0..85 above, 0..87 below.
   Objects clip naturally at the bottom, as in the other interactive renderers.
   Move them through the scenery seams to inspect continuity.
@@ -93,12 +92,12 @@ palettes remain available. There is one4K drawing bank and no cartridge RAM.
 
 These remain experimental layouts. The former right-edge player corruption is
 repaired: independent runtime-X sweeps pass every X0..159 for both players in
-all eight modes. Score-above's distinct fixed positioning entry still requires
-all X0..119. Score
+all eight modes. Score-above prepares five packed positioning controls during
+VBLANK and supports the same full X0..159 range within its original setup gap. Score
 positions/colours are compile-time parameters; its two BCD values are runtime.
 NUSIZ values are intro parameters (`player0_nusiz` and `player1_nusiz`, default
-`0x20`), not RAM variables. Automatic score previews leave72 RAM bytes free;
-interactive score variants leave70. Adding
+`0x20`), not RAM variables. Automatic score-above/below leave67/72 RAM bytes free;
+interactive score-above/below leave65/70. Adding
 variables or nested calls still needs
 a fresh lifetime/stack analysis. Existing examples and renderer defaults are
 unchanged. See [the layer contracts](../../../libraries/vcs/layers/README.md).

@@ -1,0 +1,30 @@
+2026-11-16 11:05:00 PDT, full-range score-above positioning
+
+User explicitly requires object positions beyond X119 in cooperating score-above.
+Added optional intro visible_setup:=1: five packed bytes retain fine motion in
+the high nibble and a delay count in the low nibble. prepare_visible() samples X
+during VBLANK; establish_visible() writes HMP before RESP. Default blanking intro
+keeps its original code and zero RAM. First attempt ending WSYNC at76 still added
+a line at high X (caught by all159 CPU and public interactive tests). Revised
+delay keeps the first coarse bucket's RESP phase, resets later buckets one CPU
+cycle early and compensates three pixels with fine motion. Residues13/14 select
+the next coarse bucket. Latest RESP72/WSYNC75; same five positioning lines, same
+eight-line blanked gap and172 gameplay lines. No timer restart or shortened game.
+Automatic and interactive score-above use61/63 total RAM, inside existing budgets;
+private static/motion59/60. No cartridge RAM, mirrored graphics or second bank.
+All current establish_visible callers prepare during VBLANK. Removed interactive
+119 clamp; controller model requires159 and exercises each object to saturation.
+
+Added eight full-X native shards, one per NUSIZ mode. Independent full-image model
+checks all five unoccluded objects across160 consecutive X poses, distinct offsets,
+wrapped copies, score pixels and blank setup. CPU model checks420 frames, prepared
+bytes, RESP phases/lines and fixed gameplay start. Static zero/119/120/159/mixed
+vectors supplement sweep. Mode0 restores the historical visible positioning body
+and requires rejection by the phase/deadline oracle. Shared capture bounds, exact
+FRAM selections, process cleanup and existing workload budgets are unchanged.
+Expanded eight-worker focused run passed16/16: all eight full-X modes, the
+historical negative control, existing layers-all-five, presentation, public
+interactive, blanking intro, events, hygiene, assembly allowlist and history.
+Log: /tmp/opencode/layers-full-x-focused.log.
+Fresh full eight-worker suite active: /tmp/opencode/layers-full-x-full-suite.log.
+No source archive will be offered before that result; no full certification yet.

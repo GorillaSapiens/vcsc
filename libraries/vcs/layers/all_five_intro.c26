@@ -2,12 +2,14 @@
 // Experimental horizontal intro for cooperating all-five drawing sections.
 // Include vcs.c26 and define the shared coordinate array below in the application
 // or shared-state owner. These are real linker symbols, not textual aliases.
-// No private RAM, vertical state, graphics, palettes, or frame ownership.
+// No vertical state, graphics, palettes, or frame ownership. The optional fixed
+// visible setup uses five prepared bytes; the blanking-only intro owns no RAM.
 // establish() runs during blanking; it does NOT start a visible section.
 // The caller's blanking deadline absorbs the position-dependent WSYNC work.
 extern uint8_t layers_object_x[5];
 parameter player0_nusiz := 0x20;
 parameter player1_nusiz := 0x20;
+parameter visible_setup := 0;
 #if TEMPLATE_player0_nusiz < 0 || TEMPLATE_player0_nusiz > 255 || TEMPLATE_player1_nusiz < 0 || TEMPLATE_player1_nusiz > 255
 extern const uint8_t TEMPLATE_bad_nusiz[TEMPLATE_intro_nusiz_must_be_bytes];
 #endif
@@ -24,14 +26,143 @@ inline void TEMPLATE_establish(void) {
    TEMPLATE_position_all();
 }
 
-// Alternate entry for a frame-owner-blanked, allocated in-frame setup region.
-// Entry3; with every X in0..119, return is cycle15 five lines later. Other X
-// values remain valid for establish(), but can add positioning WSYNC lines.
-// This entry still does not prime vertical/TIA graphics state or own VBLANK.
-inline void TEMPLATE_establish_visible(void) {
+#if TEMPLATE_visible_setup
+// High nibble: fine motion. Low nibble: delay count0..10, ignored by HMP.
+uint8_t TEMPLATE_position[5];
+
+// Call during VBLANK after updating X and before the score. Move fine-motion
+// lookup out of the visible setup so even X159 reaches WSYNC on the same line.
+inline void TEMPLATE_prepare_visible(void) {
    asm ldx #4;
-   TEMPLATE_position_all();
+   asm @prepare:;
+   asm lda.zx layers_object_x,x;
+   asm sec;
+   asm ldy #0;
+   asm @divide:;
+   asm iny;
+   asm sbc #15;
+   asm bcs.same @divide;
+   asm dey;
+   asm sty.zx TEMPLATE_position,x;
+   asm tay;
+   asm lda TEMPLATE_reposition + 16 - 256,y;
+   asm ldy.zx TEMPLATE_position,x;
+   asm beq.same @pack;
+   // Later buckets reset one CPU cycle earlier, requiring three pixels of
+   // compensating fine motion. Residues13/14 use the next coarse bucket so
+   // the correction stays inside signed four-bit motion. The first bucket
+   // retains its established RESP phase to avoid horizontal-blank clamping.
+   asm cmp #$90;
+   asm beq.same @high_residue;
+   asm cmp #$a0;
+   asm beq.same @high_residue;
+   asm sec;
+   asm sbc #$30;
+   asm jmp @pack;
+   asm @high_residue:;
+   asm inc.zx TEMPLATE_position,x;
+   asm clc;
+   asm adc #$c0;
+   asm @pack:;
+   asm ora.zx TEMPLATE_position,x;
+   asm sta.zx TEMPLATE_position,x;
+   asm dex;
+   asm bpl.same @prepare;
 }
+
+// Alternate entry for a frame-owner-blanked, allocated in-frame setup region.
+// prepare_visible() must have sampled this frame's X0..159 during VBLANK.
+// Entry3; return15 five lines later for EVERY coordinate. HMP precedes RESP;
+// the latest RESP completes at72 and zero-page WSYNC at75 (no extra line).
+// Does not prime vertical/TIA graphics state or own VBLANK.
+inline void TEMPLATE_establish_visible(void) {
+   asm lda.z TEMPLATE_position + 4;
+   asm sta.z HMBL;
+   asm and #15;
+   asm tax;
+   asm cpx #0;
+   asm beq.same @visible_ball_first;
+   asm @visible_ball:;
+   asm dex;
+   asm bne.same @visible_ball;
+   asm beq.same @visible_ball_reset;
+   asm @visible_ball_first:;
+   asm nop;
+   asm @visible_ball_reset:;
+   asm sta.z RESBL;
+   asm sta.z WSYNC;
+   asm bit.z $00;
+   asm lda.z TEMPLATE_position + 3;
+   asm sta.z HMM1;
+   asm and #15;
+   asm tax;
+   asm cpx #0;
+   asm beq.same @visible_missile1_first;
+   asm @visible_missile1:;
+   asm dex;
+   asm bne.same @visible_missile1;
+   asm beq.same @visible_missile1_reset;
+   asm @visible_missile1_first:;
+   asm nop;
+   asm @visible_missile1_reset:;
+   asm sta.z RESM1;
+   asm sta.z WSYNC;
+   asm bit.z $00;
+   asm lda.z TEMPLATE_position + 2;
+   asm sta.z HMM0;
+   asm and #15;
+   asm tax;
+   asm cpx #0;
+   asm beq.same @visible_missile0_first;
+   asm @visible_missile0:;
+   asm dex;
+   asm bne.same @visible_missile0;
+   asm beq.same @visible_missile0_reset;
+   asm @visible_missile0_first:;
+   asm nop;
+   asm @visible_missile0_reset:;
+   asm sta.z RESM0;
+   asm sta.z WSYNC;
+   asm bit.z $00;
+   asm lda.z TEMPLATE_position + 1;
+   asm sta.z HMP1;
+   asm and #15;
+   asm tax;
+   asm cpx #0;
+   asm beq.same @visible_player1_first;
+   asm @visible_player1:;
+   asm dex;
+   asm bne.same @visible_player1;
+   asm beq.same @visible_player1_reset;
+   asm @visible_player1_first:;
+   asm nop;
+   asm @visible_player1_reset:;
+   asm sta.z RESP1;
+   asm sta.z WSYNC;
+   asm bit.z $00;
+   asm lda.z TEMPLATE_position;
+   asm sta.z HMP0;
+   asm and #15;
+   asm tax;
+   asm cpx #0;
+   asm beq.same @visible_player0_first;
+   asm @visible_player0:;
+   asm dex;
+   asm bne.same @visible_player0;
+   asm beq.same @visible_player0_reset;
+   asm @visible_player0_first:;
+   asm nop;
+   asm @visible_player0_reset:;
+   asm sta.z RESP0;
+   asm sta.z WSYNC;
+   // Keep the existing cycle15 return and NUSIZ write phases.
+   asm sta HMOVE;
+   NUSIZ0 := TEMPLATE_player0_nusiz;
+   asm nop;
+   asm @visible_nusiz_barrier:;
+   NUSIZ1 := TEMPLATE_player1_nusiz;
+}
+#endif
 
 inline void TEMPLATE_position_all(void) {
    asm lda.zx layers_object_x,x;

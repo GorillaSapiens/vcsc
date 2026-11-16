@@ -192,29 +192,24 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Active task: user requested native score-handoff coordinate coverage beyond hearts.
-Heart caller fix/CPU guards passed1333/1333 (handoff-full-suite.log); six corrected
-above hashes,48 unchanged. New six-shard matrix covers all six score layouts in
-both orders on four standard renderer variants, plus per-row-color five-layout
-and sections centered profiles.60 composed positives, six192-line baselines and
-30 deliberately10-cycle-late negatives;24 native X masks per ROM, both players.
-Found additional X0 clamp in all_five_player_color_181 and shared sections181
-helper: old physical X2 versus expected wrapped159. Fix by establishing X0 via
-coarse11/HMP$a0/normal phase; all X1..159 unchanged. Adds10 ROM bytes, no RAM.
-All copied X0 helpers are fixed and source-guarded; pixel oracle unchanged.
-Exact ROM accounting updated without raising4K/128-byte limits. Local full run
-passed1338/1339; its stale assembly allowlist was corrected and passes focused
-verification. Do not describe that as a clean1339/1339 run. Detailed intermediate
-failures and fixes belong in context-history/2026-11-14.txt.
-User's latest e2e run passed747/748; only the developer hot-record64KiB limit
-failed at65944 bytes. Compact these notes, never raise the limit. No Stella edits,
-retries, alternate masks, host-time holds or raised capture/workload deadlines.
+Active task: user REQUIRES cooperating score-above X0..159, not the old119 clamp.
+Intro visible_setup:=1 adds five packed controls prepared during VBLANK. The first
+coarse bucket retains RESP phase; later buckets reset one cycle early with fine
+compensation, residues13/14 use the next bucket. Latest WSYNC must complete75,
+not76 (76 still adds a scanline). Same eight-line gap and172 gameplay lines.
+Automatic/interactive above use61/63 RAM bytes. Public clamp removed; all eight
+full-X modes and existing layers/control gates pass in the16/16 focused run.
+Full eight-worker suite active: /tmp/opencode/layers-full-x-full-suite.log. No
+archive before its result. Keep independent pixel models, deadlines and budgets.
+Earlier score-handoff fixes and verification history:2026-11-14.txt. User's last
+e2e result747/748 failed only the hot-record64KiB limit, subsequently compacted;
+never raise that ceiling. No Stella edits, retries, alternate masks or host holds.
 
 Layers/sections agreed scope is complete at a63944fe/373af8a6: independent even
 sections>=2, all five crossing seams, both score orders, one4K drawing bank,
 stock RAM, runtime sprite controls and independent player palettes. Intro NUSIZ
-parameters; compact events use44 static RAM,46/56 presentation RAM. Full1327/1327
-passes. Bounded score-above X0..119; hostile left-edge gameplay/score cleanup is
+parameters; compact events use44 static RAM. Older full1327/1327 predates the
+current full-X change; do not reuse it as sign-off. Hostile left-edge score cleanup is
 not certified. See libraries/vcs/layers/README.md for contracts. Preserve frozen
 monolithic examples/regressions as evidence, not the delivery architecture.
 Measurements/row-end work: context-history/2026-11-03.txt, 2026-11-04.txt,

@@ -150,6 +150,23 @@ the focused allowlist check passes. No further full run was started. This is a
 
 ### Example scanline-edge audit
 
+`vcs_layers_score_above_full_x_mode0..7.test` independently checks cooperating
+score-above at every X0..159 for all five objects in each copy/stretch mode.
+Each shard selects exactly FRAM200..359 (160 consecutive frames), compares full
+gameplay and score/setup RGB against the arithmetic model, and checks420 CPU
+frames against independent X/prepared-control/RESP/deadline formulas. Distinct
+horizontal offsets and nonoverlapping vertical intervals keep all five objects
+observable. Static zero,119,120,159 and mixed vectors cover common/worst-case
+positioning paths. Mode0 also restores the historical positioning body and
+requires its rejection by the independent phase/deadline oracle. The fixed setup
+still uses eight blanked lines and172 gameplay lines; only five packed RAM bytes
+are added. Existing60-second capture bounds and300-second shard budgets remain.
+The public controller model now requires X159 saturation in score-above too.
+Expanded eight-worker focused verification passed16/16, including all eight new
+shards and the existing layers, presentation, interactive, intro, event, hygiene,
+assembly-allowlist and history checks. Fresh full-suite verification is running;
+earlier full-suite results do not qualify this new positioning path.
+
 `vcs_layers_interactive.pl` covers all three cooperating-layer interactive entry
 points. An independent CPU/input model checks SELECT and direction debouncing, every
 object's independent X/Y movement through both section seams, saturation at each

@@ -13,7 +13,8 @@ use POSIX qw(:sys_wait_h setpgid);
 use Symbol qw(gensym);
 my($repo,$tmp)=@ARGV;$repo=abs_path($repo);make_path($tmp);$tmp=abs_path($tmp);
 my$edge_mode=$ARGV[2];
-!defined($edge_mode)||$edge_mode=~/^(?:[0-7]|geometry)$/ or die 'edge mode must be0..7 or geometry';
+!defined($edge_mode)||$edge_mode=~/^(?:[0-7]|geometry|above[0-7])$/ or die 'mode must be0..7, geometry or above0..7';
+my$above_sweep=defined($edge_mode)&&$edge_mode=~/^above([0-7])$/ ? 0+$1 : undef;
 require "$repo/test/stella_test_lib.pl";
 sub slurp {open my$f,'<:raw',$_[0] or die$!;local$/;return <$f>;}
 sub save {open my$f,'>:raw',$_[0] or die$!;print $f $_[1];}
@@ -257,7 +258,7 @@ if(defined($edge_mode)&&$edge_mode eq'geometry'){
    }
    print "vcs_layers_all_five ok\n";exit 0;
 }
-if(defined$edge_mode){
+if(defined($edge_mode)&&!defined($above_sweep)){
    build('edge_origin',source($cases[0]));my$origin=capture('edge_origin')->[0];
    my@visible=grep{substr($origin->[2],($_*$w+20)*3,3)eq$rgb{0xc2}}0..$origin->[1]-1;
    @visible==6 or die 'edge visible origin';my$first=$visible[0];
@@ -332,6 +333,11 @@ CPP
    print "vcs_layers_all_five ok\n";exit 0;
 }
 my$first;
+if(defined$above_sweep){
+   build('above_origin',source($cases[0]));my$origin=capture('above_origin')->[0];
+   my@visible=grep{substr($origin->[2],($_*$w+20)*3,3)eq$rgb{0xc2}}0..$origin->[1]-1;
+   @visible==6 or die 'score-above visible origin';$first=$visible[0];
+}else{
 for my$index(0..$#cases){my$c=$cases[$index];my$s=source($c);my$n="sections_$index";
    my$b=build($n,$s);$b=~/objects=42 bytes hardware-stack=2 bytes/ or die 'shared RAM/stack budget';timing($n,$c);
    my$image=capture($n)->[0];
@@ -424,12 +430,14 @@ CPP
    run("$tmp/preview_timing","$tmp/$n.bin",'800','--no-audio','--released-inputs','--raw-lines','264');
 }
 
-# The score borrows only the unused final eight stream bytes. Its first176
-# gameplay lines must remain identical to the same independent object model.
-for my$order(qw(below above)){
+}
+# The score has independent glyph storage. Gameplay must remain identical to
+# the arithmetic object model, including when the score precedes positioning.
+for my$order(defined($above_sweep)?('above'):qw(below above)){
    my$n="score_$order";my$s=slurp("$repo/test/fixtures/layers/$n.c26");
    $s=~s#include "score_sprites.c26"#include "$repo/test/fixtures/layers/score_sprites.c26"# or die 'score assets';
-     my$b=build($n,$s);$b=~/ram\s+used=54 bytes.*objects=52 bytes hardware-stack=2 bytes/s or die 'score RAM budget';
+      my$b=build($n,$s);my$ram=$order eq'above'?59:54;my$data=$ram-2;
+      $b=~/ram\s+used=$ram bytes.*objects=$data bytes hardware-stack=2 bytes/s or die 'score RAM budget';
    my$c={lines=>($order eq'below'?176:172),seam=>64,ys=>[38,38,34,34,33],hs=>[7,7,5,7,3]};
    $c->{xs}=[20,100,50,110,80]if$order eq'above';
    my$cpu=$timing;
@@ -445,10 +453,12 @@ for my$order(qw(below above)){
          const unsigned reg=event.address & 63;
          if (reg==0 && (event.value & 2)) { layers_stage=0; }
          if (layers_stage==1 && reg>=16 && reg<=20 && virtual_cycles-layers_frame_start>=12*76) {
-            const unsigned index=reg-16, x=peek_memory(LAYERS_X_BASE+index);
-            const uint64_t line=(virtual_cycles-layers_frame_start+3)/76;
-            if (line!=17-index || virtual_cycles%76!=23+5*(x/15)) {
-               std::fprintf(stderr,"score-above RESP position/phase mismatch\n"); std::exit(1);
+             const unsigned index=reg-16, x=peek_memory(LAYERS_X_BASE+index);
+             const uint64_t line=(virtual_cycles-layers_frame_start+3)/76;
+             const unsigned phase=x<15?23:22+5*(x/15+(x%15>=13));
+             if (line!=17-index || virtual_cycles%76!=phase) {
+                std::fprintf(stderr,"score-above RESP position/phase mismatch: object%u X%u line%llu expected%u phase%llu expected%u\n",
+                   index,x,(unsigned long long)line,17-index,(unsigned long long)(virtual_cycles%76),phase); std::exit(1);
             }
             ++layers_resp;
          }
@@ -505,11 +515,15 @@ CPP
    }
    run("$tmp/score_timing","$tmp/$n.bin",'420','--no-audio','--released-inputs','--raw-lines','264',@expect);
    if($order eq'above'){
-      for my$positions([0,0,0,0,0],[119,119,119,119,119],[0,119,1,118,60]){
+       my@position_cases=([0,0,0,0,0],[119,119,119,119,119],[0,119,1,118,60]);
+       push@position_cases,[120,120,120,120,120],[159,159,159,159,159],[0,159,120,149,158]
+          if defined$above_sweep;
+       for my$positions(@position_cases){
          my$alt=$s;for my$i(0..4){$alt=~s/(layers_object_x\[$i\]:=)\d+;/$1$positions->[$i];/ or die 'position proof';}
          my$variant='visible_intro_'.join('_',@$positions);build($variant,$alt);
          address($variant,'layers_object_x')==address($n,'layers_object_x')or die 'position proof RAM layout changed';
-         run("$tmp/score_timing","$tmp/$variant.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
+          run("$tmp/score_timing","$tmp/$variant.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
+          logical_image(capture($variant)->[0],{%$c,xs=>$positions},$first+20,0) if defined$above_sweep;
       }
       for my$players([0,0],[5,7],[255,255]){
          my$alt=$s;for my$p(0..1){$alt=~s/(layers_player${p}_y:=)38;/$1$players->[$p];/ or die 'priming proof';}
@@ -537,7 +551,71 @@ CPP
       if($got ne$want){for my$x(0..$w-1){substr($got,$x*3,3)eq substr($want,$x*3,3)or die"score $order RGB mismatch line=$line x=$x\n";}}
    }
    };
-   $score_image->($image,12,34);
+    $score_image->($image,12,34);
+    if(defined$above_sweep){
+       # One live ROM per NUSIZ mode sweeps all five objects through every X.
+       # Separate vertical intervals make every object independently visible;
+       # distinct horizontal offsets exercise mixed coarse/fine controls.
+       my@xs=(0,31,62,93,124);my@ys=(20,40,54,66,78);
+       my$size=(($above_sweep&3)<<4)|$above_sweep;
+       my$pose={%$c,xs=>\@xs,ys=>\@ys,nusiz=>[$size,$size]};
+       my$alt=$s;
+       $alt=~s/visible_setup:=1/visible_setup:=1,player0_nusiz:=$size,player1_nusiz:=$size/ or die 'sweep intro';
+       for my$i(0..4){
+          $alt=~s/(layers_object_x\[$i\]:=)\d+;/$1$xs[$i];/ or die 'sweep initial X';
+          $alt=~s/(layers_$objects[$i]_y:=)\d+;/$1$ys[$i];/ or die 'sweep initial Y';
+       }
+       my$updates=join('',map{"      layers_object_x[$_]++; if(layers_object_x[$_]==160){layers_object_x[$_]:=0;}\n"}0..4);
+       $alt=~s/(      vcs_ntsc_end_overscan\(\);)/$updates$1/ or die 'sweep update';
+       my$variant="score_above_full_x_mode$above_sweep";my$budget=build($variant,$alt);
+       $budget=~/ram\s+used=59 bytes.*objects=57 bytes hardware-stack=2 bytes/s or die 'full-X RAM budget';
+       my$xbase=address($variant,'layers_object_x');
+       my$controls=address($variant,'intro_position');
+       my$model=<<CPP;
+          if(layers_stage==1) {
+             static unsigned frame=0;
+             const unsigned offsets[]={@{[join ',',@xs]}};
+             for(unsigned i=0;i<5;++i) {
+                const unsigned x=(frame+offsets[i])%160;
+                const unsigned q=x/15, r=x%15;
+                const unsigned fine=q?(r>=13?19-r:4-r):7-r;
+                const unsigned packed=((fine&15)<<4)|(q+(q&&r>=13));
+                if(peek_memory($xbase+i)!=x ||
+                   peek_memory($controls+i)!=packed) {
+                   std::fprintf(stderr,"score-above live X/prepared control mismatch\\n"); std::exit(1);
+                }
+             }
+             ++frame;
+          }
+CPP
+       my$live_cpu=$cpu;
+       $live_cpu=~s/(if \(layers_stage==1\) \{ layers_frame_start=virtual_cycles; layers_resp=0; \})/$1\n$model/ or die 'full-X model hook';
+       save("$tmp/full_x_timing.cpp",$live_cpu);
+       run($ENV{CXX}||'c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,"$tmp/full_x_timing.cpp",$obj,'-o',"$tmp/full_x_timing");
+       run("$tmp/full_x_timing","$tmp/$variant.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
+       my$images=capture($variant,160);my@matches;
+       my$at=sub{my$phase=shift;return{%$pose,xs=>[map{($_+$phase)%160}@xs]};};
+       for my$phase(0..159){push@matches,$phase if eval{logical_image($images->[0],$at->($phase),$game_origin,0);1};}
+       @matches==1 or die 'score-above full-X origin not uniquely identifiable';
+       my$phase=$matches[0];my%seen;
+       for my$rgb(@$images){
+          logical_image($rgb,$at->($phase),$game_origin,0);$score_image->($rgb,12,34);
+          $seen{$phase}=1;$phase=($phase+1)%160;
+       }
+       keys(%seen)==160 or die 'score-above full-X sweep omitted a coordinate';
+       if($above_sweep==0){
+          my$old=slurp("$repo/libraries/vcs/layers/all_five_intro.c26");
+          $old=~s/(inline void TEMPLATE_establish_visible\(void\) \{).*?\n\}/$1\n   asm ldx #4;\n   TEMPLATE_position_all();\n}/s or die 'historical intro mutation';
+          save("$tmp/old_visible_intro.c26",$old);
+          my$bad=$s;$bad=~s!layers/all_five_intro.c26!$tmp/old_visible_intro.c26! or die 'historical intro binding';
+          $bad=~s/(layers_object_x\[\d\]:=)\d+;/${1}159;/g;
+          build('historical_full_x',$bad);
+          eval{run("$tmp/score_timing","$tmp/historical_full_x.bin",'60','--no-audio','--released-inputs','--raw-lines','264');1}
+             and die 'historical full-X overrun was accepted';
+          $@=~/score-above RESP position\/phase mismatch|score-above positioning deadline mismatch/ or die "historical intro rejected for wrong reason: $@";
+       }
+       print "vcs_layers_all_five ok\n";exit 0;
+    }
    for my$profile([0,99,1,2],[56,78,2,3],[90,12,3,1],[45,67,1,3,0,144,46,78],[89,0,2,0,64,32,78,46]){
       my($left,$right,$frame0,$frame1)=@$profile;my$alt=$s;
       $alt=~s/score_left_score:=12;/score_left_score:=$left;/ or die 'left score';
@@ -558,7 +636,8 @@ CPP
       my$alt="alias LAYERS_MOTION\n".$s;
       $alt=~s#include "score_motion.c26"#include "$repo/test/fixtures/layers/score_motion.c26"# or die 'score motion asset';
       my$variant="${n}_motion";my$budget=build($variant,$alt);
-        $budget=~/ram\s+used=55 bytes.*objects=53 bytes hardware-stack=2 bytes/s or die 'moving score RAM budget';
+         my$moving_ram=$order eq'above'?60:55;my$moving_data=$moving_ram-2;
+         $budget=~/ram\s+used=$moving_ram bytes.*objects=$moving_data bytes hardware-stack=2 bytes/s or die 'moving score RAM budget';
       address($variant,'layers_object_x')==address($n,'layers_object_x')or die 'moving score RAM layout changed';
       run("$tmp/score_timing","$tmp/$variant.bin",'420','--no-audio','--released-inputs','--raw-lines','264');
       my$images=capture($variant,40);my@left;

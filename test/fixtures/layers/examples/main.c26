@@ -7,7 +7,11 @@ include "two_plus_two_score_support.c26"
 #endif
 include "../../../_common/cooperating_layers_sprites.c26"
 include "layers/all_five_dense_objects.c26"
+#if DEMO_MODE == 2
+instantiate "layers/all_five_intro.c26" as intro (visible_setup:=1)
+#else
 instantiate "layers/all_five_intro.c26" as intro
+#endif
 instantiate "layers/all_five_section.c26" as upper (number_of_scanlines:=64, playfield_row:=0x80000001, pf_color:=0x84, bk_color:=0x80)
 instantiate "layers/all_five_section.c26" as middle (number_of_scanlines:=64, playfield_row:=0xc0000003, pf_color:=0xb4, bk_color:=0xb0)
 #if DEMO_MODE == 0
@@ -28,7 +32,9 @@ void prepare_objects(void) {
    score_prepare();
 #endif
 #if DEMO_MODE != 2
-   intro_establish(); layers_prime();
+    intro_establish(); layers_prime();
+#else
+    intro_prepare_visible();
 #endif
 }
 void main(void) {

@@ -29,12 +29,13 @@ playfield_row,pf_color,bk_color. A new section changes pattern and/or colours;
 there is no separate PF-row schedule.
 Intro: libraries/vcs/layers/all_five_intro.c26; shared layers_object_x[5] and
 intro parameters player0_nusiz/player1_nusiz. No private RAM; blanking establish() or
-bounded X0..119 establish_visible(), frame owner controls VBLANK/setup budget.
-All-five: layers/{all_five_dense_objects,all_five_section}.c26; shared96-byte
+prepared X0..159 establish_visible() with visible_setup:=1; call prepare_visible()
+in VBLANK after X updates. Five packed control bytes; frame owner controls gap.
+All-five: layers/{all_five_dense_objects,all_five_section}.c26; shared14-byte
 events/live counters. first() enters3,draw()/exit53; finish restores S,reaches0.
 40 moving +40 control frames. RAM44/45; all8 modes pass bounded layouts.
-Both score orders pass; RAM54/55, eight private pointer bytes (game<=176).
-Above uses bounded X0..119 intro. cooperating_layers leaves: RAM46/56.
+Both score orders retain eight private pointer bytes (game<=176).
+Above's full-range intro adds five RAM bytes; focused16/16 passes, full run active.
 Right-edge repair passes2560 live-X images +all even splits2..190; full1326/1326.
 The private schedules below are implementation evidence, not the current design.
 

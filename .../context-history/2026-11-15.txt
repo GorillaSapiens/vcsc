@@ -1,0 +1,8 @@
+2026-11-15 10:36:33 PDT, compact developer hot records
+
+User's e2e run passed747/748; source_tree_hygiene alone failed because developer
+hot records totaled65944 bytes against the65536-byte ceiling. Removed superseded
+intermediate verification narrative from context.txt; the full account already
+exists in2026-11-14.txt. Retained current results and constraints. No test limits
+or runtime code changed. Focused source_tree_hygiene and context_history_format
+checks both pass. No new full-suite run performed.

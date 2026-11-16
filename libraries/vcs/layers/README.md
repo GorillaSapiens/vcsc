@@ -13,8 +13,8 @@ This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 adjacent, independently instantiated sections**. The minimum two-scanline section
 works. No-score, score-above and score-below fixtures now run in one4K bank and
 stock RAM, including runtime animation and score changes. This remains
-experimental: score-above positioning and full application RAM still have the
-limits documented below. Right-edge player output now passes the full X sweep.
+experimental: full application RAM and score controls still have the limits
+documented below. All three layouts support object positions X0..159.
 Existing renderers and default examples are unchanged.
 
 Three independent presentation layouts are available in
@@ -24,10 +24,9 @@ its automatic scenery directly in `main.c26`; `interactive.c26` adds independent
 joystick control using the established example sprites. Run `make play` for the
 automatic preview or `make play-interactive` for controls. Neither variant
 depends on test fixtures or another leaf. Automatic no-score uses46/128 RAM
-bytes; automatic score leaves use56/128 including stack. Interactive versions
-use46/58/58 bytes respectively. Score-above clamps object X to0..119; the others
-allow0..159. These bounded examples do not certify arbitrary score-above
-placements. Controls are documented in the example family guide.
+bytes; automatic score-above/below use61/56 including stack. Interactive versions
+use46/63/58 bytes respectively. All allow X0..159. Controls are documented in the
+example family guide.
 
 ## Working all-five composition
 
@@ -169,7 +168,7 @@ Two runnable layouts:
 | Fixture | Frame layout | Static / motion RAM |
 | --- | --- | --- |
 | [score_below.c26](../../../test/fixtures/layers/score_below.c26) |176 gameplay +12 score +4 blank tail |54 /55 bytes |
-| [score_above.c26](../../../test/fixtures/layers/score_above.c26) |12 score +8 blanked intro +172 gameplay |54 /55 bytes |
+| [score_above.c26](../../../test/fixtures/layers/score_above.c26) |12 score +8 blanked intro +172 gameplay |59 /60 bytes |
 
 Both gameplay layouts have independent scenery instances and an exact all-five
 crossing at gameplay line64. Runtime graphics pointers/heights and both
@@ -193,9 +192,12 @@ frame owner absorbs those eight cycles in its four-line blank tail or the
 score-above setup region. This preserves the last wide digit row through X144.
 There are no inter-section separator lines.
 
-Score-above repositions all five objects after the score with the intro's new
-`establish_visible()` entry. **Every object X must be0..119 for this bounded
-setup contract.** It enters at cycle3 and returns at cycle15 five lines later;
+Score-above instantiates the intro with `visible_setup:=1` and calls
+`intro_prepare_visible()` during VBLANK, after updating this frame's X values.
+Five packed bytes retain each object's coarse count and fine motion. After the
+score, `establish_visible()` writes HMP before RESP, leaving room for WSYNC even
+at X159. **All five objects support X0..159 with the same setup budget.**
+It enters at cycle3 and returns at cycle15 five lines later;
 priming and a final WSYNC consume the rest of the frame owner's setup budget.
 The frame owner alone asserts/clears VBLANK around all eight setup lines, so
 positioning/priming cannot leak graphics into the score gap. It does not restart
@@ -209,8 +211,8 @@ with different field colours, including the first and final digit rows. Each
 layout also passes40 consecutive moving
 frames with40 independently checked score values and a complete all-five seam
 crossing. CPU checks cover420 frames, event records, dedicated pointer
-bytes, all PF/object phases and score-above RESP phases. Zero/max119/mixed X
-vectors retain the positioning deadline. A mutant shifting score pointer stores
+bytes, all PF/object phases and score-above RESP phases. Zero/max159/mixed X
+vectors check the positioning deadline. A mutant shifting score pointer stores
 must fail the memory oracle. Invalid declared gameplay
 totals reject. The slower preview has a separate800-frame rate/pose/animation
 model, covering both end-of-screen turnarounds and clock wrap.
@@ -273,7 +275,7 @@ share their player's colour, including its per-row changes; independent missile
 colours are not promised. The event kernel passes the focused edge/geometry gates
 and both score compositions. Its fresh full eight-worker suite passes1327/1327.
 
-RAM headroom is now73 bytes in moving score builds and72 in presentation scores. General
+RAM headroom is68/73 bytes in moving above/below builds and67/72 in presentation scores. General
 application controls still need a lifetime/RAM plan. Score cleanup at arbitrary
 hostile left-edge gameplay placements and runtime score-position/colour controls
 are not certified. Independent example leaves are available as linked above.
@@ -282,7 +284,8 @@ the existing default or bounded-score renderers.
 
 ## Horizontal intro
 
-`all_five_intro.c26` owns no RAM. Its `establish()` entry positions P0, P1, M0,
+`all_five_intro.c26` owns no RAM by default; `visible_setup:=1` adds five prepared
+control bytes for score-above's fixed-time entry. Its `establish()` entry positions P0, P1, M0,
 M1 and Ball, applies HMOVE once, and restores both constant NUSIZ values. It does
 not reset vertical progress or touch graphics pointers, palettes, delayed
 graphics configuration, or object enables.
@@ -310,11 +313,15 @@ loads plus padding preserve the former total setup timing for both entry paths.
 Call `intro_establish()` during blanking, after any preceding component that
 changes horizontal positioning. Its WSYNC cost depends on X; the enclosing
 frame deadline must absorb that work. It does not turn off VBLANK or start the
-visible display. `establish_visible()` shares the exact same positioning body,
-with a cycle3 entry replacing the initial WSYNC/BIT phase. Its bounded0..119
-setup contract is used by score-above as described above. Choose either entry;
-the former mandatory `establish()` call is no longer required when using the
-alternate entry.
+visible display. For score-above, enable `visible_setup:=1`, call
+`prepare_visible()` during VBLANK after updating X, and use `establish_visible()`
+after the score. The first coarse bucket keeps its original RESP phase; later
+buckets reset one CPU cycle earlier with compensating fine motion (residues13/14
+use the next bucket). Its zero-page WSYNC completes by cycle75, including X159.
+Fine-motion lookup happens during VBLANK. This avoids the old X120+ extra-line
+overrun without shrinking gameplay or increasing the eight-line setup gap.
+Do not change X between preparation and establishment. The frame owner controls
+VBLANK, priming and the gap; neither intro entry owns these responsibilities.
 
 The normal-runner `test/vcs_layers_intro.pl` replaces only the certified
 renderer’s positioning block with this component. It checks full-image exact

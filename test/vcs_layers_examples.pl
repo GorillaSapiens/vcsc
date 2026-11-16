@@ -158,7 +158,7 @@ for my$mode(0..2){my$leaf=$leaves[$mode];my$stem="$tmp/layers_$leaf";
    my$source=slurp("$fixtures/main.c26");$source=~s/DEMO_MODE/$mode/g;
    $source=~s!\.\./\.\./\.\./_common!$fixtures/_common!g;save("$stem.c26",$source);
    my$out=run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$stem.map","$stem.c26",'-o',"$stem.bin");
-    my$ram=$mode?56:46;my$data=$mode?54:44;
+    my$ram=$mode==2?61:$mode?56:46;my$data=$ram-2;
    $out=~/ram\s+used=$ram bytes.*objects=$data bytes hardware-stack=2 bytes/s or die "$leaf RAM/stack budget";
    push@stems,$stem;-s"$stem.bin"==4096 or die 'example bank budget';
    my%defines=(MODE=>$mode,GAME_LINES=>($mode==0?192:$mode==1?176:172),MAX_Y=>($mode==0?86:$mode==1?78:76));

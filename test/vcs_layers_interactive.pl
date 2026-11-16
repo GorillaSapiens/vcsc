@@ -144,7 +144,7 @@ for my$mode(0..2) {
    -s"$stem.bin"==4096 or die 'interactive example is not one 4K bank';
    my($rom)=$out=~/rom\s+used=(\d+) bytes/; my($ram)=$out=~/ram\s+used=(\d+) bytes/;
    defined($rom)&&$rom<=3840&&defined($ram)&&$ram<=64 or die 'interactive ROM/RAM budget';
-   my%defines=(MAX_X=>($mode==1?119:159),MAX_Y=>($mode==0?95:$mode==1?85:87),WITH_SCORE=>($mode?1:0));
+   my%defines=(MAX_X=>159,MAX_Y=>($mode==0?95:$mode==1?85:87),WITH_SCORE=>($mode?1:0));
    my%names=(XS=>'layers_object_x',Y0=>'layers_player0_y',Y1=>'layers_player1_y',YM0=>'layers_missile0_y',YM1=>'layers_missile1_y',YB=>'layers_ball_y',
       SELECTED=>'controls_selected_object',SELECT_READY=>'controls_select_ready',G0=>'layers_player0_graphics',G1=>'layers_player1_graphics',P0=>'layers_p0_animation',P1=>'layers_p1_animation');
    %names=(%names,DIGIT=>'controls_selected_score_digit',JOY_READY=>'controls_joystick_ready',S0=>'score_left_score',S1=>'score_right_score') if$mode;
