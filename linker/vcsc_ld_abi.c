@@ -2,7 +2,7 @@
 //! @brief Implements link-time ABI metadata validation for the VCSC linker.
 //! @ingroup linker
 
-#include <stdio.h>
+#include "../host_stdio.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

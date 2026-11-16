@@ -51,6 +51,11 @@ jobs:
           cd test
           perl test.pl --jobs 8 --e2e-only rawstream2png_contract.pl
 
+      - name: Verify legacy and C99 MinGW stdio modes
+        run: |
+          cd test
+          perl test.pl --jobs 8 --e2e-only host_mingw_stdio.pl
+
       - name: Name tagged packages after the release tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash

@@ -2,12 +2,13 @@
 //! @brief Implements linker command-line entry point for the VCSC linker.
 //! @ingroup linker
 
+#include "../host_stdio.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32

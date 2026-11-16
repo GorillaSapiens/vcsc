@@ -2,11 +2,12 @@
 //! @brief Implements reusable compile-time RGB palette matching helpers.
 //! @ingroup compiler
 
+#include "../host_stdio.h"
+
 #include <stdbool.h>
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "builtin_rgb.h"
