@@ -192,15 +192,17 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Active task: user REQUIRES cooperating score-above X0..159, not the old119 clamp.
-Intro visible_setup:=1 adds five packed controls prepared during VBLANK. The first
-coarse bucket retains RESP phase; later buckets reset one cycle early with fine
-compensation, residues13/14 use the next bucket. Latest WSYNC must complete75,
-not76 (76 still adds a scanline). Same eight-line gap and172 gameplay lines.
-Automatic/interactive above use61/63 RAM bytes. Public clamp removed; all eight
-full-X modes and existing layers/control gates pass in the16/16 focused run.
-Full eight-worker suite active: /tmp/opencode/layers-full-x-full-suite.log. No
-archive before its result. Keep independent pixel models, deadlines and budgets.
+Active task: make bankswitching/standard_renderer interactive by default. SELECT
+chooses any of five objects; left stick moves X0..159/Y0..87, right stick selects
+and edits six BCD digits, RESET restores startup. Controls and weight table stay
+in bank1, renderer/art stay bank0; F8 uses104/128 RAM including12-byte stack.
+BANKED_STATIC_TEST preserves the old mapper/raster witness without weakening its
+pins. New public-ROM controller test covers4K/F8/F6/F4/F8SC, full-script visible
+traces, native neutral F8/F8SC frames, RESET and an X119-clamp negative control.
+Final focused6/6 passes: /tmp/opencode/banked-interactive-focused-final.log.
+Full eight-worker run passed1348/1348, zero failures:
+/tmp/opencode/banked-interactive-full-suite.log. Implementation commit e967bb88.
+Previous layers full-X change passed1347/1347: layers-full-x-full-suite.log.
 Earlier score-handoff fixes and verification history:2026-11-14.txt. User's last
 e2e result747/748 failed only the hot-record64KiB limit, subsequently compacted;
 never raise that ceiling. No Stella edits, retries, alternate masks or host holds.

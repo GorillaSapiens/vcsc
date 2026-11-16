@@ -35,7 +35,7 @@ All-five: layers/{all_five_dense_objects,all_five_section}.c26; shared14-byte
 events/live counters. first() enters3,draw()/exit53; finish restores S,reaches0.
 40 moving +40 control frames. RAM44/45; all8 modes pass bounded layouts.
 Both score orders retain eight private pointer bytes (game<=176).
-Above's full-range intro adds five RAM bytes; focused16/16 passes, full run active.
+Above's full-range intro adds five RAM bytes; focused16/16 and full1347/1347 pass.
 Right-edge repair passes2560 live-X images +all even splits2..190; full1326/1326.
 The private schedules below are implementation evidence, not the current design.
 

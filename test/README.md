@@ -150,6 +150,22 @@ the focused allowlist check passes. No further full run was started. This is a
 
 ### Example scanline-edge audit
 
+`vcs_standard_renderer_banked_controls.pl` runs the interactive public banked
+standard-renderer diagnostic as4K/F8/F6/F4/F8SC with frame-indexed bus inputs. Its
+independent model checks all five coordinates and limits, SELECT debounce, six
+BCD digit weights, carry/borrow/wrap, score hue, press/hold/roll behavior, opposing
+directions, unused fire and RESET. It checks bank restoration and blanked selector
+access, real RIOT stack mirrors and fixed20140-cycle ordinary periods (excluding
+only the scripted RESET transition). Whole-script visible traces match4K; an
+X119-clamp mutant must fail at expected120. Actual public released-input native
+FRAM200/201 F8/F8SC rasters also match4K using the bounded RawStream adapter.
+Existing static mapper/bridge/raster assertions remain unchanged and explicitly
+build with `BANKED_STATIC_TEST`; they do not stand in for public control coverage.
+Focused eight-worker verification passed6/6, including the public controller,
+legacy mapper and native raster tests, source hygiene, assembly allowlist and
+history format. Fresh full eight-worker verification passed **1348/1348**, zero
+failures (`/tmp/opencode/banked-interactive-full-suite.log`).
+
 `vcs_layers_score_above_full_x_mode0..7.test` independently checks cooperating
 score-above at every X0..159 for all five objects in each copy/stretch mode.
 Each shard selects exactly FRAM200..359 (160 consecutive frames), compares full
@@ -164,8 +180,9 @@ are added. Existing60-second capture bounds and300-second shard budgets remain.
 The public controller model now requires X159 saturation in score-above too.
 Expanded eight-worker focused verification passed16/16, including all eight new
 shards and the existing layers, presentation, interactive, intro, event, hygiene,
-assembly-allowlist and history checks. Fresh full-suite verification is running;
-earlier full-suite results do not qualify this new positioning path.
+assembly-allowlist and history checks. Fresh full eight-worker verification passed
+**1347/1347**, zero failures (`/tmp/opencode/layers-full-x-full-suite.log`). No
+capture deadlines, workload budgets or RAM limits were raised.
 
 `vcs_layers_interactive.pl` covers all three cooperating-layer interactive entry
 points. An independent CPU/input model checks SELECT and direction debouncing, every

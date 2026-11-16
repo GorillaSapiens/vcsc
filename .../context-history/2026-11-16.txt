@@ -26,5 +26,41 @@ Expanded eight-worker focused run passed16/16: all eight full-X modes, the
 historical negative control, existing layers-all-five, presentation, public
 interactive, blanking intro, events, hygiene, assembly allowlist and history.
 Log: /tmp/opencode/layers-full-x-focused.log.
-Fresh full eight-worker suite active: /tmp/opencode/layers-full-x-full-suite.log.
-No source archive will be offered before that result; no full certification yet.
+Fresh full eight-worker suite passed1347/1347, zero failures:
+/tmp/opencode/layers-full-x-full-suite.log. No budgets or deadlines were raised.
+Source implementation commit9ad5c358; verification recorded before packaging.
+
+2026-11-16 12:56:29 PDT, interactive banked renderer diagnostic
+
+User requests interactive examples/07_diagnostics/bankswitching/standard_renderer.
+Public default now uses SELECT debounce to select P0/P1/M0/M1/Ball, left joystick
+independent saturated X0..159/Y0..87, right joystick six-digit selection plus
+edge-triggered BCD edits, hue feedback, neutral re-arm and console RESET. Existing
+diagnostic artwork is unchanged. Keep signature/failure/count/epoch state; all
+controls and score-weight reads run in bank1 during blanked overscan. F8 uses
+104 RIOT bytes including12 stack, no cartridge RAM requirement; visible data and
+renderer stay bank0. Makefile tracks renderer dependencies too.
+
+BANKED_STATIC_TEST retains the original once-only654321/ball-X104 scene for exact
+legacy mapper, bridge-cost and raster regressions. Those assertions and pins are
+unchanged; the old CPU regression passes. New public-ROM regression checks all
+five private mapper builds (4K/F8/F6/F4/F8SC) against an independent frame-input
+model, including limits, holds/rolls, carry/borrow/wrap, priority, fire and RESET.
+Real RIOT stack mirroring, per-frame bank restoration and selector-in-VBLANK checks
+are retained. Ordinary frame periods remain20140 cycles; only the single scripted
+RESET period is exempt. Compare whole-script visible traces to4K; negative X119
+clamp must fail at expected120. Native exact FRAM200/201 public neutral F8/F8SC
+frames compare with4K through the bounded RawStream pipeline, not held host input.
+Initial behavior/native checks all completed, but Xvfb cleanup overwrote Perl exit
+status; fixed with local status preservation and bounded process-group cleanup.
+Behavioral, native and legacy regressions then passed; hygiene correctly noticed
+the new test references editable public source. Classified this named test as a
+public behavioral witness, not an exact golden driver: it derives editable scene
+initial coordinates/score/colour from source, keeps its transition model and
+limits independent, and pins no art or RGB hashes. The exact-golden/private-fixture
+guard remains unchanged for every other driver. Final focused6/6 passes:
+/tmp/opencode/banked-interactive-focused-final.log.
+Fresh full eight-worker run passed1348/1348, zero failures:
+/tmp/opencode/banked-interactive-full-suite.log. Implementation commit e967bb88.
+No capture deadlines, workload budgets, RAM limits or exact static goldens changed.
+Verification recorded before packaging.

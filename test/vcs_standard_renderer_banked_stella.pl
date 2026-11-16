@@ -30,7 +30,7 @@ my $source=File::Spec->catfile($repo,qw(examples 07_diagnostics/bankswitching st
 my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
 my @runs=(['4k','4K',['-DUNBANKED_REFERENCE'],undef],['f8','F8',['-DMAPPER_BANKS=2'],1],['f8sc','F8SC',['-DMAPPER_BANKS=2','-DSUPERCHIP_TEST'],1]);
 my %dig;
-for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,$source,$renderer,'-o',$rom);
+for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,'-DBANKED_STATIC_TEST',@$defs,$source,$renderer,'-o',$rom);
    # Reserve the display atomically rather than probing for a free socket.  A socket test
    # cannot tell a free display from one another process is about to take, so two
    # concurrent runs could pick the same number; the reservation file is created O_EXCL

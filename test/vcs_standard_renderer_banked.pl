@@ -36,7 +36,9 @@ sub build_variant {
    my($driver,$vcs,$source,$renderer,$tmp,$name,$defs,$size)=@_;
    my $bin=File::Spec->catfile($tmp,"$name.bin");
    my $mapfile=File::Spec->catfile($tmp,"$name.map");
-   my @cmd=($driver,'-I',$vcs,@$defs,'-Map',$mapfile,$source,$renderer,'-o',$bin);
+    # Freeze the original mapper/bridge/raster witness. Public controls are
+    # exercised separately by vcs_standard_renderer_banked_controls.pl.
+    my @cmd=($driver,'-I',$vcs,'-DBANKED_STATIC_TEST',@$defs,'-Map',$mapfile,$source,$renderer,'-o',$bin);
    my($rc,$sig,$out,$err)=capture(@cmd);
    $rc==0 && !$sig or die "$name build failed rc=$rc sig=$sig\n$out$err";
    without_usage($out) eq '' or die "$name build wrote stdout:\n$out";

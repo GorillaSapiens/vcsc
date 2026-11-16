@@ -2,6 +2,7 @@
 
 // Standard all-five renderer composed with generic C26 cartridge topology.
 // The public example is F8. Tests build this same source as 4K, F6, F4, and F8SC.
+// BANKED_STATIC_TEST retains the original no-input mapper/raster witness only.
 
 #ifdef UNBANKED_REFERENCE
 include "4K/mapper.c26"
@@ -95,6 +96,88 @@ uint8_t banked_hook_epoch;
 #endif
 uint8_t banked_hook_failure;
 
+#ifndef BANKED_STATIC_TEST
+uint8_t selected_object;
+uint8_t select_switch_ready := 1;
+uint8_t selected_score_digit;
+uint8_t right_joystick_ready := 0x0f;
+
+#ifdef UNBANKED_REFERENCE
+page const bcd24_t score_digit_weight[6] := {1,10,100,1000,10000,100000};
+#else
+// Only gameplay reads this table; it belongs beside the controls in bank1.
+bank1 page const bcd24_t score_digit_weight[6] := {1,10,100,1000,10000,100000};
+#endif
+
+inline void update_banked_controls(void) {
+   if (!(SWCHB & 0x01)) { hard_reset(); }
+   if (SWCHB & 0x02) { select_switch_ready := 1; }
+   else {
+      if (select_switch_ready) {
+         selected_object++;
+         if (selected_object == 5) { selected_object := 0; }
+         select_switch_ready := 0;
+      }
+   }
+   if (!(SWCHA & 0x40)) {
+      if (vcs_standard_object_x[selected_object] > 0) { vcs_standard_object_x[selected_object]--; }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (vcs_standard_object_x[selected_object] < 159) { vcs_standard_object_x[selected_object]++; }
+      }
+   }
+   if (!(SWCHA & 0x10)) {
+      switch (selected_object) {
+         case 0: if (vcs_standard_player0_y > 0) { vcs_standard_player0_y--; } break;
+         case 1: if (vcs_standard_player1_y > 0) { vcs_standard_player1_y--; } break;
+         case 2: if (vcs_standard_missile0_y > 0) { vcs_standard_missile0_y--; } break;
+         case 3: if (vcs_standard_missile1_y > 0) { vcs_standard_missile1_y--; } break;
+         case 4: if (vcs_standard_ball_y > 0) { vcs_standard_ball_y--; } break;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         switch (selected_object) {
+            case 0: if (vcs_standard_player0_y < 87) { vcs_standard_player0_y++; } break;
+            case 1: if (vcs_standard_player1_y < 87) { vcs_standard_player1_y++; } break;
+            case 2: if (vcs_standard_missile0_y < 87) { vcs_standard_missile0_y++; } break;
+            case 3: if (vcs_standard_missile1_y < 87) { vcs_standard_missile1_y++; } break;
+            case 4: if (vcs_standard_ball_y < 87) { vcs_standard_ball_y++; } break;
+         }
+      }
+   }
+   // The right joystick selects ones..hundred-thousands with left/right and
+   // edits the selected weight with up/down. Full neutral re-arms each press.
+   if (right_joystick_ready) {
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
+         if (!(right_joystick_ready & 0x04)) {
+            selected_score_digit++;
+            if (selected_score_digit == 6) { selected_score_digit := 0; }
+            vcs_standard_score_color += 0x10;
+         }
+         else {
+            if (!(right_joystick_ready & 0x08)) {
+               if (selected_score_digit == 0) { selected_score_digit := 5; }
+               else { selected_score_digit--; }
+               vcs_standard_score_color += 0x10;
+            }
+         }
+         if (!(right_joystick_ready & 0x01)) { vcs_standard_score += score_digit_weight[selected_score_digit]; }
+         else {
+            if (!(right_joystick_ready & 0x02)) { vcs_standard_score -= score_digit_weight[selected_score_digit]; }
+         }
+         right_joystick_ready := 0;
+      }
+   }
+   else {
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) { right_joystick_ready := 0; }
+   }
+}
+#endif
+
 #ifdef UNBANKED_REFERENCE
 void banked_game_logic(void) {
 #else
@@ -103,11 +186,16 @@ bank1 void banked_game_logic(void) {
    if (banked_hook_signature != 0x5a) {
       banked_hook_failure := 1;
    }
+#ifdef BANKED_STATIC_TEST
    if (banked_hook_count == 0) {
       VCS_STANDARD_BALL_X := 104;
       vcs_standard_score := 654321;
       banked_hook_epoch := 1;
    }
+#else
+   update_banked_controls();
+   banked_hook_epoch := 1;
+#endif
    banked_hook_count++;
 }
 

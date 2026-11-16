@@ -8,7 +8,7 @@ SOURCE := banked_standard_renderer.c26
 
 all: f8.bin
 
-f8.bin: $(SOURCE)
+f8.bin: $(SOURCE) $(RENDERER) $(VCS_DIR)/renderers/standard_4k_ntsc/standard_4k_ntsc.c26
 	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -Map f8.map \
 		$(SOURCE) $(RENDERER) -o $@
 
