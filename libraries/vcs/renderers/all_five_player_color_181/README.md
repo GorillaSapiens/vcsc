@@ -47,7 +47,10 @@ an early-RESP flag. Normal residues retain the historical RESP phase; residues
 positions the older handoff skipped every 15 pixels. HMP is written after RESP
 and the player-only HMOVE remains at its measured setup phase. The existing
 16-byte non-player reposition table is reused, so no second player-motion table
-is needed. Non-player objects remain positioned during VBLANK and their HMOVE
+is needed. X0 uses the equivalent wrapped origin at159 from the rightmost coarse
+bucket: an early horizontal-blank RESP would clamp it to physical X2. The native
+score-handoff position matrix certifies both endpoints and every fine-motion
+residue with score above and below. Non-player objects remain positioned during VBLANK and their HMOVE
 controls are cleared before the player-only visible handoff.
 
 The terminal path explicitly transfers a zero through the delayed Ball latch

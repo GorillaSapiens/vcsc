@@ -75,3 +75,68 @@ Log: /tmp/opencode/handoff-full-suite.log. Includes the new native coordinate or
 public/private restore-phase and period guards, historical-delay negative control,
 corrected raster hashes, source audit and all eight editable-example build shards.
 No deadlines/budgets were raised and no Stella source or documentation changed.
+
+2026-11-14 12:54:30 PDT, extend independent native score-handoff matrix
+
+User asked whether other score layouts could have the same bug. Source audit and
+existing CPU tests did not supply equally strong native-coordinate evidence, so
+user explicitly requested those tests. Added private score_handoff_positions.c26,
+shared vcs_score_handoff_positions.pl and six separately budgeted native shards.
+Four standard renderer variants (player-color/all-five, official/unofficial) get
+all six layouts: centered,left,right,wide,two-plus-two,three-plus-three, each above
+and below. Extra per-row-color profile covers five layouts; its three-plus-three
+probe overflows stock128-byte RAM. Extra sections profile covers its maintained
+centered composition; other layouts can hit4K/.same placement constraints, so no
+unsupported broader coverage is claimed. Each shard has a192-line baseline.
+Total60 positive compositions, six baselines,30 deliberately late native negative
+controls. All24 X masks include fine-motion residues and both endpoints. Require
+solid8x16 rectangles at(X-1)mod160, derived from arithmetic and pinned palette, not
+screenshots or implementation tables. Negative controls restore COLUPF twice to
+inject exactly10 cycles, and must spatially fail at P1 X108. No input reads/holds.
+Unique paths and existing60-second/512MiB shared capture bounds/cleanup retained.
+
+Initial tests caught fixture missile contamination: height0 still draws one row;
+move missiles below visible Y to isolate player-color masks. Four standard shards
+then passed. Extra per-row-color shard found genuine X0 clamping: its no-score
+baseline and X1..159 pass, but composed X0 appears at physical2 instead of159 in
+all five layouts and both orders. Early RESP in horizontal blank is clamped;
+fine-motion-only changes cannot wrap it. Fix X0 by returning coarse11, fine$a0,
+normal phase, equivalent to wrapped right-edge159 while keeping the same setup
+line. Same helper exists in all_five_sections_common, fixed there too.10 ROM bytes
+added, zero RAM. Exact private per-row fixture footprint3370/720 and public3890/200
+replace3360/730 and3880/210;4K/128-byte limits unchanged. Existing per-row CPU,
+native static and sections-score regressions pass after updating exact accounting.
+Native per-row matrix passes including X0. Sections native centered positive and
+late negative pass. Final focused matrix8/8 passes, including all six native shards
+and source/history checks: /tmp/opencode/score-position-matrix-final.log.
+Full eight-worker verification active: /tmp/opencode/score-position-matrix-full-suite.log.
+
+First expanded full suite completed1323/1339: all six new native matrix shards
+passed, but14 existing sections edge-pixel tests failed, plus repeated-sections
+build and layers-all-five workload timeouts. Diagnosed the14 pixel failures as
+nine additional copies of the old helper: public _common preview plus eight
+private frozen sections-score components. Their raster bodies remain frozen;
+repair only the same known X0 positioning helper. No pixel-oracle assertions or
+goldens changed. Source hygiene now requires the certified wrapped-origin path
+in every zero-gap helper, preventing another missed copy. Eight-worker followup
+of all16 failures plus hygiene active: /tmp/opencode/score-position-followup.log.
+No clean full-suite certification yet, no deadline/budget changes.
+
+Copy-fix followup16/17 passed: all14 sections pixel failures resolved with unchanged
+oracle; repeated build passes. Only layers-all-five timed out at its unchanged240s
+aggregate workload budget. Retained /tmp/vcsc_generic_1cKW has228 complete PNGs,
+no incomplete RawStream, and progressed into score-above profile checks; not a
+stalled capture. One post-copy-fix full eight-worker run is active, log:
+/tmp/opencode/score-position-copy-fixed-full-suite.log. Do not retry until green
+or raise deadlines. If timeout persists, record it as a remaining blocker.
+
+Post-copy-fix full run completed1338/1339. All native matrices, all pixel oracles
+and both earlier workload timeouts passed. Sole failure: example_assembly_allowlist
+still pinned1992 preview asm statements/digest before the seven new X0 helper
+statements. Reviewed and updated that single entry to1999 and its exact digest;
+focused allowlist passes. This is NOT a clean1339/1339 full run. No further full
+run started. User reports the same14 pixel failures on their machine, interrupted
+their suite and is angry at premature archives. Last explicitly offered archive
+195645 predates copy fixes;203832 was built/verified after fixes but never clean
+full certified. Asked which archive and one detailed failure; awaiting response.
+Do not imply local success explains their exit255 without their diagnostics.

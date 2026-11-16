@@ -447,9 +447,19 @@ require inline void TEMPLATE_vblank(void) {
    asm clc;
    asm rts;
    asm @TEMPLATE_player_position_zero_gap:;
+   // X=0's earliest RESP is clamped in horizontal blank. Establish the
+   // equivalent wrapped origin159 from the rightmost coarse bucket instead;
+   // this stays within the same setup line, like the supported X159 path.
+   asm cpx #1;
+   asm beq.same @TEMPLATE_player_position_left_edge;
    asm sec;
    asm sbc #$60;
    asm sec;
+   asm rts;
+   asm @TEMPLATE_player_position_left_edge:;
+   asm ldx #11;
+   asm lda #$a0;
+   asm clc;
    asm rts;
    asm @TEMPLATE_prepare_player_position_done:;
 

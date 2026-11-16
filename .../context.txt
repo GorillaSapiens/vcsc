@@ -192,20 +192,23 @@ acceptance gates.
 
 Immediate TODO
 --------------
-Active task: fix late component handoffs everywhere, with independent regression
-coverage. User noticed P1 wrapping in the no-input demo. Root cause: heart-above
-caller/sequence fixture restore COLUPF/CTRLPF after WSYNC, adding10 cycles before
-game_draw. Move writes before WSYNC. This is NOT controller/overscan overhead:
-Stella confirms misplaced P1 and264/265-line frames, stable264 after correction.
-Audit found those two affected callers. Added native spatial oracle (24 coordinates,
-both players/orders and192-line baseline, retained origin X-1 modulo160), public
-and private CPU restore-phase/period assertions, historical-delay negative control,
-and whole-tree WSYNC/handoff source guard. Six above composition hashes corrected;
-48 others unchanged. Prior1332/1332 passing suite preserved the bad goldens, not a
-sign-off for this fix. Final full eight-worker verification passed1333/1333, zero
-failures (/tmp/opencode/handoff-full-suite.log). Keep the deterministic six-slot
-heart sequence and exact FRAM selections; no Stella changes or host-time holds.
-See context-history/2026-11-14.txt for history. Keep eight workers/deadlines/budgets.
+Active task: user requested native score-handoff coordinate coverage beyond hearts.
+Heart caller fix/CPU guards passed1333/1333 (handoff-full-suite.log); six corrected
+above hashes,48 unchanged. New six-shard matrix covers all six score layouts in
+both orders on four standard renderer variants, plus per-row-color five-layout
+and sections centered profiles.60 composed positives, six192-line baselines and
+30 deliberately10-cycle-late negatives;24 native X masks per ROM, both players.
+Found additional X0 clamp in all_five_player_color_181 and shared sections181
+helper: old physical X2 versus expected wrapped159. Fix by establishing X0 via
+coarse11/HMP$a0/normal phase; all X1..159 unchanged. Adds10 ROM bytes, no RAM.
+All copied X0 helpers are fixed and source-guarded; pixel oracle unchanged.
+Exact ROM accounting updated without raising4K/128-byte limits. Local full run
+passed1338/1339; its stale assembly allowlist was corrected and passes focused
+verification. Do not describe that as a clean1339/1339 run. Detailed intermediate
+failures and fixes belong in context-history/2026-11-14.txt.
+User's latest e2e run passed747/748; only the developer hot-record64KiB limit
+failed at65944 bytes. Compact these notes, never raise the limit. No Stella edits,
+retries, alternate masks, host-time holds or raised capture/workload deadlines.
 
 Layers/sections agreed scope is complete at a63944fe/373af8a6: independent even
 sections>=2, all five crossing seams, both score orders, one4K drawing bank,

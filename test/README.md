@@ -97,6 +97,57 @@ The handoff correction then passed a fresh full eight-worker suite:
 **1333/1333**, zero failures, including native positions, phase/period assertions,
 the historical-delay negative control and all eight example-build shards.
 
+### Native score/gameplay handoff position matrix
+
+The six `vcs_score_handoff_positions_*.test` shards use the private
+`fixtures/score_handoff_positions.c26` fixture and shared Perl runner. They check
+native Stella pixels, not golden hashes or the renderer's own position tables:
+
+| Gameplay renderer | Score layouts, each above and below |
+| --- | --- |
+| player-color, official and unofficial | centered, left, right, wide, two-plus-two, three-plus-three |
+| all-five, official and unofficial | the same six layouts |
+| all-five per-row player colors | centered, left, right, wide, two-plus-two |
+| all-five color sections | maintained centered-score profile |
+
+That is60 positive composed ROMs, six no-score baselines, and30 deliberately late
+caller ROMs. Each runs24 selected positions for both P0 and P1: all fine-motion
+residues, X108/119/132/133/140/151/152 and X159, including X0 wrapping. Every sprite
+must be a solid8-by16 native-pixel rectangle at `(X-1) mod160`; the expected masks
+and pinned palette colors are derived independently. Score ink has a third color;
+missiles are kept below the visible field, since height zero still draws a row.
+No joystick injection, retries, accepted alternate masks or reference images are
+used. Every score/layout negative control inserts10 cycles before gameplay and
+must be rejected by the spatial oracle at P1 X108. Unique paths and the shared
+60-second/512MiB RawStream capture bounds and cleanup remain unchanged.
+
+The additional per-row-color/three-plus-three probe cannot fit stock128-byte RAM
+and is not claimed as certified; sections coverage is its maintained centered
+profile, not a claim that every other score fits its branch-page/ROM constraints.
+
+The expanded oracle exposed X0 clamping in the181-line per-row-color and sections
+player setup. Their earliest RESP occurred in horizontal blank and drew X0 at
+physical X2 instead of the retained wrapped X159. Those two helpers now establish
+X0 from the rightmost coarse bucket with fine motion `$a0`, preserving the setup
+line and all X1..159 cases. This adds10 ROM bytes, no RAM; exact per-row-color
+fixture/example ROM accounting was updated without changing the4K/128-byte limits.
+Expanded eight-worker focused verification passed **8/8**, including all six native
+matrix shards and source/history checks. The first full run passed1323/1339:
+14 sections edge-oracle failures exposed nine additional copied X0 helpers in the
+public preview and private fixtures; two workloads timed out. Those copies now
+use the same certified fix, without changing the sections pixel oracle. Source
+hygiene rejects the old path in any copy. Eight-worker follow-up passed16/17:
+all14 pixel failures and the repeated-sections build passed; only
+`vcs_layers_all_five.pl` hit its unchanged240-second aggregate workload limit.
+Its retained directory had228 completed PNGs and no incomplete RawStream capture;
+it reached later score-above cases rather than hanging at capture startup.
+The post-copy-fix full suite passed1338/1339: all pixel tests, all six matrix
+shards and both earlier timed-out workloads passed. Its sole failure was the
+example assembly allowlist, which still pinned1992 statements before the seven
+new X0 helper statements. The reviewed count1999 and exact digest are now pinned;
+the focused allowlist check passes. No further full run was started. This is a
+1338/1339 full result plus a passing allowlist follow-up, not a clean1339/1339 run.
+
 ### Example scanline-edge audit
 
 `vcs_layers_interactive.pl` covers all three cooperating-layer interactive entry

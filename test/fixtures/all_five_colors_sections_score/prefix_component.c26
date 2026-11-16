@@ -501,9 +501,16 @@ bank1 void TEMPLATE_prepare(void) {
    asm clc;
    asm rts;
    asm @TEMPLATE_player_position_zero_gap:;
+   asm cpx #1;
+   asm beq.same @TEMPLATE_player_position_left_edge;
    asm sec;
    asm sbc #$60;
    asm sec;
+   asm rts;
+   asm @TEMPLATE_player_position_left_edge:;
+   asm ldx #11;
+   asm lda #$a0;
+   asm clc;
    asm rts;
    asm @TEMPLATE_prepare_player_position_done:;
 

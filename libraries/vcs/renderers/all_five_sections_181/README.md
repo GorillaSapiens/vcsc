@@ -27,6 +27,11 @@ Object controls use X=0..159 and Y=0..87, like existing 181-line examples. Heigh
 are last-row indexes; player height 7 selects eight graphics rows. Always pair
 `game_vblank()` with `game_overscan()` to restore application heights.
 
+The centered-score native handoff test checks both players at24 X coordinates
+in both orders against arithmetic pixel masks and the192-line baseline. At X0,
+the setup uses the wrapped right-edge origin rather than a horizontal-blank
+RESP, which would clamp the player three pixels too far right.
+
 Renderer state uses 89 RAM bytes, excluding compiler scratch, score and controls.
 The supplied full-control examples use **8K F8 ROMs and 128/128 RAM bytes**; no
 additional RAM is available without changing the example's state allocation.

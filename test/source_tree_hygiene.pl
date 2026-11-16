@@ -1125,6 +1125,11 @@ my %text=map { $_ => slurp($_) } @test_files;
 find({no_chdir=>1,wanted=>sub {
    return unless -f $_ && /\.c26\z/;
    my$body=slurp($_); $body=~s{//[^\n]*|/\*.*?\*/}{}gs;
+   if($body=~/asm \@TEMPLATE_player_position_zero_gap:;/) {
+      $body=~/asm \@TEMPLATE_player_position_zero_gap:;\s*asm cpx #1;\s*asm beq.same \@TEMPLATE_player_position_left_edge;/ &&
+      $body=~/asm \@TEMPLATE_player_position_left_edge:;\s*asm ldx #11;\s*asm lda #\$a0;\s*asm clc;\s*asm rts;/
+         or die "uncertified X0 clamp in copied player-position helper: $_\n";
+   }
    while($body=~/((?:WSYNC\s*:=\s*[^;]+|asm\s+sta\s+WSYNC);)((?:(?!WSYNC|\w+_(?:draw|finish)\(|\{|\}).){0,350}?)vcs_ntsc_component_handoff\(\);/sg) {
       $2!~/\S/ or die "work after WSYNC before component handoff: $_\n";
    }
