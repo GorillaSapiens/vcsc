@@ -29,6 +29,8 @@ class Machine {
    unsigned phase=0,camera=0,aim_mask=0;
    std::array<uint8_t,18> initial{};
    std::map<uint32_t,std::array<uint8_t,18>> visited;
+   std::map<std::array<uint8_t,8>,bool> monsters;
+   bool treasure_returned=false,treasure_other=false;
    int jump_tone=-1,catch_tone=-1;
    static uint8_t rd(uint16_t a) { return active->read(a); }
    static void wr(uint16_t a,uint8_t v) { active->write(a,v); }
@@ -38,6 +40,9 @@ class Machine {
    void put(const char*s,uint8_t v) { mem[addr(s)]=v; }
    uint8_t keys() const {
       if(mode==1) return frame%640<320 ? 0x7f : 0xbf;
+      if(mode==3) return frame<320?0x7f:frame<640?0xbf:0xff;
+      if(mode==4) return 0xff;
+      if(mode==2&&frame>=110&&frame<=113) return 0xef;
       if(mode==2 && frame>=20 && frame<100 && (frame-20)%10<3) {
          static const uint8_t aim[]={0x7f,0x6f,0xef,0xaf,0xbf,0x9f,0xdf,0x5f};
          return aim[(frame-20)/10];
@@ -50,11 +55,13 @@ class Machine {
    uint8_t fire() const {
       if(frame==5 || (mode==0&&((frame>=100&&frame<=110)||frame==450)) || (mode==2&&frame==104)) return 0;
       if(mode==2 && frame>=20&&frame<100 && (frame-20)%10<3) return 0;
+      if(mode==2&&frame>=109&&frame<=113) return 0;
       return 0x80;
    }
    uint8_t read(uint16_t a) {
       if(a>=0x180&&a<=0x1ff) return mem[a&255];
       if((a&0x1fff)>=0x1000) {
+         if((a&0xfff)>=0x80&&(a&0xfff)<0x100) return mem[0xf080+(a&0x7f)];
          if((a&0xfff)>=0xff6&&(a&0xfff)<=0xff9) bank=(a&0xfff)-0xff6;
          return rom[bank*4096+(a&0xfff)];
       }
@@ -62,8 +69,8 @@ class Machine {
       if(a==0x282) return mode==0&&frame==510 ? 0xfe : 0xff;
       if(a==0x3c) return fire();
       if(a==0x37) return mode==0&&((frame>=150&&frame<=155)||frame==250||frame==350) ? 0x80 : 0;
-      if(a==0x30) return mode==0&&frame==102 ? 0x80 : 0;
-      if(a==0x31) return mode==0&&frame==95 ? 0x80 : 0;
+      if(a==0x30) return mode==0&&frame==104 ? 0x80 : 0;
+      if(a==0x31) return (mode==0&&frame==95)||(mode==3&&(frame==20||frame==100||frame==600)) ? 0x80 : 0;
       if(a==0x284||a==0x285) {
          auto t=timer?(clock-timer_start)/divisor:0;
          if(a==0x285) return t>loaded?0x80:0;
@@ -73,6 +80,7 @@ class Machine {
    }
    void write(uint16_t a,uint8_t v) {
       if((a&0x1fff)>=0x1000) {
+         if((a&0xfff)<0x80) mem[0xf080+(a&0x7f)]=v;
          if((a&0xfff)>=0xff6&&(a&0xfff)<=0xff9) bank=(a&0xfff)-0xff6;
          return;
       }
@@ -115,17 +123,41 @@ class Machine {
    void snapshot() {
       if(frame==2) initial=terrain();
       if(mode==1) { check_world(); return; }
+      if(mode==3) {
+         if(frame>21) {
+            if(!(mem[addr("treasure_taken")]&1)) fail("collected treasure flag was forgotten");
+            if(!val("treasure_id")&&val("treasure_visible")) fail("collected treasure respawned");
+            if(val("treasure_id")==1&&val("treasure_visible")) treasure_other=true;
+            if(frame>550&&!val("treasure_id")&&!val("treasure_visible")) treasure_returned=true;
+         }
+         if((frame==102||frame==602)&&val("run_sound")==0x25) fail("repeated treasure paid again");
+         return;
+      }
+      if(mode==4) {
+         if(frame==10) {put("game_object_x",80);mem[addr("game_object_x")+1]=82;put("game_player1_y",25);put("monster_direction",255);}
+         if(frame==30&&mem[addr("game_object_x")+1]>=78) fail("monster stopped or turned above player");
+         if(frame>=40&&frame<=110&&(frame-40)%10==0) put("run_wave",1+(frame-40)/10);
+         if(frame>=41&&frame<=111&&(frame-41)%10==0) {
+            std::array<uint8_t,8> pixels{};
+            for(unsigned i=0;i<8;++i) pixels[i]=mem[addr("monster_pixels")+i];
+            monsters[pixels]=true;
+         }
+         if(frame==200&&val("run_wave")<=8) fail("monster did not leave screen and respawn");
+         return;
+      }
       if(mode==2) {
-         if(frame>=21&&frame<=91&&(frame-21)%10==0) {
+         if(frame>=23&&frame<=93&&(frame-23)%10==0) {
             static const int dx[]={4,4,0,-4,-4,-4,0,4},dy[]={0,-2,-2,-2,0,2,2,2};
-            unsigned i=(frame-21)/10;
+            unsigned i=(frame-23)/10;
             if(!val("run_shot_active") || static_cast<int8_t>(val("run_shot_dx"))!=dx[i] ||
                static_cast<int8_t>(val("run_shot_dy"))!=dy[i]) fail("eight-direction aiming");
             if(val("game_object_x")!=80 || val("run_feet")!=73) fail("aiming also moved or jumped");
             aim_mask|=1<<i;
          }
          if(frame>=24&&frame<100&&(frame-24)%10==0) put("run_shot_active",0);
-         if(frame==105&&(!val("run_shot_active")||static_cast<int8_t>(val("run_shot_dx"))!=-4||val("run_shot_dy"))) fail("neutral Fire ignored last facing");
+         if(frame==107&&(!val("run_shot_active")||static_cast<int8_t>(val("run_shot_dx"))!=-4||val("run_shot_dy"))) fail("neutral Fire ignored last facing");
+         if(frame==108) put("run_shot_active",0);
+         if(frame==112&&(!val("run_shot_active")||val("run_shot_dx")||static_cast<int8_t>(val("run_shot_dy"))!=-2||val("run_feet")!=73)) fail("buffered straight-up aiming");
          return;
       }
       if(frame==9) { for(unsigned i=0;i<18;++i) mem[addr("game_playfield")+i]=0; }
@@ -134,8 +166,8 @@ class Machine {
       if(frame==65 && val("run_duck")&&val("game_player0_height")==3) duck=true;
       if(frame==15&&mem[0x19]) jump_tone=mem[0x17];
       if(frame==98&&mem[0x19]) catch_tone=mem[0x17];
-      if(frame==101&&!val("run_shot_active")) fail("Fire did not shoot");
-      if(frame==103) { if(val("run_shot_active")) fail("M0 kill did not remove shot"); killed=true; }
+      if(frame==103&&!val("run_shot_active")) fail("Fire did not shoot");
+      if(frame==105) { if(val("run_shot_active")) fail("M0 kill did not remove shot"); killed=true; }
       if(frame==110&&val("run_shot_active")) fail("held Fire spawned another shot");
       if(frame==152&&val("run_lives")==2&&val("run_immunity")) damaged=true;
       if(frame==158&&val("run_lives")!=2) fail("immunity did not suppress repeated damage");
@@ -163,10 +195,11 @@ public:
       if(f.gcount()!=sizeof rom) fail("16K F6 ROM size");
       std::ifstream map(m); std::string l; std::regex re("^\\s*\\$([0-9a-fA-F]{4})\\s+(\\S+)");
       while(std::getline(map,l)) {std::smatch a;if(std::regex_search(l,a,re)) symbols[a[2]]=std::stoul(a[1],nullptr,16);}
+      if(addr("courier")<0xf100||addr("invisible")<0xf100) fail("near sprite artwork is not in the raster bank");
       cpu.Reset();cpu.SetPC(read(0xfffc)|(read(0xfffd)<<8));
    }
    void run() {
-      int deadline=mode==1?7200:mode==2?110:530;
+      int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:530;
       for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
          writes.clear();auto before=cycles;cpu.Run(1,cycles,mos6502::INST_COUNT);clock+=cycles-before;
          for(auto w:writes) {
@@ -184,6 +217,8 @@ public:
       if(frame<deadline) fail("instruction deadline");
       if(mode==1) {if(!forward||!backward||!returned) fail("reversible world traversal coverage");}
       else if(mode==2) {if(aim_mask!=255) fail("aim coverage");}
+      else if(mode==3) {if(!treasure_other||!treasure_returned) fail("treasure departure/return coverage");}
+      else if(mode==4) {if(monsters.size()!=8) fail("eight distinct monster designs");}
       else if(!jump||!duck||!killed||!damaged||!restarted||!reset||!m0||!m1||jump_tone<0||catch_tone<0||jump_tone==catch_tone) fail("gameplay/audio coverage");
    }
 };
@@ -191,6 +226,6 @@ Machine*Machine::active=nullptr;
 }
 int main(int argc,char**argv) {
    if(argc!=3) return 2;
-   for(unsigned i=0;i<3;++i) {Machine m(argv[1],argv[2],i);m.run();}
+   for(unsigned i=0;i<5;++i) {Machine m(argv[1],argv[2],i);m.run();}
    std::puts("cinder_run CPU ok");
 }

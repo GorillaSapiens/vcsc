@@ -12,7 +12,7 @@
 A one-player, endless sidescroller for the Atari 2600. Carry your lantern through
 the volcanic ruins: climb three tiers of scrolling platforms above the road,
 leap over rolling cinders, duck low embers, shoot monsters and collect sparks.
-The three mirrored lamps in the upper corners show your lives.
+Three lamps in the upper-left corner show your lives; there is no mirrored copy.
 
 ## Play
 
@@ -27,6 +27,8 @@ make play
   One shot at a time; release between shots. Hold Fire with any joystick direction
   to aim in eight directions. Neutral Fire shoots in the last facing direction.
   While Fire is held, the stick aims rather than moving, crouching, or jumping.
+  A three-frame aim grace period accepts Up just after Fire, making straight-up
+  shots easier without accidentally jumping.
 - **Left/right:** run in either direction. The camera follows near the side of
   the movement window; there is no forced scrolling or speed acceleration.
 - **Down:** crouch. Your feet stay planted while the body becomes half-height;
@@ -35,8 +37,9 @@ make play
 
 Sparks award 50 points, kills award 100, and survival adds points over time.
 After a hit, the courier flashes
-and is briefly invulnerable. Hazards travel at four elevations: road-level
-cinders, head-height embers, and bats on the middle and upper routes.
+and is briefly invulnerable. Eight animated monster types vary in silhouette,
+speed and elevation. They keep their spawn direction, pass above or below you,
+and continue off screen rather than tracking your horizontal position.
 The red score means game over; release fire, then press it to begin a fresh run.
 
 ## Platforms and movement
@@ -51,7 +54,15 @@ remain at the same three heights.
 
 The four-frame running cycle alternates extended strides and passing/recovery
 poses, with counter-swinging arms and contrasting boots. Airborne and crouched
-poses are separate from the running cycle.
+poses are separate from the running cycle. Releasing the movement stick selects
+a standing pose, also used while aiming. A ceiling keeps the whole courier below
+the lamp strip.
+
+Treasure sparks are four-scanline dots with widths **2/4/4/2 pixels**. Each
+256-pixel world sector has one fixed treasure; a 32-byte bitmap remembers all
+256 treasure IDs until restart or Reset. Leaving the screen and returning cannot
+respawn a collected treasure. IDs repeat after 65,536 pixels; taken IDs remain
+taken even on later circuits. Terrain itself continues its reversible LFSR cycle.
 
 PF0, PF1 and PF2 cover all forty four-pixel columns: **160 pixels**, not only
 the central 128. Scrolling advances a terrain column after four movement pixels.
@@ -63,8 +74,10 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 ## Cartridge
 
-NTSC, **16K F6**, ordinary joystick, official 6502 opcodes only. No extra
-cartridge RAM or emulator modifications are required.
+NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
+provides 128 bytes of Superchip RAM; no emulator modifications are required.
+The build uses 59 cartridge-RAM bytes and 123 RIOT-RAM bytes, including a
+19-byte hardware-stack allowance.
 
 The game-owned 181-line raster draws two eight-row sprites, an M0 shot, an M1
 spark, and three independent full-width platform tiers. The visible terrain uses
@@ -81,7 +94,8 @@ blanking, avoiding partial scanlines as a missile approaches the left edge.
 Collision probes sample the same
 packed playfield bytes that the kernel displays. The six-glyph component supplies
 the score above gameplay. TIA collision latches drive damage, kills and collection.
-Physics runs in VBLANK; terrain updates and scoring run in overscan, keeping both
+Physics runs in VBLANK; terrain updates, treasure lookup, monster-art preparation
+and scoring run in overscan, keeping both
 blanking deadlines bounded. Beam-critical graphics stay in the startup bank.
 Overscan/VBLANK scratch aliases reuse dead renderer workspace, never persistent
 coordinates or live drawing state.
@@ -93,13 +107,19 @@ Reset, distinct jump/catch tones, and all eight aim directions without accidenta
 movement. An additional 7,200-frame traversal compares every displayed terrain
 column with an independent LFSR decoder, checks inverse steps and window endpoint
 states, and verifies that revisiting terrain restores its bytes. Every frame must
-retain the established 264-line period. Broken kills, ceilings and inverse steps
-are rejected as negative controls; injected collisions do not prove TIA geometry.
+retain the established 264-line period. Further routes check treasure persistence,
+monster motion past the player and off screen, eight distinct monster designs,
+and buffered upward aiming. Broken kills, ceilings, inverse steps, treasure flags
+and restored chasing behavior are rejected as negative controls; injected
+collisions do not prove TIA geometry.
 
 `test/vcs_cinder_run_stella.pl` checks all 160 pixels of every platform scanline
-and intervening gap, the full-width road, four running poses, Up jumping,
+and intervening gap, every full-width road line, upper-left-only lamps, stationary
+and four distinct running poses, Up jumping,
 fixed-foot crouching, a real missile kill, and visible travel in all eight aim
 directions. A scripted right/left excursion must restore the original platform
-pixels. Three sweeps check M1 at X1..64, including vertical terrain seams: all
-occupied scanlines must have identical horizontal spans. Captures use recorded
+pixels. A real TIA treasure collection must stay absent after leaving and returning.
+Three sweeps check dots at X1..152 in upper, middle and lower gaps: every dot
+must have exactly four lines with widths 2/4/4/2 and no horizontal tearing.
+Captures use recorded
 RawStream frame identities, never stream positions or artwork/ROM goldens.

@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // CINDER RUN: a lantern courier on an endless road through volcanic ruins.
-include "F6/mapper.c26"
+include "F6SC/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
@@ -18,74 +18,99 @@ instantiate "../../_common/cinder_run_wide.c26" as game
 uint8_t game_playfield[18];
 // The first forty columns of the nonzero $ACE1 / $B400 reversible LFSR.
 // Each state spans four columns. Bytes are L:PF0/PF1/PF2, R:PF2/PF1/PF0.
-bank1 page const uint8_t landscape[18] := {
+bank2 page const uint8_t landscape[18] := {
    0xf0,0x00,0x00,0xff,0x0f,0x00,
    0x00,0x00,0xf0,0xff,0x00,0xf0,
    0x00,0x00,0xff,0xf0,0xf0,0x00
 };
 
 // Eight stored rows, bottom-to-top at runtime; the helper accepts top-to-bottom.
-page const uint8_t courier[48] := {
+bank0 page const uint8_t courier[56] := {
    game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXX.X,0b.X.XXXX.,0b...XX...,0b..XX.XX.,0bXX....XX),
    game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXXX.,0b..XXX.X.,0b...XX...,0b...XXX..,0b...XX...),
    game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b.X.XXX..,0b..XXXX.X,0b...XX...,0b..XX.XX.,0b.XX...XX),
    game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXX..,0b.X.XXX..,0b...XX...,0b..XXX...,0b....XX..),
    game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0bX..XX..X,0b.XXXXXX.,0b...XX...,0b..XXXX..,0b.XX..XX.,0b.XX.....),
-   game_SPRITE_GLYPH(0,0,0,0,0b....XXX.,0b..XXXXXX,0b.XXXXXX.,0bXX...XXX)
+   game_SPRITE_GLYPH(0,0,0,0,0b....XXX.,0b..XXXXXX,0b.XXXXXX.,0bXX...XXX),
+   game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXX..,0b..XXXX..,0b..XXXX..,0b..X..X..,0b.XX..XX.)
 };
-page const uint8_t hazards[32] := {
+bank3 page const uint8_t hazards[128] := {
    game_SPRITE_GLYPH(0b...X....,0b..X.XX..,0b..XXXX..,0b.XXXXXX.,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXX.,0b..XXXX..),
+   game_SPRITE_GLYPH(0b....X...,0b.XX.X...,0b..XXXX..,0b.XXXXXX.,0bXXX..XXX,0bXXXXXXXX,0b..XXXX..,0b.XXXXXX.),
    game_SPRITE_GLYPH(0,0,0b.....X..,0b...XXXX.,0bXXXXXXXX,0b..XXXXXX,0b...XXXX.,0),
+   game_SPRITE_GLYPH(0,0,0b..X.....,0b.XXXX...,0bXXXXXXXX,0bXXXXXX..,0b.XXXX...,0),
    game_SPRITE_GLYPH(0bX......X,0bXX....XX,0b.XX..XX.,0b..XXXX..,0b.XXXXXX.,0b...XX...,0,0),
-   game_SPRITE_GLYPH(0,0,0b...XX...,0b.XXXXXX.,0bXXXXXXXX,0bXX.XX.XX,0bX......X,0)
+   game_SPRITE_GLYPH(0,0,0b...XX...,0b.XXXXXX.,0bXXXXXXXX,0bXX.XX.XX,0bX......X,0),
+   game_SPRITE_GLYPH(0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bXXXXXXXX,0b.X.XX.X.,0b..XXXX..,0b.X....X.,0),
+   game_SPRITE_GLYPH(0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bXXXXXXXX,0b.X.XX.X.,0b..XXXX..,0b..X..X..,0),
+   game_SPRITE_GLYPH(0b.X....X.,0b..XXXX..,0bXXXXXXXX,0bXX.XX.XX,0b.XXXXXX.,0b..XXXX..,0b.X.XX.X.,0bX......X),
+   game_SPRITE_GLYPH(0b.X....X.,0b..XXXX..,0bXXXXXXXX,0bXX.XX.XX,0b.XXXXXX.,0b..XXXX..,0bX..XX..X,0b.X....X.),
+   game_SPRITE_GLYPH(0b...XX...,0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bXXXXXXXX,0b.XXXXXX.,0b.X.XX.X.,0bX.X..X.X),
+   game_SPRITE_GLYPH(0b...XX...,0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bXXXXXXXX,0b.XXXXXX.,0bX.X..X.X,0b.X.XX.X.),
+   game_SPRITE_GLYPH(0b.X....X.,0b..X..X..,0b..XXXX..,0bXXXXXXXX,0bXX.XX.XX,0b.XXXXXX.,0bX.X..X.X,0b.X....X.),
+   game_SPRITE_GLYPH(0b..X..X..,0b.X....X.,0b..XXXX..,0bXXXXXXXX,0bXX.XX.XX,0b.XXXXXX.,0b.X....X.,0bX.X..X.X),
+   game_SPRITE_GLYPH(0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bXXXXXXXX,0b.XXXXXX.,0b..X..X..,0b.X....X.,0b..X..X..),
+   game_SPRITE_GLYPH(0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bXXXXXXXX,0b.XXXXXX.,0b..X..X..,0b..X..X..,0b.X....X.)
 };
-page const uint8_t invisible[8] := {0,0,0,0,0,0,0,0};
+bank0 page const uint8_t invisible[8] := {0,0,0,0,0,0,0,0};
 // Color tables follow stored sprite order: boots, coat, then the glowing hood.
 page const uint8_t game_player0_colors[8] := {0x08,0x0c,0x9a,0x38,0x3a,0x1c,0x1e,0x1e};
 page const uint8_t game_player1_colors[8] := {0x42,0x44,0x46,0x48,0x46,0x44,0x46,0x48};
 
 page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,24};
-page const uint8_t hazard_art[4] := {0,8,16,16};
-bank1 page const uint8_t hazard_lane[4] := {73,69,41,25};
-bank1 page const uint8_t spark_lane[4] := {61,45,29,13};
+bank3 page const uint8_t hazard_lane[8] := {73,69,41,25,57,61,45,29};
+bank1 page const uint8_t hazard_speed[8] := {1,1,0,1,2,1,0,2};
+bank2 page const uint8_t spark_lane[4] := {65,49,33,17};
+bank1 page const uint8_t treasure_bit[8] := {1,2,4,8,16,32,64,128};
+// One fixed treasure per 256-pixel sector, with an exact persistent bit per ID.
+// 256 treasure IDs repeat after 65536 pixels; a taken ID stays taken until
+// restart, even on later circuits. No cache eviction or hash collisions.
+cartram uint8_t treasure_taken[32];
+cartram uint8_t world_sector;
+cartram uint8_t treasure_id;
+cartram uint8_t treasure_visible;
+cartram uint8_t monster_pixels[8];
+cartram int8_t monster_direction;
+cartram uint8_t monster_tick;
+cartram uint8_t run_moving;
+cartram uint8_t run_aim_wait;
 // All forty four-pixel columns, including both PF0 nibbles.
-bank1 page const uint8_t column_bit[40] := {
+bank2 page const uint8_t column_bit[40] := {
    0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10,8,4,2,1,
    1,2,4,8,0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10,8,4,2,1,
    1,2,4,8,0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10
 };
-bank1 page const uint8_t column_byte[40] := {
+bank2 page const uint8_t column_byte[40] := {
    0,0,0,0, 1,1,1,1,1,1,1,1, 2,2,2,2,2,2,2,2,
    3,3,3,3,3,3,3,3, 4,4,4,4,4,4,4,4, 5,5,5,5
 };
 
-uint8_t run_mode;
+cartram uint8_t run_mode;
 uint8_t run_frame;
 uint8_t run_jump;
-uint8_t run_fire_ready;
-uint8_t run_up_ready;
-uint8_t run_lives;
-uint8_t run_immunity;
-uint8_t run_wave;
+cartram uint8_t run_fire_ready;
+cartram uint8_t run_up_ready;
+cartram uint8_t run_lives;
+cartram uint8_t run_immunity;
+cartram uint8_t run_wave;
 uint8_t world_seed[2];
 uint8_t world_end[2];
 uint8_t world_phase;
 int8_t world_substep;
 uint8_t world_camera;
 int8_t run_facing;
-int8_t run_shot_dx;
-int8_t run_shot_dy;
-uint8_t run_shot_active;
+cartram int8_t run_shot_dx;
+cartram int8_t run_shot_dy;
+cartram uint8_t run_shot_active;
 uint8_t world_request;
-uint8_t run_sound;
-uint8_t run_shot_x;
-uint8_t run_shot_y;
+cartram uint8_t run_sound;
+cartram uint8_t run_shot_x;
+cartram uint8_t run_shot_y;
 uint8_t run_feet;
 int8_t run_velocity;
 uint8_t run_grounded;
 uint8_t run_duck;
-// The local raster fixes both NUSIZ values at $20; the two intermediate
-// object-array bytes instead hold persistent collectible coordinates.
+// The two intermediate object-array bytes hold collectible coordinates.
 alias run_spark_x game_object_x[2]
 alias run_spark_y game_object_x[3]
 // Phase overlays: overscan has already restored coordinates from workspace;
@@ -103,19 +128,33 @@ alias physics_top game_workspace[5]
 alias physics_old_x game_workspace[6]
 alias physics_probe game_workspace[7]
 
-bank1 void new_hazard(void) {
+bank3 void new_hazard(void) {
    run_wave++;
    game_PLAYER1_X := 152;
-   if (run_facing < 0) { game_PLAYER1_X := 4; }
-   game_player1_y := hazard_lane[(run_wave - 1) & 3];
+   monster_direction := -1;
+   monster_tick := 0;
+   if (run_facing < 0) { game_PLAYER1_X := 4; monster_direction := 1; }
+   game_player1_y := hazard_lane[(run_wave - 1) & 7];
 }
 
-bank1 void new_run(void) {
-   uint8_t i := 0;
-   while (i < 18) {
-      game_playfield[i] := landscape[i];
-      i++;
-   }
+bank2 void new_run(void) {
+   asm ldx #17;
+   asm @reset_landscape:;
+   asm lda.ax landscape,x;
+   asm sta.zx game_playfield,x;
+   asm dex;
+   asm bpl.same @reset_landscape;
+   asm ldx #31;
+   asm lda #0;
+   asm @clear_treasure:;
+   asm sta.ax treasure_taken,x;
+   asm dex;
+   asm bpl.same @clear_treasure;
+   world_sector := 0;
+   treasure_visible := 1;
+   treasure_id := 0;
+   run_moving := 0;
+   run_aim_wait := 0;
    run_mode := 0;
    run_frame := 0;
    run_jump := 0;
@@ -144,7 +183,7 @@ bank1 void new_run(void) {
    game_player0_y := 73;
    game_player0_height := 7;
    game_player1_height := 7;
-   run_spark_y := 61;
+   run_spark_y := 65;
    game_ball_y := run_spark_y;
    game_ball_height := 2;
    game_BALL_X := run_spark_x;
@@ -237,6 +276,7 @@ bank2 void scroll_landscape(void) {
    }
    if (world_request == 1) {
       world_camera += 4;
+      if (!world_camera) { world_sector++; }
       world_phase++;
       if (world_phase == 4) {
          world_phase := 0;
@@ -257,19 +297,16 @@ bank2 void scroll_landscape(void) {
       }
       if (game_PLAYER1_X < 5) { new_hazard(); }
       else { game_PLAYER1_X -= 4; }
-      if (run_spark_x < 5) { run_spark_x := 156; }
-      else { run_spark_x -= 4; }
       if (run_shot_active) {
          if (run_shot_x < 4) { run_shot_active := 0; }
          else { run_shot_x -= 4; }
       }
    }
    else {
+      if (!world_camera) { world_sector--; }
       world_camera -= 4;
-      if (game_PLAYER1_X > 151) { game_PLAYER1_X := 4; }
+      if (game_PLAYER1_X > 151) { new_hazard(); }
       else { game_PLAYER1_X += 4; }
-      if (run_spark_x > 151) { run_spark_x := 4; }
-      else { run_spark_x += 4; }
       if (run_shot_active) {
          if (run_shot_x > 151) { run_shot_active := 0; }
          else { run_shot_x += 4; }
@@ -332,16 +369,19 @@ inline void collide_ledge(void) {
 }
 
 inline void update_physics(void) {
+   run_moving := 0;
    run_duck := 0;
    physics_old_x := game_PLAYER0_X;
-   if (INPT4 & 0x80) {
+   if ((INPT4 & 0x80) && !run_aim_wait) {
       if (!(SWCHA & 0x20) && run_grounded) { run_duck := 1; }
       if (!(SWCHA & 0x40)) {
+         run_moving := 1;
          run_facing := -1;
          if (game_PLAYER0_X > 64) { game_PLAYER0_X--; }
          else { world_substep--; }
       }
       if (!(SWCHA & 0x80)) {
+         run_moving := 1;
          run_facing := 1;
          if (game_PLAYER0_X < 96) { game_PLAYER0_X++; }
          else { world_substep++; }
@@ -356,6 +396,7 @@ inline void update_physics(void) {
       if (run_facing > 0 && game_PLAYER0_X > 44) { game_PLAYER0_X -= 4; }
       if (run_facing < 0 && game_PLAYER0_X < 108) { game_PLAYER0_X += 4; }
       world_request := 0;
+      run_moving := 0;
       sample_platforms();
    }
    if (run_grounded && run_feet != 73) {
@@ -368,7 +409,7 @@ inline void update_physics(void) {
       }
    }
    if (SWCHA & 0x10) { run_up_ready := 1; }
-   if (run_up_ready && !(SWCHA & 0x10) && (INPT4 & 0x80)) {
+   if (run_up_ready && !(SWCHA & 0x10) && (INPT4 & 0x80) && !run_aim_wait) {
       run_up_ready := 0;
       if (run_grounded && !run_duck) {
          run_grounded := 0;
@@ -380,7 +421,8 @@ inline void update_physics(void) {
    if (!run_grounded) {
       physics_old_feet := run_feet;
       run_feet := run_feet + (uint8_t) run_velocity;
-      if (run_feet < 9) { run_feet := 9; run_velocity := 0; }
+      // Keep the entire courier below the sixteen-line lamp/UI strip.
+      if (run_feet < 17) { run_feet := 17; run_velocity := 0; }
       physics_top := 25; physics_probe := 4; collide_ledge();
       physics_top := 41; physics_probe := 2; collide_ledge();
       physics_top := 57; physics_probe := 1; collide_ledge();
@@ -395,7 +437,7 @@ inline void update_physics(void) {
    if (run_duck) { game_player0_height := 3; }
 }
 
-inline void update_audio(void) {
+bank2 void update_audio(void) {
    AUDV0 := 0;
    // High nibble selects the effect, low nibble is its remaining duration.
    // Jump sweeps upward; collecting a spark is a short, high fixed chime.
@@ -416,7 +458,7 @@ inline void update_audio(void) {
 
 // Divide work across the two blanking deadlines: physics precedes the raster,
 // while scoring, terrain scrolling and collision responses follow it.
-bank1 void advance_physics(void) {
+bank2 void advance_physics(void) {
    if (run_mode == 1) { update_physics(); }
 }
 
@@ -442,9 +484,16 @@ bank1 void update_run(void) {
    }
    else {
       if (world_request) { scroll_landscape(); }
-      if (!(run_frame & 1)) {
-         if (game_PLAYER1_X > game_PLAYER0_X) { game_PLAYER1_X--; }
-         else { game_PLAYER1_X++; }
+       monster_tick++;
+       if (!(run_frame & 1) || hazard_speed[(run_wave - 1) & 7] == 2) {
+          if (monster_direction < 0) {
+             if (game_PLAYER1_X < 2) { new_hazard(); }
+             else { game_PLAYER1_X--; }
+          }
+          else {
+             if (game_PLAYER1_X > 151) { new_hazard(); }
+             else { game_PLAYER1_X++; }
+          }
       }
       if (run_shot_active) {
          if (run_kill) {
@@ -464,24 +513,32 @@ bank1 void update_run(void) {
       }
       if (run_fire_ready && !(INPT4 & 0x80)) {
          run_fire_ready := 0;
-         if (!run_shot_active) {
-            run_shot_active := 1;
-            run_shot_dx := 0;
-            run_shot_dy := 0;
-            if (!(SWCHA & 0x40)) { run_shot_dx := -4; run_facing := -1; }
-            if (!(SWCHA & 0x80)) { run_shot_dx := 4; run_facing := 1; }
-            if (!(SWCHA & 0x10)) { run_shot_dy := -2; }
-            if (!(SWCHA & 0x20)) { run_shot_dy := 2; }
-            if (!run_shot_dx && !run_shot_dy) {
-               run_shot_dx := 4;
-               if (run_facing < 0) { run_shot_dx := -4; }
-            }
-            run_shot_x := game_PLAYER0_X + 3;
-            if (run_shot_dx > 0) { run_shot_x := game_PLAYER0_X + 8; }
-            if (run_shot_dx < 0) { run_shot_x := game_PLAYER0_X - 4; }
-            run_shot_y := run_feet - 4;
-            if (run_duck) { run_shot_y := run_feet - 2; }
-            run_sound := 0x24;
+         run_aim_wait := 3;
+      }
+      // Sample aim for three frames after Fire: a near-simultaneous Up press
+      // must not be lost just because the button arrived first.
+      if (run_aim_wait) {
+         run_aim_wait--;
+         if (!run_aim_wait) {
+             if (!run_shot_active) {
+                run_shot_active := 1;
+                run_shot_dx := 0;
+                run_shot_dy := 0;
+                if (!(SWCHA & 0x40)) { run_shot_dx := -4; run_facing := -1; }
+                if (!(SWCHA & 0x80)) { run_shot_dx := 4; run_facing := 1; }
+                if (!(SWCHA & 0x10)) { run_shot_dy := -2; }
+                if (!(SWCHA & 0x20)) { run_shot_dy := 2; }
+                if (!run_shot_dx && !run_shot_dy) {
+                   run_shot_dx := 4;
+                   if (run_facing < 0) { run_shot_dx := -4; }
+                }
+                run_shot_x := game_PLAYER0_X + 3;
+                if (run_shot_dx > 0) { run_shot_x := game_PLAYER0_X + 8; }
+                if (run_shot_dx < 0) { run_shot_x := game_PLAYER0_X - 4; }
+                run_shot_y := run_feet - 4;
+                if (run_duck) { run_shot_y := run_feet - 2; }
+                run_sound := 0x24;
+             }
          }
       }
       if (run_immunity) {
@@ -500,11 +557,10 @@ bank1 void update_run(void) {
             }
          }
       }
-      if (run_collect) {
+      if (run_collect && treasure_visible) {
+         treasure_taken[treasure_id >> 3] |= treasure_bit[treasure_id & 7];
+         treasure_visible := 0;
          score_score += 50;
-         run_spark_x := 156;
-         if (run_facing < 0) { run_spark_x := 4; }
-         run_spark_y := spark_lane[run_wave & 3];
          run_sound := 0x26;
       }
       if (!(run_frame & 15)) {
@@ -513,19 +569,53 @@ bank1 void update_run(void) {
    }
 }
 
+bank2 void locate_treasure(void) {
+   treasure_id := world_sector;
+   run_spark_x := 128 - world_camera;
+   if (world_camera > 128) { treasure_id++; }
+   treasure_visible := 0;
+   physics_mask := 1;
+   physics_index := treasure_id & 7;
+   while (physics_index) { physics_mask <<= 1; physics_index--; }
+   if (run_spark_x < 156 && !(treasure_taken[treasure_id >> 3] & physics_mask)) {
+      treasure_visible := 1;
+   }
+   run_spark_y := spark_lane[treasure_id & 3];
+}
+
+bank3 void prepare_monster(void) {
+   asm lda.a run_wave;
+   asm sec;
+   asm sbc #1;
+   asm and #7;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta.z game_workspace;
+   asm lda.a monster_tick;
+   asm and #8;
+   asm ora.z game_workspace;
+   asm tax;
+   asm ldy #0;
+   asm @copy:;
+   asm lda.ax hazards,x;
+   asm sta.ay monster_pixels,y;
+   asm inx;
+   asm iny;
+   asm cpy #8;
+   asm bne.same @copy;
+}
+
 // Prepare graphics before the renderer's VBLANK countdown setup.
-void prepare_sprites(void) {
-   game_player1_graphics := hazards;
-   game_player1_graphics += hazard_art[(run_wave - 1) & 3];
-   if (((run_wave - 1) & 3) >= 2 && (run_frame & 8)) {
-      game_player1_graphics += 8;
-   }
+bank0 void prepare_sprites(void) {
+   game_player1_graphics := &<monster_pixels;
+   physics_index := 48;
+   if (run_moving) { physics_index := animation_frame[run_frame & 15]; }
+   if (!run_grounded) { physics_index := 32; }
+   if (run_duck) { physics_index := 40; }
    game_player0_graphics := courier;
-   game_player0_graphics += animation_frame[run_frame & 15];
-   if (!run_grounded) {
-      game_player0_graphics := courier + 32;
-   }
-   if (run_duck) { game_player0_graphics := courier + 40; }
+   game_player0_graphics += physics_index;
    if (run_immunity & 4) {
       game_player0_graphics := invisible;
    }
@@ -536,6 +626,8 @@ void main(void) {
    SWBCNT := 0;
    VBLANK := 2;
    new_run();
+   locate_treasure();
+   prepare_monster();
    game_init();
    score_init();
    while (1) {
@@ -554,7 +646,8 @@ void main(void) {
       }
       else {
          game_BALL_X := run_spark_x;
-         game_ball_y := run_spark_y;
+          game_ball_y := run_spark_y;
+          if (!treasure_visible) { game_ball_y := 255; }
          game_aux_index := 3;
       }
       game_vblank();
@@ -570,6 +663,8 @@ void main(void) {
       game_overscan();
       score_overscan();
       update_run();
+      locate_treasure();
+      prepare_monster();
       vcs_ntsc_end_overscan();
    }
 }

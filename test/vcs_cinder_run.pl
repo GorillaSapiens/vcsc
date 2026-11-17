@@ -18,7 +18,7 @@ sub run {
 }
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$tmp/game.map",
    "$repo/examples/06_games/cinder_run/cinder_run.c26",'-o',"$tmp/game.bin");
--s "$tmp/game.bin"==16384 or die "expected 16K F6 ROM\n";
+-s "$tmp/game.bin"==16384 or die "expected 16K F6SC ROM\n";
 # Exercise every declared mutable-playfield profile, not just this game's 181.
 for my$lines(170,181,192,228) {
    my$bytes=$lines==170 ? 40 : $lines==181 ? 44 : $lines==192 ? 48 : 60;
@@ -45,7 +45,7 @@ run("$tmp/oracle","$tmp/game.bin","$tmp/game.map") eq "cinder_run CPU ok\n" or d
 open my$s,'<',"$repo/examples/06_games/cinder_run/cinder_run.c26" or die$!;
 my$source=do { local$/; <$s> }; close$s;
 $source=~s{\.\./\.\./_common/(\w+\.c26)}{$repo/examples/_common/$1}g;
-for my$mode(qw(no_kill thick_ceiling bad_inverse)) {
+for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster)) {
    my$broken=$source;
    if($mode eq 'no_kill') {
       $broken=~s/run_kill := CXM0P & 0x80;/run_kill := 0;/ or die 'kill boundary';
@@ -53,8 +53,14 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse)) {
    elsif($mode eq 'thick_ceiling') {
       $broken=~s/physics_top \+= 10;/physics_top += 16;/ or die 'ceiling boundary';
    }
-   else {
+   elsif($mode eq 'bad_inverse') {
       $broken=~s/asm eor #\$b4;/asm eor #\$b5;/ or die 'inverse boundary';
+   }
+   elsif($mode eq 'forgotten_treasure') {
+      $broken=~s/treasure_taken\[treasure_id >> 3\] \|= treasure_bit\[treasure_id & 7\];/treasure_taken[treasure_id >> 3] := 0;/ or die 'treasure boundary';
+   }
+   else {
+      $broken=~s/if \(monster_direction < 0\) \{/if (game_PLAYER1_X > game_PLAYER0_X) {/ or die 'monster boundary';
    }
    open my$f,'>',"$tmp/$mode.c26" or die$!; print{$f}$broken; close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$tmp/$mode.map",
@@ -67,7 +73,8 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse)) {
    }
    waitpid($p,0); $?!=0 or die "$mode negative control passed\n";
    open my$l,'<',"$tmp/$mode.log" or die$!; my$log=do { local$/; <$l> }; close$l;
-   my%reason=(no_kill=>'M0 kill did not remove shot',thick_ceiling=>'solid underside',bad_inverse=>'LFSR forward/inverse');
+   my%reason=(no_kill=>'M0 kill did not remove shot',thick_ceiling=>'solid underside',bad_inverse=>'LFSR forward/inverse',
+      forgotten_treasure=>'collected treasure flag',chasing_monster=>'monster stopped or turned');
    my$reason=$reason{$mode};
    index($log,$reason)>=0 or die "$mode failed for the wrong reason: $log\n";
 }
