@@ -58,7 +58,13 @@ poses are separate from the running cycle. Releasing the movement stick selects
 a standing pose, also used while aiming. A ceiling keeps the whole courier below
 the lamp strip.
 
-Treasure sparks are four-scanline dots with widths **2/4/4/2 pixels**. Each
+Treasure sparks are centered four-scanline dots with widths **2/4/4/2 pixels**:
+the narrow rows sit one pixel inside each side of the wide rows. M1 shifts left
+one pixel for the first wide row, then right one for the bottom narrow row.
+Normal HMOVE causes two short eight-pixel blanking marks at the left edge on
+those transition lines, in the otherwise-empty gap, not on platforms or the road.
+Dots are hidden within the leftmost eight pixels to avoid showing a clipped
+half-dot in that HMOVE area; terrain still covers the full 160 pixels. Each
 256-pixel world sector has one fixed treasure; a 32-byte bitmap remembers all
 256 treasure IDs until restart or Reset. Leaving the screen and returning cannot
 respawn a collected treasure. IDs repeat after 65,536 pixels; taken IDs remain
@@ -76,7 +82,7 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
 provides 128 bytes of Superchip RAM; no emulator modifications are required.
-The build uses 59 cartridge-RAM bytes and 123 RIOT-RAM bytes, including a
+The build uses 59 cartridge-RAM bytes and 126 RIOT-RAM bytes, including a
 19-byte hardware-stack allowance.
 
 The game-owned 181-line raster draws two eight-row sprites, an M0 shot, an M1
@@ -119,7 +125,11 @@ and four distinct running poses, Up jumping,
 fixed-foot crouching, a real missile kill, and visible travel in all eight aim
 directions. A scripted right/left excursion must restore the original platform
 pixels. A real TIA treasure collection must stay absent after leaving and returning.
-Three sweeps check dots at X1..152 in upper, middle and lower gaps: every dot
-must have exactly four lines with widths 2/4/4/2 and no horizontal tearing.
+Sweeps cover all four treasure heights, a complete X1..128 cycle, and X120..151.
+Every visible dot must have exactly four centered lines of widths 2/4/4/2; the
+seven positions hidden in the left margin are counted separately, not discarded.
+A no-motion negative control must be rejected even though its row widths are
+correct: an arrowhead is not a centered dot. The CPU oracle checks paired
+minus/plus-one HMOVEs, zero motion on other objects, and unchanged frame periods.
 Captures use recorded
 RawStream frame identities, never stream positions or artwork/ROM goldens.

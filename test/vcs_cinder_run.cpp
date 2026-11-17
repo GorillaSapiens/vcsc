@@ -27,6 +27,7 @@ class Machine {
    bool jump=false,duck=false,killed=false,damaged=false,restarted=false,reset=false;
    uint16_t seed=0xace1;
    unsigned phase=0,camera=0,aim_mask=0;
+   unsigned dot_moves=0;
    std::array<uint8_t,18> initial{};
    std::map<uint32_t,std::array<uint8_t,18>> visited;
    std::map<std::array<uint8_t,8>,bool> monsters;
@@ -86,6 +87,7 @@ class Machine {
       }
       if(a>=0x100&&a<=0x1ff) { mem[a&255]=v; mem[a]=v; }
       else mem[a]=v;
+      if(a==0x2b) for(unsigned i=0x20;i<=0x24;++i) mem[i]=0;
       writes.emplace_back(a,v);
    }
    std::array<uint8_t,18> terrain() {
@@ -203,12 +205,19 @@ public:
       for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
          writes.clear();auto before=cycles;cpu.Run(1,cycles,mos6502::INST_COUNT);clock+=cycles-before;
          for(auto w:writes) {
+            if(w.first==0x2a&&!(mem[1]&2)&&clock%76==8) {
+               if(val("game_aux_index")!=3||mem[0x20]||mem[0x21]||mem[0x22]) fail("dot HMOVE disturbed another object");
+               if((mem[0x23]&0xf0)!=(dot_moves?0xf0:0x10)) fail("dot HMOVE is not minus/plus one pixel");
+               ++dot_moves;
+            }
             if(w.first==0x1d&&(w.second&2)) m0=true;
             if(w.first==0x1e&&(w.second&2)) m1=true;
             if(w.first==0x1f&&(w.second&2)) fail("Ball was enabled");
             if((w.first==0x1d||w.first==0x1e)&&(w.second&2)&&!(mem[1]&2)&&clock%76>22) fail("late missile enable");
             if(w.first==2) clock+=76-clock%76;
             if(w.first==0) {bool n=w.second&2;if(n&&!sync) {++frame;
+               if(dot_moves&&dot_moves!=2) fail("unpaired dot HMOVE");
+               dot_moves=0;
                if(frame>4&&clock-last_start!=264*76) { std::fprintf(stderr,"frame %d: %llu cycles\n",frame,static_cast<unsigned long long>(clock-last_start));fail("unstable frame period"); }
                last_start=clock;snapshot();}sync=n;}
             if(w.first>=0x294&&w.first<=0x297) {static const unsigned d[]={1,8,64,1024};timer=true;timer_start=clock;loaded=w.second;divisor=d[w.first-0x294];}

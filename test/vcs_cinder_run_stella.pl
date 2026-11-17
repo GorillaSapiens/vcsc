@@ -44,7 +44,7 @@ END {local$?;if($p) {kill 'TERM',$p;waitpid($p,0);}}
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display;local$ENV{SDL_VIDEODRIVER}='x11';local$ENV{SDL_AUDIODRIVER}='dummy';
 my@aim=(0x7f,0x6f,0xef,0xaf,0xbf,0x9f,0xdf,0x5f);
-my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam),map{"aim$_"}0..7);
+my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam edge_third edge_far edge_bad),map{"aim$_"}0..7);
 for my$mode(@modes) {
    my$dir="$tmp/$mode";make_path($dir);my$s=$source;my$input='';
    if($mode ne 'idle') {$s=~s/new_run\(\);\n   locate_treasure\(\);/new_run();\n   run_mode := 1;\n   locate_treasure();/ or die 'startup boundary';}
@@ -55,10 +55,17 @@ for my$mode(@modes) {
    if($mode eq 'treasure') {$input.='if (run_frame >= 2 && run_frame < 92) { return 0x7f; } if (run_frame >= 92 && run_frame < 198) { return 0xbf; }';}
    if($mode=~/^aim(\d)$/) {$input.="if (run_frame >= 10 && run_frame <= 12) { return $aim[$1]; }";}
    if($mode=~/^edge_/) {
-      my$y=$mode eq 'edge_gap'?65:$mode eq 'edge_top'?17:33;
+      my$y=$mode eq 'edge_top'?17:$mode eq 'edge_seam'?33:$mode eq 'edge_third'?49:65;
       $s=~s/(hazards\[128\]\s*:=\s*)\{.*?\};/${1}{0};/s or die 'edge monster boundary';
       $s=~s/(courier\[56\]\s*:=\s*)\{.*?\};/${1}{0};/s or die 'edge courier boundary';
-      $s=~s/prepare_sprites\(\);/prepare_sprites(); run_spark_x := run_frame - 3; run_spark_y := $y;/ or die 'edge boundary';
+      my$x=$mode=~/^edge_(?:far|bad)$/?'(run_frame & 31) + 120':'(run_frame & 127) + 1';
+      $s=~s/prepare_sprites\(\);/prepare_sprites(); run_spark_x := $x; run_spark_y := $y;/ or die 'edge boundary';
+      if($mode eq 'edge_bad') {
+         my$state=slurp("$repo/examples/_common/cinder_run_state.c26");
+         $state=~s/0xf0,0x10,1,1/0,0,1,1/ or die 'motion negative-control boundary';
+         open my$f,'>',"$dir/state.c26" or die$!;print{$f}$state;close$f;
+         $s=~s{\Q$repo/examples/_common/cinder_run_state.c26\E}{$dir/state.c26} or die 'state relocation';
+      }
    }
    $input=~s/return ([^;]+);/fixture_input := $1;/g;
    $s=~s/(inline void update_physics\(void\) \{)/uint8_t fixture_input;\n$1/ or die 'keys boundary';
@@ -72,7 +79,7 @@ for my$mode(@modes) {
    else {$s=~s/INPT4/0x80/g;}
    open my$f,'>',"$dir/scripted.c26" or die$!;print{$f}$s;close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$dir/scripted.c26",'-o',"$dir/scripted.bin");
-   my$frames=$mode=~/^edge_/?join(',',4..155):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode eq 'shoot'?'14,50':$mode eq 'duck'?'25':'10';
+   my$frames=$mode=~/^edge_/?join(',',4..($mode=~/^edge_(?:far|bad)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode eq 'shoot'?'14,50':$mode eq 'duck'?'25':'10';
    run(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,"$dir/user"),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
@@ -154,16 +161,23 @@ for my$i(0..7) {
    ($dx[$i]>0?$x>90:$dx[$i]<0?$x<76:abs($x-83)<5) or die "aim$i: wrong horizontal travel";
    ($dy[$i]>0?$y>$feet:$dy[$i]<0?$y<$head:($y>=$head&&$y<=$feet)) or die "aim$i: wrong vertical travel (y$y, body $head..$feet)";
 }
-for my$m(qw(edge_gap edge_top edge_seam)) {
-   my$n;
-   for my$f(4..155) {my($w,$h,$rgb)=image($m,$f);my@rows;
+for my$m(qw(edge_gap edge_top edge_seam edge_third edge_far edge_bad)) {
+   my($n,$visible,$clipped)=(undef,0,0);
+   my$far=$m=~/^edge_(?:far|bad)$/;
+   for my$f(4..($far?35:131)) {my($w,$h,$rgb)=image($m,$f);my@rows;
+      my$bars=grep{substr($rgb,($_*$w)*3,3) eq pack('C3',0,0,0)}($origin+16..$origin+143);
       for my$y(25..$feet-10) {my@xs=grep{$monster_rgb{substr($rgb,($y*$w+$_)*3,3)}}0..159;push@rows,join(',',@xs) if@xs;}
-      @rows or die "$m/$f: M1 missing";$n//=scalar@rows;@rows==$n or die "$m/$f: M1 height tears";
+      if(!@rows) {$bars==0 or die "$m/$f: hidden dot still strobes HMOVE";$clipped++;next;}
+      $bars==2 or die "$m/$f: unexpected HMOVE blanking ($bars lines)";
+      $visible++;$n//=scalar@rows;@rows==$n or die "$m/$f: M1 height tears";
       @rows==4 or die "$m/$f: dot is not four lines";
       my@width=map{scalar(split /,/)}@rows;
       join(',',@width) eq '2,4,4,2' or die "$m/$f: dot profile @width";
       my@left=map{(split /,/)[0]}@rows;
-      for(@left) {$_ eq $left[0] or die "$m/$f: M1 scanlines tear";}
+      my$centered=$left[0]==$left[3]&&$left[1]==$left[2]&&$left[0]==$left[1]+1;
+      if($m eq 'edge_bad') {$centered and die 'unshifted arrowhead negative control was accepted';}
+      else {$centered or die "$m/$f: dot is not centered (@left)";}
    }
+   $visible==($far?32:121)&&$clipped==($far?0:7) or die "$m: dot sweep coverage ($visible visible, $clipped clipped)";
 }
 print "vcs_cinder_run_stella ok\n";

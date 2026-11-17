@@ -3,6 +3,9 @@
 // Three independent six-byte ledges occupy 18 RAM bytes; road/gaps are implicit.
 require inline void TEMPLATE_vblank(void) {
    asm .callstackextra 2;
+   asm lda.z game_aux_index;
+   asm eor #3;
+   asm sta.z game_dot_skip;
    asm lda.z game_player0_y;
    asm sta.z game_workspace + 1;
    asm sec;
@@ -100,6 +103,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm sta GRP1;
    asm sta CXCLR;
+   asm sta HMCLR;
    asm sta.z game_fill;
    asm lda.a game_player1_colors + 4;
    asm sta COLUP1;
@@ -153,7 +157,6 @@ require inline void TEMPLATE_draw(void) {
    asm jsr @blank;
    asm ldx #$ff;
    asm stx.z game_fill;
-   asm stx.z game_lamps;
    asm ldx #16;
    asm sta WSYNC;
    asm jsr @blank;
@@ -174,28 +177,28 @@ require inline void TEMPLATE_draw(void) {
 
    // Only gaps/road use this shared loop. Its RTS is before the final P1
    // boundary; the caller completes that scanline with WSYNC, preserving A/Y.
-   asm @blank:;
-   // First gap line follows a caller rather than the three-cycle loop jump.
-   // Clear the preceding ledge before x0; treasure dots live inside gaps,
-   // never on this boundary line, so no width transition is needed here.
-   asm sta GRP0;
-   asm lda.z game_fill;
-   asm sta PF0;
-   asm sta PF1;
-   asm sta PF2;
-   asm jmp @blank_palette;
+   // PF stays constant after @blank. Normal rows spend the freed cycles on
+   // M1's two centered-dot shifts. X selects M0/M1; Y selects HMOVE/HMCLR.
    asm @blank_row:;
+   // Cycle 8: normal HMOVE, never the left-only cycle-74 variant. Other
+   // motion registers are zero; only M1 shifts, left one then right one.
+   asm sta.ay HMOVE,y;
    asm sta GRP0;
-   asm lda.z game_fill;
-   asm sta PF0;
-   asm ldy.z game_ball_y;
-   asm lda.ay game_dot_even,y;
+   asm lda.z game_dot_width;
+   asm eor #$30;
    asm sta NUSIZ1;
-   asm lda.z game_fill;
-   asm sta PF1;
-   asm sta PF2;
    asm @blank_colors:;
    asm ldy.z game_color_index;
+   asm jmp @blank_palette;
+   asm @blank:;
+   // First gap line has no dot transition. Clear the ledge before x0.
+   asm sta GRP0;
+   asm lda.z game_fill;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm stx.z game_gap_pairs;
+   asm ldx.z game_aux_index;
    asm @blank_palette:;
    asm lda.ay game_player0_colors,y;
    asm sta COLUP0;
@@ -216,10 +219,18 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm ldy.z game_ball_y;
    asm lda.ay game_missile_enable,y;
-   asm ldy.z game_aux_index;
-   asm sta.ay $1b,y;
+   asm sta.zx $1b,x;
    asm and #$30;
    asm sta NUSIZ1;
+   asm sta.z game_dot_width;
+   // Keep the final pair short enough for its caller's boundary WSYNC.
+   asm dec.z game_gap_pairs;
+   asm beq.same @blank_terminal;
+   asm lda.ay game_dot_motion,y;
+   asm sta HMM1;
+   asm and #1;
+   asm ora.z game_dot_skip;
+   asm sta.z game_workspace;
    asm ldy.z game_player0_y;
    asm dey;
    asm sty.z game_player0_y;
@@ -233,11 +244,23 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z $00;
    asm @blank_p0_ready:;
    asm sty.z game_color_index;
-   asm dex;
-   asm beq.same @blank_end;
+   asm ldy.z game_workspace;
    asm sta WSYNC;
    asm jmp @blank_row;
-   asm @blank_end:;
+   asm @blank_terminal:;
+   asm ldy.z game_player0_y;
+   asm dey;
+   asm sty.z game_player0_y;
+   asm cpy.z game_workspace + 5;
+   asm bcs.same @terminal_p0_zero;
+   asm lda.iy (game_player0_graphics),y;
+   asm jmp @terminal_p0_ready;
+   asm @terminal_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z $00;
+   asm @terminal_p0_ready:;
+   asm sty.z game_color_index;
    asm rts;
    asm @done:;
 }
