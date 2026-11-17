@@ -91,10 +91,11 @@ jobs:
           cd test
           perl test.pl --jobs 8 --e2e-only rawstream2png_contract.pl
 
-      - name: Verify legacy and C99 MinGW stdio modes
+      - name: Verify host-tool stdio and string const correctness
         run: |
+          make tools
           cd test
-          perl test.pl --jobs 8 --e2e-only host_mingw_stdio.pl
+          perl test.pl --jobs 8 --e2e-only host_mingw_stdio.pl host_string_const.pl
 
       - name: Name tagged packages after the release tag
         if: startsWith(github.ref, 'refs/tags/')

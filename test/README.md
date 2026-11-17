@@ -23,6 +23,23 @@ It runs three kinds of files:
 - metadata-bearing `.pl` tests ... self-contained Perl drivers discovered and run directly by `test.pl`
 - `.test` files ... generic non-Perl command wrappers and runner-harness fixtures driven entirely by header comments
 
+## Host C string-search const correctness
+
+After `make tools`, run from `test/`:
+
+```sh
+perl test.pl --jobs 8 --e2e-only host_string_const.pl
+```
+
+This syntax-checks every host C translation unit, including generated lexer and
+parser code, with C23-style const-preserving `strchr`, `strrchr`, `strstr`,
+`strpbrk`, and `memchr` signatures. A test-only forced header makes this effective
+on older compilers and C libraries too. It checks complete expressions, including
+assignment to previously declared pointers, rather than matching declarations
+with regular expressions. Ten negative controls reject const discards at both
+initialization and assignment; five positive controls retain writable results
+for mutable buffers. Set `CC=x86_64-w64-mingw32-gcc` to check Windows branches.
+
 ## Editable examples versus golden fixtures
 
 `vcs_driving.pl` and `vcs_keypad.pl` check controller behaviour and overscan entry

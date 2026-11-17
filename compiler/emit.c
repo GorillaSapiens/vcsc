@@ -137,7 +137,7 @@ static void log_rewrite(const char *kind, int index, const PeepholeLine *line, i
 static bool operand_is_compiler_zp_indexed(const char *operand) {
    char *copy;
    char *base;
-   char *comma;
+   const char *comma;
    bool ret = false;
 
    if (!operand || !*operand)
