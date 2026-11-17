@@ -103,3 +103,29 @@ make windows
 Alternative triplets and individual tools can be selected with the
 `WINDOWS_TRIPLET`, `WINDOWS_CC`, `WINDOWS_CXX`, `WINDOWS_STRIP`, and
 `WINDOWS_OBJDUMP` make variables.
+
+## Checking stdio portability
+
+After building native tools, run the focused check from the repository root:
+
+```sh
+make tools
+(cd test && perl test.pl --jobs 8 --e2e-only host_mingw_stdio.pl)
+```
+
+When `x86_64-w64-mingw32-gcc` is on PATH, this checks both initial values of
+`__USE_MINGW_ANSI_STDIO`, the maintained host-tool callers, and rejection of a
+deliberately wrong format argument. Without MinGW, only native checks run.
+`make windows` remains the full cross-build/package check; it cleans native
+build outputs, so use a separate clone or worktree when preserving those matters.
+
+Toolchain versions matter: GCC 13 with MinGW 13 headers rejects `%zu` on the
+standard printf names despite C99 stdio being selected (GCC PR95130, fixed in
+GCC 14). `host_stdio.h` routes these names directly to MinGW's C99 implementations
+on older GCC, preserving both format checking and runtime support. A successful
+GCC 14 build alone does not test that compatibility path.
+
+The package workflow logs the runner OS, compiler version/path, installed MinGW
+package versions, and stdio configuration before compiling a standalone probe.
+For CI-only failures, reproduce with those compiler and header versions together,
+not just the same `__USE_MINGW_ANSI_STDIO` setting on a newer compiler.

@@ -15,4 +15,28 @@
 
 #include <stdio.h>
 
+/* GCC PR95130 (fixed in GCC 14): built-in format checking on the standard
+ * printf names can ignore their explicit gnu_printf attributes. MinGW 13
+ * exposes this with its extern/asm redirects instead of inline wrappers.
+ * Name the same C99 implementations directly to retain correct checking and
+ * runtime formatting on older GCC. Do not suppress -Wformat. */
+#if defined(__MINGW32__) && defined(__GNUC__) && __GNUC__ < 14 && !defined(__clang__)
+#undef printf
+#undef fprintf
+#undef sprintf
+#undef snprintf
+#undef vprintf
+#undef vfprintf
+#undef vsprintf
+#undef vsnprintf
+#define printf __mingw_printf
+#define fprintf __mingw_fprintf
+#define sprintf __mingw_sprintf
+#define snprintf __mingw_snprintf
+#define vprintf __mingw_vprintf
+#define vfprintf __mingw_vfprintf
+#define vsprintf __mingw_vsprintf
+#define vsnprintf __mingw_vsnprintf
+#endif
+
 #endif

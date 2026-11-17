@@ -61,8 +61,23 @@ for my$dir(split/:/,$ENV{PATH}//''){
    my$p="$dir/x86_64-w64-mingw32-gcc";if(-x$p){$mingw=abs_path($p);last;}
 }
 if($mingw){
+   open my$bad,'>',"$tmp/bad-format.c"or die$!;
+   print {$bad} <<'C';
+#include "host_stdio.h"
+int main(void) {
+   return fprintf(stdout,"%zu", "not a size_t");
+}
+C
+   close$bad or die$!;
    for my$mode(0,1){
       run($mingw,@flags,"-D__USE_MINGW_ANSI_STDIO=$mode",'-fsyntax-only',"$tmp/probe.c");
+      # The compatibility path must retain format checking, not merely silence
+      # the GCC 13 / MinGW 13 standard-name builtin warnings (GCC PR95130).
+      my$accepted=eval {
+         run($mingw,@flags,"-D__USE_MINGW_ANSI_STDIO=$mode",'-fsyntax-only',"$tmp/bad-format.c");
+         1;
+      };
+      !$accepted && $@ =~ /expects argument/ or die "MinGW accepted a bad format or failed for an unrelated reason: $@\n";
       for my$unit(@units){
          run($mingw,@flags,"-D__USE_MINGW_ANSI_STDIO=$mode",'-fsyntax-only',"$repo/$unit");
       }
