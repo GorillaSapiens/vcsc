@@ -58,11 +58,11 @@ inline void game_overscan(void) {
 #endif
 
 // Row lengths minus one, indexed by the four-byte playfield row base.
-// Eight-line ledges replace rows 3/5/7; the following gaps grow to 24 lines.
+// Four-line ledges replace rows 3/5/7; the following gaps grow to 28 lines.
 // The total remains 88 pairs, with every platform top at its old coordinate.
 page const uint8_t TEMPLATE_row_pairs[44] := {
-   7,0,0,0, 7,0,0,0, 7,0,0,0, 3,0,0,0, 11,0,0,0,
-   3,0,0,0, 11,0,0,0, 3,0,0,0, 11,0,0,0, 7,0,0,0, 7,0,0,0
+   7,0,0,0, 7,0,0,0, 7,0,0,0, 1,0,0,0, 13,0,0,0,
+   1,0,0,0, 13,0,0,0, 1,0,0,0, 13,0,0,0, 7,0,0,0, 7,0,0,0
 };
 
 require inline void TEMPLATE_vblank(void) {
@@ -188,7 +188,10 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm @first_p1_ready:;
    asm sta GRP1;
-   asm lda.ay game_player1_colors,y;
+   // A single P1 tint frees the old per-row colour slots for early missile
+   // commits. Missiles have no Ball-style vertical delay: ENAM must change
+   // in HBlank, not after the beam has passed a left-edge object's X.
+   asm lda.a game_player1_colors + 4;
    asm sta COLUP1;
    asm ldy #0;
    asm lda.ay game_player0_colors,y;
@@ -227,15 +230,15 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm lda.ay game_player0_colors,y;
    asm sta COLUP0;
-   asm lda #1;
    asm ldy.ax game_playfield,x;
    asm sty PF1;
    asm ldy.ax game_playfield+1,x;
    asm sty PF2;
-   asm ldy.z game_ball_height;
-   asm cpy.z game_ball_y;
+   asm lda.z game_ball_height;
+   asm cmp.z game_ball_y;
+   asm lda #1;
    asm adc #0;
-   asm sta.z $1b + TEMPLATE_object;
+   asm sta.z game_workspace + 4;
    asm ldy.z game_player1_y;
    asm dey;
    asm lda.ax game_playfield+2,x;
@@ -253,8 +256,8 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z game_workspace + 5;
    asm @p1_ready:;
    asm sta.z game_workspace + 3;
-   asm lda.ay game_player1_colors,y;
-   asm sta COLUP1;
+   asm lda.z game_workspace + 4;
+   asm sta.a $1b + TEMPLATE_object;
    asm lda.z game_workspace + 3;
    asm sta GRP1;
    asm lda.ax game_playfield,x;
@@ -281,6 +284,7 @@ require inline void TEMPLATE_draw(void) {
    asm @p0_ready:;
    asm dec.z game_workspace;
    asm bne.same @continue;
+   asm @row_commit:;
    asm sta GRP0;
    asm lda.ay game_player0_colors,y;
    asm @row_end:;
@@ -301,7 +305,7 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    asm lda #1;
    asm adc #0;
-   asm sta.z $1b + TEMPLATE_object;
+   asm sta.z game_workspace + 4;
    asm txa;
    asm adc #4;
    asm tax;
@@ -317,12 +321,12 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (game_player1_graphics),y;
    asm sta GRP1;
    asm @transition_p1_ready:;
-   asm lda.ay game_player1_colors,y;
+   asm lda.z game_workspace + 4;
+   asm sta.a $1b + TEMPLATE_object;
    asm ldy.ax game_playfield,x;
    asm sty PF1;
    asm ldy.ax game_playfield+1,x;
    asm sty PF2;
-   asm sta COLUP1;
    // Seven cycles replace BIT/NOP/NOP, not an addition to the pair.
    asm lda.ax TEMPLATE_row_pairs,x;
    asm sta.z game_workspace;
@@ -354,7 +358,7 @@ require inline void TEMPLATE_draw(void) {
    asm cmp.z game_ball_y;
    asm lda #1;
    asm adc #0;
-   asm sta.z $1b + TEMPLATE_object;
+   asm sta.z game_workspace + 4;
    asm nop;
    asm ldy.ax game_playfield+2,x;
    asm sty PF2;
@@ -368,15 +372,15 @@ require inline void TEMPLATE_draw(void) {
    asm bcc.same @transition_first_p1_active;
    asm lda #0;
    asm sta GRP1;
-   asm bit.z game_workspace + 5;
+   asm lda.z game_workspace + 4;
+   asm sta.z $1b + TEMPLATE_object;
    asm nop;
-   asm bit.z game_workspace + 5;
    asm jmp @transition_first_p1_ready;
    asm @transition_first_p1_active:;
    asm lda.iy (game_player1_graphics),y;
    asm sta GRP1;
-   asm lda.ay game_player1_colors,y;
-   asm sta COLUP1;
+   asm lda.z game_workspace + 4;
+   asm sta.a $1b + TEMPLATE_object;
    asm @transition_first_p1_ready:;
    asm lda.ax game_playfield,x;
    asm sta PF1;
@@ -403,7 +407,7 @@ require inline void TEMPLATE_draw(void) {
    asm beq.same @row_end_jump;
    asm jmp @continue;
    asm @row_end_jump:;
-   asm jmp @row_end;
+   asm jmp @row_commit;
    asm @terminal:;
    asm ldy.ax game_playfield+2,x;
    asm lda.ax game_playfield+3,x;

@@ -33,6 +33,7 @@ class Machine {
    bool fired=false,killed=false,m0=false,m1=false;
    bool damaged=false, dead=false, restarted=false, reset=false, scrolling=false;
    uint8_t initial_ledge=0;
+   int jump_tone=-1,jump_next=-1,catch_tone=-1,catch_next=-1;
    static uint8_t read_cb(uint16_t a) { return active->read(a); }
    static void write_cb(uint16_t a,uint8_t v) { active->write(a,v); }
    static void tick(mos6502*) {}
@@ -96,6 +97,12 @@ class Machine {
          std::fprintf(stderr,"f%d x%u feet%u v%d ground%u duck%u jump%u\n",frame,value("game_object_x"),value("run_feet"),static_cast<int8_t>(value("run_velocity")),value("run_grounded"),value("run_duck"),value("run_jump"));
       const auto y=value("game_player0_y");
       if(frame==10 && value("run_mode")!=1) fail("fire did not start game");
+      if(mem[0x19]) {
+         if(frame==10) jump_tone=mem[0x17];
+         if(frame==11) jump_next=mem[0x17];
+         if(frame==97) catch_tone=mem[0x17];
+         if(frame==98) catch_next=mem[0x17];
+      }
       if(frame==60 && (value("run_feet")!=57 || !value("run_grounded"))) fail("held Up jumped again after landing");
       if(frame>7&&frame<100&&y<60) jump=true;
       if(frame>100 && frame<340 && value("run_feet")==73) landed=true;
@@ -131,7 +138,7 @@ class Machine {
             mem[addr("game_playfield")+row*4+i]=0;
          unsigned row=frame==282 ? 5 : frame==284 ? 3 : 7;
          for(unsigned i=0;i<4;++i) mem[addr("game_playfield")+row*4+i]=255;
-         mem[addr("run_feet")]=frame==270 ? 55 : frame==280 ? 69 : frame==282 ? 39 : 23;
+          mem[addr("run_feet")]=frame==270 ? 55 : frame==280 ? 67 : frame==282 ? 39 : 23;
          mem[addr("run_velocity")]=frame==280 ? static_cast<uint8_t>(-3) : 3;
          mem[addr("run_grounded")]=0;
          mem[addr("run_jump")]=0;
@@ -141,7 +148,7 @@ class Machine {
          for(unsigned i=0;i<4;++i) mem[addr("game_playfield")+28+i]=0;
       }
       if(frame==278) unsupported=value("run_feet")>57 && !value("run_grounded");
-      if(frame==281) ceiling=value("run_feet")==69 && !value("run_velocity");
+       if(frame==281) ceiling=value("run_feet")==67 && !value("run_velocity");
       if(frame==283 && (value("run_feet")!=41 || !value("run_grounded"))) fail("middle swept landing");
       if(frame==285 && (value("run_feet")!=25 || !value("run_grounded"))) fail("upper swept landing");
       if(frame==286) for(unsigned row:{3u,5u,7u}) for(unsigned i=0;i<4;++i)
@@ -162,6 +169,8 @@ public:
       for(unsigned long i=0;i<80000000 && frame<deadline;++i) {
          writes.clear(); auto before=cycles; cpu.Run(1,cycles,mos6502::INST_COUNT); clock+=cycles-before;
          for(auto w:writes) {
+            if((w.first==0x1d || w.first==0x1e) && (w.second&2) && !(mem[1]&2) && clock%76>22)
+               fail("missile enable changed after horizontal blanking");
             if(w.first==0x1d && (w.second&2)) m0=true;
             if(w.first==0x1e && (w.second&2)) m1=true;
             if(w.first==0x1f && (w.second&2)) fail("Ball was enabled instead of missiles");
@@ -185,6 +194,9 @@ public:
       if(!damaged||!dead) fail("damage/game over");
       if(!restarted||!reset) fail("restart/reset");
       if(!scrolling) fail("platform scrolling");
+      if(jump_tone<0 || jump_next<0 || catch_tone<0 || catch_next<0 ||
+         jump_tone==jump_next || catch_tone!=catch_next || jump_tone==catch_tone)
+         fail("jump sweep and collection chime are not distinct");
    }
 };
 Machine* Machine::active=nullptr;

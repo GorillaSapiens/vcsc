@@ -212,9 +212,9 @@ inline void probe_body(void) {
    physics_top := run_feet - 8;
    if (run_duck) { physics_top := run_feet - 4; }
    physics_probe := 0;
-   if ((physics_solids & 4) && run_feet > 25 && physics_top < 29) { physics_probe := 1; }
-   if ((physics_solids & 2) && run_feet > 41 && physics_top < 45) { physics_probe := 1; }
-   if ((physics_solids & 1) && run_feet > 57 && physics_top < 61) { physics_probe := 1; }
+   if ((physics_solids & 4) && run_feet > 25 && physics_top < 27) { physics_probe := 1; }
+   if ((physics_solids & 2) && run_feet > 41 && physics_top < 43) { physics_probe := 1; }
+   if ((physics_solids & 1) && run_feet > 57 && physics_top < 59) { physics_probe := 1; }
 }
 
 inline void collide_ledge(void) {
@@ -229,7 +229,7 @@ inline void collide_ledge(void) {
       }
       else {
          // Solid undersides: no jumping through the platforms from below.
-         physics_top += 12;
+          physics_top += 10;
          if (physics_old_feet >= physics_top && run_feet < physics_top) {
             run_feet := physics_top;
             run_velocity := 0;
@@ -267,7 +267,7 @@ inline void update_physics(void) {
          run_grounded := 0;
          run_velocity := -3;
          run_jump := 0;
-         run_sound := 10;
+          run_sound := 0x1a;
       }
    }
    if (!run_grounded) {
@@ -290,12 +290,17 @@ inline void update_physics(void) {
 
 inline void update_audio(void) {
    AUDV0 := 0;
-   if (run_sound) {
+   // High nibble selects the effect, low nibble is its remaining duration.
+   // Jump sweeps upward; collecting a spark is a short, high fixed chime.
+   if (run_sound & 15) {
       run_sound--;
       AUDV0 := 5;
       AUDC0 := MUSIC_CONTROL_SQUARE;
-      AUDF0 := 8;
-      if (run_immunity > 72) {
+      physics_top := run_sound & 15;
+      physics_top += 8;
+      AUDF0 := physics_top;
+      if (run_sound & 0x20) { AUDF0 := 3; }
+      if (run_sound & 0x40) {
          AUDC0 := MUSIC_CONTROL_NOISE;
          AUDF0 := 18;
       }
@@ -345,7 +350,7 @@ bank1 void update_run(void) {
          if (run_kill) {
             run_shot_x := 0;
             score_score += 100;
-            run_sound := 6;
+            run_sound := 0x26;
             new_hazard();
          }
          else {
@@ -359,7 +364,7 @@ bank1 void update_run(void) {
             run_shot_x := game_PLAYER0_X + 8;
             run_shot_y := run_feet - 4;
             if (run_duck) { run_shot_y := run_feet - 2; }
-            run_sound := 4;
+            run_sound := 0x24;
          }
       }
       if (run_immunity) {
@@ -369,7 +374,7 @@ bank1 void update_run(void) {
          if (run_hit) {
             run_lives--;
             run_immunity := 90;
-            run_sound := 18;
+            run_sound := 0x4e;
             new_hazard();
             if (!run_lives) {
                run_mode := 2;
@@ -381,7 +386,7 @@ bank1 void update_run(void) {
       if (run_collect) {
          score_score += 50;
          run_spark_x := 156;
-         run_sound := 6;
+         run_sound := 0x26;
       }
       if (!(run_frame & 15)) {
          score_score++;

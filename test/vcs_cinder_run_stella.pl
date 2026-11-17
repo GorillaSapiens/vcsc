@@ -41,7 +41,7 @@ if(!$p) { open STDOUT,'>',"$tmp/xvfb.log" or die$!; open STDERR,'>&STDOUT'; exec
 END { local$?; if($p) { kill 'TERM',$p; waitpid($p,0); } }
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display; local$ENV{SDL_VIDEODRIVER}='x11'; local$ENV{SDL_AUDIODRIVER}='dummy';
-for my$mode(qw(climb standing duck shoot)) {
+for my$mode(qw(climb standing duck shoot edge_gap edge_top edge_seam)) {
    my$dir="$tmp/$mode"; make_path($dir);
     my$input='';
    if($mode eq 'climb') {
@@ -49,7 +49,11 @@ for my$mode(qw(climb standing duck shoot)) {
        $input.="if (run_frame >= 170 && run_frame < 180) { return 0xdf; }\n";
    }
     if($mode eq 'duck') { $input.="if (run_speed) { return 0xdf; }\n"; }
-   my$script=$source;
+    my$script=$source;
+    if($mode=~/^edge_/) {
+       my$y=$mode eq 'edge_gap' ? 61 : $mode eq 'edge_top' ? 13 : 27;
+       $script=~s/prepare_sprites\(\);/prepare_sprites(); run_spark_x := run_frame \& 63; run_spark_x++; run_spark_y := $y;/ or die 'edge fixture boundary';
+    }
     # Pure input substitution; no persistent RAM or physics scratch is changed.
     $script=~s/(inline void update_physics\(void\) \{)/inline uint8_t fixture_keys(void) { $input return 0xff; }\n$1/ or die 'input boundary';
     if($mode eq 'shoot') {
@@ -66,7 +70,7 @@ for my$mode(qw(climb standing duck shoot)) {
    '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
    '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
    '-bs','F8','-exitlauncher','0','-confirmexit','0','-userdir',"$dir/user",
-    '--capture-frames',($mode eq 'climb' ? '30,100,169,175' : $mode eq 'standing' ? '4,8,12,16,50,100,280,570' : $mode eq 'shoot' ? '20,50' : '100,280,570'),
+    '--capture-frames',($mode=~/^edge_/ ? join(',',4..67) : $mode eq 'climb' ? '30,100,169,175' : $mode eq 'standing' ? '4,8,12,16,50,100,280,570' : $mode eq 'shoot' ? '20,50' : '100,280,570'),
    '--capture-dir',$dir,"$dir/scripted.bin");
 }
 my$pal=slurp("$repo/test/fixtures/stella/stella.pal");
@@ -119,7 +123,7 @@ for my$y(60..$h-1) {
    if(substr($rgb,($y*$w+120)*3,3) eq $playfield_rgb) { $n++; }
    elsif($n) { push@runs,$n; $n=0; }
 }
-grep($_==8,@runs)>=2 or die "platforms did not render at half their old thickness\n";
+grep($_==4,@runs)>=2 or die "platforms did not render at four scanlines thick\n";
 my$spark_pixels=0;
 for my$y(80..$body_bottom{'standing/4'}-20) { for my$x(70..130) {
    $spark_pixels++ if $monster_rgb{substr($rgb,($y*$w+$x)*3,3)};
@@ -142,4 +146,23 @@ for my$mode(qw(standing shoot)) {
    push@left,(sort{$a<=>$b}@xs)[0];
 }
 $left[1]>$left[0]+10 or die "real M0 collision did not kill and replace the monster\n";
+# Sweep all 64 near-left X positions through ordinary and row-transition paths.
+# Compare every occupied scanline to its neighbors, not a ROM/artwork golden.
+for my$mode(qw(edge_gap edge_top edge_seam)) {
+   my$reference;
+   for my$frame(4..67) {
+      my($w,$h,$rgb)=decode_rgb(sprintf("$tmp/$mode/frame_%08d.png",$frame));
+      my@rows;
+      for my$y(25..$body_bottom{'standing/4'}-10) {
+         my@xs=grep { $monster_rgb{substr($rgb,($y*$w+$_)*3,3)} } 0..80;
+         push@rows,join(',',@xs) if @xs;
+      }
+      @rows or die "$mode frame $frame: M1 disappeared\n";
+      $reference//=scalar(@rows);
+      @rows==$reference or die "$mode frame $frame: M1 height tears near the left edge\n";
+      for my$row(@rows) {
+         $row eq $rows[0] or die "$mode frame $frame: M1 scanlines tear near the left edge\n";
+      }
+   }
+}
 print "vcs_cinder_run_stella ok\n";

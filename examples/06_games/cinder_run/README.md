@@ -22,6 +22,7 @@ make play
 ```
 
 - **Up:** jump. Release between jumps; holding Up does not jump repeatedly.
+  Jumping makes an upward pitch sweep; catching a spark makes a high fixed chime.
 - **Left joystick fire:** start, shoot, or restart after losing all three lives.
   One shot at a time; release between shots. Shots travel right and kill monsters.
 - **Left/right:** move along the road or platforms. The world keeps scrolling.
@@ -44,7 +45,7 @@ approaching ledge, then jump again to climb the next tier. Falling feet land on
 the top; jumping into an underside bumps your head. Walk off an edge and gravity
 takes over. Side walls block movement and scrolling walls push the courier back.
 There is always a continuous road below, so a missed jump is recoverable.
-Ledges are eight scanlines thick, half their original thickness; their tops
+Ledges are four scanlines thick, a quarter of their original thickness; their tops
 remain at the same three heights.
 
 The four-frame running cycle alternates extended strides and passing/recovery
@@ -57,10 +58,13 @@ NTSC, **8K F8**, ordinary joystick, official 6502 opcodes only. No extra
 cartridge RAM or emulator modifications are required.
 
 The game-owned raster specializes the maintained 181-line player-color schedule:
-two multicolored eight-row sprites, an M0 shot, an M1 spark, and a mutable 44-byte
+two eight-row sprites, an M0 shot, an M1 spark, and a mutable 44-byte
 playfield. The Ball is disabled. M0 shares the courier palette; M1 shares the
 monster palette, contrasting with the platforms. While a shot is active, M0 and
 M1 alternate frames (30 Hz each); players and terrain remain steady at 60 Hz.
+The courier retains per-row colours; monsters and M1 use one tint from the
+monster palette. The freed colour slots commit missile enables in horizontal
+blanking, avoiding partial scanlines as a missile approaches the left edge.
 Collision probes sample the same
 packed playfield bytes that the kernel displays. The six-glyph component supplies
 the score above gameplay. TIA collision latches drive damage, kills and collection.
@@ -83,3 +87,7 @@ ember. Captures use recorded RawStream frame identities, not stream positions.
 The running cycle must produce four distinct rendered silhouettes. Pixel checks
 also measure thinner platforms, contrasting M1 sparks, visible M0 shots, and a
 real missile/monster collision that replaces the killed monster.
+Three additional capture sweeps check M1 at every X from 1 through 64, including
+vertical row seams; all occupied scanlines must have identical horizontal spans.
+The CPU oracle also checks early missile-enable timing and distinct jump/catch
+pitch envelopes.
