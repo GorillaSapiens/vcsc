@@ -169,6 +169,8 @@ public:
       for(unsigned long i=0;i<80000000 && frame<deadline;++i) {
          writes.clear(); auto before=cycles; cpu.Run(1,cycles,mos6502::INST_COUNT); clock+=cycles-before;
          for(auto w:writes) {
+            if(w.first==0x0f && w.second && !(mem[1]&2) && clock%76>48)
+               fail("late playfield PF2 write");
             if((w.first==0x1d || w.first==0x1e) && (w.second&2) && !(mem[1]&2) && clock%76>22)
                fail("missile enable changed after horizontal blanking");
             if(w.first==0x1d && (w.second&2)) m0=true;

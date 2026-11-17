@@ -91,3 +91,8 @@ Three additional capture sweeps check M1 at every X from 1 through 64, including
 vertical row seams; all occupied scanlines must have identical horizontal spans.
 The CPU oracle also checks early missile-enable timing and distinct jump/catch
 pitch envelopes.
+Every pixel of all three idle-scene platforms and their surrounding gaps is
+compared with the editable source terrain, including each ledge's last scanline.
+The CPU oracle rejects late PF2 writes; a deliberately delayed short-row exit
+must fail this check. Short ledges use a local boundary prefix to keep later
+playfield writes in phase instead of accumulating two cycles per ledge.

@@ -26,6 +26,9 @@ $helpers=~s/\n\@ARGV>=2.*\z//s or die 'PNG boundary'; eval$helpers; die$@ if$@;
 # Only input is scripted in a temporary cartridge. Rendering, real TIA latches,
 # game physics, and collision responses remain the public game's implementation.
 my$source=slurp("$repo/examples/06_games/cinder_run/cinder_run.c26");
+$source=~/landscape\[44\]\s*:=\s*\{([^}]+)\}/s or die 'terrain pattern';
+my@terrain_patterns=$1=~/VCS_PLAYFIELD_ROW\(0b([X.]{32})\)/g;
+@terrain_patterns==11 or die 'terrain row count';
 $source=~s{\.\./\.\./_common/cinder_run_raster\.c26}{$repo/examples/_common/cinder_run_raster.c26}g;
 $source=~/game_player0_colors\[8\]\s*:=\s*\{([^}]+)\}/ or die 'courier palette';
 my@courier_colors=map{hex($_)}split /\s*,\s*/,$1;
@@ -41,7 +44,7 @@ if(!$p) { open STDOUT,'>',"$tmp/xvfb.log" or die$!; open STDERR,'>&STDOUT'; exec
 END { local$?; if($p) { kill 'TERM',$p; waitpid($p,0); } }
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display; local$ENV{SDL_VIDEODRIVER}='x11'; local$ENV{SDL_AUDIODRIVER}='dummy';
-for my$mode(qw(climb standing duck shoot edge_gap edge_top edge_seam)) {
+for my$mode(qw(climb standing duck shoot edge_gap edge_top edge_seam terrain)) {
    my$dir="$tmp/$mode"; make_path($dir);
     my$input='';
    if($mode eq 'climb') {
@@ -49,7 +52,12 @@ for my$mode(qw(climb standing duck shoot edge_gap edge_top edge_seam)) {
        $input.="if (run_frame >= 170 && run_frame < 180) { return 0xdf; }\n";
    }
     if($mode eq 'duck') { $input.="if (run_speed) { return 0xdf; }\n"; }
-    my$script=$source;
+     my$script=$source;
+     if($mode eq 'terrain') {
+        # Leave the public game's idle scene unchanged so all source terrain
+        # columns can be checked without input, scrolling, or sprite occlusion.
+        $script=~s/run_mode := 1;\n   game_init/run_mode := 0;\n   game_init/ or die 'idle scene boundary';
+     }
     if($mode=~/^edge_/) {
        my$y=$mode eq 'edge_gap' ? 61 : $mode eq 'edge_top' ? 13 : 27;
        $script=~s/prepare_sprites\(\);/prepare_sprites(); run_spark_x := run_frame \& 63; run_spark_x++; run_spark_y := $y;/ or die 'edge fixture boundary';
@@ -70,7 +78,7 @@ for my$mode(qw(climb standing duck shoot edge_gap edge_top edge_seam)) {
    '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
    '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
    '-bs','F8','-exitlauncher','0','-confirmexit','0','-userdir',"$dir/user",
-    '--capture-frames',($mode=~/^edge_/ ? join(',',4..67) : $mode eq 'climb' ? '30,100,169,175' : $mode eq 'standing' ? '4,8,12,16,50,100,280,570' : $mode eq 'shoot' ? '20,50' : '100,280,570'),
+     '--capture-frames',($mode eq 'terrain' ? '4' : $mode=~/^edge_/ ? join(',',4..67) : $mode eq 'climb' ? '30,100,169,175' : $mode eq 'standing' ? '4,8,12,16,50,100,280,570' : $mode eq 'shoot' ? '20,50' : '100,280,570'),
    '--capture-dir',$dir,"$dir/scripted.bin");
 }
 my$pal=slurp("$repo/test/fixtures/stella/stella.pal");
@@ -83,6 +91,22 @@ my%courier_rgb=map{color($_)=>1}@courier_colors;
 my$hood_rgb=color($hood_color);
 my$playfield_rgb=color($playfield_color);
 my%monster_rgb=map{color($_)=>1}@monster_colors;
+# Check the complete packed terrain against editable source patterns. Merely
+# measuring thickness misses late right-half writes and cumulative row drift.
+{
+   my($w,$h,$rgb)=decode_rgb("$tmp/terrain/frame_00000004.png");
+   my($origin)=grep { substr($rgb,($_*$w+16)*3,3) eq $playfield_rgb } 25..60;
+   defined$origin or die 'missing terrain origin lamps';
+   for my$dy(16..143) {
+      my$row=int($dy/16);
+      my$pattern=($row==3 || $row==5 || $row==7) && $dy%16<4 ? $terrain_patterns[$row] : '.'x32;
+      for my$x(0..159) {
+         my$expected=$x>=16 && $x<144 && substr($pattern,int(($x-16)/4),1) eq 'X';
+         my$actual=substr($rgb,(($origin+$dy)*$w+$x)*3,3) eq $playfield_rgb;
+         $actual==$expected or die "terrain PF mismatch: row $row scanline ".($dy%16)." x$x\n";
+      }
+   }
+}
 my(%top,%lamps,%body_height,%body_bottom,%running_masks);
 for my$mode(qw(climb standing duck)) {
  for my$frame($mode eq 'climb' ? (30,100,169,175) : $mode eq 'standing' ? (4,8,12,16,50,100,280,570) : (100,280,570)) {

@@ -407,7 +407,20 @@ require inline void TEMPLATE_draw(void) {
    asm beq.same @row_end_jump;
    asm jmp @continue;
    asm @row_end_jump:;
-   asm jmp @row_commit;
+   // A four-line row exits directly from this unpadded P0 half. Jumping to
+   // the ordinary commit costs two cycles too many, accumulating beam drift
+   // after each ledge. The absolute GRP0 store plus this local boundary prefix
+   // matches the normal row's phase; these short rows can never be terminal.
+   asm sta.a GRP0;
+   asm lda.ay game_player0_colors,y;
+   asm sta COLUP0;
+   asm ldy.z game_ball_height;
+   asm lda.ax game_playfield,x;
+   asm sta PF1;
+   asm lda.ax game_playfield+1,x;
+   asm sta PF2;
+   asm nop;
+   asm jmp @not_terminal;
    asm @terminal:;
    asm ldy.ax game_playfield+2,x;
    asm lda.ax game_playfield+3,x;
