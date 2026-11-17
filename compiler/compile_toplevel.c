@@ -704,7 +704,7 @@ void compile_type_decl_stmt(ASTNode *node) {
                      node->file, node->line, node->column,
                      node->children[0]->strval);
             }
-            char *p = strchr(item->strval, ':');
+            const char *p = strchr(item->strval, ':');
             p++;
             size = atoi(p);
             if (size < 0 || (size == 0 && strcmp(p, "0"))) {
