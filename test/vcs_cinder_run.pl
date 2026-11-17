@@ -18,7 +18,7 @@ sub run {
 }
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$tmp/game.map",
    "$repo/examples/06_games/cinder_run/cinder_run.c26",'-o',"$tmp/game.bin");
--s "$tmp/game.bin"==4096 or die "expected 4K ROM\n";
+-s "$tmp/game.bin"==8192 or die "expected 8K F8 ROM\n";
 # Exercise every declared mutable-playfield profile, not just this game's 181.
 for my$lines(170,181,192,228) {
    my$bytes=$lines==170 ? 40 : $lines==181 ? 44 : $lines==192 ? 48 : 60;

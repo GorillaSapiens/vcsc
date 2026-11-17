@@ -72,10 +72,10 @@ asymmetric multisprite.
 
 ## Games
 
-[`06_games/cinder_run/`](06_games/cinder_run/) is a 4K NTSC sidescroller: jump
-over cinders, dodge flying embers, and collect sparks. It combines the
-player-color renderer, mutable scrolling scenery and a six-digit score.
-Use left joystick fire to start or jump, and left/right to move along the road.
+[`06_games/cinder_run/`](06_games/cinder_run/) is an 8K NTSC sidescroller: climb
+three platform tiers, jump over cinders, duck low embers, dodge bats and collect
+sparks. It combines the player-color renderer, mutable solid terrain and a
+six-digit score. Use fire to start/jump, left/right to move, and down to crouch.
 
 ## Diagnostics
 

@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // CINDER RUN: a lantern courier on an endless road through volcanic ruins.
-include "4K/mapper.c26"
+include "F8/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
@@ -12,43 +12,51 @@ instantiate "six_glyph_component.c26" as score (mutable_color:=1)
 
 // The kernel reads this application-owned RAM using fixed-time absolute loads.
 uint8_t game_playfield[44];
-page const uint8_t landscape[44] := {
+bank1 page const uint8_t landscape[44] := {
    VCS_PLAYFIELD_ROW(0bX.X.X...........................),
    VCS_PLAYFIELD_ROW(0b................................),
    VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0bXXXXXX..................XXXXXXXX),
    VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0b................XXXXXXXXXXXXXXXX),
    VCS_PLAYFIELD_ROW(0b................................),
-   VCS_PLAYFIELD_ROW(0b....X.........XX..........X.....),
-   VCS_PLAYFIELD_ROW(0b...XXX.......XXXX........XXX....),
-   VCS_PLAYFIELD_ROW(0b..XXXXX.....XXXXXX......XXXXX...),
+   VCS_PLAYFIELD_ROW(0b........XXXXXXXXXXXXXX..........),
    VCS_PLAYFIELD_ROW(0b................................),
    VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
    VCS_PLAYFIELD_ROW(0bXX..XX..XX..XX..XX..XX..XX..XX..)
 };
 
 // Eight stored rows, bottom-to-top at runtime; the helper accepts top-to-bottom.
-page const uint8_t courier[32] := {
-   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0b.XX.XX..,0bXX...XX.),
-   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0b..XX....,0b..XX....),
-   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0b.XX.XX..,0b.XX..XX.),
-   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0bXX..XX..,0bX....XX.)
+page const uint8_t courier[48] := {
+   game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXX.X,0b.X.XXXX.,0b...XX...,0b..XX.XX.,0bXX....XX),
+   game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXXX.,0b..XXX.X.,0b...XX...,0b...XXX..,0b...XX...),
+   game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b.X.XXX..,0b..XXXX.X,0b...XX...,0b..XX.XX.,0b.XX...XX),
+   game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0b...XX...,0b..XXXX..,0b.X.XXX..,0b...XX...,0b..XXX...,0b....XX..),
+   game_SPRITE_GLYPH(0b...XXX..,0b...XXXX.,0bX..XX..X,0b.XXXXXX.,0b...XX...,0b..XXXX..,0b.XX..XX.,0b.XX.....),
+   game_SPRITE_GLYPH(0,0,0,0,0b....XXX.,0b..XXXXXX,0b.XXXXXX.,0bXX...XXX)
 };
-page const uint8_t hazards[16] := {
-   game_SPRITE_GLYPH(0b..XXXX..,0b.XXXXXX.,0bXXXXXXXX,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXX.,0b..XXXX..,0b...XX...),
-   game_SPRITE_GLYPH(0bX......X,0bXX....XX,0b.XX..XX.,0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bX..XX..X,0b...XX...)
+page const uint8_t hazards[32] := {
+   game_SPRITE_GLYPH(0b...X....,0b..X.XX..,0b..XXXX..,0b.XXXXXX.,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXX.,0b..XXXX..),
+   game_SPRITE_GLYPH(0,0,0b.....X..,0b...XXXX.,0bXXXXXXXX,0b..XXXXXX,0b...XXXX.,0),
+   game_SPRITE_GLYPH(0bX......X,0bXX....XX,0b.XX..XX.,0b..XXXX..,0b.XXXXXX.,0b...XX...,0,0),
+   game_SPRITE_GLYPH(0,0,0b...XX...,0b.XXXXXX.,0bXXXXXXXX,0bXX.XX.XX,0bX......X,0)
 };
 page const uint8_t invisible[8] := {0,0,0,0,0,0,0,0};
 // Color tables follow stored sprite order: boots, coat, then the glowing hood.
-page const uint8_t game_player0_colors[8] := {0x24,0x26,0x36,0x38,0x3a,0x1c,0x1e,0x1e};
+page const uint8_t game_player0_colors[8] := {0x08,0x0c,0x9a,0x38,0x3a,0x1c,0x1e,0x1e};
 page const uint8_t game_player1_colors[8] := {0x42,0x44,0x46,0x48,0x46,0x44,0x46,0x48};
 
-// Forty frames in the air. Heights are in two-scanline units, not pixels.
-page const uint8_t jump_height[41] := {
-   0,4,8,11,14,17,20,22,24,26,28,29,30,31,32,32,33,33,33,33,33,
-   33,33,32,32,31,30,29,28,26,24,22,20,17,14,11,8,6,4,2,0
+page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,24};
+page const uint8_t hazard_art[4] := {0,8,16,16};
+bank1 page const uint8_t hazard_lane[4] := {73,69,41,25};
+bank1 page const uint8_t spark_lane[4] := {61,45,29,13};
+bank1 page const uint8_t road_bits[16] := {0xcc,0xcc,0xcc,0xcc,0x99,0x99,0x99,0x99,0x33,0x33,0x33,0x33,0x66,0x66,0x66,0x66};
+bank1 const uint8_t road_reverse[16] := {0x33,0x33,0x33,0x33,0x99,0x99,0x99,0x99,0xcc,0xcc,0xcc,0xcc,0x66,0x66,0x66,0x66};
+// Visual columns 0..31, with the TIA's alternating PF bit orders.
+bank1 page const uint8_t column_bit[32] := {
+   0x80,0x40,0x20,0x10,8,4,2,1,1,2,4,8,0x10,0x20,0x40,0x80,
+   0x80,0x40,0x20,0x10,8,4,2,1,1,2,4,8,0x10,0x20,0x40,0x80
 };
-page const uint8_t road_bits[8] := {0xcc,0x99,0x33,0x66,0xcc,0x99,0x33,0x66};
-const uint8_t road_reverse[8] := {0x33,0x99,0xcc,0x66,0x33,0x99,0xcc,0x66};
 
 uint8_t run_mode;
 uint8_t run_frame;
@@ -56,36 +64,39 @@ uint8_t run_jump;
 uint8_t run_fire_ready;
 uint8_t run_lives;
 uint8_t run_immunity;
-uint8_t run_random;
 uint8_t run_wave;
 uint8_t run_speed;
-uint8_t run_scroll;
-uint8_t run_spark_x;
 uint8_t run_sound;
 uint8_t run_sound_kind;
-uint8_t run_hit;
-uint8_t run_collect;
+uint8_t run_feet;
+int8_t run_velocity;
+uint8_t run_grounded;
+uint8_t run_duck;
+alias run_spark_x game_BALL_X
+// Phase overlays: overscan has already restored coordinates from workspace;
+// next VBLANK rewrites all eight bytes before rendering. Score preparation
+// likewise rebuilds both compact offsets. No persistent physics lives here.
+alias run_hit score_offsets[0]
+alias run_collect score_offsets[1]
+alias physics_old_feet game_workspace[0]
+alias physics_solids game_workspace[1]
+alias physics_column game_workspace[2]
+alias physics_index game_workspace[3]
+alias physics_mask game_workspace[4]
+alias physics_top game_workspace[5]
+alias physics_old_x game_workspace[6]
+alias physics_probe game_workspace[7]
 
 inline void new_hazard(void) {
-   // Nonzero 8-bit LFSR; deterministic restart, but varied obstacle heights.
-   if (run_random & 1) {
-      run_random := (run_random >> 1) ^ 0xb4;
-   }
-   else {
-      run_random >>= 1;
-   }
    run_wave++;
    if (run_wave == 6) {
       run_speed := 2;
    }
    game_PLAYER1_X := 156;
-   game_player1_y := 73;
-   if ((run_wave & 3) == 3) {
-      game_player1_y := 48;
-   }
+   game_player1_y := hazard_lane[(run_wave - 1) & 3];
 }
 
-void new_run(void) {
+bank1 void new_run(void) {
    uint8_t i := 0;
    while (i < 44) {
       game_playfield[i] := landscape[i];
@@ -97,12 +108,14 @@ void new_run(void) {
    run_fire_ready := 0;
    run_lives := 3;
    run_immunity := 0;
-   run_random := 0x5d;
    run_wave := 0;
    run_speed := 1;
-   run_scroll := 0;
    run_sound := 0;
    run_sound_kind := 0;
+   run_feet := 73;
+   run_velocity := 0;
+   run_grounded := 1;
+   run_duck := 0;
    run_spark_x := 116;
    game_PLAYER0_X := 36;
    game_PLAYER0_NUSIZ := 0;
@@ -110,7 +123,7 @@ void new_run(void) {
    game_player0_y := 73;
    game_player0_height := 7;
    game_player1_height := 7;
-   game_ball_y := 44;
+   game_ball_y := 61;
    game_ball_height := 2;
    game_BALL_X := run_spark_x;
    game_playfield_position := 8;
@@ -122,12 +135,12 @@ void new_run(void) {
 }
 
 inline void scroll_landscape(void) {
-   // The distant hills scroll one playfield pixel every eight frames. These
+   // The three solid ledge rows scroll at the hazards' world speed. These
    // bytes are in renderer/TIA order. One carry chain rotates all 32 pixels:
    // left PF1 -> right PF1 -> right PF2 -> left PF2 -> left PF1.
    // Byte RMWs avoid expanding a 32-bit shift into scarce RIOT scratch RAM.
-   if (!(run_frame & 7)) {
-      asm ldx #20;
+   if (!(run_frame & 3) || (run_speed == 2 && !(run_frame & 1))) {
+      asm ldx #12;
       asm @hill_row:;
       asm asl.zx game_playfield,x;
       asm ror.zx game_playfield+3,x;
@@ -140,18 +153,18 @@ inline void scroll_landscape(void) {
       asm inx;
       asm inx;
       asm inx;
-      asm cpx #32;
+      asm inx;
+      asm inx;
+      asm inx;
+      asm inx;
+      asm cpx #36;
       asm bne.same @hill_row;
    }
    // The road moves faster, in the opposite bit order on reflected lanes.
-   if (!(run_frame & 3)) {
-      run_scroll++;
-      run_scroll &= 7;
-      game_playfield[40] := road_bits[run_scroll];
-      game_playfield[41] := road_reverse[run_scroll];
-      game_playfield[42] := road_bits[run_scroll];
-      game_playfield[43] := road_reverse[run_scroll];
-   }
+   game_playfield[40] := road_bits[run_frame & 15];
+   game_playfield[41] := road_reverse[run_frame & 15];
+   game_playfield[42] := road_bits[run_frame & 15];
+   game_playfield[43] := road_reverse[run_frame & 15];
    // Three small lamps at the top of the scene show remaining lives.
    game_playfield[0] := 0;
    if (run_lives) {
@@ -163,6 +176,110 @@ inline void scroll_landscape(void) {
    if (run_lives > 2) {
       game_playfield[0] |= 0x08;
    }
+}
+
+inline void sample_column(void) {
+   physics_mask := column_bit[physics_column];
+   physics_index := physics_column >> 3;
+   physics_index += 12;
+   if (game_playfield[physics_index] & physics_mask) { physics_solids |= 4; }
+   physics_index += 8;
+   if (game_playfield[physics_index] & physics_mask) { physics_solids |= 2; }
+   physics_index += 8;
+   if (game_playfield[physics_index] & physics_mask) { physics_solids |= 1; }
+}
+
+inline void sample_platforms(void) {
+   physics_solids := 0;
+   // Probe both sides of the six-pixel body against the actual displayed PF.
+   physics_column := game_PLAYER0_X - 15;
+   physics_column >>= 2;
+   physics_probe := physics_column;
+   sample_column();
+   physics_column := game_PLAYER0_X - 10;
+   physics_column >>= 2;
+   if (physics_column != physics_probe) { sample_column(); }
+}
+
+inline void probe_body(void) {
+   sample_platforms();
+   physics_top := run_feet - 8;
+   if (run_duck) { physics_top := run_feet - 4; }
+   physics_probe := 0;
+   if ((physics_solids & 4) && run_feet > 25 && physics_top < 33) { physics_probe := 1; }
+   if ((physics_solids & 2) && run_feet > 41 && physics_top < 49) { physics_probe := 1; }
+   if ((physics_solids & 1) && run_feet > 57 && physics_top < 65) { physics_probe := 1; }
+}
+
+inline void collide_ledge(void) {
+   if (physics_solids & physics_probe) {
+      if (run_velocity >= 0) {
+         // Swept feet prevent tunneling even at maximum falling velocity.
+         if (physics_old_feet <= physics_top && run_feet >= physics_top) {
+            run_feet := physics_top;
+            run_velocity := 0;
+            run_grounded := 1;
+         }
+      }
+      else {
+         // Solid undersides: no jumping through the platforms from below.
+         physics_top += 16;
+         if (physics_old_feet >= physics_top && run_feet < physics_top) {
+            run_feet := physics_top;
+            run_velocity := 0;
+         }
+      }
+   }
+}
+
+inline void update_physics(void) {
+   run_duck := 0;
+   if (!(SWCHA & 0x20) && run_grounded) { run_duck := 1; }
+   physics_old_x := game_PLAYER0_X;
+   if (!(SWCHA & 0x40) && game_PLAYER0_X > 24) { game_PLAYER0_X--; }
+   if (!(SWCHA & 0x80) && game_PLAYER0_X < 100) { game_PLAYER0_X++; }
+   probe_body();
+   if (physics_probe) {
+      game_PLAYER0_X := physics_old_x;
+      // A scrolling wall pushes the courier instead of embedding its body.
+      if (game_PLAYER0_X > 27) { game_PLAYER0_X -= 4; }
+      sample_platforms();
+   }
+   if (run_grounded && run_feet != 73) {
+      if (!((run_feet == 25 && (physics_solids & 4)) ||
+            (run_feet == 41 && (physics_solids & 2)) ||
+            (run_feet == 57 && (physics_solids & 1)))) {
+         run_grounded := 0;
+         run_velocity := 0;
+         run_jump := 0;
+      }
+   }
+   if (run_fire_ready && !(INPT4 & 0x80)) {
+      run_fire_ready := 0;
+      if (run_grounded && !run_duck) {
+         run_grounded := 0;
+         run_velocity := -3;
+         run_jump := 0;
+         run_sound := 10;
+         run_sound_kind := 1;
+      }
+   }
+   if (!run_grounded) {
+      physics_old_feet := run_feet;
+      run_feet := run_feet + (uint8_t) run_velocity;
+      if (run_feet < 9) { run_feet := 9; run_velocity := 0; }
+      physics_top := 25; physics_probe := 4; collide_ledge();
+      physics_top := 41; physics_probe := 2; collide_ledge();
+      physics_top := 57; physics_probe := 1; collide_ledge();
+      if (run_feet >= 73) { run_feet := 73; run_velocity := 0; run_grounded := 1; }
+      run_jump++;
+      if (!(run_jump & 3) && run_velocity < 4) { run_velocity++; }
+   }
+   game_player0_y := run_feet;
+   game_player0_height := 7;
+   // Y is the renderer's feet anchor; reducing height lowers the head without
+   // moving the feet through the platform.
+   if (run_duck) { game_player0_height := 3; }
 }
 
 inline void update_audio(void) {
@@ -179,7 +296,13 @@ inline void update_audio(void) {
    }
 }
 
-void update_run(void) {
+// Divide work across the two blanking deadlines: physics precedes the raster,
+// while scoring, terrain scrolling and collision responses follow it.
+bank1 void advance_physics(void) {
+   if (run_mode == 1) { update_physics(); }
+}
+
+bank1 void update_run(void) {
    // Capture real TIA collisions before next frame's renderer clears them.
    run_hit := CXPPMM & 0x80;
    run_collect := CXP0FB & 0x40;
@@ -199,27 +322,7 @@ void update_run(void) {
       }
    }
    else {
-      if (!(SWCHA & 0x40) && game_PLAYER0_X > 24) {
-         game_PLAYER0_X--;
-      }
-      if (!(SWCHA & 0x80) && game_PLAYER0_X < 72) {
-         game_PLAYER0_X++;
-      }
-      if (run_fire_ready && !(INPT4 & 0x80)) {
-         run_fire_ready := 0;
-         if (!run_jump) {
-            run_jump := 1;
-            run_sound := 10;
-            run_sound_kind := 1;
-         }
-      }
-      if (run_jump) {
-         game_player0_y := 73 - jump_height[run_jump];
-         run_jump++;
-         if (run_jump > 40) {
-            run_jump := 0;
-         }
-      }
+      scroll_landscape();
       if (run_immunity) {
          run_immunity--;
       }
@@ -252,7 +355,7 @@ void update_run(void) {
       }
       if (run_spark_x <= run_speed) {
          run_spark_x := 156;
-         game_ball_y := 40 + (run_random & 15);
+         game_ball_y := spark_lane[run_wave & 3];
       }
       else {
          run_spark_x -= run_speed;
@@ -260,7 +363,12 @@ void update_run(void) {
       if (!(run_frame & 15)) {
          score_score++;
       }
-      scroll_landscape();
+      // Refresh the lamps after damage, including the final game-over frame.
+      if (!run_lives) { game_playfield[0] := 0; }
+      else {
+         if (run_lives == 1) { game_playfield[0] := 0x80; }
+         if (run_lives == 2) { game_playfield[0] := 0xa0; }
+      }
    }
    game_BALL_X := run_spark_x;
 }
@@ -268,14 +376,16 @@ void update_run(void) {
 // Prepare graphics before the renderer's VBLANK countdown setup.
 void prepare_sprites(void) {
    game_player1_graphics := hazards;
-   if ((run_wave & 3) == 3) {
+   game_player1_graphics += hazard_art[(run_wave - 1) & 3];
+   if (((run_wave - 1) & 3) >= 2 && (run_frame & 8)) {
       game_player1_graphics += 8;
    }
    game_player0_graphics := courier;
-   game_player0_graphics += run_frame & 24;
-   if (run_jump) {
-      game_player0_graphics := courier + 24;
+   game_player0_graphics += animation_frame[run_frame & 15];
+   if (!run_grounded) {
+      game_player0_graphics := courier + 32;
    }
+   if (run_duck) { game_player0_graphics := courier + 40; }
    if (run_immunity & 4) {
       game_player0_graphics := invisible;
    }
@@ -291,6 +401,7 @@ void main(void) {
    while (1) {
       vcs_ntsc_vsync();
       vcs_ntsc_begin_vblank();
+      advance_physics();
       prepare_sprites();
       game_vblank();
       score_vblank();

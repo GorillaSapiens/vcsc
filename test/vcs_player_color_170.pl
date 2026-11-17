@@ -80,7 +80,7 @@ my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
 my $sum=0; $sum += bss_size($map,$_) for keys %sizes;
 $sum==24 or die "170 player-color component BSS totals $sum bytes; expected 24\n";
 my $branch;
-$module =~ /#elif TEMPLATE_lines == 170(.*?)#else/s or die "could not isolate 170 player-color branch\n";
+$module =~ /#elif TEMPLATE_lines == 170(.*?)#else\s*\/\/ Deliberately/s or die "could not isolate 170 player-color branch\n";
 $branch=$1;
 require_re($branch,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/,'170 visible-line contract is not parameterized');
 require_re($branch,qr/TEMPLATE_PLAYFIELD_BYTES\s*:=\s*40/,'170 playfield-byte contract changed');
