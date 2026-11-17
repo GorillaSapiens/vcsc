@@ -45,7 +45,7 @@ run("$tmp/oracle","$tmp/game.bin","$tmp/game.map") eq "cinder_run CPU ok\n" or d
 open my$s,'<',"$repo/examples/06_games/cinder_run/cinder_run.c26" or die$!;
 my$source=do { local$/; <$s> }; close$s;
 $source=~s{\.\./\.\./_common/(\w+\.c26)}{$repo/examples/_common/$1}g;
-for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster)) {
+for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster red_monsters)) {
    my$broken=$source;
    if($mode eq 'no_kill') {
       $broken=~s/run_kill := CXM0P & 0x80;/run_kill := 0;/ or die 'kill boundary';
@@ -59,6 +59,9 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
    elsif($mode eq 'forgotten_treasure') {
       $broken=~s/treasure_taken\[treasure_id >> 3\] \|= treasure_bit\[treasure_id & 7\];/treasure_taken[treasure_id >> 3] := 0;/ or die 'treasure boundary';
    }
+   elsif($mode eq 'red_monsters') {
+      $broken=~s/asm lda.ax hazard_colors,x;/asm lda #\$46;/ or die 'monster color boundary';
+   }
    else {
       $broken=~s/if \(monster_direction < 0\) \{/if (game_PLAYER1_X > game_PLAYER0_X) {/ or die 'monster boundary';
    }
@@ -69,12 +72,14 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
    if(!$p) {
       open STDOUT,'>',"$tmp/$mode.log" or die$!;
       open STDERR,'>&STDOUT' or die$!;
-      exec("$tmp/oracle","$tmp/$mode.bin","$tmp/$mode.map"); die$!;
+       my%scenario=(no_kill=>0,thick_ceiling=>0,bad_inverse=>1,forgotten_treasure=>3,chasing_monster=>4,red_monsters=>4);
+       exec("$tmp/oracle","$tmp/$mode.bin","$tmp/$mode.map",$scenario{$mode}); die$!;
    }
    waitpid($p,0); $?!=0 or die "$mode negative control passed\n";
    open my$l,'<',"$tmp/$mode.log" or die$!; my$log=do { local$/; <$l> }; close$l;
    my%reason=(no_kill=>'M0 kill did not remove shot',thick_ceiling=>'solid underside',bad_inverse=>'LFSR forward/inverse',
-      forgotten_treasure=>'collected treasure flag',chasing_monster=>'monster stopped or turned');
+       forgotten_treasure=>'collected treasure flag',chasing_monster=>'monster stopped or turned',
+       red_monsters=>'monster type did not select its tint');
    my$reason=$reason{$mode};
    index($log,$reason)>=0 or die "$mode failed for the wrong reason: $log\n";
 }

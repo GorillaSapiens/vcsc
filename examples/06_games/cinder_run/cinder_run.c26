@@ -55,7 +55,9 @@ bank3 page const uint8_t hazards[128] := {
 bank0 page const uint8_t invisible[8] := {0,0,0,0,0,0,0,0};
 // Color tables follow stored sprite order: boots, coat, then the glowing hood.
 page const uint8_t game_player0_colors[8] := {0x08,0x0c,0x9a,0x38,0x3a,0x1c,0x1e,0x1e};
-page const uint8_t game_player1_colors[8] := {0x42,0x44,0x46,0x48,0x46,0x44,0x46,0x48};
+// Coalback, low ember, kiln moth, roof bat, ash walker, cinder wraith,
+// bellkeeper, root warden. One stable tint per creature, not a red wash.
+bank3 page const uint8_t hazard_colors[8] := {0x24,0x36,0x66,0x86,0xaa,0x0c,0x1a,0xca};
 
 page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,24};
 bank3 page const uint8_t hazard_lane[8] := {73,69,41,25,57,61,45,29};
@@ -70,6 +72,7 @@ cartram uint8_t world_sector;
 cartram uint8_t treasure_id;
 cartram uint8_t treasure_visible;
 cartram uint8_t monster_pixels[8];
+cartram uint8_t game_monster_color;
 cartram int8_t monster_direction;
 cartram uint8_t monster_tick;
 cartram uint8_t run_moving;
@@ -588,6 +591,10 @@ bank3 void prepare_monster(void) {
    asm sec;
    asm sbc #1;
    asm and #7;
+   asm tax;
+   asm lda.ax hazard_colors,x;
+   asm sta.a game_monster_color;
+   asm txa;
    asm asl;
    asm asl;
    asm asl;

@@ -105,7 +105,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta CXCLR;
    asm sta HMCLR;
    asm sta.z game_fill;
-   asm lda.a game_player1_colors + 4;
+   asm lda.a game_monster_color;
    asm sta COLUP1;
    asm ldy.z game_player0_y;
    asm cpy.z game_workspace + 5;

@@ -140,6 +140,8 @@ class Machine {
          if(frame==30&&mem[addr("game_object_x")+1]>=78) fail("monster stopped or turned above player");
          if(frame>=40&&frame<=110&&(frame-40)%10==0) put("run_wave",1+(frame-40)/10);
          if(frame>=41&&frame<=111&&(frame-41)%10==0) {
+            static const uint8_t colors[]={0x24,0x36,0x66,0x86,0xaa,0x0c,0x1a,0xca};
+            if(val("game_monster_color")!=colors[(frame-41)/10]) fail("monster type did not select its tint");
             std::array<uint8_t,8> pixels{};
             for(unsigned i=0;i<8;++i) pixels[i]=mem[addr("monster_pixels")+i];
             monsters[pixels]=true;
@@ -234,7 +236,10 @@ public:
 Machine*Machine::active=nullptr;
 }
 int main(int argc,char**argv) {
-   if(argc!=3) return 2;
-   for(unsigned i=0;i<5;++i) {Machine m(argv[1],argv[2],i);m.run();}
+   if(argc!=3&&argc!=4) return 2;
+   unsigned first=argc==4?static_cast<unsigned>(std::strtoul(argv[3],nullptr,10)):0;
+   if(first>=5) return 2;
+   unsigned last=argc==4?first+1:5;
+   for(unsigned i=first;i<last;++i) {Machine m(argv[1],argv[2],i);m.run();}
    std::puts("cinder_run CPU ok");
 }

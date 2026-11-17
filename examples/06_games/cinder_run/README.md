@@ -9,10 +9,71 @@
 
 # Cinder Run
 
+### The Last Lamplighter
+
 A one-player, endless sidescroller for the Atari 2600. Carry your lantern through
 the volcanic ruins: climb three tiers of scrolling platforms above the road,
 leap over rolling cinders, duck low embers, shoot monsters and collect sparks.
 Three lamps in the upper-left corner show your lives; there is no mirrored copy.
+
+## The story
+
+**The mountain didn't erupt. Someone opened the furnace beneath it.**
+
+The city once kept its nights in a communal kiln. At sunset, the lamplighters
+carried its fire through the streets, borrowing enough daylight to last until
+morning. Then the kiln grew hungry. It began taking more than wood: first names,
+then dreams, then the people who remembered them. Dawn stopped coming.
+
+You are the last lamplighter. The creatures in the ruins aren't all hunting you.
+Some are still walking to work, guarding a doorway, or flying the same route
+home. The furnace has burned away their destinations, but not their habits.
+That's why they keep moving past you instead of stopping overhead.
+
+### Why collect the dots?
+
+Those little lights are **memory sparks**: things the furnace couldn't quite
+burn. A remembered song. A kitchen window. Someone waiting up for you. Their
+colors echo the kiln-bound creatures nearby; the memories and the creatures
+were caught in the same stolen fire.
+
+Your lantern shelters each spark from the kiln. Once rescued, it stays rescued:
+walking away and coming back cannot make the furnace sell you the same memory
+twice. In this build, each spark awards **50 points**, not extra health or ammo.
+The three life lamps represent your three borrowed sunrises; lose them all and
+the journey ends. Restarting begins a fresh journey, with fresh memory sparks.
+
+### What is the weapon?
+
+The **Dawnspike** began as a lamplighter's brass wick-pricker: a small tool for
+clearing soot from a stubborn lamp. Yours has been fitted with the last unburned
+fragment of the city's morning bell. Squeeze its handle and it strikes one hard
+note, compressing clean lantern light into a needle of cold dawn.
+
+It doesn't fight the furnace with more fire. A hit punctures a creature's ash
+shell and breaks the kiln's binding, letting what remains escape. The shell
+disappears; elsewhere, another bound creature continues its old journey.
+Mechanically, one hit removes a monster and awards **100 points**. Shots travel
+in eight directions, with one shot on screen at a time; release Fire between
+shots. The Dawnspike consumes neither rescued sparks nor life lamps.
+
+### The kiln-bound
+
+Their colors show what the furnace made of them, not how many hits they take.
+Every type currently takes one Dawnspike hit.
+
+| Creature | Color | What remains |
+| --- | --- | --- |
+| Coalback | Copper-orange | A kiln stoker, still hauling an invisible load. |
+| Low ember | Hot orange | A streetlighter's flame, loose from its lantern. |
+| Kiln moth | Violet | A night messenger, following light that leads nowhere. |
+| Roof bat | Indigo | A keeper of the city's vanished rooftops. |
+| Ash walker | Pale cyan | Someone whose borrowed fire is almost gone. |
+| Cinder wraith | Silver-gray | The shape left behind when a name burns away. |
+| Bellkeeper | Brass-yellow | A watchman still waiting for the morning bell. |
+| Root warden | Moss-green | A garden keeper carrying the city's last roots. |
+
+**The furnace can keep the city. You're taking its mornings back.**
 
 ## Play
 
@@ -82,7 +143,7 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
 provides 128 bytes of Superchip RAM; no emulator modifications are required.
-The build uses 59 cartridge-RAM bytes and 126 RIOT-RAM bytes, including a
+The build uses 60 cartridge-RAM bytes and 126 RIOT-RAM bytes, including a
 19-byte hardware-stack allowance.
 
 The game-owned 181-line raster draws two eight-row sprites, an M0 shot, an M1
@@ -94,8 +155,9 @@ and a chunk phase regenerate newly exposed columns without a stored level.
 The Ball is disabled. M0 shares the courier palette; M1 shares the
 monster palette, contrasting with the platforms. While a shot is active, M0 and
 M1 alternate frames (30 Hz each); players and terrain remain steady at 60 Hz.
-The courier retains per-row colours and reflects when facing left; monsters and
-M1 use one tint from the monster palette. Missile enables commit in horizontal
+The courier retains per-row colours and reflects when facing left; each monster
+type has its own tint, prepared in cartridge RAM without adding raster cycles.
+M1 shares that current monster tint through COLUP1. Missile enables commit in horizontal
 blanking, avoiding partial scanlines as a missile approaches the left edge.
 Collision probes sample the same
 packed playfield bytes that the kernel displays. The six-glyph component supplies
@@ -114,7 +176,7 @@ movement. An additional 7,200-frame traversal compares every displayed terrain
 column with an independent LFSR decoder, checks inverse steps and window endpoint
 states, and verifies that revisiting terrain restores its bytes. Every frame must
 retain the established 264-line period. Further routes check treasure persistence,
-monster motion past the player and off screen, eight distinct monster designs,
+monster motion past the player and off screen, eight distinct monster designs and tints,
 and buffered upward aiming. Broken kills, ceilings, inverse steps, treasure flags
 and restored chasing behavior are rejected as negative controls; injected
 collisions do not prove TIA geometry.
@@ -122,7 +184,8 @@ collisions do not prove TIA geometry.
 `test/vcs_cinder_run_stella.pl` checks all 160 pixels of every platform scanline
 and intervening gap, every full-width road line, upper-left-only lamps, stationary
 and four distinct running poses, Up jumping,
-fixed-foot crouching, a real missile kill, and visible travel in all eight aim
+fixed-foot crouching, all eight monster colors on actual rendered creatures,
+a real missile kill, and visible travel in all eight aim
 directions. A scripted right/left excursion must restore the original platform
 pixels. A real TIA treasure collection must stay absent after leaving and returning.
 Sweeps cover all four treasure heights, a complete X1..128 cycle, and X120..151.

@@ -34,7 +34,7 @@ my@poses=$1=~/game_SPRITE_GLYPH\(([^)]+)\)/g;
 @poses==7 or die 'courier pose count';
 my@standing=split /,/, $poses[-1];
 for(@standing) {s/\s|0b//g;tr/.X/01/;$_=oct("0b$_");}
-$source=~/game_player1_colors\[8\]\s*:=\s*\{([^}]+)\}/ or die 'monster palette';
+$source=~/hazard_colors\[8\]\s*:=\s*\{([^}]+)\}/ or die 'monster palette';
 my@monster=map{hex($_)}$1=~/(0x[0-9a-f]+)/ig;
 $source=~/COLUPF\s*:=\s*(0x[0-9a-f]+)/i or die 'PF palette';my$pf=hex($1);
 my(undef,$display)=vcsc_reserve_x_display(770,30);
@@ -44,10 +44,14 @@ END {local$?;if($p) {kill 'TERM',$p;waitpid($p,0);}}
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display;local$ENV{SDL_VIDEODRIVER}='x11';local$ENV{SDL_AUDIODRIVER}='dummy';
 my@aim=(0x7f,0x6f,0xef,0xaf,0xbf,0x9f,0xdf,0x5f);
-my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam edge_third edge_far edge_bad),map{"aim$_"}0..7);
+my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam edge_third edge_far edge_bad),(map{"aim$_"}0..7),(map{"monster$_"}0..7));
 for my$mode(@modes) {
    my$dir="$tmp/$mode";make_path($dir);my$s=$source;my$input='';
    if($mode ne 'idle') {$s=~s/new_run\(\);\n   locate_treasure\(\);/new_run();\n   run_mode := 1;\n   locate_treasure();/ or die 'startup boundary';}
+   if($mode=~/^monster(\d)$/) {
+      my$wave=$1+1;
+      $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; run_wave := $wave; game_player1_y := 73;\n   locate_treasure();/ or die 'monster fixture boundary';
+   }
    $input.='if (run_frame >= 2 && run_frame < 40) { return 0xef; }' if $mode eq 'jump';
    $input.='if (run_frame >= 20 && run_frame < 40) { return 0xdf; }' if $mode eq 'duck';
    $input.='if (run_frame < 20) { return 0x7f; }' if $mode eq 'running';
@@ -79,7 +83,7 @@ for my$mode(@modes) {
    else {$s=~s/INPT4/0x80/g;}
    open my$f,'>',"$dir/scripted.c26" or die$!;print{$f}$s;close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$dir/scripted.c26",'-o',"$dir/scripted.bin");
-   my$frames=$mode=~/^edge_/?join(',',4..($mode=~/^edge_(?:far|bad)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode eq 'shoot'?'14,50':$mode eq 'duck'?'25':'10';
+   my$frames=$mode=~/^edge_/?join(',',4..($mode=~/^edge_(?:far|bad)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^monster/?'4':$mode eq 'shoot'?'14,50':$mode eq 'duck'?'25':'10';
    run(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,"$dir/user"),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
@@ -122,6 +126,16 @@ sub body {
    @ys or die "missing courier in $mode/$f";@ys=sort{$a<=>$b}@ys;return($ys[0],$ys[-1],$mask);
 }
 my($head,$feet)=body('idle',25);my($duck_head,$duck_feet)=body('duck',25);
+my%tints;
+for my$i(0..7) {
+   my($w,$h,$rgb)=image("monster$i",4);my$expected=color($monster[$i]);my$n=0;
+   for my$y($feet-15..$feet) {for my$x(145..159) {
+      my$p=substr($rgb,($y*$w+$x)*3,3);
+      if($monster_rgb{$p}) {$p eq $expected or die "monster$i has another type's tint";$n++;}
+   }}
+   $n>=8 or die "monster$i: colored creature missing";$tints{$expected}=1;
+}
+keys(%tints)==8 or die 'monster types do not have eight distinct visible colors';
 my(undef,undef,$standing_rgb)=image('idle',25);
 for my$dy(0..15) {for my$x(0..7) {
    my$on=!!($standing[int($dy/2)]&(0x80>>$x));
