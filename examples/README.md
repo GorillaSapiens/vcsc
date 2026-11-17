@@ -70,6 +70,13 @@ across standards. The six demonstrations form an 18-cell matrix: blank,
 player-color, official all-five, unofficial all-five, multisprite, and enhanced
 asymmetric multisprite.
 
+## Games
+
+[`06_games/cinder_run/`](06_games/cinder_run/) is a 4K NTSC sidescroller: jump
+over cinders, dodge flying embers, and collect sparks. It combines the
+player-color renderer, mutable scrolling scenery and a six-digit score.
+Use left joystick fire to start or jump, and left/right to move along the road.
+
 ## Diagnostics
 
 `07_diagnostics/` contains the 6507 fingerprint, the multi-standard F4SC field
@@ -78,9 +85,8 @@ and controller diagnostic, and the complete mapper diagnostic family under
 `f864`, `ua`, `3e_max`, and `3ex_max`; F8/F6/F4 and UA/UASW deliberately keep
 multiple related ROMs in a single leaf.
 
-Across all seven categories the tree contains **116 recursively discovered
-runnable example Makefiles**: 108 migrated examples plus eight examples added by
-the reorganization plan.
+Across all seven categories the tree contains **126 recursively discovered
+runnable example Makefiles**: 108 migrated examples plus 18 later additions.
 
 ## Direct Register Access in examples
 

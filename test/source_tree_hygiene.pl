@@ -1150,6 +1150,10 @@ for my $path (@test_files) {
    # has no pinned artwork/RGB golden, and independently checks input transitions.
    # The separate static banked-renderer gates retain their exact assertions.
    next if basename($path) eq 'vcs_standard_renderer_banked_controls.pl';
+   # Public-game behavioral smoke checks: no ROM, artwork, or RGB golden.
+   # The Stella witness derives colors from the editable source and compares
+   # relative jump/landing and life-lamp changes across recorded frames.
+   next if basename($path) =~ /^vcs_cinder_run(?:_stella)?\.pl$/;
    push @example_coupling,basename($path) if $text{$path} =~ /(?:^|[\\\/])examples[\\\/][^\n'"]+\.c26\b/;
 }
 @example_coupling and die "exact regression code references editable examples: @example_coupling\n";

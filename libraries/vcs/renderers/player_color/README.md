@@ -32,7 +32,19 @@ instantiate "renderers/player_color/player_color.c26" as game (lines:=170)
 | 170 | 40 bytes / 10 rows | independent 11-line scores above **and** below | 24 bytes |
 
 All playfields are page-contained and contain four bytes per packed row. The
-228- and 192-line profiles position P0, P1 and Ball during VBLANK and enter the raster
+optional `mutable_playfield:=1` parameter changes the application-owned playfield
+declaration from ROM to RIOT RAM, with the same dimensions and load timing:
+
+```vcsc
+instantiate "renderers/player_color/player_color.c26" as game (lines:=181, mutable_playfield:=1)
+uint8_t game_playfield[44];
+```
+
+Update it only outside the visible kernel. Its storage is additional to the
+component RAM in the table; a complete RIOT RAM object cannot cross a page.
+The default remains a constant ROM playfield.
+
+The 228- and 192-line profiles position P0, P1 and Ball during VBLANK and enter the raster
 without a score handoff. The 181- and 170-line profiles use the measured
 score-composable entry handoff that restores P0/P1 positioning, NUSIZ, reflection
 state, graphics and colors after a score component has owned the players.

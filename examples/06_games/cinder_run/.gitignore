@@ -1,0 +1,8 @@
+# This file is covered under CC0-1.0. See examples/LICENSE.txt.
+*.bin
+*.hex
+*.o26
+*.map
+*.sym
+*.lst
+*.cfg

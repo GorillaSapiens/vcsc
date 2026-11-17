@@ -16,6 +16,9 @@
 // before a full-height instantiation when an application must update them in RAM.
 
 parameter lines;
+// RAM playfields use the same forced absolute-indexed loads as ROM. A complete
+// RIOT-RAM object cannot cross $100, so their load timing is identical.
+parameter mutable_playfield := 0;
 
 #if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
 // Full-height scoreless profile. Each instance requires a page-contained
@@ -62,9 +65,17 @@ alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_object_x[2]
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_object_x[3]
 
 #if TEMPLATE_lines == 228
+#if TEMPLATE_mutable_playfield
+extern uint8_t TEMPLATE_playfield[60];
+#else
 extern const uint8_t TEMPLATE_playfield[60];
+#endif
+#else
+#if TEMPLATE_mutable_playfield
+extern uint8_t TEMPLATE_playfield[48];
 #else
 extern const uint8_t TEMPLATE_playfield[48];
+#endif
 #endif
 #ifdef VCS_PLAYER_COLOR_MUTABLE_COLORS
 extern uint8_t TEMPLATE_player0_colors[8];
@@ -674,7 +685,11 @@ alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
 alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_object_x[2]
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_object_x[3]
 
+#if TEMPLATE_mutable_playfield
+extern uint8_t TEMPLATE_playfield[44];
+#else
 extern const uint8_t TEMPLATE_playfield[44];
+#endif
 extern const uint8_t TEMPLATE_player0_colors[8];
 extern const uint8_t TEMPLATE_player1_colors[8];
 
@@ -1242,7 +1257,11 @@ alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
 alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_object_x[2]
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_object_x[3]
 
+#if TEMPLATE_mutable_playfield
+extern uint8_t TEMPLATE_playfield[40];
+#else
 extern const uint8_t TEMPLATE_playfield[40];
+#endif
 extern const uint8_t TEMPLATE_player0_colors[8];
 extern const uint8_t TEMPLATE_player1_colors[8];
 

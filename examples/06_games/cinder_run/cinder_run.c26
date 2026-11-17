@@ -1,0 +1,310 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// CINDER RUN: a lantern courier on an endless road through volcanic ruins.
+include "4K/mapper.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+include "sound_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+instantiate "renderers/player_color/player_color.c26" as game (lines:=181, mutable_playfield:=1)
+instantiate "six_glyph_component.c26" as score (mutable_color:=1)
+
+// The kernel reads this application-owned RAM using fixed-time absolute loads.
+uint8_t game_playfield[44];
+page const uint8_t landscape[44] := {
+   VCS_PLAYFIELD_ROW(0bX.X.X...........................),
+   VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0b....X.........XX..........X.....),
+   VCS_PLAYFIELD_ROW(0b...XXX.......XXXX........XXX....),
+   VCS_PLAYFIELD_ROW(0b..XXXXX.....XXXXXX......XXXXX...),
+   VCS_PLAYFIELD_ROW(0b................................),
+   VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
+   VCS_PLAYFIELD_ROW(0bXX..XX..XX..XX..XX..XX..XX..XX..)
+};
+
+// Eight stored rows, bottom-to-top at runtime; the helper accepts top-to-bottom.
+page const uint8_t courier[32] := {
+   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0b.XX.XX..,0bXX...XX.),
+   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0b..XX....,0b..XX....),
+   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0b.XX.XX..,0b.XX..XX.),
+   game_SPRITE_GLYPH(0b..XXX...,0b..XXXX..,0b..XX....,0b.XXXXX..,0bX.XX..X.,0b..XXX...,0bXX..XX..,0bX....XX.)
+};
+page const uint8_t hazards[16] := {
+   game_SPRITE_GLYPH(0b..XXXX..,0b.XXXXXX.,0bXXXXXXXX,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXX.,0b..XXXX..,0b...XX...),
+   game_SPRITE_GLYPH(0bX......X,0bXX....XX,0b.XX..XX.,0b..XXXX..,0b.XXXXXX.,0bXX.XX.XX,0bX..XX..X,0b...XX...)
+};
+page const uint8_t invisible[8] := {0,0,0,0,0,0,0,0};
+// Color tables follow stored sprite order: boots, coat, then the glowing hood.
+page const uint8_t game_player0_colors[8] := {0x24,0x26,0x36,0x38,0x3a,0x1c,0x1e,0x1e};
+page const uint8_t game_player1_colors[8] := {0x42,0x44,0x46,0x48,0x46,0x44,0x46,0x48};
+
+// Forty frames in the air. Heights are in two-scanline units, not pixels.
+page const uint8_t jump_height[41] := {
+   0,4,8,11,14,17,20,22,24,26,28,29,30,31,32,32,33,33,33,33,33,
+   33,33,32,32,31,30,29,28,26,24,22,20,17,14,11,8,6,4,2,0
+};
+page const uint8_t road_bits[8] := {0xcc,0x99,0x33,0x66,0xcc,0x99,0x33,0x66};
+const uint8_t road_reverse[8] := {0x33,0x99,0xcc,0x66,0x33,0x99,0xcc,0x66};
+
+uint8_t run_mode;
+uint8_t run_frame;
+uint8_t run_jump;
+uint8_t run_fire_ready;
+uint8_t run_lives;
+uint8_t run_immunity;
+uint8_t run_random;
+uint8_t run_wave;
+uint8_t run_speed;
+uint8_t run_scroll;
+uint8_t run_spark_x;
+uint8_t run_sound;
+uint8_t run_sound_kind;
+uint8_t run_hit;
+uint8_t run_collect;
+
+inline void new_hazard(void) {
+   // Nonzero 8-bit LFSR; deterministic restart, but varied obstacle heights.
+   if (run_random & 1) {
+      run_random := (run_random >> 1) ^ 0xb4;
+   }
+   else {
+      run_random >>= 1;
+   }
+   run_wave++;
+   if (run_wave == 6) {
+      run_speed := 2;
+   }
+   game_PLAYER1_X := 156;
+   game_player1_y := 73;
+   if ((run_wave & 3) == 3) {
+      game_player1_y := 48;
+   }
+}
+
+void new_run(void) {
+   uint8_t i := 0;
+   while (i < 44) {
+      game_playfield[i] := landscape[i];
+      i++;
+   }
+   run_mode := 0;
+   run_frame := 0;
+   run_jump := 0;
+   run_fire_ready := 0;
+   run_lives := 3;
+   run_immunity := 0;
+   run_random := 0x5d;
+   run_wave := 0;
+   run_speed := 1;
+   run_scroll := 0;
+   run_sound := 0;
+   run_sound_kind := 0;
+   run_spark_x := 116;
+   game_PLAYER0_X := 36;
+   game_PLAYER0_NUSIZ := 0;
+   game_PLAYER1_NUSIZ := 0;
+   game_player0_y := 73;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_ball_y := 44;
+   game_ball_height := 2;
+   game_BALL_X := run_spark_x;
+   game_playfield_position := 8;
+   score_score := 0;
+   score_color := 0x1e;
+   new_hazard();
+   AUDV0 := 0;
+   AUDV1 := 0;
+}
+
+inline void scroll_landscape(void) {
+   // The distant hills scroll one playfield pixel every eight frames. These
+   // bytes are in renderer/TIA order. One carry chain rotates all 32 pixels:
+   // left PF1 -> right PF1 -> right PF2 -> left PF2 -> left PF1.
+   // Byte RMWs avoid expanding a 32-bit shift into scarce RIOT scratch RAM.
+   if (!(run_frame & 7)) {
+      asm ldx #20;
+      asm @hill_row:;
+      asm asl.zx game_playfield,x;
+      asm ror.zx game_playfield+3,x;
+      asm rol.zx game_playfield+2,x;
+      asm ror.zx game_playfield+1,x;
+      asm lda.zx game_playfield,x;
+      asm adc #0;
+      asm sta.zx game_playfield,x;
+      asm inx;
+      asm inx;
+      asm inx;
+      asm inx;
+      asm cpx #32;
+      asm bne.same @hill_row;
+   }
+   // The road moves faster, in the opposite bit order on reflected lanes.
+   if (!(run_frame & 3)) {
+      run_scroll++;
+      run_scroll &= 7;
+      game_playfield[40] := road_bits[run_scroll];
+      game_playfield[41] := road_reverse[run_scroll];
+      game_playfield[42] := road_bits[run_scroll];
+      game_playfield[43] := road_reverse[run_scroll];
+   }
+   // Three small lamps at the top of the scene show remaining lives.
+   game_playfield[0] := 0;
+   if (run_lives) {
+      game_playfield[0] := 0x80;
+   }
+   if (run_lives > 1) {
+      game_playfield[0] |= 0x20;
+   }
+   if (run_lives > 2) {
+      game_playfield[0] |= 0x08;
+   }
+}
+
+inline void update_audio(void) {
+   AUDV0 := 0;
+   if (run_sound) {
+      run_sound--;
+      AUDV0 := 5;
+      AUDC0 := MUSIC_CONTROL_SQUARE;
+      AUDF0 := 8;
+      if (run_sound_kind == 2) {
+         AUDC0 := MUSIC_CONTROL_NOISE;
+         AUDF0 := 18;
+      }
+   }
+}
+
+void update_run(void) {
+   // Capture real TIA collisions before next frame's renderer clears them.
+   run_hit := CXPPMM & 0x80;
+   run_collect := CXP0FB & 0x40;
+   if (!(SWCHB & 1)) {
+      new_run();
+   }
+   run_frame++;
+   update_audio();
+   if (INPT4 & 0x80) {
+      run_fire_ready := 1;
+   }
+   if (run_mode != 1) {
+      if (run_fire_ready && !(INPT4 & 0x80)) {
+         new_run();
+         run_mode := 1;
+         run_fire_ready := 0;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x40) && game_PLAYER0_X > 24) {
+         game_PLAYER0_X--;
+      }
+      if (!(SWCHA & 0x80) && game_PLAYER0_X < 72) {
+         game_PLAYER0_X++;
+      }
+      if (run_fire_ready && !(INPT4 & 0x80)) {
+         run_fire_ready := 0;
+         if (!run_jump) {
+            run_jump := 1;
+            run_sound := 10;
+            run_sound_kind := 1;
+         }
+      }
+      if (run_jump) {
+         game_player0_y := 73 - jump_height[run_jump];
+         run_jump++;
+         if (run_jump > 40) {
+            run_jump := 0;
+         }
+      }
+      if (run_immunity) {
+         run_immunity--;
+      }
+      else {
+         if (run_hit) {
+            run_lives--;
+            run_immunity := 90;
+            run_sound := 18;
+            run_sound_kind := 2;
+            new_hazard();
+            if (!run_lives) {
+               run_mode := 2;
+               score_color := 0x46;
+               run_fire_ready := 0;
+            }
+         }
+      }
+      if (run_collect) {
+         score_score += 50;
+         run_spark_x := 156;
+         run_sound := 6;
+         run_sound_kind := 1;
+      }
+      if (game_PLAYER1_X <= run_speed) {
+         new_hazard();
+         score_score += 10;
+      }
+      else {
+         game_PLAYER1_X -= run_speed;
+      }
+      if (run_spark_x <= run_speed) {
+         run_spark_x := 156;
+         game_ball_y := 40 + (run_random & 15);
+      }
+      else {
+         run_spark_x -= run_speed;
+      }
+      if (!(run_frame & 15)) {
+         score_score++;
+      }
+      scroll_landscape();
+   }
+   game_BALL_X := run_spark_x;
+}
+
+// Prepare graphics before the renderer's VBLANK countdown setup.
+void prepare_sprites(void) {
+   game_player1_graphics := hazards;
+   if ((run_wave & 3) == 3) {
+      game_player1_graphics += 8;
+   }
+   game_player0_graphics := courier;
+   game_player0_graphics += run_frame & 24;
+   if (run_jump) {
+      game_player0_graphics := courier + 24;
+   }
+   if (run_immunity & 4) {
+      game_player0_graphics := invisible;
+   }
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   new_run();
+   game_init();
+   score_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      prepare_sprites();
+      game_vblank();
+      score_vblank();
+      COLUBK := 0x82;
+      COLUPF := 0x26;
+      CTRLPF := 0x21;
+      vcs_ntsc_end_vblank();
+      score_draw();
+      vcs_ntsc_component_handoff();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      update_run();
+      vcs_ntsc_end_overscan();
+   }
+}

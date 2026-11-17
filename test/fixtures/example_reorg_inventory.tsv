@@ -124,3 +124,4 @@ new	all_five_colors_sections_preview	-	04_renderers/all_five_colors_sections/no_
 new	cooperating_layers_no_score	-	04_renderers/cooperating_layers/no_score	Makefile
 new	cooperating_layers_score_above	-	04_renderers/cooperating_layers/score_above	Makefile
 new	cooperating_layers_score_below	-	04_renderers/cooperating_layers/score_below	Makefile
+new	cinder_run	-	06_games/cinder_run	Makefile
