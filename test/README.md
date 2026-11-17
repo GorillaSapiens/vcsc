@@ -33,8 +33,10 @@ perl test.pl --jobs 8 --e2e-only host_string_const.pl
 
 This syntax-checks every host C translation unit, including generated lexer and
 parser code, with C23-style const-preserving `strchr`, `strrchr`, `strstr`,
-`strpbrk`, and `memchr` signatures. A test-only forced header makes this effective
-on older compilers and C libraries too. It checks complete expressions, including
+`strpbrk`, and `memchr` signatures. A test-only header makes this effective on older
+compilers and C libraries too. It is inserted into temporary source copies after
+each source's feature macros, before its first include; it does not force GNU
+features or preempt the source's POSIX selection. It checks complete expressions, including
 assignment to previously declared pointers, rather than matching declarations
 with regular expressions. Ten negative controls reject const discards at both
 initialization and assignment; five positive controls retain writable results

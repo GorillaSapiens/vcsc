@@ -1,11 +1,8 @@
 /* Test-only C23-style const propagation, including on older C libraries.
- * Force-include this header for host C translation-unit syntax checks. */
+ * Include after the source's feature macros, before its first system header. */
 #ifndef VCSC_TEST_HOST_STRING_CONST_H
 #define VCSC_TEST_HOST_STRING_CONST_H
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <string.h>
 
 static inline const char *vcsc_const_strchr(const char *s, int c) {

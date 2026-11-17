@@ -7,6 +7,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use Text::ParseWords qw(shellwords);
 
@@ -15,15 +16,16 @@ $repo = abs_path($repo);
 make_path($tmp);
 $tmp = abs_path($tmp);
 my @cc = shellwords($ENV{CC} || 'cc');
+my $fixture = "$repo/test/fixtures/host_string_const.h";
 my @flags = ('-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pedantic',
-             '-include', "$repo/test/fixtures/host_string_const.h", '-fsyntax-only');
+             '-fsyntax-only');
 
 sub compile {
-   my ($file) = @_;
+   my ($file, @extra) = @_;
    # A file avoids pipe deadlocks when one translation unit has many errors.
    open my $saved, '>&', \*STDERR or die $!;
    open STDERR, '>', "$tmp/diagnostics" or die $!;
-   my $status = system(@cc, @flags, $file);
+   my $status = system(@cc, @flags, @extra, $file);
    open STDERR, '>&', $saved or die $!;
    close $saved;
    open my $fh, '<', "$tmp/diagnostics" or die $!;
@@ -32,20 +34,56 @@ sub compile {
    return ($status, $diagnostics);
 }
 
+sub instrument {
+   my ($source, $destination) = @_;
+   open my $in, '<', $source or die "$source: $!";
+   my @lines = <$in>;
+   close $in;
+   open my $out, '>', $destination or die $!;
+   print {$out} "#line 1 \"$source\"\n";
+   my $inserted = 0;
+   for my $i (0 .. $#lines) {
+      if (!$inserted && $lines[$i] =~ /^\s*#\s*include\b/) {
+         print {$out} "#include \"$fixture\"\n#line " . ($i + 1) . " \"$source\"\n";
+         $inserted = 1;
+      }
+      print {$out} $lines[$i];
+   }
+   close $out or die $!;
+   $inserted or die "no include point in $source\n";
+}
+
+# Feature selection belongs to the source, not this instrumentation. In
+# particular, newer glibc can upgrade _POSIX_C_SOURCE when _GNU_SOURCE is set;
+# force-including a system header before source macros then causes redefinitions.
+open my $feature, '>', "$tmp/features.c" or die $!;
+print {$feature} <<'C';
+#define _POSIX_C_SOURCE 199309L
+#ifdef _GNU_SOURCE
+#error Test instrumentation must not enable GNU features
+#endif
+#include <string.h>
+int main(void) { const char *s = "a,b"; const char *p = strchr(s, ','); return p == 0; }
+C
+close $feature or die $!;
+instrument("$tmp/features.c", "$tmp/features-checked.c");
+my ($feature_status, $feature_diagnostics) = compile("$tmp/features-checked.c");
+$feature_status == 0 or die "source feature macros were not preserved:\n$feature_diagnostics";
+
 # Prove the injected signatures reject const discards for every function,
 # independent of the host compiler's default language/library version.
 for my $call ('strchr(s, 44)', 'strrchr(s, 44)', 'strstr(s, ",")',
               'strpbrk(s, ",")', 'memchr(s, 44, 3)') {
    for my $declaration ('char *p =', 'char *p; p =') {
       open my $fh, '>', "$tmp/bad.c" or die $!;
-      print {$fh} "int main(void) { const char *s = \"a,b\"; $declaration $call; return p != 0; }\n";
+      print {$fh} "#include \"$fixture\"\nint main(void) { const char *s = \"a,b\"; $declaration $call; return p != 0; }\n";
       close $fh or die $!;
       my ($status, $diagnostics) = compile("$tmp/bad.c");
       $status && $diagnostics =~ /const|qualifier/i
          or die "const-discard negative control did not fail correctly: $call\n$diagnostics";
    }
    open my $fh, '>', "$tmp/mutable.c" or die $!;
-   print {$fh} "int main(void) { char s[] = \"a,b\"; char *p = $call; if (p) *p = 0; return 0; }\n";
+   print {$fh} "#include \"$fixture\"\nint main(void) { char s[] = \"a,b\"; char *p = $call; if (p) *p = 0; return 0; }\n";
    close $fh or die $!;
    my ($status, $diagnostics) = compile("$tmp/mutable.c");
    $status == 0 or die "mutable search result must remain writable: $call\n$diagnostics";
@@ -61,7 +99,8 @@ for my $dir (qw(assembler archiver compiler linker driver disassembler)) {
 @units or die "no host C translation units found\n";
 my @failures;
 for my $unit (@units) {
-   my ($status, $diagnostics) = compile($unit);
+   instrument($unit, "$tmp/unit.c");
+   my ($status, $diagnostics) = compile("$tmp/unit.c", '-iquote', dirname($unit));
    push @failures, "$unit failed const-propagating string checks:\n$diagnostics" if $status;
 }
 die join("\n", @failures) if @failures;
