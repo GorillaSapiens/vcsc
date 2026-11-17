@@ -1,0 +1,430 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Cinder Run's game-owned specialization of player_color's 181-line raster.
+// Both instances share game_* state; no duplicate RAM is allocated. M0 shots
+// and M1 sparks time-share the auxiliary slot, never the players or playfield.
+// The ordinary library renderer and its existing profiles remain unchanged.
+parameter object := 3;
+parameter owner := 0;
+#if TEMPLATE_object != 2 && TEMPLATE_object != 3
+extern uint8_t TEMPLATE_bad_object[TEMPLATE_object_must_be_missile0_or_missile1];
+#endif
+
+#if TEMPLATE_owner
+alias game_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias game_PLAYER0_X game_object_x[0]
+alias game_PLAYER1_X game_object_x[1]
+alias game_BALL_X game_object_x[4]
+uint8_t game_object_x[5];
+uint8_t game_player0_y;
+uint8_t game_player1_y;
+uint8_t game_ball_y;
+uint8_t *game_player0_graphics;
+uint8_t *game_player1_graphics;
+uint8_t game_player0_height;
+uint8_t game_player1_height;
+uint8_t game_ball_height;
+uint8_t game_workspace[8];
+page const uint8_t game_reposition_table[16] := {
+   0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
+   0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
+};
+// The maintained 181-line player's measured fine/coarse position controls.
+page const uint8_t game_player_position_table[160] := {
+   0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,
+   0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,0x43,0x33,
+   0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,0x34,0x24,
+   0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x84,0x65,0x55,0x45,0x35,0x25,0x15,
+   0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x85,0x66,0x56,0x46,0x36,0x26,0x16,0x06,
+   0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x86,0x67,0x57,0x47,0x37,0x27,0x17,0x07,0xf7,
+   0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x87,0x68,0x58,0x48,0x38,0x28,0x18,0x08,0xf8,0xe8,
+   0xd8,0xc8,0xb8,0xa8,0x98,0x88,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,0xe9,0xd9,
+   0xc9,0xb9,0xa9,0x99,0x89,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea,0xda,0xca,
+   0xba,0xaa,0x9a,0x8a,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb
+};
+inline void game_init(void) {
+   asm .ifndef __phaseworkspace$V1$game_workspace;
+   asm __phaseworkspace$V1$game_workspace = 0;
+   asm .export __phaseworkspace$V1$game_workspace;
+   asm .endif;
+}
+inline void game_overscan(void) {
+   asm lda.z game_workspace + 1;
+   asm sta.z game_player0_y;
+   asm lda.z game_workspace + 2;
+   asm sta.z game_player1_y;
+   asm lda.z game_workspace + 7;
+   asm sta.z game_ball_y;
+}
+#endif
+
+// Row lengths minus one, indexed by the four-byte playfield row base.
+// Eight-line ledges replace rows 3/5/7; the following gaps grow to 24 lines.
+// The total remains 88 pairs, with every platform top at its old coordinate.
+page const uint8_t TEMPLATE_row_pairs[44] := {
+   7,0,0,0, 7,0,0,0, 7,0,0,0, 3,0,0,0, 11,0,0,0,
+   3,0,0,0, 11,0,0,0, 3,0,0,0, 11,0,0,0, 7,0,0,0, 7,0,0,0
+};
+
+require inline void TEMPLATE_vblank(void) {
+   asm .callstackextra 0;
+   asm lda.z game_player0_y;
+   asm sta.z game_workspace + 1;
+   asm lda.z game_player1_y;
+   asm sta.z game_workspace + 2;
+   asm lda.z game_ball_y;
+   asm sta.z game_workspace + 7;
+   asm clc;
+   asm adc #1;
+   asm sta.z game_ball_y;
+   asm lda.z game_player0_height;
+   asm clc;
+   asm adc #1;
+   asm sta.z game_workspace + 5;
+   asm lda.z game_player1_height;
+   asm clc;
+   asm adc #1;
+   asm sta.z game_workspace + 6;
+   asm sta WSYNC;
+   asm ldx #TEMPLATE_object;
+   asm bit.z $00;
+   // Forced absolute retains the original indexed load's four-cycle slot.
+   asm lda.a game_object_x + 4;
+   asm sec;
+   asm @divide:;
+   asm sbc #15;
+   asm bcs.same @divide;
+   // Keep the saved P1 Y in workspace[2] intact when positioning M0.
+   asm sta.a game_workspace + 3;
+   asm sta RESP0,x;
+   asm ldy.a game_workspace + 3;
+   asm lda game_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+   asm lda #0;
+   asm sta HMP0;
+   asm sta HMP1;
+   asm sta HMBL;
+#if TEMPLATE_object == 2
+   asm sta HMM1;
+#else
+   asm sta HMM0;
+#endif
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm lda #0;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm ldx.z game_object_x;
+   asm lda.ax game_player_position_table,x;
+   asm sta.z game_workspace + 3;
+   asm ldx.z game_object_x + 1;
+   asm lda.ax game_player_position_table,x;
+   asm sta.z game_workspace + 4;
+   // HMOVE has completed before its auxiliary fine motion is cleared.
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm lda #8;
+   asm sta.z game_workspace;
+   asm dec.z game_player0_y;
+   asm dec.z game_player0_y;
+}
+
+require inline void TEMPLATE_draw(void) {
+   asm ldy.z game_workspace + 4;
+   asm sty HMP1;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm @p1_position:;
+   asm dex;
+   asm bne.same @p1_position;
+   asm sta RESP1;
+   asm sta WSYNC;
+   asm ldy.z game_workspace + 3;
+   asm sty HMP0;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm bit.z $00;
+   asm @p0_position:;
+   asm dex;
+   asm bne.same @p0_position;
+   asm sta RESP0;
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm lda #$20;
+   asm sta NUSIZ0;
+   asm lda #$20;
+   asm sta NUSIZ1;
+   asm nop;
+   asm lda #1;
+   asm sta VDELBL;
+   asm sta VDELP0;
+   asm ldx #0;
+   asm stx REFP0;
+   asm stx REFP1;
+   asm stx GRP0;
+   asm stx GRP1;
+   asm stx PF0;
+   asm stx PF1;
+   asm stx PF2;
+   asm stx CXCLR;
+   asm dec.z game_ball_y;
+   asm lda.z game_ball_height;
+   asm cmp.z game_ball_y;
+   asm lda #1;
+   asm adc #0;
+   asm sta.z $1b + TEMPLATE_object;
+   asm ldy.z game_player1_y;
+   asm dey;
+   asm sty.z game_player1_y;
+   asm cpy.z game_workspace + 6;
+   asm bcs.same @first_p1_zero;
+   asm lda.iy (game_player1_graphics),y;
+   asm jmp @first_p1_ready;
+   asm @first_p1_zero:;
+   asm lda #0;
+   asm tay;
+   asm @first_p1_ready:;
+   asm sta GRP1;
+   asm lda.ay game_player1_colors,y;
+   asm sta COLUP1;
+   asm ldy #0;
+   asm lda.ay game_player0_colors,y;
+   asm sta.z game_workspace + 3;
+   asm sta COLUP0;
+   asm sta WSYNC;
+   asm bit.z $00;
+   asm lda.z game_workspace + 3;
+   asm sta COLUP0;
+   asm nop;
+   asm lda.ax game_playfield,x;
+   asm sta PF1;
+   asm lda.ax game_playfield+1,x;
+   asm sta PF2;
+   asm ldy.z game_player0_y;
+   asm dey;
+   asm sty.z game_player0_y;
+   asm cpy.z game_workspace + 5;
+   asm dec.z game_ball_y;
+   asm lda.ax game_playfield+2,x;
+   asm sta PF2;
+   asm lda.ax game_playfield+3,x;
+   asm sta PF1;
+   asm nop;
+   asm bcs.same @first_p0_zero;
+   asm lda.iy (game_player0_graphics),y;
+   asm jmp @first_p0_ready;
+   asm @first_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z game_workspace + 5;
+   asm @first_p0_ready:;
+   asm dec.z game_workspace;
+   asm jmp @continue;
+   asm @continue:;
+   asm sta GRP0;
+   asm lda.ay game_player0_colors,y;
+   asm sta COLUP0;
+   asm lda #1;
+   asm ldy.ax game_playfield,x;
+   asm sty PF1;
+   asm ldy.ax game_playfield+1,x;
+   asm sty PF2;
+   asm ldy.z game_ball_height;
+   asm cpy.z game_ball_y;
+   asm adc #0;
+   asm sta.z $1b + TEMPLATE_object;
+   asm ldy.z game_player1_y;
+   asm dey;
+   asm lda.ax game_playfield+2,x;
+   asm sta PF2;
+   asm lda.ax game_playfield+3,x;
+   asm sta PF1;
+   asm sty.z game_player1_y;
+   asm cpy.z game_workspace + 6;
+   asm bcs.same @p1_zero;
+   asm lda.iy (game_player1_graphics),y;
+   asm jmp @p1_ready;
+   asm @p1_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z game_workspace + 5;
+   asm @p1_ready:;
+   asm sta.z game_workspace + 3;
+   asm lda.ay game_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.z game_workspace + 3;
+   asm sta GRP1;
+   asm lda.ax game_playfield,x;
+   asm sta PF1;
+   asm lda.ax game_playfield+1,x;
+   asm sta PF2;
+   asm ldy.z game_player0_y;
+   asm dey;
+   asm sty.z game_player0_y;
+   asm cpy.z game_workspace + 5;
+   asm dec.z game_ball_y;
+   asm lda.ax game_playfield+2,x;
+   asm sta PF2;
+   asm lda.ax game_playfield+3,x;
+   asm sta PF1;
+   asm nop;
+   asm bcs.same @p0_zero;
+   asm lda.iy (game_player0_graphics),y;
+   asm jmp @p0_ready;
+   asm @p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z game_workspace + 5;
+   asm @p0_ready:;
+   asm dec.z game_workspace;
+   asm bne.same @continue;
+   asm sta GRP0;
+   asm lda.ay game_player0_colors,y;
+   asm @row_end:;
+   asm sta COLUP0;
+   asm ldy.z game_ball_height;
+   asm lda.ax game_playfield,x;
+   asm sta PF1;
+   asm lda.ax game_playfield+1,x;
+   asm sta PF2;
+   asm cpx #40;
+   asm bne.same @not_terminal;
+   asm jmp @terminal;
+   asm @not_terminal:;
+   asm cpy.z game_ball_y;
+   asm ldy.ax game_playfield+2,x;
+   asm lda.ax game_playfield+3,x;
+   asm sta.a PF1;
+   asm sty PF2;
+   asm lda #1;
+   asm adc #0;
+   asm sta.z $1b + TEMPLATE_object;
+   asm txa;
+   asm adc #4;
+   asm tax;
+   asm ldy.z game_player1_y;
+   asm dey;
+   asm sty.z game_player1_y;
+   asm cpy.z game_workspace + 6;
+   asm bcc.same @transition_p1_active;
+   asm ldy #0;
+   asm sty.a GRP1;
+   asm jmp @transition_p1_ready;
+   asm @transition_p1_active:;
+   asm lda.iy (game_player1_graphics),y;
+   asm sta GRP1;
+   asm @transition_p1_ready:;
+   asm lda.ay game_player1_colors,y;
+   asm ldy.ax game_playfield,x;
+   asm sty PF1;
+   asm ldy.ax game_playfield+1,x;
+   asm sty PF2;
+   asm sta COLUP1;
+   // Seven cycles replace BIT/NOP/NOP, not an addition to the pair.
+   asm lda.ax TEMPLATE_row_pairs,x;
+   asm sta.z game_workspace;
+   asm ldy.z game_player0_y;
+   asm dey;
+   asm lda.ax game_playfield+2,x;
+   asm sta.a PF2;
+   asm lda.ax game_playfield+3,x;
+   asm sta PF1;
+   asm sty.a game_player0_y;
+   asm cpy.z game_workspace + 5;
+   asm bcs.same @transition_p0_zero;
+   asm lda.iy (game_player0_graphics),y;
+   asm jmp @transition_p0_ready;
+   asm @transition_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z game_workspace + 5;
+   asm @transition_p0_ready:;
+   asm sta.a GRP0;
+   asm lda.ay game_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z game_ball_height;
+   asm ldy.ax game_playfield,x;
+   asm sty PF1;
+   asm ldy.ax game_playfield+1,x;
+   asm sty PF2;
+   asm dec.z game_ball_y;
+   asm cmp.z game_ball_y;
+   asm lda #1;
+   asm adc #0;
+   asm sta.z $1b + TEMPLATE_object;
+   asm nop;
+   asm ldy.ax game_playfield+2,x;
+   asm sty PF2;
+   asm ldy.ax game_playfield+3,x;
+   asm sty PF1;
+   asm bit.z $00;
+   asm ldy.z game_player1_y;
+   asm dey;
+   asm sty.z game_player1_y;
+   asm cpy.z game_workspace + 6;
+   asm bcc.same @transition_first_p1_active;
+   asm lda #0;
+   asm sta GRP1;
+   asm bit.z game_workspace + 5;
+   asm nop;
+   asm bit.z game_workspace + 5;
+   asm jmp @transition_first_p1_ready;
+   asm @transition_first_p1_active:;
+   asm lda.iy (game_player1_graphics),y;
+   asm sta GRP1;
+   asm lda.ay game_player1_colors,y;
+   asm sta COLUP1;
+   asm @transition_first_p1_ready:;
+   asm lda.ax game_playfield,x;
+   asm sta PF1;
+   asm lda.ax game_playfield+1,x;
+   asm sta PF2;
+   asm ldy.z game_player0_y;
+   asm dey;
+   asm sty.z game_player0_y;
+   asm cpy.z game_workspace + 5;
+   asm dec.z game_ball_y;
+   asm lda.ax game_playfield+2,x;
+   asm sta PF2;
+   asm lda.ax game_playfield+3,x;
+   asm sta PF1;
+   asm bcs.same @transition_follow_p0_zero;
+   asm lda.iy (game_player0_graphics),y;
+   asm jmp @transition_follow_p0_ready;
+   asm @transition_follow_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z game_workspace + 5;
+   asm @transition_follow_p0_ready:;
+   asm dec.z game_workspace;
+   asm beq.same @row_end_jump;
+   asm jmp @continue;
+   asm @row_end_jump:;
+   asm jmp @row_end;
+   asm @terminal:;
+   asm ldy.ax game_playfield+2,x;
+   asm lda.ax game_playfield+3,x;
+   asm bit.z $00;
+   asm nop;
+   asm sty PF2;
+   asm bit.z $00;
+   asm sta.a PF1;
+   asm sta WSYNC;
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta VDELBL;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta HMCLR;
+   asm sta WSYNC;
+}

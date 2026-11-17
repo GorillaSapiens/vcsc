@@ -26,8 +26,11 @@ $helpers=~s/\n\@ARGV>=2.*\z//s or die 'PNG boundary'; eval$helpers; die$@ if$@;
 # Only input is scripted in a temporary cartridge. Rendering, real TIA latches,
 # game physics, and collision responses remain the public game's implementation.
 my$source=slurp("$repo/examples/06_games/cinder_run/cinder_run.c26");
+$source=~s{\.\./\.\./_common/cinder_run_raster\.c26}{$repo/examples/_common/cinder_run_raster.c26}g;
 $source=~/game_player0_colors\[8\]\s*:=\s*\{([^}]+)\}/ or die 'courier palette';
 my@courier_colors=map{hex($_)}split /\s*,\s*/,$1;
+$source=~/game_player1_colors\[8\]\s*:=\s*\{([^}]+)\}/ or die 'monster palette';
+my@monster_colors=map{hex($_)}split /\s*,\s*/,$1;
 my$hood_color=$courier_colors[-1];
 $source=~/COLUPF\s*:=\s*(0x[0-9a-f]+)/i or die 'playfield palette';
 my$playfield_color=hex($1);
@@ -38,20 +41,23 @@ if(!$p) { open STDOUT,'>',"$tmp/xvfb.log" or die$!; open STDERR,'>&STDOUT'; exec
 END { local$?; if($p) { kill 'TERM',$p; waitpid($p,0); } }
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display; local$ENV{SDL_VIDEODRIVER}='x11'; local$ENV{SDL_AUDIODRIVER}='dummy';
-for my$mode(qw(climb standing duck)) {
+for my$mode(qw(climb standing duck shoot)) {
    my$dir="$tmp/$mode"; make_path($dir);
-   my$input="physics_old_feet := 0x80; physics_top := 0xff;";
+    my$input='';
    if($mode eq 'climb') {
-      $input.="if (run_frame == 2 || run_frame == 30 || run_frame == 65) { physics_old_feet := 0; }\n";
-      $input.="if (run_frame >= 90 && run_frame < 100) { physics_top := 0xdf; }\n";
+       $input.="if (run_frame == 2 || run_frame == 65 || run_frame == 135) { return 0xef; }\n";
+       $input.="if (run_frame >= 170 && run_frame < 180) { return 0xdf; }\n";
    }
-   if($mode eq 'duck') { $input.="if (run_frame >= 210) { physics_top := 0xdf; }\n"; }
+    if($mode eq 'duck') { $input.="if (run_speed) { return 0xdf; }\n"; }
    my$script=$source;
-   $script=~s/(bank1 void (?:update_run|advance_physics)\(void\) \{)/$1\n$input/g or die 'input boundary';
-   # These bytes are dead until after their respective last input reads.
-   # The input fixture consumes no additional persistent cartridge RAM.
-   $script=~s/INPT4/physics_old_feet/g;
-   $script=~s/SWCHA/physics_top/g;
+    # Pure input substitution; no persistent RAM or physics scratch is changed.
+    $script=~s/(inline void update_physics\(void\) \{)/inline uint8_t fixture_keys(void) { $input return 0xff; }\n$1/ or die 'input boundary';
+    if($mode eq 'shoot') {
+       $script=~s/!\(INPT4 & 0x80\)/(run_frame == 10)/g;
+       $script=~s/INPT4 & 0x80/run_frame != 10/g;
+    }
+    else { $script=~s/INPT4/0x80/g; }
+    $script=~s/SWCHA/fixture_keys()/g;
    open my$f,'>',"$dir/scripted.c26" or die$!; print{$f}$script; close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$dir/scripted.c26",'-o',"$dir/scripted.bin");
    run(vcsc_stella_capture_launcher($repo,$stella),
@@ -60,7 +66,7 @@ for my$mode(qw(climb standing duck)) {
    '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
    '-dev.hsrandom','0','-dev.tiadriven','0','-video','software','-turbo','1','-audio.enabled','0',
    '-bs','F8','-exitlauncher','0','-confirmexit','0','-userdir',"$dir/user",
-   '--capture-frames',($mode eq 'climb' ? '30,60,89,95' : $mode eq 'standing' ? '4,8,12,16,100,140,250' : '100,140,250'),
+    '--capture-frames',($mode eq 'climb' ? '30,100,169,175' : $mode eq 'standing' ? '4,8,12,16,50,100,280,570' : $mode eq 'shoot' ? '20,50' : '100,280,570'),
    '--capture-dir',$dir,"$dir/scripted.bin");
 }
 my$pal=slurp("$repo/test/fixtures/stella/stella.pal");
@@ -72,9 +78,10 @@ sub color {
 my%courier_rgb=map{color($_)=>1}@courier_colors;
 my$hood_rgb=color($hood_color);
 my$playfield_rgb=color($playfield_color);
+my%monster_rgb=map{color($_)=>1}@monster_colors;
 my(%top,%lamps,%body_height,%body_bottom,%running_masks);
 for my$mode(qw(climb standing duck)) {
-for my$frame($mode eq 'climb' ? (30,60,89,95) : $mode eq 'standing' ? (4,8,12,16,100,140,250) : (100,140,250)) {
+ for my$frame($mode eq 'climb' ? (30,100,169,175) : $mode eq 'standing' ? (4,8,12,16,50,100,280,570) : (100,280,570)) {
    my($w,$h,$rgb)=decode_rgb(sprintf("$tmp/$mode/frame_%08d.png",$frame));
    $w==160 && $h>=192 && $h<=264 or die "unexpected capture geometry $w x $h\n";
    my@hood; my@body; my$lamps=0; my$mask='';
@@ -86,7 +93,7 @@ for my$frame($mode eq 'climb' ? (30,60,89,95) : $mode eq 'standing' ? (4,8,12,16
       }
       $lamps++ if $y<60 && $c eq $playfield_rgb;
    }}
-   if($mode eq 'climb' && $frame!=95) {
+    if($mode eq 'climb' && $frame!=175) {
       @hood or die "frame $frame: courier is invisible\n";
       my@ys=sort{$a<=>$b}map{$_->[1]}@hood;
       $top{$frame}=$ys[0];
@@ -96,13 +103,43 @@ for my$frame($mode eq 'climb' ? (30,60,89,95) : $mode eq 'standing' ? (4,8,12,16
    $running_masks{$mask}=1 if $mode eq 'standing' && $frame<20;
 }
 }
-$top{30}-$top{60}==32 && $top{60}-$top{89}==32
-   or die "three real platform landings are not visible: @top{30,60,89}\n";
-$body_height{'climb/95'}<=8 && $body_height{'climb/89'}>=14 or die 'crouch silhouette did not shrink';
-$body_bottom{'climb/95'}==$body_bottom{'climb/89'} or die 'crouching moved the feet through the platform';
+$top{30}-$top{100}==32 && $top{100}-$top{169}==32
+    or die "three real platform landings are not visible: @top{30,100,169}\n";
+$body_height{'climb/175'}<=8 && $body_height{'climb/169'}>=14 or die 'crouch silhouette did not shrink';
+$body_bottom{'climb/175'}==$body_bottom{'climb/169'} or die 'crouching moved the feet through the platform';
 keys(%running_masks)==4 or die 'running cycle did not show four distinct silhouettes';
-$lamps{'standing/100'}>0 && $lamps{'standing/140'}*3==$lamps{'standing/100'}*2
+$lamps{'standing/100'}>0 && $lamps{'standing/280'}*3==$lamps{'standing/100'}*2
    or die "real ground contact did not remove one life\n";
-$lamps{'standing/250'}*2==$lamps{'duck/250'} && $lamps{'duck/250'}==$lamps{'duck/140'}
-   or die "ducking did not avoid the real low ember collision\n";
+$lamps{'standing/570'}*2==$lamps{'duck/570'} && $lamps{'duck/570'}==$lamps{'duck/280'}
+    or die "ducking did not avoid the real low ember collision\n";
+# Independently measure ledge thickness, auxiliary colours, and a real M0/P1 hit.
+my($w,$h,$rgb)=decode_rgb("$tmp/standing/frame_00000004.png");
+my@runs; my$n=0;
+for my$y(60..$h-1) {
+   if(substr($rgb,($y*$w+120)*3,3) eq $playfield_rgb) { $n++; }
+   elsif($n) { push@runs,$n; $n=0; }
+}
+grep($_==8,@runs)>=2 or die "platforms did not render at half their old thickness\n";
+my$spark_pixels=0;
+for my$y(80..$body_bottom{'standing/4'}-20) { for my$x(70..130) {
+   $spark_pixels++ if $monster_rgb{substr($rgb,($y*$w+$x)*3,3)};
+}}
+$spark_pixels>0 or die "M1 collectible did not use P1's contrasting colour\n";
+($w,$h,$rgb)=decode_rgb("$tmp/shoot/frame_00000020.png");
+my$shot_pixels=0;
+for my$y($body_bottom{'standing/4'}-15..$body_bottom{'standing/4'}) { for my$x(50..110) {
+   $shot_pixels++ if $courier_rgb{substr($rgb,($y*$w+$x)*3,3)};
+}}
+$shot_pixels>0 or die "Fire did not render the M0 shot\n";
+my@left;
+for my$mode(qw(standing shoot)) {
+   ($w,$h,$rgb)=decode_rgb("$tmp/$mode/frame_00000050.png");
+   my@xs;
+   for my$y($body_bottom{'standing/4'}-30..$body_bottom{'standing/4'}) { for my$x(100..159) {
+      push@xs,$x if $monster_rgb{substr($rgb,($y*$w+$x)*3,3)};
+   }}
+   @xs or die "missing monster in $mode control\n";
+   push@left,(sort{$a<=>$b}@xs)[0];
+}
+$left[1]>$left[0]+10 or die "real M0 collision did not kill and replace the monster\n";
 print "vcs_cinder_run_stella ok\n";
