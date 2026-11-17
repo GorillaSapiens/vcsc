@@ -18,7 +18,7 @@ sub run {
 }
 run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$tmp/game.map",
    "$repo/examples/06_games/cinder_run/cinder_run.c26",'-o',"$tmp/game.bin");
--s "$tmp/game.bin"==8192 or die "expected 8K F8 ROM\n";
+-s "$tmp/game.bin"==16384 or die "expected 16K F6 ROM\n";
 # Exercise every declared mutable-playfield profile, not just this game's 181.
 for my$lines(170,181,192,228) {
    my$bytes=$lines==170 ? 40 : $lines==181 ? 44 : $lines==192 ? 48 : 60;
@@ -44,8 +44,8 @@ run("$tmp/oracle","$tmp/game.bin","$tmp/game.map") eq "cinder_run CPU ok\n" or d
 # Negative controls must fail on the behavior being tested, not build errors.
 open my$s,'<',"$repo/examples/06_games/cinder_run/cinder_run.c26" or die$!;
 my$source=do { local$/; <$s> }; close$s;
-$source=~s{\.\./\.\./_common/cinder_run_raster\.c26}{$repo/examples/_common/cinder_run_raster.c26}g;
-for my$mode(qw(no_kill thick_ceiling same_sound late_missile late_playfield)) {
+$source=~s{\.\./\.\./_common/(\w+\.c26)}{$repo/examples/_common/$1}g;
+for my$mode(qw(no_kill thick_ceiling bad_inverse)) {
    my$broken=$source;
    if($mode eq 'no_kill') {
       $broken=~s/run_kill := CXM0P & 0x80;/run_kill := 0;/ or die 'kill boundary';
@@ -53,20 +53,8 @@ for my$mode(qw(no_kill thick_ceiling same_sound late_missile late_playfield)) {
    elsif($mode eq 'thick_ceiling') {
       $broken=~s/physics_top \+= 10;/physics_top += 16;/ or die 'ceiling boundary';
    }
-   elsif($mode eq 'same_sound') {
-      $broken=~s/run_sound := 0x26;/run_sound := 0x1a;/g or die 'sound boundary';
-   }
    else {
-      open my$r,'<',"$repo/examples/_common/cinder_run_raster.c26" or die$!;
-      my$raster=do { local$/; <$r> }; close$r;
-      if($mode eq 'late_missile') {
-         $raster=~s/(asm adc #0;\n   )asm sta\.z game_workspace \+ 4;/${1}asm sta.z \$1b + TEMPLATE_object;/ or die 'enable boundary';
-      }
-      else {
-         $raster=~s/(asm \@row_end_jump:;).*?(asm \@terminal:;)/$1\n   asm jmp \@row_commit;\n   $2/s or die 'short-row boundary';
-      }
-      open my$f,'>',"$tmp/${mode}_raster.c26" or die$!; print{$f}$raster; close$f;
-      $broken=~s{\Q$repo/examples/_common/cinder_run_raster.c26\E}{$tmp/${mode}_raster.c26}g;
+      $broken=~s/asm eor #\$b4;/asm eor #\$b5;/ or die 'inverse boundary';
    }
    open my$f,'>',"$tmp/$mode.c26" or die$!; print{$f}$broken; close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$tmp/$mode.map",
@@ -79,9 +67,7 @@ for my$mode(qw(no_kill thick_ceiling same_sound late_missile late_playfield)) {
    }
    waitpid($p,0); $?!=0 or die "$mode negative control passed\n";
    open my$l,'<',"$tmp/$mode.log" or die$!; my$log=do { local$/; <$l> }; close$l;
-   my%reason=(no_kill=>'M0 kill did not remove shot',thick_ceiling=>'solid underside',
-      same_sound=>'collection chime',late_missile=>'missile enable',
-      late_playfield=>'late playfield PF2 write');
+   my%reason=(no_kill=>'M0 kill did not remove shot',thick_ceiling=>'solid underside',bad_inverse=>'LFSR forward/inverse');
    my$reason=$reason{$mode};
    index($log,$reason)>=0 or die "$mode failed for the wrong reason: $log\n";
 }

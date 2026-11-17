@@ -1,0 +1,67 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Two full-width scanlines. PF writes are fixed, independent of sprite paths.
+// Entry/exit: cycle zero; A=P0 graphics, Y=P0 colour index. No C calls inside.
+parameter offset := 0;
+require inline void TEMPLATE_pair(void) {
+   asm sta GRP0;
+   asm lda.ay game_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z game_playfield + TEMPLATE_offset;
+   asm sta PF0;
+   asm lda.z game_playfield + TEMPLATE_offset + 1;
+   asm sta PF1;
+   asm lda.z game_playfield + TEMPLATE_offset + 2;
+   asm sta PF2;
+   asm ldy.z game_player1_y;
+   asm dey;
+   asm sty.z game_player1_y;
+   asm cpy.z game_workspace + 6;
+   // Do not replace PF2 while its left-half pixels are still being fetched.
+   asm bit.z $00;
+   asm lda.z game_playfield + TEMPLATE_offset + 3;
+   asm sta PF2;
+   asm lda.z game_playfield + TEMPLATE_offset + 4;
+   asm sta PF1;
+   asm lda.z game_playfield + TEMPLATE_offset + 5;
+   asm sta PF0;
+   asm bcs.same @p1_zero;
+   asm lda.iy (game_player1_graphics),y;
+   asm jmp @p1_ready;
+   asm @p1_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z $00;
+   asm @p1_ready:;
+   asm dec.z game_ball_y;
+   // Fall through at cycle 75. GRP1 lands in the next HBlank; a WSYNC here
+   // would consume a whole extra scanline and move the reflected PF writes.
+   asm sta GRP1;
+   asm ldy.z game_ball_y;
+   asm lda.ay game_missile_enable,y;
+   asm sta.zx $1b,x;
+   asm lda.z game_playfield + TEMPLATE_offset;
+   asm sta PF0;
+   asm lda.z game_playfield + TEMPLATE_offset + 1;
+   asm sta PF1;
+   asm lda.z game_playfield + TEMPLATE_offset + 2;
+   asm sta PF2;
+   asm ldy.z game_player0_y;
+   asm dey;
+   asm sty.z game_player0_y;
+   asm cpy.z game_workspace + 5;
+   asm lda.z game_playfield + TEMPLATE_offset + 3;
+   asm sta PF2;
+   asm lda.z game_playfield + TEMPLATE_offset + 4;
+   asm sta PF1;
+   asm lda.z game_playfield + TEMPLATE_offset + 5;
+   asm sta PF0;
+   asm bcs.same @p0_zero;
+   asm lda.iy (game_player0_graphics),y;
+   asm jmp @p0_ready;
+   asm @p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z $00;
+   asm @p0_ready:;
+   asm sta WSYNC;
+}

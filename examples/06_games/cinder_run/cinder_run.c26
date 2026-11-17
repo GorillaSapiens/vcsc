@@ -1,30 +1,27 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // CINDER RUN: a lantern courier on an endless road through volcanic ruins.
-include "F8/mapper.c26"
+include "F6/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
 include "sound_ntsc.c26"
 include "fonts/default_decimal.c26"
 
+include "../../_common/cinder_run_state.c26"
 instantiate "six_glyph_component.c26" as score (mutable_color:=1)
-instantiate "../../_common/cinder_run_raster.c26" as spark (object:=3, owner:=1)
-instantiate "../../_common/cinder_run_raster.c26" as shot (object:=2)
+instantiate "../../_common/cinder_run_pair.c26" as game_upper (offset:=0)
+instantiate "../../_common/cinder_run_pair.c26" as game_middle (offset:=6)
+instantiate "../../_common/cinder_run_pair.c26" as game_lower (offset:=12)
+instantiate "../../_common/cinder_run_wide.c26" as game
 
 // The kernel reads this application-owned RAM using fixed-time absolute loads.
-uint8_t game_playfield[44];
-bank1 page const uint8_t landscape[44] := {
-   VCS_PLAYFIELD_ROW(0bX.X.X...........................),
-   VCS_PLAYFIELD_ROW(0b................................),
-   VCS_PLAYFIELD_ROW(0b................................),
-   VCS_PLAYFIELD_ROW(0bXXXXXX..................XXXXXXXX),
-   VCS_PLAYFIELD_ROW(0b................................),
-   VCS_PLAYFIELD_ROW(0b................XXXXXXXXXXXXXXXX),
-   VCS_PLAYFIELD_ROW(0b................................),
-   VCS_PLAYFIELD_ROW(0b........XXXXXXXXXXXXXX..........),
-   VCS_PLAYFIELD_ROW(0b................................),
-   VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
-   VCS_PLAYFIELD_ROW(0bXX..XX..XX..XX..XX..XX..XX..XX..)
+uint8_t game_playfield[18];
+// The first forty columns of the nonzero $ACE1 / $B400 reversible LFSR.
+// Each state spans four columns. Bytes are L:PF0/PF1/PF2, R:PF2/PF1/PF0.
+bank1 page const uint8_t landscape[18] := {
+   0xf0,0x00,0x00,0xff,0x0f,0x00,
+   0x00,0x00,0xf0,0xff,0x00,0xf0,
+   0x00,0x00,0xff,0xf0,0xf0,0x00
 };
 
 // Eight stored rows, bottom-to-top at runtime; the helper accepts top-to-bottom.
@@ -51,12 +48,15 @@ page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,
 page const uint8_t hazard_art[4] := {0,8,16,16};
 bank1 page const uint8_t hazard_lane[4] := {73,69,41,25};
 bank1 page const uint8_t spark_lane[4] := {61,45,29,13};
-bank1 page const uint8_t road_bits[16] := {0xcc,0xcc,0xcc,0xcc,0x99,0x99,0x99,0x99,0x33,0x33,0x33,0x33,0x66,0x66,0x66,0x66};
-bank1 const uint8_t road_reverse[16] := {0x33,0x33,0x33,0x33,0x99,0x99,0x99,0x99,0xcc,0xcc,0xcc,0xcc,0x66,0x66,0x66,0x66};
-// Visual columns 0..31, with the TIA's alternating PF bit orders.
-bank1 page const uint8_t column_bit[32] := {
-   0x80,0x40,0x20,0x10,8,4,2,1,1,2,4,8,0x10,0x20,0x40,0x80,
-   0x80,0x40,0x20,0x10,8,4,2,1,1,2,4,8,0x10,0x20,0x40,0x80
+// All forty four-pixel columns, including both PF0 nibbles.
+bank1 page const uint8_t column_bit[40] := {
+   0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10,8,4,2,1,
+   1,2,4,8,0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10,8,4,2,1,
+   1,2,4,8,0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10
+};
+bank1 page const uint8_t column_byte[40] := {
+   0,0,0,0, 1,1,1,1,1,1,1,1, 2,2,2,2,2,2,2,2,
+   3,3,3,3,3,3,3,3, 4,4,4,4,4,4,4,4, 5,5,5,5
 };
 
 uint8_t run_mode;
@@ -67,8 +67,16 @@ uint8_t run_up_ready;
 uint8_t run_lives;
 uint8_t run_immunity;
 uint8_t run_wave;
-uint8_t run_speed;
-uint8_t run_clock;
+uint8_t world_seed[2];
+uint8_t world_end[2];
+uint8_t world_phase;
+int8_t world_substep;
+uint8_t world_camera;
+int8_t run_facing;
+int8_t run_shot_dx;
+int8_t run_shot_dy;
+uint8_t run_shot_active;
+uint8_t world_request;
 uint8_t run_sound;
 uint8_t run_shot_x;
 uint8_t run_shot_y;
@@ -95,15 +103,16 @@ alias physics_top game_workspace[5]
 alias physics_old_x game_workspace[6]
 alias physics_probe game_workspace[7]
 
-inline void new_hazard(void) {
+bank1 void new_hazard(void) {
    run_wave++;
-   game_PLAYER1_X := 156;
+   game_PLAYER1_X := 152;
+   if (run_facing < 0) { game_PLAYER1_X := 4; }
    game_player1_y := hazard_lane[(run_wave - 1) & 3];
 }
 
 bank1 void new_run(void) {
    uint8_t i := 0;
-   while (i < 44) {
+   while (i < 18) {
       game_playfield[i] := landscape[i];
       i++;
    }
@@ -115,8 +124,14 @@ bank1 void new_run(void) {
    run_lives := 3;
    run_immunity := 0;
    run_wave := 0;
-   run_speed := 0;
-   run_clock := 0;
+   world_seed[0] := 0xe1; world_seed[1] := 0xac;
+   world_end[0] := 0xb1; world_end[1] := 0x30;
+   world_phase := 0;
+   world_substep := 0;
+   world_camera := 0;
+   world_request := 0;
+   run_facing := 1;
+   run_shot_active := 0;
    run_sound := 0;
    run_shot_x := 0;
    run_shot_y := 0;
@@ -125,7 +140,7 @@ bank1 void new_run(void) {
    run_grounded := 1;
    run_duck := 0;
    run_spark_x := 116;
-   game_PLAYER0_X := 36;
+   game_PLAYER0_X := 80;
    game_player0_y := 73;
    game_player0_height := 7;
    game_player1_height := 7;
@@ -140,69 +155,147 @@ bank1 void new_run(void) {
    AUDV1 := 0;
 }
 
-inline void scroll_landscape(void) {
-   // The three solid ledge rows scroll at the hazards' world speed. These
-   // bytes are in renderer/TIA order. One carry chain rotates all 32 pixels:
-   // left PF1 -> right PF1 -> right PF2 -> left PF2 -> left PF1.
-   // Byte RMWs avoid expanding a 32-bit shift into scarce RIOT scratch RAM.
-   if (!(run_clock & 3)) {
-      asm ldx #12;
-      asm @hill_row:;
-      asm asl.zx game_playfield,x;
-      asm ror.zx game_playfield+3,x;
-      asm rol.zx game_playfield+2,x;
-      asm ror.zx game_playfield+1,x;
+bank2 void scroll_landscape(void) {
+   if (world_request == 2) {
+      if (!world_phase) {
+         // The outgoing high bit is the old feedback bit: inverse of $B400.
+         asm lda.z world_seed+1;
+         asm asl;
+         asm bcc.same @seed_even;
+         asm lda.z world_seed+1;
+         asm eor #$b4;
+         asm sta.z world_seed+1;
+         asm @seed_even:;
+         asm rol.z world_seed;
+         asm rol.z world_seed+1;
+         asm lda.z world_end+1;
+         asm asl;
+         asm bcc.same @end_even;
+         asm lda.z world_end+1;
+         asm eor #$b4;
+         asm sta.z world_end+1;
+         asm @end_even:;
+         asm rol.z world_end;
+         asm rol.z world_end+1;
+         world_phase := 4;
+      }
+      world_phase--;
+      physics_solids := world_seed[0];
+   }
+   else { physics_solids := world_end[0]; }
+   // Carry follows visual adjacency across the TIA's alternating bit orders.
+   // PF0's unused low nibbles are explicitly cleared; no 40-bit C temporary.
+   if (world_request == 1) {
+      asm ldx #0;
+      asm @left_row:;
+      asm asl.zx game_playfield+5,x;
+      asm ror.zx game_playfield+4,x;
+      asm rol.zx game_playfield+3,x;
+      asm ror.zx game_playfield+2,x;
+      asm rol.zx game_playfield+1,x;
+      asm ror.zx game_playfield,x;
       asm lda.zx game_playfield,x;
-      asm adc #0;
+      asm and #$f0;
       asm sta.zx game_playfield,x;
-      asm inx;
-      asm inx;
-      asm inx;
-      asm inx;
-      asm inx;
-      asm inx;
-      asm inx;
-      asm inx;
-      asm cpx #36;
-      asm bne.same @hill_row;
+      asm lsr.z game_workspace + 1;
+      asm bcc.same @left_no_bit;
+      asm lda.zx game_playfield+5,x;
+      asm ora #$10;
+      asm sta.zx game_playfield+5,x;
+      asm @left_no_bit:;
+      asm txa;
+      asm clc;
+      asm adc #6;
+      asm tax;
+      asm cpx #18;
+      asm bne.same @left_row;
    }
-   // The road moves faster, in the opposite bit order on reflected lanes.
-   game_playfield[40] := road_bits[run_clock & 15];
-   game_playfield[41] := road_reverse[run_clock & 15];
-   game_playfield[42] := road_bits[run_clock & 15];
-   game_playfield[43] := road_reverse[run_clock & 15];
-   // Three small lamps at the top of the scene show remaining lives.
-   game_playfield[0] := 0;
-   if (run_lives) {
-      game_playfield[0] := 0x80;
+   else {
+      asm ldx #0;
+      asm @right_row:;
+      asm asl.zx game_playfield,x;
+      asm ror.zx game_playfield+1,x;
+      asm rol.zx game_playfield+2,x;
+      asm ror.zx game_playfield+3,x;
+      asm rol.zx game_playfield+4,x;
+      asm ror.zx game_playfield+5,x;
+      asm lda.zx game_playfield+5,x;
+      asm and #$f0;
+      asm sta.zx game_playfield+5,x;
+      asm lsr.z game_workspace + 1;
+      asm bcc.same @right_no_bit;
+      asm lda.zx game_playfield,x;
+      asm ora #$10;
+      asm sta.zx game_playfield,x;
+      asm @right_no_bit:;
+      asm txa;
+      asm clc;
+      asm adc #6;
+      asm tax;
+      asm cpx #18;
+      asm bne.same @right_row;
    }
-   if (run_lives > 1) {
-      game_playfield[0] |= 0x20;
+   if (world_request == 1) {
+      world_camera += 4;
+      world_phase++;
+      if (world_phase == 4) {
+         world_phase := 0;
+         asm lsr.z world_seed+1;
+         asm ror.z world_seed;
+         asm bcc.same @seed_forward_even;
+         asm lda.z world_seed+1;
+         asm eor #$b4;
+         asm sta.z world_seed+1;
+         asm @seed_forward_even:;
+         asm lsr.z world_end+1;
+         asm ror.z world_end;
+         asm bcc.same @end_forward_even;
+         asm lda.z world_end+1;
+         asm eor #$b4;
+         asm sta.z world_end+1;
+         asm @end_forward_even:;
+      }
+      if (game_PLAYER1_X < 5) { new_hazard(); }
+      else { game_PLAYER1_X -= 4; }
+      if (run_spark_x < 5) { run_spark_x := 156; }
+      else { run_spark_x -= 4; }
+      if (run_shot_active) {
+         if (run_shot_x < 4) { run_shot_active := 0; }
+         else { run_shot_x -= 4; }
+      }
    }
-   if (run_lives > 2) {
-      game_playfield[0] |= 0x08;
+   else {
+      world_camera -= 4;
+      if (game_PLAYER1_X > 151) { game_PLAYER1_X := 4; }
+      else { game_PLAYER1_X += 4; }
+      if (run_spark_x > 151) { run_spark_x := 4; }
+      else { run_spark_x += 4; }
+      if (run_shot_active) {
+         if (run_shot_x > 151) { run_shot_active := 0; }
+         else { run_shot_x += 4; }
+      }
    }
+   world_request := 0;
 }
 
 inline void sample_column(void) {
    physics_mask := column_bit[physics_column];
-   physics_index := physics_column >> 3;
-   physics_index += 12;
+   physics_index := column_byte[physics_column];
    if (game_playfield[physics_index] & physics_mask) { physics_solids |= 4; }
-   physics_index += 8;
+   physics_index += 6;
    if (game_playfield[physics_index] & physics_mask) { physics_solids |= 2; }
-   physics_index += 8;
+   physics_index += 6;
    if (game_playfield[physics_index] & physics_mask) { physics_solids |= 1; }
 }
 
 inline void sample_platforms(void) {
    physics_solids := 0;
    // Probe both sides of the six-pixel body against the actual displayed PF.
-   physics_column := game_PLAYER0_X - 15;
+   physics_column := game_PLAYER0_X + 1;
    physics_column >>= 2;
    physics_probe := physics_column;
    sample_column();
-   physics_column := game_PLAYER0_X - 10;
+   physics_column := game_PLAYER0_X + 6;
    physics_column >>= 2;
    if (physics_column != physics_probe) { sample_column(); }
 }
@@ -240,15 +333,29 @@ inline void collide_ledge(void) {
 
 inline void update_physics(void) {
    run_duck := 0;
-   if (!(SWCHA & 0x20) && run_grounded) { run_duck := 1; }
    physics_old_x := game_PLAYER0_X;
-   if (!(SWCHA & 0x40) && game_PLAYER0_X > 24) { game_PLAYER0_X--; }
-   if (!(SWCHA & 0x80) && game_PLAYER0_X < 100) { game_PLAYER0_X++; }
+   if (INPT4 & 0x80) {
+      if (!(SWCHA & 0x20) && run_grounded) { run_duck := 1; }
+      if (!(SWCHA & 0x40)) {
+         run_facing := -1;
+         if (game_PLAYER0_X > 64) { game_PLAYER0_X--; }
+         else { world_substep--; }
+      }
+      if (!(SWCHA & 0x80)) {
+         run_facing := 1;
+         if (game_PLAYER0_X < 96) { game_PLAYER0_X++; }
+         else { world_substep++; }
+      }
+      if (world_substep >= 4) { world_request := 1; world_substep := 0; }
+      if (world_substep <= -4) { world_request := 2; world_substep := 0; }
+   }
    probe_body();
    if (physics_probe) {
       game_PLAYER0_X := physics_old_x;
       // A scrolling wall pushes the courier instead of embedding its body.
-      if (game_PLAYER0_X > 27) { game_PLAYER0_X -= 4; }
+      if (run_facing > 0 && game_PLAYER0_X > 44) { game_PLAYER0_X -= 4; }
+      if (run_facing < 0 && game_PLAYER0_X < 108) { game_PLAYER0_X += 4; }
+      world_request := 0;
       sample_platforms();
    }
    if (run_grounded && run_feet != 73) {
@@ -261,7 +368,7 @@ inline void update_physics(void) {
       }
    }
    if (SWCHA & 0x10) { run_up_ready := 1; }
-   if (run_up_ready && !(SWCHA & 0x10)) {
+   if (run_up_ready && !(SWCHA & 0x10) && (INPT4 & 0x80)) {
       run_up_ready := 0;
       if (run_grounded && !run_duck) {
          run_grounded := 0;
@@ -322,8 +429,6 @@ bank1 void update_run(void) {
       new_run();
    }
    run_frame++;
-   // A counter of 256-frame intervals, independent of kills/hazard respawns.
-   if (!run_frame && run_mode == 1 && run_speed < 24) { run_speed++; }
    update_audio();
    if (INPT4 & 0x80) {
       run_fire_ready := 1;
@@ -336,32 +441,44 @@ bank1 void update_run(void) {
       }
    }
    else {
-      // Begin at 30 pixels/sec, then 45 after ~34 seconds and 60 after ~102.
-      // Never jump to the old 120-pixel/sec rush.
-      if (run_speed >= 24 || (run_speed >= 8 && (run_frame & 3)) || (run_speed < 8 && !(run_frame & 1))) {
-         run_clock++;
-         scroll_landscape();
-         if (game_PLAYER1_X <= 1) { new_hazard(); score_score += 10; }
-         else { game_PLAYER1_X--; }
-         if (run_spark_x <= 1) { run_spark_x := 156; run_spark_y := spark_lane[run_wave & 3]; }
-         else { run_spark_x--; }
+      if (world_request) { scroll_landscape(); }
+      if (!(run_frame & 1)) {
+         if (game_PLAYER1_X > game_PLAYER0_X) { game_PLAYER1_X--; }
+         else { game_PLAYER1_X++; }
       }
-      if (run_shot_x) {
+      if (run_shot_active) {
          if (run_kill) {
-            run_shot_x := 0;
+            run_shot_active := 0;
             score_score += 100;
             run_sound := 0x26;
             new_hazard();
          }
          else {
-            if (run_shot_x >= 152) { run_shot_x := 0; }
-            else { run_shot_x += 4; }
+            if ((run_shot_dx < 0 && run_shot_x < 4) || (run_shot_dx > 0 && run_shot_x > 151) ||
+                (run_shot_dy < 0 && run_shot_y < 5) || (run_shot_dy > 0 && run_shot_y > 78)) { run_shot_active := 0; }
+            else {
+               run_shot_x += (uint8_t) run_shot_dx;
+               run_shot_y += (uint8_t) run_shot_dy;
+            }
          }
       }
       if (run_fire_ready && !(INPT4 & 0x80)) {
          run_fire_ready := 0;
-         if (!run_shot_x) {
-            run_shot_x := game_PLAYER0_X + 8;
+         if (!run_shot_active) {
+            run_shot_active := 1;
+            run_shot_dx := 0;
+            run_shot_dy := 0;
+            if (!(SWCHA & 0x40)) { run_shot_dx := -4; run_facing := -1; }
+            if (!(SWCHA & 0x80)) { run_shot_dx := 4; run_facing := 1; }
+            if (!(SWCHA & 0x10)) { run_shot_dy := -2; }
+            if (!(SWCHA & 0x20)) { run_shot_dy := 2; }
+            if (!run_shot_dx && !run_shot_dy) {
+               run_shot_dx := 4;
+               if (run_facing < 0) { run_shot_dx := -4; }
+            }
+            run_shot_x := game_PLAYER0_X + 3;
+            if (run_shot_dx > 0) { run_shot_x := game_PLAYER0_X + 8; }
+            if (run_shot_dx < 0) { run_shot_x := game_PLAYER0_X - 4; }
             run_shot_y := run_feet - 4;
             if (run_duck) { run_shot_y := run_feet - 2; }
             run_sound := 0x24;
@@ -386,16 +503,12 @@ bank1 void update_run(void) {
       if (run_collect) {
          score_score += 50;
          run_spark_x := 156;
+         if (run_facing < 0) { run_spark_x := 4; }
+         run_spark_y := spark_lane[run_wave & 3];
          run_sound := 0x26;
       }
       if (!(run_frame & 15)) {
          score_score++;
-      }
-      // Refresh the lamps after damage, including the final game-over frame.
-      if (!run_lives) { game_playfield[0] := 0; }
-      else {
-         if (run_lives == 1) { game_playfield[0] := 0x80; }
-         if (run_lives == 2) { game_playfield[0] := 0xa0; }
       }
    }
 }
@@ -430,32 +543,29 @@ void main(void) {
       vcs_ntsc_begin_vblank();
       advance_physics();
       prepare_sprites();
-      if (run_shot_x && !(run_frame & 1)) {
+      game_lamps := 0;
+      if (run_lives) { game_lamps := 0x80; }
+      if (run_lives > 1) { game_lamps |= 0x20; }
+      if (run_lives > 2) { game_lamps |= 0x08; }
+      if (run_shot_active && !(run_frame & 1)) {
          game_BALL_X := run_shot_x;
          game_ball_y := run_shot_y;
-         shot_vblank();
+         game_aux_index := 2;
       }
       else {
          game_BALL_X := run_spark_x;
          game_ball_y := run_spark_y;
-         spark_vblank();
+         game_aux_index := 3;
       }
+      game_vblank();
       score_vblank();
       COLUBK := 0x82;
       COLUPF := 0x26;
       CTRLPF := 0x21;
-      if (run_shot_x && !(run_frame & 1)) {
-         vcs_ntsc_end_vblank();
-         score_draw();
-         vcs_ntsc_component_handoff();
-         shot_draw();
-      }
-      else {
-         vcs_ntsc_end_vblank();
-         score_draw();
-         vcs_ntsc_component_handoff();
-         spark_draw();
-      }
+      vcs_ntsc_end_vblank();
+      score_draw();
+      vcs_ntsc_component_handoff();
+      game_draw();
       vcs_ntsc_begin_overscan();
       game_overscan();
       score_overscan();
