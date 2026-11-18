@@ -75,6 +75,19 @@ Every type currently takes one Dawnspike hit.
 
 **The furnace can keep the city. You're taking its mornings back.**
 
+## Music: Borrowed Morning
+
+The lantern remembers a little of the morning bell's music, too. **Borrowed
+Morning** is an original eight-bar loop: a slow, modal procession in **3/4**,
+with a hollow, repeating voice, accented downbeats and small answering phrases.
+It aims for a heavy, swaying feel, not a transcription of an existing song.
+
+The loop lasts 1,200 frames (about twenty seconds), at roughly **72 BPM**.
+It plays during a run, stops on game over or Reset, and starts from the beginning
+on a fresh run. TIA channel 1 carries the music; channel 0 retains the distinct
+jump, collection, weapon and damage effects. The music ducks beneath those
+effects so the lantern's song doesn't hide gameplay cues.
+
 ## Play
 
 ```sh
@@ -143,7 +156,7 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
 provides 128 bytes of Superchip RAM; no emulator modifications are required.
-The build uses 60 cartridge-RAM bytes and 126 RIOT-RAM bytes, including a
+The build uses 64 cartridge-RAM bytes and 127 RIOT-RAM bytes, including a
 19-byte hardware-stack allowance.
 
 The game-owned 181-line raster draws two eight-row sprites, an M0 shot, an M1
@@ -181,6 +194,11 @@ monster motion past the player and off screen, eight distinct monster designs an
 and buffered upward aiming. Broken kills, ceilings, inverse steps, treasure flags
 and restored chasing behavior are rejected as negative controls; injected
 collisions do not prove TIA geometry.
+The endurance run also checks every music pitch, rest, attack and release over
+multiple complete loops against an independent score/tempo oracle. Separate
+checks require music to duck beneath effects, stop on game over/Reset, and
+restart at its first note. A muted-music negative control must fail audibly
+relevant channel-register assertions, not just differ in ROM bytes.
 
 `test/vcs_cinder_run_stella.pl` checks all 160 pixels of every platform scanline
 and intervening gap, every full-width road line, upper-left-only lamps, stationary

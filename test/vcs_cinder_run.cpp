@@ -122,9 +122,26 @@ class Machine {
       }
       visited[key]=terrain();
    }
+   void check_music() {
+      // Independent score and 25-frame eighth-note clock: six eighths/bar,
+      // eight bars, then an exact 1,200-frame loop. No gameplay SFX in mode 1.
+      static const uint8_t score[]={
+         0x91,0,11,14,15,17,0x93,17,14,0,15,14,
+         0x8c,14,17,11,0,15,0x8e,17,19,17,0,11,
+         0x91,15,14,11,12,14,0x8f,0,19,14,17,12,
+         0x8b,12,14,15,17,19,0x8e,15,0,19,17,17
+      };
+      if(frame<7) {if(mem[0x1a]) fail("music played before starting");return;}
+      unsigned index=((frame-7)/25)%48,age=(frame-7)%25;
+      uint8_t note=score[index];
+      unsigned volume=!note||age>=22?0:age<4?((note&0x80)?4:3):2;
+      if(mem[0x16]!=12||mem[0x18]!=(note&31)) fail("music voice/pitch sequence");
+      if(mem[0x1a]!=volume) fail("music volume envelope");
+      if(val("music_step")!=(index+1)%48||val("music_clock")!=24-age) fail("music tempo or loop length");
+   }
    void snapshot() {
       if(frame==2) initial=terrain();
-      if(mode==1) { check_world(); return; }
+      if(mode==1) { check_world(); check_music(); return; }
       if(mode==3) {
          if(frame>21) {
             if(!(mem[addr("treasure_taken")]&1)) fail("collected treasure flag was forgotten");
@@ -170,12 +187,15 @@ class Machine {
       if(frame==65 && val("run_duck")&&val("game_player0_height")==3) duck=true;
       if(frame==15&&mem[0x19]) jump_tone=mem[0x17];
       if(frame==98&&mem[0x19]) catch_tone=mem[0x17];
+      if((frame==15||frame==98)&&mem[0x1a]!=1) fail("music did not duck under sound effects");
       if(frame==103&&!val("run_shot_active")) fail("Fire did not shoot");
       if(frame==105) { if(val("run_shot_active")) fail("M0 kill did not remove shot"); killed=true; }
       if(frame==110&&val("run_shot_active")) fail("held Fire spawned another shot");
       if(frame==152&&val("run_lives")==2&&val("run_immunity")) damaged=true;
       if(frame==158&&val("run_lives")!=2) fail("immunity did not suppress repeated damage");
       if(frame==352&&(val("run_mode")!=2||val("run_lives"))) fail("game over");
+      if((frame==352||frame==512)&&mem[0x1a]) fail("music did not stop on game over/Reset");
+      if(frame==452&&(mem[0x18]!=17||mem[0x1a]!=4)) fail("music did not restart from its first note");
       if(frame==452&&val("run_mode")==1&&val("run_lives")==3) restarted=true;
       if(frame==512&&!val("run_mode")&&!val("score_score")) reset=true;
       // Swept landings at every tier and a solid four-scanline underside.

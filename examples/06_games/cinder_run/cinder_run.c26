@@ -58,6 +58,19 @@ page const uint8_t game_player0_colors[8] := {0x08,0x0c,0x9a,0x38,0x3a,0x1c,0x1e
 // Coalback, low ember, kiln moth, roof bat, ash walker, cinder wraith,
 // bellkeeper, root warden. One stable tint per creature, not a red wash.
 bank3 page const uint8_t hazard_colors[8] := {0x24,0x36,0x66,0x86,0xaa,0x0c,0x1a,0xca};
+// "Borrowed Morning": original eight-bar 3/4 ostinato, about 72 beats/min.
+// Six 25-frame eighths per bar; bit 7 accents the downbeat, zero is a rest.
+// Lead-voice NTSC tuning: C=19, D=17, E=15, F=14, G=12, A=11.
+bank3 page const uint8_t music_phrase[48] := {
+   0x91,0,11,14,15,17,
+   0x93,17,14,0,15,14,
+   0x8c,14,17,11,0,15,
+   0x8e,17,19,17,0,11,
+   0x91,15,14,11,12,14,
+   0x8f,0,19,14,17,12,
+   0x8b,12,14,15,17,19,
+   0x8e,15,0,19,17,17
+};
 
 page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,24};
 bank3 page const uint8_t hazard_lane[8] := {73,69,41,25,57,61,45,29};
@@ -77,6 +90,9 @@ cartram int8_t monster_direction;
 cartram uint8_t monster_tick;
 cartram uint8_t run_moving;
 cartram uint8_t run_aim_wait;
+cartram uint8_t music_step;
+cartram uint8_t music_clock;
+cartram uint8_t music_note;
 // All forty four-pixel columns, including both PF0 nibbles.
 bank2 page const uint8_t column_bit[40] := {
    0x10,0x20,0x40,0x80, 0x80,0x40,0x20,0x10,8,4,2,1,
@@ -90,7 +106,7 @@ bank2 page const uint8_t column_byte[40] := {
 
 cartram uint8_t run_mode;
 uint8_t run_frame;
-uint8_t run_jump;
+cartram uint8_t run_jump;
 cartram uint8_t run_fire_ready;
 cartram uint8_t run_up_ready;
 cartram uint8_t run_lives;
@@ -175,6 +191,9 @@ bank2 void new_run(void) {
    run_facing := 1;
    run_shot_active := 0;
    run_sound := 0;
+   music_step := 0;
+   music_clock := 0;
+   music_note := 0;
    run_shot_x := 0;
    run_shot_y := 0;
    run_feet := 73;
@@ -459,6 +478,32 @@ bank2 void update_audio(void) {
    }
 }
 
+bank3 void update_music(void) {
+   // Channel 0 belongs exclusively to gameplay effects. This soft, hollow
+   // channel-1 voice leaves them audible and ducks further during an effect.
+   AUDV1 := 0;
+   AUDC1 := MUSIC_CONTROL_LEAD;
+   if (run_mode == 1) {
+      if (!music_clock) {
+         music_note := music_phrase[music_step];
+         music_step++;
+         if (music_step == 48) { music_step := 0; }
+         music_clock := 25;
+      }
+      music_clock--;
+      AUDF1 := music_note & 31;
+      if (music_note) {
+         AUDV1 := 2;
+         if (music_clock > 20) {
+            AUDV1 := 3;
+            if (music_note & 0x80) { AUDV1 := 4; }
+         }
+         if (run_sound & 15) { AUDV1 := 1; }
+         if (music_clock < 3) { AUDV1 := 0; }
+      }
+   }
+}
+
 // Divide work across the two blanking deadlines: physics precedes the raster,
 // while scoring, terrain scrolling and collision responses follow it.
 bank2 void advance_physics(void) {
@@ -475,6 +520,7 @@ bank1 void update_run(void) {
    }
    run_frame++;
    update_audio();
+   update_music();
    if (INPT4 & 0x80) {
       run_fire_ready := 1;
    }
