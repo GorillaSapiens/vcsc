@@ -161,7 +161,8 @@ M1 shares that current monster tint through COLUP1. Missile enables commit in ho
 blanking, avoiding partial scanlines as a missile approaches the left edge.
 Collision probes sample the same
 packed playfield bytes that the kernel displays. The six-glyph component supplies
-the score above gameplay. TIA collision latches drive damage, kills and collection.
+the score above gameplay in the Whimsey font. TIA collision latches drive damage,
+kills and collection.
 Physics runs in VBLANK; terrain updates, treasure lookup, monster-art preparation
 and scoring run in overscan, keeping both
 blanking deadlines bounded. Beam-critical graphics stay in the startup bank.

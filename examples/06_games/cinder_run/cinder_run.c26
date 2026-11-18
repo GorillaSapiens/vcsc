@@ -5,7 +5,7 @@ include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
 include "sound_ntsc.c26"
-include "fonts/default_decimal.c26"
+include "fonts/whimsey_decimal.c26"
 
 include "../../_common/cinder_run_state.c26"
 instantiate "six_glyph_component.c26" as score (mutable_color:=1)
