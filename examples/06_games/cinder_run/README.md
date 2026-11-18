@@ -99,7 +99,8 @@ make play
 ```
 
 - **Up:** jump. Release between jumps; holding Up does not jump repeatedly.
-  Jumping makes an upward pitch sweep; catching a spark makes a high fixed chime.
+  Jumping makes an upward pitch sweep; catching a spark makes a rising two-note
+  chime in a different voice from the short square-wave gunshot and kill pulses.
 - **Left joystick fire:** start, shoot, or restart after losing all three lives.
   One shot at a time; release between shots. Hold Fire with any joystick direction
   to aim in eight directions. Neutral Fire shoots in the last facing direction.
@@ -119,8 +120,14 @@ on each platform tier and one on the road, without enemy flicker. They start
 at staggered positions and move independently. Eight animated types vary in
 silhouette, color and speed: one pixel every four frames, every two frames,
 or every frame. They keep their spawn direction, pass above or below you,
-and continue off screen rather than tracking your horizontal position. A hit
-replaces only the struck monster; the others keep their own positions and routes.
+and continue off screen rather than tracking your horizontal position. A kill
+empties only that level: the others keep their own positions and routes. The
+replacement waits a random **48–111-tick countdown** (roughly **0.8–2 seconds**,
+including the next artwork refresh), then randomly enters from the left moving
+right or from the right moving left. Entry side does not depend on player facing.
+Off-screen replacements also choose their side randomly. Enemy randomness has
+its own generator and never advances the reversible terrain generator. Scrolling
+cannot cancel a defeated monster's wait or make its cached artwork reappear early.
 The red score means game over; release fire, then press it to begin a fresh run.
 
 ## Platforms and movement
@@ -163,7 +170,7 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
 provides 128 bytes of Superchip RAM; no emulator modifications are required.
-The build uses 116 cartridge-RAM bytes and 120 RIOT-RAM bytes, including an
+The build uses 122 cartridge-RAM bytes and 120 RIOT-RAM bytes, including an
 18-byte hardware-stack allowance.
 
 The game-owned 181-line raster draws the courier and four eight-row enemies,
@@ -210,8 +217,14 @@ retain the established 264-line period. Further routes check treasure persistenc
 monster motion past the player and off screen, independent four-enemy speeds and
 directions, per-level kill attribution without disturbing the other slots,
 eight distinct designs and tints, three ordered P1 reuse strobes per frame, and
-buffered upward aiming. Broken kills, ceilings, inverse steps, treasure flags,
-reversed routes, uniform speeds, incorrect target selection and unsafe Superchip dummy reads
+buffered upward aiming. Further checks cover each level's exact randomized
+respawn countdown, both entry sides independently of facing, hidden artwork
+throughout the wait, camera movement during the wait, and countdown continuity
+across the frame-counter wrap. Sound-register assertions require the treasure
+chime's separate voice and rising second note while gunfire retains its pulse.
+Broken kills, ceilings, inverse steps, treasure flags,
+reversed routes, uniform speeds, incorrect target selection, immediate respawns,
+facing-based entry sides, resurrected caches, treasure/gunfire sound reuse and unsafe Superchip dummy reads
 are rejected as negative controls; injected
 collisions do not prove TIA geometry.
 The endurance run also checks every music pitch, rest, attack and release over
@@ -228,7 +241,8 @@ four source-derived enemy silhouettes in the same frame, and visible travel in a
 directions. A scripted right/left excursion must restore the original platform
 pixels. A real TIA treasure collection must stay absent after leaving and returning.
 Paired shooting/control captures prove real M0 hits on each of the four levels
-replace only the target, leaving the other enemies' positions and colors intact.
+leave only the target level empty during its delay, preserve the other enemies'
+positions and colors, and eventually render a replacement on the emptied level.
 P1 sweeps cover X1..128 and X121..152 on all four levels together, comparing
 reused positions to the initial P1 and requiring full eight-pixel silhouettes.
 Sweeps cover all four treasure heights, a complete X1..128 cycle, and X120..151.

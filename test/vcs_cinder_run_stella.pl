@@ -65,6 +65,7 @@ for my$mode(@modes) {
     }
     if($mode=~/^(?:kill|control)(\d)$/) {
        my$feet=25+16*$1;
+       $s=~s/(courier\[56\]\s*:=\s*)\{.*?\};/${1}{0};/s or die 'combat courier isolation';
        $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; treasure_taken[0] := 1; enemy_x[0] := 136; enemy_x[1] := 136; enemy_x[2] := 136; enemy_x[3] := 136;\n   locate_treasure();/ or die 'combat fixture startup';
        $s=~s/if \(run_mode == 1\) \{ update_physics\(\); \}/run_feet := $feet; run_grounded := 1; game_player0_y := $feet; game_player0_height := 7;/ or die 'combat fixture feet';
     }
@@ -100,7 +101,7 @@ for my$mode(@modes) {
    else {$s=~s/INPT4/0x80/g;}
    open my$f,'>',"$dir/scripted.c26" or die$!;print{$f}$s;close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$dir/scripted.c26",'-o',"$dir/scripted.bin");
-    my$frames=$mode=~/^(?:edge_|mux_)/?join(',',4..($mode=~/^(?:edge_(?:far|bad)|mux_far)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'25,50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^monster/?'4':$mode=~/^(?:kill|control)/?'14,35':$mode eq 'shoot'?'14,25,50':$mode eq 'duck'?'25':'10';
+    my$frames=$mode=~/^(?:edge_|mux_)/?join(',',4..($mode=~/^(?:edge_(?:far|bad)|mux_far)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'25,50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^monster/?'4':$mode=~/^(?:kill|control)/?'14,35,150':$mode eq 'shoot'?'14,25,50':$mode eq 'duck'?'25':'10';
    run(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,"$dir/user"),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
@@ -214,22 +215,26 @@ for my$f(4,200) {my($w,$h,$rgb)=image('treasure',$f);my$n=0;
 }
 $dots[0]==12&&$dots[1]==0 or die "real treasure collection did not persist after returning (@dots)";
 my@enemy;
-for my$m(qw(standing shoot)) {my($w,$h,$rgb)=image($m,25);my@xs;for my$y($feet-12..$feet+2) {for my$x(100..159) {push@xs,$x if$monster_rgb{substr($rgb,($y*$w+$x)*3,3)};}}@xs or die 'monster missing';push@enemy,(sort{$a<=>$b}@xs)[0];}
-$enemy[1]>$enemy[0]+5 or die 'real M0 hit did not replace the monster';
+for my$m(qw(standing shoot)) {my($w,$h,$rgb)=image($m,25);my$n=0;for my$y($feet-12..$feet+2) {for my$x(100..159) {$n++ if$monster_rgb{substr($rgb,($y*$w+$x)*3,3)};}}push@enemy,$n;}
+$enemy[0]>=8&&$enemy[1]==0 or die 'real M0 hit did not leave the monster level empty';
 for my$target(0..3) {
    my@images=map{[image("$_$target",35)]}qw(control kill);
    for my$slot(0..3) {
       my@mask;
       for my$img(@images) {
          my($w,$h,$rgb)=@$img;my@xs;my%colors;
-         for my$y($feet-15-(3-$slot)*32..$feet-(3-$slot)*32) {for my$x(96..159) {
+          for my$y($origin+31+$slot*32..$origin+46+$slot*32) {for my$x(0..159) {
             my$p=substr($rgb,($y*$w+$x)*3,3);if($monster_rgb{$p}) {push@xs,$x;$colors{unpack('H*',$p)}=1;}
          }}
-         @xs or die "combat$target: monster$slot vanished";@xs=sort{$a<=>$b}@xs;
-         push@mask,join(':',$xs[0],$xs[-1],sort keys%colors);
+          @xs=sort{$a<=>$b}@xs;
+          push@mask,@xs?join(':',$xs[0],$xs[-1],sort keys%colors):'';
       }
-      ($slot==$target?$mask[0] ne $mask[1]:$mask[0] eq $mask[1]) or die "shot at level$target affected wrong monster$slot";
-   }
+       length($mask[0]) or die "control$target: monster$slot missing";
+       ($slot==$target?!length($mask[1]):$mask[0] eq $mask[1]) or die "shot at level$target affected wrong monster$slot or respawned too soon";
+    }
+    my($w,$h,$rgb)=image("kill$target",150);my$n=0;
+    for my$y($origin+31+$target*32..$origin+46+$target*32) {for my$x(0..159) {$n++ if$monster_rgb{substr($rgb,($y*$w+$x)*3,3)};}}
+    $n>=8 or die "kill$target: delayed replacement never became visible";
 }
 for my$i(0..7) {
    my($w,$h,$rgb)=image("aim$i",18);my(@xs,@ys);

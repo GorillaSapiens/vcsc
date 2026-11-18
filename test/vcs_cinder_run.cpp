@@ -34,6 +34,11 @@ class Machine {
    std::map<std::array<uint8_t,8>,bool> monsters;
    bool treasure_returned=false,treasure_other=false;
    int jump_tone=-1,catch_tone=-1;
+   unsigned waiting_target=4,waiting_start=0,waiting_wave=0,waiting_delay=0;
+   unsigned spawn_sides=0,cooldown_completed=0;
+   uint8_t spawn_seed=0;
+   bool spawn_left=false;
+   std::map<unsigned,bool> cooldowns;
    static uint8_t rd(uint16_t a) { return active->read(a); }
    static void wr(uint16_t a,uint8_t v) { active->write(a,v); }
    static void tick(mos6502*) {}
@@ -41,6 +46,7 @@ class Machine {
    uint8_t val(const char*s) { return mem[addr(s)]; }
    void put(const char*s,uint8_t v) { mem[addr(s)]=v; }
    uint8_t keys() const {
+       if(mode==6) return frame<140?0x7f:0xbf;
        if(mode==5) return 0xff;
       if(mode==1) return frame%640<320 ? 0x7f : 0xbf;
       if(mode==3) return frame<320?0x7f:frame<640?0xbf:0xff;
@@ -72,7 +78,7 @@ class Machine {
       if(a==0x282) return mode==0&&frame==510 ? 0xfe : 0xff;
       if(a==0x3c) return fire();
       if(a==0x37) return mode==0&&((frame>=150&&frame<=155)||frame==250||frame==350) ? 0x80 : 0;
-       if(a==0x30) return (mode==0&&frame==104)||(mode==5&&frame>=20&&frame<=80&&frame%20==0) ? 0x80 : 0;
+       if(a==0x30) return (mode==0&&frame==104)||(mode==5&&frame>=20&&frame<=500&&(frame-20)%160==0) ? 0x80 : 0;
       if(a==0x31) return (mode==0&&frame==95)||(mode==3&&(frame==20||frame==100||frame==600)) ? 0x80 : 0;
       if(a==0x284||a==0x285) {
          auto t=timer?(clock-timer_start)/divisor:0;
@@ -151,7 +157,7 @@ class Machine {
             if(val("treasure_id")==1&&val("treasure_visible")) treasure_other=true;
             if(frame>550&&!val("treasure_id")&&!val("treasure_visible")) treasure_returned=true;
          }
-         if((frame==102||frame==602)&&val("run_sound")==0x25) fail("repeated treasure paid again");
+          if((frame==102||frame==602)&&val("run_sound")==0x8b) fail("repeated treasure paid again");
          return;
       }
       if(mode==4) {
@@ -178,25 +184,72 @@ class Machine {
           return;
       }
       if(mode==5) {
-         if(frame>=19&&frame<=79&&(frame-19)%20==0) {
-            unsigned target=(frame-19)/20;
+          if(frame>=19&&frame<=499&&(frame-19)%160==0) {
+             unsigned target=(frame-19)/160;
+             static const uint8_t seeds[]={0xa7,0x5b,0x86,0x35};
+             auto random_next=[](uint8_t s) {return static_cast<uint8_t>((s>>1)^((s&1)?0xb8:0));};
+             auto delay_seed=random_next(seeds[target]);
+             waiting_target=target;waiting_start=frame+1;waiting_wave=val("run_wave");
+             waiting_delay=48+(delay_seed&63);spawn_seed=random_next(delay_seed);spawn_left=delay_seed&1;
+             cooldowns[waiting_delay]=true;
+             for(unsigned i=0;i<4;++i) {
+                mem[addr("enemy_x")+i]=110;
+                mem[addr("enemy_kind")+i]=i*2;
+                mem[addr("enemy_direction")+i]=255;
+                mem[addr("enemy_delay")+i]=0;
+             }
+             put("enemy_random",seeds[target]);put("run_facing",target&1?255:1);
+             put("run_shot_active",1);put("run_shot_y",21+target*16);
+             put("run_shot_dx",0);put("run_shot_dy",0);
+          }
+          if(frame>=21&&frame<=501&&(frame-21)%160==0) {
+             unsigned target=(frame-21)/160;
+             static const uint8_t untouched_x[]={109,110,108,110};
+             if(val("run_shot_active")||val("run_wave")!=waiting_wave) fail("targeted shot did not enter respawn delay");
+             for(unsigned i=0;i<4;++i) {
+                if((mem[addr("enemy_delay")+i]!=0)!=(i==target)) fail("shot reset wrong enemy slot");
+                if(i!=target&&mem[addr("enemy_x")+i]!=untouched_x[i]) fail("shot disturbed another enemy's position");
+             }
+          }
+          if(waiting_target<4&&frame>static_cast<int>(waiting_start)) {
+             unsigned target=waiting_target;
+             auto delay=mem[addr("enemy_delay")+target];
+             unsigned elapsed=frame-waiting_start-(target>=2?1:0);
+             if(elapsed<waiting_delay) {
+                if(delay!=waiting_delay-elapsed) {
+                   std::fprintf(stderr,"target%u frame%d delay%u expected%u rng%u\n",target,frame,delay,waiting_delay-elapsed,val("enemy_random"));
+                   fail("random respawn delay countdown");
+                }
+                for(unsigned i=0;i<8;++i) if(mem[addr("monster_pixels")+target*8+i]) fail("defeated monster reappeared during delay");
+             }
+             else {
+                if(delay||elapsed!=waiting_delay) fail("respawn did not happen at delay expiry");
+                unsigned x=spawn_left?4:152,direction=spawn_left?1:255;
+                if(mem[addr("enemy_x")+target]!=x||mem[addr("enemy_direction")+target]!=direction)
+                   fail("random spawn side depends on facing or wrong RNG");
+                if(val("run_wave")!=static_cast<uint8_t>(waiting_wave+1)||val("enemy_random")!=spawn_seed)
+                   fail("replacement spawned more than once or consumed wrong RNG");
+                spawn_sides|=spawn_left?1:2;cooldown_completed++;waiting_target=4;
+             }
+          }
+          return;
+      }
+      if(mode==6) {
+         int delta=static_cast<int8_t>(val("world_camera")-camera);
+         if(delta>0) forward=true;
+         if(delta<0) backward=true;
+         camera=val("world_camera");
+         if(frame==10) {
             for(unsigned i=0;i<4;++i) {
-               mem[addr("enemy_x")+i]=110;
-               mem[addr("enemy_kind")+i]=i*2;
-               mem[addr("enemy_direction")+i]=255;
+               mem[addr("enemy_delay")+i]=200;mem[addr("enemy_x")+i]=2;
             }
-            put("run_shot_active",1);put("run_shot_y",21+target*16);
-            put("run_shot_dx",0);put("run_shot_dy",0);
+            for(unsigned i=0;i<32;++i) mem[addr("monster_pixels")+i]=0;
          }
-         if(frame>=21&&frame<=81&&(frame-21)%20==0) {
-            unsigned target=(frame-21)/20;
-            static const uint8_t untouched_x[]={109,110,108,110};
-            if(val("run_shot_active")||val("run_wave")!=5+target) fail("targeted shot did not remove exactly one enemy");
-            for(unsigned i=0;i<4;++i) {
-               unsigned kind=i==target?4+target:i*2;
-               if(mem[addr("enemy_kind")+i]!=kind) fail("shot reset wrong enemy slot");
-               if(i!=target&&mem[addr("enemy_x")+i]!=untouched_x[i]) fail("shot disturbed another enemy's position");
-            }
+         if(frame==140) for(unsigned i=0;i<4;++i) mem[addr("enemy_x")+i]=151;
+         if(frame>10) {
+            if(val("run_wave")!=4||val("enemy_random")!=0xa7) fail("camera respawned waiting enemy");
+            for(unsigned i=0;i<4;++i) if(mem[addr("enemy_delay")+i]!=210-frame) fail("camera altered respawn countdown");
+            for(unsigned i=0;i<32;++i) if(mem[addr("monster_pixels")+i]) fail("camera revealed waiting enemy");
          }
          return;
       }
@@ -220,7 +273,10 @@ class Machine {
       if(frame==55 && !val("run_grounded")) fail("held Up jumped again");
       if(frame==65 && val("run_duck")&&val("game_player0_height")==3) duck=true;
       if(frame==15&&mem[0x19]) jump_tone=mem[0x17];
-      if(frame==98&&mem[0x19]) catch_tone=mem[0x17];
+       if(frame==98&&mem[0x19]) catch_tone=mem[0x17];
+       if(frame==98&&(mem[0x15]!=12||mem[0x17]!=11||mem[0x19]!=4)) fail("treasure did not use its own chime voice");
+       if(frame==103&&(mem[0x15]!=12||mem[0x17]!=8)) fail("treasure chime did not rise to its second note");
+       if(frame==104&&(mem[0x15]!=4||mem[0x17]!=3)) fail("gunfire lost its distinct square pulse");
       if((frame==15||frame==98)&&mem[0x1a]!=1) fail("music did not duck under sound effects");
       if(frame==103&&!val("run_shot_active")) fail("Fire did not shoot");
       if(frame==105) { if(val("run_shot_active")) fail("M0 kill did not remove shot"); killed=true; }
@@ -257,7 +313,7 @@ public:
       cpu.Reset();cpu.SetPC(read(0xfffc)|(read(0xfffd)<<8));
    }
    void run() {
-       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5?90:530;
+       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5?650:mode==6?200:530;
        for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
           // The lightweight CPU omits bus dummy reads. Reject indexed ROM
           // reads whose speculative address would hit Superchip's write port;
@@ -309,7 +365,9 @@ public:
       if(mode==1) {if(!forward||!backward||!returned) fail("reversible world traversal coverage");}
       else if(mode==2) {if(aim_mask!=255) fail("aim coverage");}
       else if(mode==3) {if(!treasure_other||!treasure_returned) fail("treasure departure/return coverage");}
-      else if(mode==4) {if(monsters.size()!=8) fail("eight distinct monster designs");}
+       else if(mode==4) {if(monsters.size()!=8) fail("eight distinct monster designs");}
+       else if(mode==5) {if(cooldown_completed!=4||spawn_sides!=3||cooldowns.size()<3) fail("random delay/side coverage");}
+       else if(mode==6) {if(!forward||!backward) fail("waiting enemy camera traversal coverage");}
        else if(mode==0&&(!jump||!duck||!killed||!damaged||!restarted||!reset||!m0||!m1||jump_tone<0||catch_tone<0||jump_tone==catch_tone)) fail("gameplay/audio coverage");
    }
 };
@@ -318,8 +376,8 @@ Machine*Machine::active=nullptr;
 int main(int argc,char**argv) {
    if(argc!=3&&argc!=4) return 2;
    unsigned first=argc==4?static_cast<unsigned>(std::strtoul(argv[3],nullptr,10)):0;
-   if(first>=6) return 2;
-   unsigned last=argc==4?first+1:6;
+   if(first>=7) return 2;
+   unsigned last=argc==4?first+1:7;
    for(unsigned i=first;i<last;++i) {Machine m(argv[1],argv[2],i);m.run();}
    std::puts("cinder_run CPU ok");
 }

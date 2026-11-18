@@ -94,6 +94,9 @@ cartram uint8_t enemy_color[4];
 cartram uint8_t enemy_index;
 cartram uint8_t enemy_limit;
 cartram uint8_t enemy_art_cursor;
+cartram uint8_t enemy_delay[4];
+cartram uint8_t enemy_random;
+cartram uint8_t enemy_running;
 // Cycle-74 P1 repositioning: coarse delay in low nibble, left-only fine
 // motion in high nibble. The balance loop makes every X consume eight lines.
 bank3 page const uint8_t enemy_position_table[160] := {
@@ -170,12 +173,51 @@ alias physics_top game_workspace[5]
 alias physics_old_x game_workspace[6]
 alias physics_probe game_workspace[7]
 
+// Separate from the terrain generator: spawns must not change revisited ledges.
+bank3 void next_enemy_random(void) {
+   asm lda.a enemy_random;
+   asm lsr;
+   asm bcc.same @random_even;
+   asm eor #$b8;
+   asm @random_even:;
+   asm sta.a enemy_random;
+}
+
+bank3 void retire_hazard(void) {
+   asm .callstackextra 4;
+   asm jsr next_enemy_random;
+   asm and #63;
+   asm clc;
+   asm adc #48;
+   asm ldx.a enemy_index;
+   asm sta.ax enemy_delay,x;
+   // Clear the cached artwork now, rather than waiting for its refresh slot.
+   asm txa;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm tax;
+   asm ldy #8;
+   asm lda #0;
+   asm @retire_pixels:;
+   asm sta.ax monster_pixels,x;
+   asm inx;
+   asm dey;
+   asm bne.same @retire_pixels;
+}
+
 bank3 void new_hazard(void) {
+   asm .callstackextra 4;
+   asm lda.a enemy_random;
+   asm lsr;
+   asm bcc.same @spawn_random_even;
+   asm eor #$b8;
+   asm @spawn_random_even:;
+   asm sta.a enemy_random;
    asm ldx.a enemy_index;
    asm lda #152;
    asm ldy #$ff;
-   asm bit.a run_facing;
-   asm bpl.same @spawn;
+   asm bcc.same @spawn;
    asm lda #4;
    asm ldy #1;
    asm @spawn:;
@@ -211,6 +253,8 @@ bank2 void new_run(void) {
    monster_tick := 0;
    run_aim_wait := 0;
    enemy_art_cursor := 0;
+   enemy_random := 0xa7;
+   enemy_running := 0;
    run_mode := 0;
    run_frame := 0;
    run_jump := 0;
@@ -250,6 +294,8 @@ bank2 void new_run(void) {
    run_wave := 4;
    asm ldx #3;
    asm @reset_enemies:;
+   asm lda #0;
+   asm sta.ax enemy_delay,x;
    asm txa;
    asm asl;
    asm sta.ax enemy_kind,x;
@@ -511,7 +557,8 @@ inline void update_physics(void) {
 bank2 void update_audio(void) {
    AUDV0 := 0;
    // High nibble selects the effect, low nibble is its remaining duration.
-   // Jump sweeps upward; collecting a spark is a short, high fixed chime.
+   // Jump sweeps upward. Gunfire/kill use square pulses; treasure alone
+   // gets a longer two-note rising chime in the distinct lead voice.
    if (run_sound & 15) {
       run_sound--;
       AUDV0 := 5;
@@ -523,6 +570,12 @@ bank2 void update_audio(void) {
       if (run_sound & 0x40) {
          AUDC0 := MUSIC_CONTROL_NOISE;
          AUDF0 := 18;
+      }
+      if (run_sound & 0x80) {
+         AUDC0 := MUSIC_CONTROL_LEAD;
+         AUDF0 := 11;
+         if ((run_sound & 15) < 6) { AUDF0 := 8; }
+         AUDV0 := 4;
       }
    }
 }
@@ -592,7 +645,7 @@ bank1 void update_run(void) {
              if (run_shot_y > 29) { enemy_index := 1; }
              if (run_shot_y > 45) { enemy_index := 2; }
              if (run_shot_y > 61) { enemy_index := 3; }
-             new_hazard();
+              retire_hazard();
          }
          else {
             if ((run_shot_dx < 0 && run_shot_x < 4) || (run_shot_dx > 0 && run_shot_x > 151) ||
@@ -661,8 +714,8 @@ bank1 void update_run(void) {
           asm ora.ax treasure_taken,x;
           asm sta.ax treasure_taken,x;
          treasure_visible := 0;
-         score_score += 50;
-         run_sound := 0x26;
+          score_score += 50;
+          run_sound := 0x8c;
       }
       if (!(run_frame & 15)) {
          score_score++;
@@ -696,6 +749,10 @@ bank2 void locate_treasure(void) {
 
 bank3 void prepare_monster(void) {
    asm ldx.a enemy_index;
+   asm lda.ax enemy_delay,x;
+   asm beq.same @active_art;
+   asm rts;
+   asm @active_art:;
    asm lda.ax enemy_kind,x;
    asm tax;
    asm lda.ax hazard_colors,x;
@@ -752,6 +809,15 @@ bank3 void advance_monsters(void) {
    asm .callstackextra 4;
    asm @move_slot:;
    asm ldx.a enemy_index;
+   asm lda.ax enemy_delay,x;
+   asm beq.same @move_active;
+   asm sec;
+   asm sbc #1;
+   asm sta.ax enemy_delay,x;
+   asm bne @next_slot;
+   asm jsr new_hazard;
+   asm jmp @next_slot;
+   asm @move_active:;
    asm lda.ax enemy_kind,x;
    asm tay;
    asm lda.ay hazard_tick_mask,y;
@@ -800,6 +866,8 @@ bank3 void scroll_monsters(void) {
    asm sta.ax enemy_x,x;
    asm jmp @camera_left_next;
    asm @camera_left_spawn:;
+   asm lda.ax enemy_delay,x;
+   asm bne.same @camera_left_next;
    asm txa;
    asm sta.a enemy_index;
    asm jsr new_hazard;
@@ -816,6 +884,8 @@ bank3 void scroll_monsters(void) {
    asm sta.ax enemy_x,x;
    asm jmp @camera_right_next;
    asm @camera_right_spawn:;
+   asm lda.ax enemy_delay,x;
+   asm bne.same @camera_right_next;
    asm txa;
    asm sta.a enemy_index;
    asm jsr new_hazard;
@@ -841,7 +911,7 @@ bank0 void prepare_sprites(void) {
 
 bank1 void prepare_frame(void) {
    advance_physics();
-   if (run_mode == 1 && run_frame > 1) {
+   if (run_mode == 1 && enemy_running) {
       enemy_index := 2; enemy_limit := 4; advance_monsters();
    }
    prepare_enemies();
@@ -869,8 +939,10 @@ bank1 void prepare_frame(void) {
 
 bank1 void finish_frame(void) {
    update_run();
+   // Startup grace applies once, not again whenever the 8-bit frame wraps.
+   if (!enemy_running && run_mode == 1 && run_frame > 1) { enemy_running := 1; }
    if (world_request) { scroll_monsters(); }
-   if (run_mode == 1 && run_frame > 1) {
+   if (run_mode == 1 && enemy_running) {
       enemy_index := 0; enemy_limit := 2; advance_monsters();
    }
    locate_treasure();
