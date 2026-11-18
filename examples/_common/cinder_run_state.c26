@@ -11,8 +11,8 @@ uint8_t game_ball_y;
 uint8_t *game_player0_graphics;
 const uint8_t *game_player1_graphics;
 uint8_t game_player0_height;
-uint8_t game_player1_height;
-uint8_t game_ball_height;
+cartram uint8_t game_player1_height;
+cartram uint8_t game_ball_height;
 uint8_t game_workspace[8];
 uint8_t game_fill;
 uint8_t game_lamps;
@@ -21,6 +21,7 @@ uint8_t game_color_index;
 uint8_t game_dot_width;
 uint8_t game_gap_pairs;
 uint8_t game_dot_skip;
+cartram uint8_t game_band;
 // Motion's low bit selects HMOVE (0) or HMCLR (1), cached in workspace[0].
 // The upper nibble is the normal HMM1 value; inactive rows never strobe HMOVE.
 page const uint8_t game_dot_motion[256] := {

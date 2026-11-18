@@ -74,9 +74,9 @@ bank3 page const uint8_t music_phrase[48] := {
 };
 
 page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,24};
-bank3 page const uint8_t hazard_lane[8] := {73,69,41,25,57,61,45,29};
-bank1 page const uint8_t hazard_speed[8] := {1,1,0,1,2,1,0,2};
+bank3 page const uint8_t hazard_tick_mask[8] := {1,1,3,1,0,1,3,0};
 bank2 page const uint8_t spark_lane[4] := {65,49,33,17};
+bank2 const uint8_t spark_bit[8] := {1,2,4,8,16,32,64,128};
 bank1 page const uint8_t treasure_bit[8] := {1,2,4,8,16,32,64,128};
 // One fixed treasure per 256-pixel sector, with an exact persistent bit per ID.
 // 256 treasure IDs repeat after 65536 pixels; a taken ID stays taken until
@@ -85,9 +85,31 @@ cartram uint8_t treasure_taken[32];
 cartram uint8_t world_sector;
 cartram uint8_t treasure_id;
 cartram uint8_t treasure_visible;
-cartram uint8_t monster_pixels[8];
+cartram uint8_t monster_pixels[32];
+cartram uint8_t enemy_x[4];
+cartram int8_t enemy_direction[4];
+cartram uint8_t enemy_kind[4];
+cartram uint8_t enemy_position[4];
+cartram uint8_t enemy_color[4];
+cartram uint8_t enemy_index;
+cartram uint8_t enemy_limit;
+cartram uint8_t enemy_art_cursor;
+// Cycle-74 P1 repositioning: coarse delay in low nibble, left-only fine
+// motion in high nibble. The balance loop makes every X consume eight lines.
+bank3 page const uint8_t enemy_position_table[160] := {
+   0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,
+   0x72,0x62,0x52,0x42,0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,
+   0x73,0x63,0x53,0x43,0x33,0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,
+   0x74,0x64,0x54,0x44,0x34,0x24,0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,
+   0x75,0x65,0x55,0x45,0x35,0x25,0x15,0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,
+   0x76,0x66,0x56,0x46,0x36,0x26,0x16,0x06,0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,
+   0x77,0x67,0x57,0x47,0x37,0x27,0x17,0x07,0xf7,0xe7,0xd7,0xc7,0xb7,0xa7,0x97,
+   0x78,0x68,0x58,0x48,0x38,0x28,0x18,0x08,0xf8,0xe8,0xd8,0xc8,0xb8,0xa8,0x98,
+   0x79,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,0xe9,0xd9,0xc9,0xb9,0xa9,0x99,
+   0x7a,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea,0xda,0xca,0xba,0xaa,0x9a,
+   0x7b,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb,0xab,0x9b
+};
 cartram uint8_t game_monster_color;
-cartram int8_t monster_direction;
 cartram uint8_t monster_tick;
 cartram uint8_t run_moving;
 cartram uint8_t run_aim_wait;
@@ -106,7 +128,7 @@ bank2 page const uint8_t column_byte[40] := {
 };
 
 cartram uint8_t run_mode;
-uint8_t run_frame;
+cartram uint8_t run_frame;
 cartram uint8_t run_jump;
 cartram uint8_t run_fire_ready;
 cartram uint8_t run_up_ready;
@@ -116,9 +138,9 @@ cartram uint8_t run_wave;
 uint8_t world_seed[2];
 uint8_t world_end[2];
 uint8_t world_phase;
-int8_t world_substep;
+cartram int8_t world_substep;
 uint8_t world_camera;
-int8_t run_facing;
+cartram int8_t run_facing;
 cartram int8_t run_shot_dx;
 cartram int8_t run_shot_dy;
 cartram uint8_t run_shot_active;
@@ -149,12 +171,24 @@ alias physics_old_x game_workspace[6]
 alias physics_probe game_workspace[7]
 
 bank3 void new_hazard(void) {
-   run_wave++;
-   game_PLAYER1_X := 152;
-   monster_direction := -1;
-   monster_tick := 0;
-   if (run_facing < 0) { game_PLAYER1_X := 4; monster_direction := 1; }
-   game_player1_y := hazard_lane[(run_wave - 1) & 7];
+   asm ldx.a enemy_index;
+   asm lda #152;
+   asm ldy #$ff;
+   asm bit.a run_facing;
+   asm bpl.same @spawn;
+   asm lda #4;
+   asm ldy #1;
+   asm @spawn:;
+   asm sta.ax enemy_x,x;
+   asm tya;
+   asm sta.ax enemy_direction,x;
+   asm lda.a run_wave;
+   asm and #7;
+   asm sta.ax enemy_kind,x;
+   asm lda.a run_wave;
+   asm clc;
+   asm adc #1;
+   asm sta.a run_wave;
 }
 
 bank2 void new_run(void) {
@@ -174,7 +208,9 @@ bank2 void new_run(void) {
    treasure_visible := 1;
    treasure_id := 0;
    run_moving := 0;
+   monster_tick := 0;
    run_aim_wait := 0;
+   enemy_art_cursor := 0;
    run_mode := 0;
    run_frame := 0;
    run_jump := 0;
@@ -182,7 +218,6 @@ bank2 void new_run(void) {
    run_up_ready := 0;
    run_lives := 3;
    run_immunity := 0;
-   run_wave := 0;
    world_seed[0] := 0xe1; world_seed[1] := 0xac;
    world_end[0] := 0xb1; world_end[1] := 0x30;
    world_phase := 0;
@@ -212,7 +247,25 @@ bank2 void new_run(void) {
           game_BALL_X := run_spark_x + 1;
    score_score := 0;
    score_color := 0x1e;
-   new_hazard();
+   run_wave := 4;
+   asm ldx #3;
+   asm @reset_enemies:;
+   asm txa;
+   asm asl;
+   asm sta.ax enemy_kind,x;
+   asm txa;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #40;
+   asm sta.ax enemy_x,x;
+   asm lda #$ff;
+   asm sta.ax enemy_direction,x;
+   asm dex;
+   asm bpl.same @reset_enemies;
    AUDV0 := 0;
    AUDV1 := 0;
 }
@@ -318,8 +371,6 @@ bank2 void scroll_landscape(void) {
          asm sta.z world_end+1;
          asm @end_forward_even:;
       }
-      if (game_PLAYER1_X < 5) { new_hazard(); }
-      else { game_PLAYER1_X -= 4; }
       if (run_shot_active) {
          if (run_shot_x < 4) { run_shot_active := 0; }
          else { run_shot_x -= 4; }
@@ -328,14 +379,11 @@ bank2 void scroll_landscape(void) {
    else {
       if (!world_camera) { world_sector--; }
       world_camera -= 4;
-      if (game_PLAYER1_X > 151) { new_hazard(); }
-      else { game_PLAYER1_X += 4; }
       if (run_shot_active) {
          if (run_shot_x > 151) { run_shot_active := 0; }
          else { run_shot_x += 4; }
       }
    }
-   world_request := 0;
 }
 
 inline void sample_column(void) {
@@ -535,22 +583,16 @@ bank1 void update_run(void) {
    else {
       if (world_request) { scroll_landscape(); }
        monster_tick++;
-       if (!(run_frame & 1) || hazard_speed[(run_wave - 1) & 7] == 2) {
-          if (monster_direction < 0) {
-             if (game_PLAYER1_X < 2) { new_hazard(); }
-             else { game_PLAYER1_X--; }
-          }
-          else {
-             if (game_PLAYER1_X > 151) { new_hazard(); }
-             else { game_PLAYER1_X++; }
-          }
-      }
       if (run_shot_active) {
          if (run_kill) {
             run_shot_active := 0;
             score_score += 100;
             run_sound := 0x26;
-            new_hazard();
+             enemy_index := 0;
+             if (run_shot_y > 29) { enemy_index := 1; }
+             if (run_shot_y > 45) { enemy_index := 2; }
+             if (run_shot_y > 61) { enemy_index := 3; }
+             new_hazard();
          }
          else {
             if ((run_shot_dx < 0 && run_shot_x < 4) || (run_shot_dx > 0 && run_shot_x > 151) ||
@@ -599,7 +641,6 @@ bank1 void update_run(void) {
             run_lives--;
             run_immunity := 90;
             run_sound := 0x4e;
-            new_hazard();
             if (!run_lives) {
                run_mode := 2;
                score_color := 0x46;
@@ -608,7 +649,17 @@ bank1 void update_run(void) {
          }
       }
       if (run_collect && treasure_visible) {
-         treasure_taken[treasure_id >> 3] |= treasure_bit[treasure_id & 7];
+          asm lda.a treasure_id;
+          asm lsr;
+          asm lsr;
+          asm lsr;
+          asm tax;
+          asm lda.a treasure_id;
+          asm and #7;
+          asm tay;
+          asm lda.ay treasure_bit,y;
+          asm ora.ax treasure_taken,x;
+          asm sta.ax treasure_taken,x;
          treasure_visible := 0;
          score_score += 50;
          run_sound := 0x26;
@@ -624,23 +675,32 @@ bank2 void locate_treasure(void) {
    run_spark_x := 128 - world_camera;
    if (world_camera > 128) { treasure_id++; }
    treasure_visible := 0;
-   physics_mask := 1;
-   physics_index := treasure_id & 7;
-   while (physics_index) { physics_mask <<= 1; physics_index--; }
-   if (run_spark_x < 156 && !(treasure_taken[treasure_id >> 3] & physics_mask)) {
-      treasure_visible := 1;
+   asm lda.a treasure_id;
+   asm and #7;
+   asm tay;
+   asm lda.ay spark_bit,y;
+   asm sta.z game_workspace;
+   asm lda.a treasure_id;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay treasure_taken,y;
+   asm and.z game_workspace;
+   asm sta.z game_workspace + 4;
+   if (run_spark_x < 156 && !physics_mask) {
+       treasure_visible := 1;
    }
    run_spark_y := spark_lane[treasure_id & 3];
 }
 
 bank3 void prepare_monster(void) {
-   asm lda.a run_wave;
-   asm sec;
-   asm sbc #1;
-   asm and #7;
+   asm ldx.a enemy_index;
+   asm lda.ax enemy_kind,x;
    asm tax;
    asm lda.ax hazard_colors,x;
-   asm sta.a game_monster_color;
+   asm ldy.a enemy_index;
+   asm sta.ay enemy_color,y;
    asm txa;
    asm asl;
    asm asl;
@@ -651,14 +711,118 @@ bank3 void prepare_monster(void) {
    asm and #8;
    asm ora.z game_workspace;
    asm tax;
-   asm ldy #0;
-   asm @copy:;
+   asm lda.a enemy_index;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm tay;
    asm lda.ax hazards,x;
    asm sta.ay monster_pixels,y;
-   asm inx;
-   asm iny;
-   asm cpy #8;
-   asm bne.same @copy;
+   asm lda.ax hazards + 1,x;
+   asm sta.ay monster_pixels + 1,y;
+   asm lda.ax hazards + 2,x;
+   asm sta.ay monster_pixels + 2,y;
+   asm lda.ax hazards + 3,x;
+   asm sta.ay monster_pixels + 3,y;
+   asm lda.ax hazards + 4,x;
+   asm sta.ay monster_pixels + 4,y;
+   asm lda.ax hazards + 5,x;
+   asm sta.ay monster_pixels + 5,y;
+   asm lda.ax hazards + 6,x;
+   asm sta.ay monster_pixels + 6,y;
+   asm lda.ax hazards + 7,x;
+   asm sta.ay monster_pixels + 7,y;
+}
+
+bank3 void prepare_enemies(void) {
+   asm ldx #3;
+   asm @position:;
+   asm lda.ax enemy_x,x;
+   asm tay;
+   asm lda.ay enemy_position_table,y;
+   asm sta.ax enemy_position,x;
+   asm dex;
+   asm bpl.same @position;
+   game_PLAYER1_X := enemy_x[0];
+   game_player1_y := 25;
+   game_monster_color := enemy_color[0];
+}
+
+bank3 void advance_monsters(void) {
+   asm .callstackextra 4;
+   asm @move_slot:;
+   asm ldx.a enemy_index;
+   asm lda.ax enemy_kind,x;
+   asm tay;
+   asm lda.ay hazard_tick_mask,y;
+   asm and.a run_frame;
+   asm bne.same @next_slot;
+   asm lda.ax enemy_direction,x;
+   asm bpl.same @right;
+   asm lda.ax enemy_x,x;
+   asm cmp #2;
+   asm bcc.same @respawn;
+   asm sec;
+   asm sbc #1;
+   asm jmp @store_x;
+   asm @right:;
+   asm lda.ax enemy_x,x;
+   asm cmp #152;
+   asm bcs.same @respawn;
+   asm clc;
+   asm adc #1;
+   asm @store_x:;
+   asm sta.ax enemy_x,x;
+   asm jmp @next_slot;
+   asm @respawn:;
+   asm jsr new_hazard;
+   asm @next_slot:;
+   asm lda.a enemy_index;
+   asm clc;
+   asm adc #1;
+   asm sta.a enemy_index;
+   asm cmp.a enemy_limit;
+   asm bne.same @move_slot;
+}
+
+bank3 void scroll_monsters(void) {
+   asm .callstackextra 4;
+   asm ldx #3;
+   asm lda.z world_request;
+   asm cmp #2;
+   asm beq.same @camera_right;
+   asm @camera_left:;
+   asm lda.ax enemy_x,x;
+   asm cmp #5;
+   asm bcc.same @camera_left_spawn;
+   asm sec;
+   asm sbc #4;
+   asm sta.ax enemy_x,x;
+   asm jmp @camera_left_next;
+   asm @camera_left_spawn:;
+   asm txa;
+   asm sta.a enemy_index;
+   asm jsr new_hazard;
+   asm @camera_left_next:;
+   asm dex;
+   asm bpl.same @camera_left;
+   asm jmp @camera_done;
+   asm @camera_right:;
+   asm lda.ax enemy_x,x;
+   asm cmp #149;
+   asm bcs.same @camera_right_spawn;
+   asm clc;
+   asm adc #4;
+   asm sta.ax enemy_x,x;
+   asm jmp @camera_right_next;
+   asm @camera_right_spawn:;
+   asm txa;
+   asm sta.a enemy_index;
+   asm jsr new_hazard;
+   asm @camera_right_next:;
+   asm dex;
+   asm bpl.same @camera_right;
+   asm @camera_done:;
 }
 
 // Prepare graphics before the renderer's VBLANK countdown setup.
@@ -675,40 +839,64 @@ bank0 void prepare_sprites(void) {
    }
 }
 
-void main(void) {
+bank1 void prepare_frame(void) {
+   advance_physics();
+   if (run_mode == 1 && run_frame > 1) {
+      enemy_index := 2; enemy_limit := 4; advance_monsters();
+   }
+   prepare_enemies();
+   prepare_sprites();
+   game_lamps := 0;
+   if (run_lives) { game_lamps := 0x80; }
+   if (run_lives > 1) { game_lamps |= 0x20; }
+   if (run_lives > 2) { game_lamps |= 0x08; }
+   if (run_shot_active && !(run_frame & 1)) {
+      game_BALL_X := run_shot_x;
+      game_ball_y := run_shot_y;
+      game_aux_index := 2;
+   }
+   else {
+      game_BALL_X := run_spark_x;
+      game_ball_y := run_spark_y;
+      if (!treasure_visible || run_spark_x < 8) { game_ball_y := 255; }
+      game_aux_index := 3;
+   }
+   game_vblank();
+   COLUBK := 0x82;
+   COLUPF := 0x26;
+   CTRLPF := 0x21;
+}
+
+bank1 void finish_frame(void) {
+   update_run();
+   if (world_request) { scroll_monsters(); }
+   if (run_mode == 1 && run_frame > 1) {
+      enemy_index := 0; enemy_limit := 2; advance_monsters();
+   }
+   locate_treasure();
+   if (run_frame > 1 && !world_request && !run_hit && !run_collect && !run_kill) {
+      enemy_index := enemy_art_cursor;
+      prepare_monster();
+      enemy_art_cursor := (enemy_art_cursor + 1) & 3;
+   }
+   world_request := 0;
+}
+
+bank0 void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
    VBLANK := 2;
    new_run();
    locate_treasure();
-   prepare_monster();
+   enemy_index := 0;
+   while (enemy_index < 4) { prepare_monster(); enemy_index++; }
    game_init();
    score_init();
    while (1) {
-      vcs_ntsc_vsync();
-      vcs_ntsc_begin_vblank();
-      advance_physics();
-      prepare_sprites();
-      game_lamps := 0;
-      if (run_lives) { game_lamps := 0x80; }
-      if (run_lives > 1) { game_lamps |= 0x20; }
-      if (run_lives > 2) { game_lamps |= 0x08; }
-      if (run_shot_active && !(run_frame & 1)) {
-         game_BALL_X := run_shot_x;
-         game_ball_y := run_shot_y;
-         game_aux_index := 2;
-      }
-      else {
-         game_BALL_X := run_spark_x;
-          game_ball_y := run_spark_y;
-          if (!treasure_visible || run_spark_x < 8) { game_ball_y := 255; }
-         game_aux_index := 3;
-      }
-      game_vblank();
-      score_vblank();
-      COLUBK := 0x82;
-      COLUPF := 0x26;
-      CTRLPF := 0x21;
+       vcs_ntsc_vsync();
+       vcs_ntsc_begin_vblank();
+       prepare_frame();
+       score_vblank();
       vcs_ntsc_end_vblank();
       score_draw();
       vcs_ntsc_component_handoff();
@@ -716,9 +904,7 @@ void main(void) {
       vcs_ntsc_begin_overscan();
       game_overscan();
       score_overscan();
-      update_run();
-      locate_treasure();
-      prepare_monster();
-      vcs_ntsc_end_overscan();
+       finish_frame();
+       vcs_ntsc_end_overscan();
    }
 }

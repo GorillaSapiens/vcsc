@@ -114,9 +114,13 @@ make play
 
 Sparks award 50 points, kills award 100, and survival adds points over time.
 After a hit, the courier flashes
-and is briefly invulnerable. Eight animated monster types vary in silhouette,
-speed and elevation. They keep their spawn direction, pass above or below you,
-and continue off screen rather than tracking your horizontal position.
+and is briefly invulnerable. **Four monsters can be on screen together**, one
+on each platform tier and one on the road, without enemy flicker. They start
+at staggered positions and move independently. Eight animated types vary in
+silhouette, color and speed: one pixel every four frames, every two frames,
+or every frame. They keep their spawn direction, pass above or below you,
+and continue off screen rather than tracking your horizontal position. A hit
+replaces only the struck monster; the others keep their own positions and routes.
 The red score means game over; release fire, then press it to begin a fresh run.
 
 ## Platforms and movement
@@ -159,29 +163,39 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
 provides 128 bytes of Superchip RAM; no emulator modifications are required.
-The build uses 64 cartridge-RAM bytes and 127 RIOT-RAM bytes, including a
-19-byte hardware-stack allowance.
+The build uses 116 cartridge-RAM bytes and 120 RIOT-RAM bytes, including an
+18-byte hardware-stack allowance.
 
-The game-owned 181-line raster draws two eight-row sprites, an M0 shot, an M1
-spark, and three independent full-width platform tiers. The visible terrain uses
+The game-owned 181-line raster draws the courier and four eight-row enemies,
+an M0 shot, an M1 spark, and three independent full-width platform tiers. The visible terrain uses
 **18 bytes**: left PF0/PF1/PF2 and reflected right PF2/PF1/PF0 for each tier.
 This is three bytes more than a bit-packed 15-byte window, but needs no expanded
 render cache. Gaps and the full-width road are implicit. Two LFSR endpoint states
 and a chunk phase regenerate newly exposed columns without a stored level.
 The Ball is disabled. M0 shares the courier palette; M1 shares the
 monster palette, contrasting with the platforms. While a shot is active, M0 and
-M1 alternate frames (30 Hz each); players and terrain remain steady at 60 Hz.
+M1 alternate frames (30 Hz each); the courier, all four enemies and terrain
+remain steady in every frame.
 The courier retains per-row colours and reflects when facing left; each monster
 type has its own tint, prepared in cartridge RAM without adding raster cycles.
-M1 shares that current monster tint through COLUP1. Missile enables commit in horizontal
+P1 is reused between four non-overlapping vertical bands. Eight gap scanlines
+per tier position the next enemy, select its artwork and tint, and apply a
+cycle-74 HMOVE. The other hardware objects are held still during those strobes;
+these reuse strobes add no left-edge blanking marks. M1 shares the tint of the
+current band through COLUP1. Missile enables commit in horizontal
 blanking, avoiding partial scanlines as a missile approaches the left edge.
 Collision probes sample the same
 packed playfield bytes that the kernel displays. The six-glyph component supplies
 the score above gameplay in the Whimsey font. TIA collision latches drive damage,
 kills and collection.
-Physics runs in VBLANK; terrain updates, treasure lookup, monster-art preparation
-and scoring run in overscan, keeping both
-blanking deadlines bounded. Beam-critical graphics stay in the startup bank.
+Physics, enemy positioning and half the movement work run in VBLANK; terrain
+updates, the remaining movement, treasure lookup and scoring run in overscan.
+One enemy's eight-byte art/tint cache is refreshed per available overscan,
+deferring refreshes on scrolling or collision frames to keep both deadlines
+bounded. This staggers animation updates, not enemy visibility. Beam-critical
+graphics stay in the startup bank. Negative remainders are normalized before
+indexing the positioning table: speculative page-crossing reads must never hit
+the Superchip RAM write port.
 Overscan/VBLANK scratch aliases reuse dead renderer workspace, never persistent
 coordinates or live drawing state.
 
@@ -193,9 +207,12 @@ movement. An additional 7,200-frame traversal compares every displayed terrain
 column with an independent LFSR decoder, checks inverse steps and window endpoint
 states, and verifies that revisiting terrain restores its bytes. Every frame must
 retain the established 264-line period. Further routes check treasure persistence,
-monster motion past the player and off screen, eight distinct monster designs and tints,
-and buffered upward aiming. Broken kills, ceilings, inverse steps, treasure flags
-and restored chasing behavior are rejected as negative controls; injected
+monster motion past the player and off screen, independent four-enemy speeds and
+directions, per-level kill attribution without disturbing the other slots,
+eight distinct designs and tints, three ordered P1 reuse strobes per frame, and
+buffered upward aiming. Broken kills, ceilings, inverse steps, treasure flags,
+reversed routes, uniform speeds, incorrect target selection and unsafe Superchip dummy reads
+are rejected as negative controls; injected
 collisions do not prove TIA geometry.
 The endurance run also checks every music pitch, rest, attack and release over
 multiple complete loops against an independent score/tempo oracle. Separate
@@ -207,9 +224,13 @@ relevant channel-register assertions, not just differ in ROM bytes.
 and intervening gap, every full-width road line, upper-left-only lamps, stationary
 and four distinct running poses, Up jumping,
 fixed-foot crouching, all eight monster colors on actual rendered creatures,
-a real missile kill, and visible travel in all eight aim
+four source-derived enemy silhouettes in the same frame, and visible travel in all eight aim
 directions. A scripted right/left excursion must restore the original platform
 pixels. A real TIA treasure collection must stay absent after leaving and returning.
+Paired shooting/control captures prove real M0 hits on each of the four levels
+replace only the target, leaving the other enemies' positions and colors intact.
+P1 sweeps cover X1..128 and X121..152 on all four levels together, comparing
+reused positions to the initial P1 and requiring full eight-pixel silhouettes.
 Sweeps cover all four treasure heights, a complete X1..128 cycle, and X120..151.
 Every visible dot must have exactly four centered lines of widths 2/4/4/2; the
 seven positions hidden in the left margin are counted separately, not discarded.

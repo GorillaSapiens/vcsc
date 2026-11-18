@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 45
+# timeout: 90
 # expectstdout: vcs_cinder_run ok
 # expectexit: 0
 use strict;
@@ -45,7 +45,7 @@ run("$tmp/oracle","$tmp/game.bin","$tmp/game.map") eq "cinder_run CPU ok\n" or d
 open my$s,'<',"$repo/examples/06_games/cinder_run/cinder_run.c26" or die$!;
 my$source=do { local$/; <$s> }; close$s;
 $source=~s{\.\./\.\./_common/(\w+\.c26)}{$repo/examples/_common/$1}g;
-for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster red_monsters no_music)) {
+for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster red_monsters no_music superchip_dummy same_speed wrong_target)) {
    my$broken=$source;
    if($mode eq 'no_kill') {
       $broken=~s/run_kill := CXM0P & 0x80;/run_kill := 0;/ or die 'kill boundary';
@@ -57,16 +57,29 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
       $broken=~s/asm eor #\$b4;/asm eor #\$b5;/ or die 'inverse boundary';
    }
    elsif($mode eq 'forgotten_treasure') {
-      $broken=~s/treasure_taken\[treasure_id >> 3\] \|= treasure_bit\[treasure_id & 7\];/treasure_taken[treasure_id >> 3] := 0;/ or die 'treasure boundary';
+       $broken=~s/asm ora.ax treasure_taken,x;/asm lda #0;/ or die 'treasure boundary';
    }
    elsif($mode eq 'red_monsters') {
       $broken=~s/asm lda.ax hazard_colors,x;/asm lda #\$46;/ or die 'monster color boundary';
    }
-   elsif($mode eq 'no_music') {
+    elsif($mode eq 'no_music') {
       $broken=~s/AUDV1 := 2;/AUDV1 := 0;/ or die 'music boundary';
-   }
+    }
+    elsif($mode eq 'superchip_dummy') {
+       open my$k,'<',"$repo/examples/_common/cinder_run_wide.c26" or die$!;
+       my$kernel=do {local$/;<$k>};close$k;
+       $kernel=~s/asm tya;\n   asm and #\$0f;\n   asm tay;\n   asm lda.ay game_reposition_table,y;/asm lda game_reposition_table + 16 - 256,y;/ or die 'Superchip lookup boundary';
+       open my$kout,'>',"$tmp/unsafe_wide.c26" or die$!;print{$kout}$kernel;close$kout;
+       $broken=~s{\Q$repo/examples/_common/cinder_run_wide.c26\E}{$tmp/unsafe_wide.c26} or die 'Superchip kernel relocation';
+    }
+    elsif($mode eq 'same_speed') {
+       $broken=~s/(hazard_tick_mask\[8\]\s*:=\s*)\{[^}]+\}/${1}{1,1,1,1,1,1,1,1}/ or die 'monster speed boundary';
+    }
+    elsif($mode eq 'wrong_target') {
+       $broken=~s/(if \(run_shot_y > (?:29|45|61)\) \{ enemy_index := )[123];/${1}0;/g or die 'target slot boundary';
+    }
    else {
-      $broken=~s/if \(monster_direction < 0\) \{/if (game_PLAYER1_X > game_PLAYER0_X) {/ or die 'monster boundary';
+       $broken=~s/asm lda.ax enemy_direction,x;/asm lda #1;/ or die 'monster boundary';
    }
    open my$f,'>',"$tmp/$mode.c26" or die$!; print{$f}$broken; close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs",'-Map',"$tmp/$mode.map",
@@ -75,14 +88,16 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
    if(!$p) {
       open STDOUT,'>',"$tmp/$mode.log" or die$!;
       open STDERR,'>&STDOUT' or die$!;
-       my%scenario=(no_kill=>0,thick_ceiling=>0,bad_inverse=>1,forgotten_treasure=>3,chasing_monster=>4,red_monsters=>4,no_music=>1);
+        my%scenario=(no_kill=>0,thick_ceiling=>0,bad_inverse=>1,forgotten_treasure=>3,chasing_monster=>4,red_monsters=>4,no_music=>1,superchip_dummy=>0,same_speed=>4,wrong_target=>5);
        exec("$tmp/oracle","$tmp/$mode.bin","$tmp/$mode.map",$scenario{$mode}); die$!;
    }
    waitpid($p,0); $?!=0 or die "$mode negative control passed\n";
    open my$l,'<',"$tmp/$mode.log" or die$!; my$log=do { local$/; <$l> }; close$l;
    my%reason=(no_kill=>'M0 kill did not remove shot',thick_ceiling=>'solid underside',bad_inverse=>'LFSR forward/inverse',
        forgotten_treasure=>'collected treasure flag',chasing_monster=>'monster stopped or turned',
-       red_monsters=>'monster type did not select its tint',no_music=>'music volume envelope');
+        red_monsters=>'monster type did not select its tint',no_music=>'music volume envelope',
+        superchip_dummy=>'indexed dummy read hits Superchip write port',same_speed=>'independent monster speed/direction',
+        wrong_target=>'shot reset wrong enemy slot');
    my$reason=$reason{$mode};
    index($log,$reason)>=0 or die "$mode failed for the wrong reason: $log\n";
 }

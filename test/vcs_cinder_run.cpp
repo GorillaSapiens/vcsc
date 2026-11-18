@@ -28,6 +28,7 @@ class Machine {
    uint16_t seed=0xace1;
    unsigned phase=0,camera=0,aim_mask=0;
    unsigned dot_moves=0;
+   unsigned reuse_moves=0;
    std::array<uint8_t,18> initial{};
    std::map<uint32_t,std::array<uint8_t,18>> visited;
    std::map<std::array<uint8_t,8>,bool> monsters;
@@ -40,6 +41,7 @@ class Machine {
    uint8_t val(const char*s) { return mem[addr(s)]; }
    void put(const char*s,uint8_t v) { mem[addr(s)]=v; }
    uint8_t keys() const {
+       if(mode==5) return 0xff;
       if(mode==1) return frame%640<320 ? 0x7f : 0xbf;
       if(mode==3) return frame<320?0x7f:frame<640?0xbf:0xff;
       if(mode==4) return 0xff;
@@ -70,7 +72,7 @@ class Machine {
       if(a==0x282) return mode==0&&frame==510 ? 0xfe : 0xff;
       if(a==0x3c) return fire();
       if(a==0x37) return mode==0&&((frame>=150&&frame<=155)||frame==250||frame==350) ? 0x80 : 0;
-      if(a==0x30) return mode==0&&frame==104 ? 0x80 : 0;
+       if(a==0x30) return (mode==0&&frame==104)||(mode==5&&frame>=20&&frame<=80&&frame%20==0) ? 0x80 : 0;
       if(a==0x31) return (mode==0&&frame==95)||(mode==3&&(frame==20||frame==100||frame==600)) ? 0x80 : 0;
       if(a==0x284||a==0x285) {
          auto t=timer?(clock-timer_start)/divisor:0;
@@ -153,17 +155,49 @@ class Machine {
          return;
       }
       if(mode==4) {
-         if(frame==10) {put("game_object_x",80);mem[addr("game_object_x")+1]=82;put("game_player1_y",25);put("monster_direction",255);}
-         if(frame==30&&mem[addr("game_object_x")+1]>=78) fail("monster stopped or turned above player");
-         if(frame>=40&&frame<=110&&(frame-40)%10==0) put("run_wave",1+(frame-40)/10);
-         if(frame>=41&&frame<=111&&(frame-41)%10==0) {
-            static const uint8_t colors[]={0x24,0x36,0x66,0x86,0xaa,0x0c,0x1a,0xca};
-            if(val("game_monster_color")!=colors[(frame-41)/10]) fail("monster type did not select its tint");
+          if(frame==10) {put("game_object_x",80);put("enemy_x",82);put("enemy_direction",255);}
+          if(frame==30&&val("enemy_x")>=78) fail("monster stopped or turned above player");
+          if(frame>=40&&frame<=110&&(frame-40)%10==0) {put("enemy_kind",(frame-40)/10);put("enemy_art_cursor",0);}
+          if(frame>=42&&frame<=112&&(frame-42)%10==0) {
+             static const uint8_t colors[]={0x24,0x36,0x66,0x86,0xaa,0x0c,0x1a,0xca};
+             if(val("game_monster_color")!=colors[(frame-42)/10]) fail("monster type did not select its tint");
             std::array<uint8_t,8> pixels{};
             for(unsigned i=0;i<8;++i) pixels[i]=mem[addr("monster_pixels")+i];
             monsters[pixels]=true;
          }
-         if(frame==200&&val("run_wave")<=8) fail("monster did not leave screen and respawn");
+          if(frame==120) for(unsigned i=0;i<4;++i) {
+             mem[addr("enemy_x")+i]=110;
+             mem[addr("enemy_kind")+i]=i*2;
+             mem[addr("enemy_direction")+i]=i&1?1:255;
+          }
+          if(frame==128) {
+             static const uint8_t expected[]={106,112,102,112};
+             for(unsigned i=0;i<4;++i) if(mem[addr("enemy_x")+i]!=expected[i]) fail("independent monster speed/direction");
+          }
+          if(frame==200&&val("run_wave")<=4) fail("monster did not leave screen and respawn");
+          return;
+      }
+      if(mode==5) {
+         if(frame>=19&&frame<=79&&(frame-19)%20==0) {
+            unsigned target=(frame-19)/20;
+            for(unsigned i=0;i<4;++i) {
+               mem[addr("enemy_x")+i]=110;
+               mem[addr("enemy_kind")+i]=i*2;
+               mem[addr("enemy_direction")+i]=255;
+            }
+            put("run_shot_active",1);put("run_shot_y",21+target*16);
+            put("run_shot_dx",0);put("run_shot_dy",0);
+         }
+         if(frame>=21&&frame<=81&&(frame-21)%20==0) {
+            unsigned target=(frame-21)/20;
+            static const uint8_t untouched_x[]={109,110,108,110};
+            if(val("run_shot_active")||val("run_wave")!=5+target) fail("targeted shot did not remove exactly one enemy");
+            for(unsigned i=0;i<4;++i) {
+               unsigned kind=i==target?4+target:i*2;
+               if(mem[addr("enemy_kind")+i]!=kind) fail("shot reset wrong enemy slot");
+               if(i!=target&&mem[addr("enemy_x")+i]!=untouched_x[i]) fail("shot disturbed another enemy's position");
+            }
+         }
          return;
       }
       if(mode==2) {
@@ -223,24 +257,50 @@ public:
       cpu.Reset();cpu.SetPC(read(0xfffc)|(read(0xfffd)<<8));
    }
    void run() {
-      int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:530;
-      for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
+       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5?90:530;
+       for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
+          // The lightweight CPU omits bus dummy reads. Reject indexed ROM
+          // reads whose speculative address would hit Superchip's write port;
+          // real TIA captures otherwise see persistent RAM silently corrupted.
+          auto pc=cpu.GetPC();auto op=read(pc);unsigned index=0;
+          bool indexed=false;
+          switch(op) {
+             case 0xbd:case 0x1d:case 0x3d:case 0x5d:case 0x7d:case 0xdd:case 0xfd:case 0xbc:
+                indexed=true;index=cpu.GetX();break;
+             case 0xb9:case 0x19:case 0x39:case 0x59:case 0x79:case 0xd9:case 0xf9:case 0xbe:
+                indexed=true;index=cpu.GetY();break;
+             default:break;
+          }
+          if(indexed) {
+             unsigned base=read(pc+1)|(read(pc+2)<<8),sum=base+index;
+             unsigned dummy=((base&0xff00)|(sum&255))&0x1fff;
+             if((base&0xff00)!=(sum&0xff00)&&dummy>=0x1000&&dummy<0x1080)
+                fail("indexed dummy read hits Superchip write port");
+          }
          writes.clear();auto before=cycles;cpu.Run(1,cycles,mos6502::INST_COUNT);clock+=cycles-before;
-         for(auto w:writes) {
-            if(w.first==0x2a&&!(mem[1]&2)&&clock%76==8) {
+          for(auto w:writes) {
+             if(w.first==0x2a&&!(mem[1]&2)&&clock%76==8) {
                if(val("game_aux_index")!=3||mem[0x20]||mem[0x21]||mem[0x22]) fail("dot HMOVE disturbed another object");
                if((mem[0x23]&0xf0)!=(dot_moves?0xf0:0x10)) fail("dot HMOVE is not minus/plus one pixel");
-               ++dot_moves;
-            }
+                ++dot_moves;
+             }
+             if(w.first==0x2a&&!(mem[1]&2)&&clock%76==74) {
+                if(mem[0x20]!=0x80||mem[0x22]!=0x80||mem[0x23]!=0x80||mem[0x24]!=0x80)
+                   fail("monster reuse moved another hardware object");
+                if(val("game_band")!=reuse_moves+1) fail("monster reuse band order");
+                ++reuse_moves;
+             }
             if(w.first==0x1d&&(w.second&2)) m0=true;
             if(w.first==0x1e&&(w.second&2)) m1=true;
             if(w.first==0x1f&&(w.second&2)) fail("Ball was enabled");
             if((w.first==0x1d||w.first==0x1e)&&(w.second&2)&&!(mem[1]&2)&&clock%76>22) fail("late missile enable");
             if(w.first==2) clock+=76-clock%76;
             if(w.first==0) {bool n=w.second&2;if(n&&!sync) {++frame;
-               if(dot_moves&&dot_moves!=2) fail("unpaired dot HMOVE");
-               dot_moves=0;
-               if(frame>4&&clock-last_start!=264*76) { std::fprintf(stderr,"frame %d: %llu cycles\n",frame,static_cast<unsigned long long>(clock-last_start));fail("unstable frame period"); }
+                if(dot_moves&&dot_moves!=2) fail("unpaired dot HMOVE");
+                dot_moves=0;
+                if(frame>1&&reuse_moves!=3) fail("not all four monster bands rendered");
+                reuse_moves=0;
+                if(frame>4&&clock-last_start!=264*76) { std::fprintf(stderr,"mode %u frame %d: %llu cycles\n",mode,frame,static_cast<unsigned long long>(clock-last_start));fail("unstable frame period"); }
                last_start=clock;snapshot();}sync=n;}
             if(w.first>=0x294&&w.first<=0x297) {static const unsigned d[]={1,8,64,1024};timer=true;timer_start=clock;loaded=w.second;divisor=d[w.first-0x294];}
          }
@@ -250,7 +310,7 @@ public:
       else if(mode==2) {if(aim_mask!=255) fail("aim coverage");}
       else if(mode==3) {if(!treasure_other||!treasure_returned) fail("treasure departure/return coverage");}
       else if(mode==4) {if(monsters.size()!=8) fail("eight distinct monster designs");}
-      else if(!jump||!duck||!killed||!damaged||!restarted||!reset||!m0||!m1||jump_tone<0||catch_tone<0||jump_tone==catch_tone) fail("gameplay/audio coverage");
+       else if(mode==0&&(!jump||!duck||!killed||!damaged||!restarted||!reset||!m0||!m1||jump_tone<0||catch_tone<0||jump_tone==catch_tone)) fail("gameplay/audio coverage");
    }
 };
 Machine*Machine::active=nullptr;
@@ -258,8 +318,8 @@ Machine*Machine::active=nullptr;
 int main(int argc,char**argv) {
    if(argc!=3&&argc!=4) return 2;
    unsigned first=argc==4?static_cast<unsigned>(std::strtoul(argv[3],nullptr,10)):0;
-   if(first>=5) return 2;
-   unsigned last=argc==4?first+1:5;
+   if(first>=6) return 2;
+   unsigned last=argc==4?first+1:6;
    for(unsigned i=first;i<last;++i) {Machine m(argv[1],argv[2],i);m.run();}
    std::puts("cinder_run CPU ok");
 }

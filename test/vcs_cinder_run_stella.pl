@@ -36,6 +36,9 @@ my@standing=split /,/, $poses[-1];
 for(@standing) {s/\s|0b//g;tr/.X/01/;$_=oct("0b$_");}
 $source=~/hazard_colors\[8\]\s*:=\s*\{([^}]+)\}/ or die 'monster palette';
 my@monster=map{hex($_)}$1=~/(0x[0-9a-f]+)/ig;
+$source=~/hazards\[128\]\s*:=\s*\{(.*?)\};/s or die 'monster artwork';
+my@hazard_art=$1=~/game_SPRITE_GLYPH\(([^)]+)\)/g;
+@hazard_art==16 or die 'monster pose count';
 $source=~/COLUPF\s*:=\s*(0x[0-9a-f]+)/i or die 'PF palette';my$pf=hex($1);
 my(undef,$display)=vcsc_reserve_x_display(770,30);
 my$p=fork();defined$p or die$!;
@@ -44,19 +47,33 @@ END {local$?;if($p) {kill 'TERM',$p;waitpid($p,0);}}
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display;local$ENV{SDL_VIDEODRIVER}='x11';local$ENV{SDL_AUDIODRIVER}='dummy';
 my@aim=(0x7f,0x6f,0xef,0xaf,0xbf,0x9f,0xdf,0x5f);
-my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam edge_third edge_far edge_bad),(map{"aim$_"}0..7),(map{"monster$_"}0..7));
+my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam edge_third edge_far edge_bad mux_sweep mux_far),(map{"aim$_"}0..7),(map{"monster$_"}0..7),(map{("kill$_","control$_")}0..3));
 for my$mode(@modes) {
    my$dir="$tmp/$mode";make_path($dir);my$s=$source;my$input='';
    if($mode ne 'idle') {$s=~s/new_run\(\);\n   locate_treasure\(\);/new_run();\n   run_mode := 1;\n   locate_treasure();/ or die 'startup boundary';}
-   if($mode=~/^monster(\d)$/) {
-      my$wave=$1+1;
-      $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; run_wave := $wave; game_player1_y := 73;\n   locate_treasure();/ or die 'monster fixture boundary';
+    if($mode=~/^monster(\d)$/) {
+       my$kind=$1;
+       $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; enemy_kind[3] := $kind; enemy_x[3] := 152;\n   locate_treasure();/ or die 'monster fixture boundary';
    }
    $input.='if (run_frame >= 2 && run_frame < 40) { return 0xef; }' if $mode eq 'jump';
    $input.='if (run_frame >= 20 && run_frame < 40) { return 0xdf; }' if $mode eq 'duck';
    $input.='if (run_frame < 20) { return 0x7f; }' if $mode eq 'running';
    if($mode eq 'world') {$input.='if (run_frame >= 2 && run_frame < 50) { return 0x7f; } if (run_frame >= 50 && run_frame < 114) { return 0xbf; }';}
-   if($mode eq 'treasure') {$input.='if (run_frame >= 2 && run_frame < 92) { return 0x7f; } if (run_frame >= 92 && run_frame < 198) { return 0xbf; }';}
+    if($mode eq 'treasure') {
+       $input.='if (run_frame >= 2 && run_frame < 92) { return 0x7f; } if (run_frame >= 92 && run_frame < 198) { return 0xbf; }';
+       $s=~s/(hazards\[128\]\s*:=\s*)\{.*?\};/${1}{0};/s or die 'treasure monster isolation';
+    }
+    if($mode=~/^(?:kill|control)(\d)$/) {
+       my$feet=25+16*$1;
+       $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; treasure_taken[0] := 1; enemy_x[0] := 136; enemy_x[1] := 136; enemy_x[2] := 136; enemy_x[3] := 136;\n   locate_treasure();/ or die 'combat fixture startup';
+       $s=~s/if \(run_mode == 1\) \{ update_physics\(\); \}/run_feet := $feet; run_grounded := 1; game_player0_y := $feet; game_player0_height := 7;/ or die 'combat fixture feet';
+    }
+    if($mode=~/^mux_/) {
+       my$x=$mode eq 'mux_sweep'?'(run_frame & 127) + 1':'(run_frame & 31) + 121';
+       $s=~s/(courier\[56\]\s*:=\s*)\{.*?\};/${1}{0};/s or die 'multiplex courier isolation';
+       $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; treasure_taken[0] := 1;\n   locate_treasure();/ or die 'multiplex treasure isolation';
+       $s=~s/prepare_enemies\(\);/enemy_x[0] := $x; enemy_x[1] := $x; enemy_x[2] := $x; enemy_x[3] := $x; prepare_enemies();/ or die 'multiplex sweep boundary';
+    }
    if($mode=~/^aim(\d)$/) {$input.="if (run_frame >= 10 && run_frame <= 12) { return $aim[$1]; }";}
    if($mode=~/^edge_/) {
       my$y=$mode eq 'edge_top'?17:$mode eq 'edge_seam'?33:$mode eq 'edge_third'?49:65;
@@ -76,14 +93,14 @@ for my$mode(@modes) {
    $s=~s/(bank2 void advance_physics\(void\) \{)/$1\nfixture_input := 0xff; $input\n/;
    $s=~s/(run_frame\+\+;)/$1\nfixture_input := 0xff; $input\n/;
    $s=~s/SWCHA/fixture_input/g;
-   if($mode eq 'shoot'||$mode=~/^aim/) {
+    if($mode eq 'shoot'||$mode=~/^(?:aim|kill)/) {
       $s=~s/!\(INPT4 & 0x80\)/(run_frame >= 10 \&\& run_frame <= 12)/g;
       $s=~s/INPT4 & 0x80/(run_frame < 10 || run_frame > 12)/g;
    }
    else {$s=~s/INPT4/0x80/g;}
    open my$f,'>',"$dir/scripted.c26" or die$!;print{$f}$s;close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$dir/scripted.c26",'-o',"$dir/scripted.bin");
-   my$frames=$mode=~/^edge_/?join(',',4..($mode=~/^edge_(?:far|bad)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^monster/?'4':$mode eq 'shoot'?'14,50':$mode eq 'duck'?'25':'10';
+    my$frames=$mode=~/^(?:edge_|mux_)/?join(',',4..($mode=~/^(?:edge_(?:far|bad)|mux_far)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'25,50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^monster/?'4':$mode=~/^(?:kill|control)/?'14,35':$mode eq 'shoot'?'14,25,50':$mode eq 'duck'?'25':'10';
    run(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,"$dir/user"),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
@@ -136,6 +153,39 @@ for my$i(0..7) {
    $n>=8 or die "monster$i: colored creature missing";$tints{$expected}=1;
 }
 keys(%tints)==8 or die 'monster types do not have eight distinct visible colors';
+for my$slot(0..3) {
+   my($w,$h,$rgb)=image('idle',4);my$kind=$slot*2;
+   my@rows=split /,/, $hazard_art[$kind*2];
+   for(@rows) {s/\s|0b//g;tr/.X/01/;$_=oct("0b$_");}
+   my$left=39+$slot*32;my$top=$origin+31+$slot*32;
+   for my$dy(0..15) {for my$dx(0..7) {
+      my$expected=!!($rows[int($dy/2)]&(0x80>>$dx));
+      my$actual=substr($rgb,(($top+$dy)*$w+$left+$dx)*3,3) eq color($monster[$kind]);
+      $actual==$expected or die "concurrent monster$slot artwork/position row$dy x$dx (left$left top$top feet$feet)";
+   }}
+}
+for my$mode(qw(mux_sweep mux_far)) {
+   my%positions;
+   for my$f(4..($mode eq 'mux_far'?35:131)) {
+      my($w,$h,$rgb)=image($mode,$f);my$left;
+      for my$slot(0..3) {
+         my@xs;my@ys;my$top=$origin+31+$slot*32;
+         for my$y($top..$top+15) {for my$x(0..159) {
+            if($monster_rgb{substr($rgb,($y*$w+$x)*3,3)}) {push@xs,$x;push@ys,$y;}
+         }}
+         @xs or die "$mode/$f: multiplexed monster$slot missing";
+         @xs=sort{$a<=>$b}@xs;@ys=sort{$a<=>$b}@ys;
+         $xs[-1]-$xs[0]==7 or die "$mode/$f: monster$slot width/position tears";
+         $left//=$xs[0];$xs[0]==$left or die "$mode/$f: reused P1 does not match initial P1 X ($slot: $xs[0] vs $left)";
+         $positions{$slot}{$xs[0]}=1;
+      }
+   }
+   for my$slot(0..3) {
+      my@expected=$mode eq 'mux_far'?(120..151):(0..127);
+      keys(%{$positions{$slot}})==@expected or die "$mode: monster$slot incomplete sweep";
+      $positions{$slot}{$_} or die "$mode: monster$slot missed X$_" for@expected;
+   }
+}
 my(undef,undef,$standing_rgb)=image('idle',25);
 for my$dy(0..15) {for my$x(0..7) {
    my$on=!!($standing[int($dy/2)]&(0x80>>$x));
@@ -164,8 +214,23 @@ for my$f(4,200) {my($w,$h,$rgb)=image('treasure',$f);my$n=0;
 }
 $dots[0]==12&&$dots[1]==0 or die "real treasure collection did not persist after returning (@dots)";
 my@enemy;
-for my$m(qw(standing shoot)) {my($w,$h,$rgb)=image($m,50);my@xs;for my$y($feet-12..$feet+2) {for my$x(100..159) {push@xs,$x if$monster_rgb{substr($rgb,($y*$w+$x)*3,3)};}}@xs or die 'monster missing';push@enemy,(sort{$a<=>$b}@xs)[0];}
+for my$m(qw(standing shoot)) {my($w,$h,$rgb)=image($m,25);my@xs;for my$y($feet-12..$feet+2) {for my$x(100..159) {push@xs,$x if$monster_rgb{substr($rgb,($y*$w+$x)*3,3)};}}@xs or die 'monster missing';push@enemy,(sort{$a<=>$b}@xs)[0];}
 $enemy[1]>$enemy[0]+5 or die 'real M0 hit did not replace the monster';
+for my$target(0..3) {
+   my@images=map{[image("$_$target",35)]}qw(control kill);
+   for my$slot(0..3) {
+      my@mask;
+      for my$img(@images) {
+         my($w,$h,$rgb)=@$img;my@xs;my%colors;
+         for my$y($feet-15-(3-$slot)*32..$feet-(3-$slot)*32) {for my$x(96..159) {
+            my$p=substr($rgb,($y*$w+$x)*3,3);if($monster_rgb{$p}) {push@xs,$x;$colors{unpack('H*',$p)}=1;}
+         }}
+         @xs or die "combat$target: monster$slot vanished";@xs=sort{$a<=>$b}@xs;
+         push@mask,join(':',$xs[0],$xs[-1],sort keys%colors);
+      }
+      ($slot==$target?$mask[0] ne $mask[1]:$mask[0] eq $mask[1]) or die "shot at level$target affected wrong monster$slot";
+   }
+}
 for my$i(0..7) {
    my($w,$h,$rgb)=image("aim$i",18);my(@xs,@ys);
    for my$y(60..$h-1) {for my$x(0..159) {my$at=($y*$w+$x)*3;if($courier_rgb{substr($rgb,$at,3)}&&!($x>=79&&$x<=86&&$y>=$head&&$y<=$feet)) {push@xs,$x;push@ys,$y;}}}
