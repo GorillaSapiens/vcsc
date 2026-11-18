@@ -433,13 +433,32 @@ bank2 void scroll_landscape(void) {
 }
 
 inline void sample_column(void) {
-   physics_mask := column_bit[physics_column];
-   physics_index := column_byte[physics_column];
-   if (game_playfield[physics_index] & physics_mask) { physics_solids |= 4; }
-   physics_index += 6;
-   if (game_playfield[physics_index] & physics_mask) { physics_solids |= 2; }
-   physics_index += 6;
-   if (game_playfield[physics_index] & physics_mask) { physics_solids |= 1; }
+   asm ldx.z game_workspace+2;
+   asm lda.ax column_bit,x;
+   asm sta.z game_workspace+4;
+   asm lda.ax column_byte,x;
+   asm tax;
+   asm lda.ax game_playfield,x;
+   asm and.z game_workspace+4;
+   asm beq.same @middle;
+   asm lda.z game_workspace+1;
+   asm ora #4;
+   asm sta.z game_workspace+1;
+   asm @middle:;
+   asm lda.ax game_playfield+6,x;
+   asm and.z game_workspace+4;
+   asm beq.same @bottom;
+   asm lda.z game_workspace+1;
+   asm ora #2;
+   asm sta.z game_workspace+1;
+   asm @bottom:;
+   asm lda.ax game_playfield+12,x;
+   asm and.z game_workspace+4;
+   asm beq.same @sample_done;
+   asm lda.z game_workspace+1;
+   asm ora #1;
+   asm sta.z game_workspace+1;
+   asm @sample_done:;
 }
 
 inline void sample_platforms(void) {
@@ -465,24 +484,39 @@ inline void probe_body(void) {
 }
 
 inline void collide_ledge(void) {
-   if (physics_solids & physics_probe) {
-      if (run_velocity >= 0) {
-         // Swept feet prevent tunneling even at maximum falling velocity.
-         if (physics_old_feet <= physics_top && run_feet >= physics_top) {
-            run_feet := physics_top;
-            run_velocity := 0;
-            run_grounded := 1;
-         }
-      }
-      else {
-         // Solid undersides: no jumping through the platforms from below.
-          physics_top += 10;
-         if (physics_old_feet >= physics_top && run_feet < physics_top) {
-            run_feet := physics_top;
-            run_velocity := 0;
-         }
-      }
-   }
+   // Swept feet and solid undersides, with bounded direct comparisons rather
+   // than materialized C boolean temporaries in the VBLANK deadline.
+   asm lda.z game_workspace+1;
+   asm and.z game_workspace+7;
+   asm beq.same @ledge_done;
+   asm lda.z run_velocity;
+   asm bmi.same @underside;
+   asm lda.z game_workspace+5;
+   asm cmp.z game_workspace;
+   asm bcc.same @ledge_done;
+   asm lda.z run_feet;
+   asm cmp.z game_workspace+5;
+   asm bcc.same @ledge_done;
+   asm lda #1;
+   asm sta.z run_grounded;
+   asm jmp @land;
+   asm @underside:;
+   asm lda.z game_workspace+5;
+   asm clc;
+   asm adc #10;
+   asm sta.z game_workspace+5;
+   asm lda.z game_workspace;
+   asm cmp.z game_workspace+5;
+   asm bcc.same @ledge_done;
+   asm lda.z run_feet;
+   asm cmp.z game_workspace+5;
+   asm bcs.same @ledge_done;
+   asm @land:;
+   asm lda.z game_workspace+5;
+   asm sta.z run_feet;
+   asm lda #0;
+   asm sta.z run_velocity;
+   asm @ledge_done:;
 }
 
 inline void update_physics(void) {

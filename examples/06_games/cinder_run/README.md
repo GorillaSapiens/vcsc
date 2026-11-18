@@ -213,7 +213,9 @@ Reset, distinct jump/catch tones, and all eight aim directions without accidenta
 movement. An additional 7,200-frame traversal compares every displayed terrain
 column with an independent LFSR decoder, checks inverse steps and window endpoint
 states, and verifies that revisiting terrain restores its bytes. Every frame must
-retain the established 264-line period. Further routes check treasure persistence,
+retain the established 264-line raw CPU-harness period (not Stella's displayed
+scanline count). A repeated-jump route uses the actual generated terrain instead
+of replacing the platform bytes with a synthetic physics fixture. Further routes check treasure persistence,
 monster motion past the player and off screen, independent four-enemy speeds and
 directions, per-level kill attribution without disturbing the other slots,
 eight distinct designs and tints, three ordered P1 reuse strobes per frame, and
@@ -232,6 +234,15 @@ multiple complete loops against an independent score/tempo oracle. Separate
 checks require music to duck beneath effects, stop on game over/Reset, and
 restart at its first note. A muted-music negative control must fail audibly
 relevant channel-register assertions, not just differ in ROM bytes.
+
+`test/vcs_cinder_run_timing.pl` runs the unmodified ROM in Stella for 650 recorded
+frames with real X11 joystick input: repeated jumps, both movement directions,
+and gunfire. After startup, every recorded frame must be exactly **262 scanlines**
+with matching CPU-cycle deltas; RIOT snapshots must prove at least eight jumps.
+The test checks the recorded ROM identity and consecutive frame numbers, bounds
+recording size/time, and cleans up its private Stella/Xvfb processes. Collision
+sampling and swept ledge checks use bounded direct assembly comparisons to keep
+jump frames inside the VBLANK deadline without changing platform collision rules.
 
 `test/vcs_cinder_run_stella.pl` checks all 160 pixels of every platform scanline
 and intervening gap, every full-width road line, upper-left-only lamps, stationary

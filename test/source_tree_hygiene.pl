@@ -1153,7 +1153,7 @@ for my $path (@test_files) {
    # Public-game behavioral smoke checks: no ROM, artwork, or RGB golden.
    # The Stella witness derives colors from the editable source and compares
    # relative jump/landing and life-lamp changes across recorded frames.
-   next if basename($path) =~ /^vcs_cinder_run(?:_stella)?\.pl$/;
+   next if basename($path) =~ /^vcs_cinder_run(?:_stella|_timing)?\.pl$/;
    push @example_coupling,basename($path) if $text{$path} =~ /(?:^|[\\\/])examples[\\\/][^\n'"]+\.c26\b/;
 }
 @example_coupling and die "exact regression code references editable examples: @example_coupling\n";

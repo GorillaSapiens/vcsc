@@ -36,6 +36,8 @@ class Machine {
    int jump_tone=-1,catch_tone=-1;
    unsigned waiting_target=4,waiting_start=0,waiting_wave=0,waiting_delay=0;
    unsigned spawn_sides=0,cooldown_completed=0;
+   unsigned terrain_jumps=0;
+   bool terrain_grounded=true;
    uint8_t spawn_seed=0;
    bool spawn_left=false;
    std::map<unsigned,bool> cooldowns;
@@ -46,6 +48,13 @@ class Machine {
    uint8_t val(const char*s) { return mem[addr(s)]; }
    void put(const char*s,uint8_t v) { mem[addr(s)]=v; }
    uint8_t keys() const {
+       if(mode==7) {
+          if(frame<32) return 0xff;
+          unsigned phase=(frame-32)%52,round=(frame-32)/52;uint8_t input=0xff;
+          if(phase<8) input&=0xef;
+          if(round%3&&phase<40) input&=round%3==1?0xbf:0x7f;
+          return input;
+       }
        if(mode==6) return frame<140?0x7f:0xbf;
        if(mode==5) return 0xff;
       if(mode==1) return frame%640<320 ? 0x7f : 0xbf;
@@ -62,6 +71,7 @@ class Machine {
       return 0xff;
    }
    uint8_t fire() const {
+       if(mode==7&&frame>=32&&(frame-32)%52>=44&&(frame-32)%52<48) return 0;
       if(frame==5 || (mode==0&&((frame>=100&&frame<=110)||frame==450)) || (mode==2&&frame==104)) return 0;
       if(mode==2 && frame>=20&&frame<100 && (frame-20)%10<3) return 0;
       if(mode==2&&frame>=109&&frame<=113) return 0;
@@ -150,6 +160,11 @@ class Machine {
    void snapshot() {
       if(frame==2) initial=terrain();
       if(mode==1) { check_world(); check_music(); return; }
+      if(mode==7) {
+         bool grounded=val("run_grounded")!=0;
+         if(!grounded&&terrain_grounded) ++terrain_jumps;
+         terrain_grounded=grounded;return;
+      }
       if(mode==3) {
          if(frame>21) {
             if(!(mem[addr("treasure_taken")]&1)) fail("collected treasure flag was forgotten");
@@ -313,7 +328,7 @@ public:
       cpu.Reset();cpu.SetPC(read(0xfffc)|(read(0xfffd)<<8));
    }
    void run() {
-       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5?650:mode==6?200:530;
+       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5||mode==7?650:mode==6?200:530;
        for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
           // The lightweight CPU omits bus dummy reads. Reject indexed ROM
           // reads whose speculative address would hit Superchip's write port;
@@ -368,6 +383,7 @@ public:
        else if(mode==4) {if(monsters.size()!=8) fail("eight distinct monster designs");}
        else if(mode==5) {if(cooldown_completed!=4||spawn_sides!=3||cooldowns.size()<3) fail("random delay/side coverage");}
        else if(mode==6) {if(!forward||!backward) fail("waiting enemy camera traversal coverage");}
+       else if(mode==7) {if(terrain_jumps<8) fail("repeated terrain-jump coverage");}
        else if(mode==0&&(!jump||!duck||!killed||!damaged||!restarted||!reset||!m0||!m1||jump_tone<0||catch_tone<0||jump_tone==catch_tone)) fail("gameplay/audio coverage");
    }
 };
@@ -376,8 +392,8 @@ Machine*Machine::active=nullptr;
 int main(int argc,char**argv) {
    if(argc!=3&&argc!=4) return 2;
    unsigned first=argc==4?static_cast<unsigned>(std::strtoul(argv[3],nullptr,10)):0;
-   if(first>=7) return 2;
-   unsigned last=argc==4?first+1:7;
+   if(first>=8) return 2;
+   unsigned last=argc==4?first+1:8;
    for(unsigned i=first;i<last;++i) {Machine m(argv[1],argv[2],i);m.run();}
    std::puts("cinder_run CPU ok");
 }

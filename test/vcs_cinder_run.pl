@@ -51,7 +51,7 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
       $broken=~s/run_kill := CXM0P & 0x80;/run_kill := 0;/ or die 'kill boundary';
    }
    elsif($mode eq 'thick_ceiling') {
-      $broken=~s/physics_top \+= 10;/physics_top += 16;/ or die 'ceiling boundary';
+       $broken=~s/asm adc #10;/asm adc #16;/ or die 'ceiling boundary';
    }
    elsif($mode eq 'bad_inverse') {
       $broken=~s/asm eor #\$b4;/asm eor #\$b5;/ or die 'inverse boundary';
