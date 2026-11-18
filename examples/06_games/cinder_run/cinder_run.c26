@@ -58,18 +58,19 @@ page const uint8_t game_player0_colors[8] := {0x08,0x0c,0x9a,0x38,0x3a,0x1c,0x1e
 // Coalback, low ember, kiln moth, roof bat, ash walker, cinder wraith,
 // bellkeeper, root warden. One stable tint per creature, not a red wash.
 bank3 page const uint8_t hazard_colors[8] := {0x24,0x36,0x66,0x86,0xaa,0x0c,0x1a,0xca};
-// "Borrowed Morning": original eight-bar 3/4 ostinato, about 72 beats/min.
-// Six 25-frame eighths per bar; bit 7 accents the downbeat, zero is a rest.
-// Lead-voice NTSC tuning: C=19, D=17, E=15, F=14, G=12, A=11.
+// "Borrowed Morning": original progressive, eight-bar modal miniature.
+// Meter: 7/8, 5/8, 7/8, 5/8, 6/8, 6/8, 7/8, 5/8; 25 frames/eighth.
+// Bit 7 accents a group; bit 5 lets a note ring through its full step.
+// Lead tuning: C=19, D=17, E=15, F=14, G=12, A=11, upper D=8; zero rests.
 bank3 page const uint8_t music_phrase[48] := {
-   0x91,0,11,14,15,17,
-   0x93,17,14,0,15,14,
-   0x8c,14,17,11,0,15,
-   0x8e,17,19,17,0,11,
-   0x91,15,14,11,12,14,
-   0x8f,0,19,14,17,12,
-   0x8b,12,14,15,17,19,
-   0x8e,15,0,19,17,17
+   0x91,11,14,0x8f,14,0x93,17,     // 7/8: 3 + 2 + 2
+   0x8c,14,17,0x8b,0,             // 5/8: 3 + 2
+   0x8e,11,8,0x8c,15,0x93,17,     // The answer reaches upper D.
+   0x8b,12,14,0x8f,17,
+   0xb3,0,0x2e,0xb1,0,0x2c,       // Ringing 6/8 bridge: 3 + 3.
+   0xae,0,0x28,0xaf,0x31,0,
+   0x88,11,12,0x8e,15,0x93,17,     // Theme returns in the upper register.
+   0x8e,15,0,0xb1,0x31
 };
 
 page const uint8_t animation_frame[16] := {0,0,0,0,8,8,8,8,16,16,16,16,24,24,24,24};
@@ -499,7 +500,7 @@ bank3 void update_music(void) {
             if (music_note & 0x80) { AUDV1 := 4; }
          }
          if (run_sound & 15) { AUDV1 := 1; }
-         if (music_clock < 3) { AUDV1 := 0; }
+         if (music_clock < 3 && !(music_note & 0x20)) { AUDV1 := 0; }
       }
    }
 }

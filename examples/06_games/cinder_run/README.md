@@ -78,9 +78,12 @@ Every type currently takes one Dawnspike hit.
 ## Music: Borrowed Morning
 
 The lantern remembers a little of the morning bell's music, too. **Borrowed
-Morning** is an original eight-bar loop: a slow, modal procession in **3/4**,
-with a hollow, repeating voice, accented downbeats and small answering phrases.
-It aims for a heavy, swaying feel, not a transcription of an existing song.
+Morning** is an original eight-bar progressive-rock miniature. Its opening
+alternates **7/8 (3+2+2)** and **5/8 (3+2)**, with shifting accents and a higher
+answer to the opening motif. A more spacious **6/8 (3+3)** bridge lets notes ring
+between rests, before the odd-meter theme returns in the upper register and
+settles back onto D. The hollow TIA voice keeps the heavy, swaying feel; this
+is not a transcription of an existing song.
 
 The loop lasts 1,200 frames (about twenty seconds), at roughly **72 BPM**.
 It plays during a run, stops on game over or Reset, and starts from the beginning

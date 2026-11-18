@@ -123,18 +123,18 @@ class Machine {
       visited[key]=terrain();
    }
    void check_music() {
-      // Independent score and 25-frame eighth-note clock: six eighths/bar,
-      // eight bars, then an exact 1,200-frame loop. No gameplay SFX in mode 1.
+      // Independent score: alternating 7/8 and 5/8, two 6/8 bridge bars,
+      // then a higher-register return. 48 eighths still loop in 1,200 frames.
       static const uint8_t score[]={
-         0x91,0,11,14,15,17,0x93,17,14,0,15,14,
-         0x8c,14,17,11,0,15,0x8e,17,19,17,0,11,
-         0x91,15,14,11,12,14,0x8f,0,19,14,17,12,
-         0x8b,12,14,15,17,19,0x8e,15,0,19,17,17
+         0x91,11,14,0x8f,14,0x93,17, 0x8c,14,17,0x8b,0,
+         0x8e,11,8,0x8c,15,0x93,17, 0x8b,12,14,0x8f,17,
+         0xb3,0,0x2e,0xb1,0,0x2c, 0xae,0,0x28,0xaf,0x31,0,
+         0x88,11,12,0x8e,15,0x93,17, 0x8e,15,0,0xb1,0x31
       };
       if(frame<7) {if(mem[0x1a]) fail("music played before starting");return;}
       unsigned index=((frame-7)/25)%48,age=(frame-7)%25;
       uint8_t note=score[index];
-      unsigned volume=!note||age>=22?0:age<4?((note&0x80)?4:3):2;
+      unsigned volume=!note||(age>=22&&!(note&0x20))?0:age<4?((note&0x80)?4:3):2;
       if(mem[0x16]!=12||mem[0x18]!=(note&31)) fail("music voice/pitch sequence");
       if(mem[0x1a]!=volume) fail("music volume envelope");
       if(val("music_step")!=(index+1)%48||val("music_clock")!=24-age) fail("music tempo or loop length");
