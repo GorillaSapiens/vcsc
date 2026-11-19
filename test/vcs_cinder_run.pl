@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 90
+# timeout: 180
 # expectstdout: vcs_cinder_run ok
 # expectexit: 0
 use strict;
@@ -45,7 +45,7 @@ run("$tmp/oracle","$tmp/game.bin","$tmp/game.map") eq "cinder_run CPU ok\n" or d
 open my$s,'<',"$repo/examples/06_games/cinder_run/cinder_run.c26" or die$!;
 my$source=do { local$/; <$s> }; close$s;
 $source=~s{\.\./\.\./_common/(\w+\.c26)}{$repo/examples/_common/$1}g;
-for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster red_monsters no_music superchip_dummy same_speed wrong_target no_respawn_delay facing_spawns treasure_gunfire resurrected_cache camera_respawn)) {
+for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_monster red_monsters no_music superchip_dummy same_speed wrong_target no_respawn_delay facing_spawns treasure_gunfire resurrected_cache camera_respawn no_life_reward uncapped_lives dead_palette)) {
    my$broken=$source;
    if($mode eq 'no_kill') {
       $broken=~s/run_kill := CXM0P & 0x80;/run_kill := 0;/ or die 'kill boundary';
@@ -93,6 +93,15 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
     elsif($mode eq 'camera_respawn') {
        $broken=~s/asm lda.ax enemy_delay,x;\n   asm bne.same \@camera_left_next;/asm lda #0;\n   asm bne.same \@camera_left_next;/ or die 'waiting camera boundary';
     }
+    elsif($mode eq 'no_life_reward') {
+       $broken=~s/if \(run_lives < 11\) \{ run_lives\+\+; \}/if (run_lives < 11) { run_lives := run_lives; }/ or die 'life reward boundary';
+    }
+    elsif($mode eq 'uncapped_lives') {
+       $broken=~s/if \(run_lives < 11\)/if (run_lives < 255)/ or die 'life cap boundary';
+    }
+    elsif($mode eq 'dead_palette') {
+       $broken=~s/if \(run_mode == 2\) \{ COLUBK := 0; COLUPF := 0x04; \}/if (run_mode == 2) { COLUBK := 0x82; COLUPF := 0x26; }/ or die 'death palette boundary';
+    }
    else {
        $broken=~s/asm lda.ax enemy_direction,x;/asm lda #1;/ or die 'monster boundary';
    }
@@ -103,7 +112,7 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
    if(!$p) {
       open STDOUT,'>',"$tmp/$mode.log" or die$!;
       open STDERR,'>&STDOUT' or die$!;
-        my%scenario=(no_kill=>0,thick_ceiling=>0,bad_inverse=>1,forgotten_treasure=>3,chasing_monster=>4,red_monsters=>4,no_music=>1,superchip_dummy=>0,same_speed=>4,wrong_target=>5,no_respawn_delay=>5,facing_spawns=>5,treasure_gunfire=>0,resurrected_cache=>5,camera_respawn=>6);
+        my%scenario=(no_kill=>0,thick_ceiling=>0,bad_inverse=>1,forgotten_treasure=>3,chasing_monster=>4,red_monsters=>4,no_music=>1,superchip_dummy=>0,same_speed=>4,wrong_target=>5,no_respawn_delay=>5,facing_spawns=>5,treasure_gunfire=>0,resurrected_cache=>5,camera_respawn=>6,no_life_reward=>8,uncapped_lives=>8,dead_palette=>0);
        exec("$tmp/oracle","$tmp/$mode.bin","$tmp/$mode.map",$scenario{$mode}); die$!;
    }
    waitpid($p,0); $?!=0 or die "$mode negative control passed\n";
@@ -114,7 +123,8 @@ for my$mode(qw(no_kill thick_ceiling bad_inverse forgotten_treasure chasing_mons
         superchip_dummy=>'indexed dummy read hits Superchip write port',same_speed=>'independent monster speed/direction',
         wrong_target=>'shot reset wrong enemy slot',no_respawn_delay=>'targeted shot did not enter respawn delay',
         facing_spawns=>'random spawn side depends on facing',treasure_gunfire=>'treasure did not use its own chime voice',
-        resurrected_cache=>'defeated monster reappeared during delay',camera_respawn=>'camera respawned waiting enemy');
+        resurrected_cache=>'defeated monster reappeared during delay',camera_respawn=>'camera respawned waiting enemy',
+        no_life_reward=>'treasure life reward/cap at eleven',uncapped_lives=>'treasure life reward/cap at eleven',dead_palette=>'game-over BK/PF palette');
    my$reason=$reason{$mode};
    index($log,$reason)>=0 or die "$mode failed for the wrong reason: $log\n";
 }

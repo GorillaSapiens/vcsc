@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 180
+# timeout: 360
 # expectstdout: vcs_cinder_run_stella ok
 # expectexit: 0
 use strict;
@@ -47,10 +47,17 @@ END {local$?;if($p) {kill 'TERM',$p;waitpid($p,0);}}
 vcsc_xvfb_assert_ready($display,$p);
 local$ENV{DISPLAY}=$display;local$ENV{SDL_VIDEODRIVER}='x11';local$ENV{SDL_AUDIODRIVER}='dummy';
 my@aim=(0x7f,0x6f,0xef,0xaf,0xbf,0x9f,0xdf,0x5f);
-my@modes=(qw(idle running standing jump duck shoot world treasure edge_gap edge_top edge_seam edge_third edge_far edge_bad mux_sweep mux_far),(map{"aim$_"}0..7),(map{"monster$_"}0..7),(map{("kill$_","control$_")}0..3));
+my@modes=(qw(idle running standing jump duck shoot world treasure dead edge_gap edge_top edge_seam edge_third edge_far edge_bad mux_sweep mux_far),(map{"lantern$_"}0..11),(map{"aim$_"}0..7),(map{"monster$_"}0..7),(map{("kill$_","control$_")}0..3));
 for my$mode(@modes) {
    my$dir="$tmp/$mode";make_path($dir);my$s=$source;my$input='';
    if($mode ne 'idle') {$s=~s/new_run\(\);\n   locate_treasure\(\);/new_run();\n   run_mode := 1;\n   locate_treasure();/ or die 'startup boundary';}
+   if($mode=~/^lantern(\d+)$/) {
+      my$count=$1;
+      $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; run_lives := $count;\n   locate_treasure();/ or die 'lantern fixture';
+   }
+   if($mode eq 'dead') {
+      $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 2; run_lives := 0;\n   locate_treasure();/ or die 'dead fixture';
+   }
     if($mode=~/^monster(\d)$/) {
        my$kind=$1;
        $s=~s/run_mode := 1;\n   locate_treasure\(\);/run_mode := 1; enemy_kind[3] := $kind; enemy_x[3] := 152;\n   locate_treasure();/ or die 'monster fixture boundary';
@@ -101,7 +108,7 @@ for my$mode(@modes) {
    else {$s=~s/INPT4/0x80/g;}
    open my$f,'>',"$dir/scripted.c26" or die$!;print{$f}$s;close$f;
    run("$repo/driver/vcsc",'-I',"$repo/libraries/vcs","$dir/scripted.c26",'-o',"$dir/scripted.bin");
-    my$frames=$mode=~/^(?:edge_|mux_)/?join(',',4..($mode=~/^(?:edge_(?:far|bad)|mux_far)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'25,50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^monster/?'4':$mode=~/^(?:kill|control)/?'14,35,150':$mode eq 'shoot'?'14,25,50':$mode eq 'duck'?'25':'10';
+     my$frames=$mode=~/^(?:edge_|mux_)/?join(',',4..($mode=~/^(?:edge_(?:far|bad)|mux_far)$/?35:131)):($mode eq 'idle'||$mode eq 'running')?'4,8,12,14,16,25,50':$mode eq 'standing'?'25,50':$mode eq 'world'?'4,50,116':$mode eq 'treasure'?'4,92,200':$mode=~/^aim/?'18':$mode=~/^(?:monster|lantern)/||$mode eq 'dead'?'4':$mode=~/^(?:kill|control)/?'14,35,150':$mode eq 'shoot'?'14,25,50':$mode eq 'duck'?'25':'10';
    run(vcsc_stella_capture_launcher($repo,$stella),vcsc_stella_palette_args($repo,"$dir/user"),
       '-plr.bankrandom','0','-plr.ramrandom','0','-plr.tiarandom','0',
       '-dev.bankrandom','0','-dev.ramrandom','0','-dev.cpurandom','0','-dev.tiarandom','0',
@@ -118,10 +125,10 @@ my%courier_rgb=map{color($_)=>1}@courier;my%monster_rgb=map{color($_)=>1}@monste
 my$pf_rgb=color($pf);
 sub image {return decode_rgb(sprintf("$tmp/$_[0]/frame_%08d.png",$_[1]));}
 my($w,$h,$rgb)=image('idle',4);$w==160&&$h>=192&&$h<=264 or die 'capture geometry';
-my($origin)=grep{substr($rgb,($_*$w+16)*3,3) eq $pf_rgb}25..60;
-defined$origin or die 'missing lamps';
+my($first_tier)=grep{substr($rgb,($_*$w)*3,3) eq $pf_rgb}40..130;
+defined$first_tier or die 'missing first platform';my$origin=$first_tier-48;
 for my$y($origin..$origin+15) {
-   for my$x(80..159) {substr($rgb,($y*$w+$x)*3,3) ne $pf_rgb or die 'life lamps are mirrored on the right';}
+    for my$x(0..159) {substr($rgb,($y*$w+$x)*3,3) ne $pf_rgb or die 'obsolete top life marks remain';}
 }
 # All 160 pixels, all four lines of each tier, and every intervening gap.
 for my$dy(16..143) {
@@ -137,7 +144,31 @@ for my$dy(16..143) {
       $on==$actual or die "full-width terrain mismatch: scanline $dy x$x\n";
    }
 }
-for my$dy(144..175) {for my$x(0..159) {substr($rgb,(($origin+$dy)*$w+$x)*3,3) eq $pf_rgb or die "road misses scanline $dy x$x\n";}}
+for my$dy(144..165) {for my$x(0..159) {substr($rgb,(($origin+$dy)*$w+$x)*3,3) eq $pf_rgb or die "road misses scanline $dy x$x\n";}}
+my@lantern;
+for my$name(qw(glyph_top glyph_row2 glyph_row3 glyph_row4 glyph_row5 glyph_bottom)) {
+   $source=~/\b\Q$name\E\s*:=\s*(0x[0-9a-f]+)/i or die 'lantern source glyph';push@lantern,hex($1);
+}
+$source=~/lives_color\s*:=\s*(0x[0-9a-f]+)/i or die 'lantern color';my$lantern_rgb=color(hex($1));
+my($lw,$lh,$lrgb)=image('lantern11',4);
+my($lantern_y)=grep {index(substr($lrgb,$_*$lw*3,$lw*3),$lantern_rgb)>=0}($origin+166..$lh-1);
+defined$lantern_y or die 'bottom lantern strip missing';
+for my$count(0..11) {
+   my($w,$h,$rgb)=image("lantern$count",4);
+   for my$y($origin+166..$h-1) {for my$x(0..159) {
+      my$row=$y-$lantern_y;my$slot=int(($x-16)/12);my$dx=$x-16-$slot*12;
+      my$on=$row>=0&&$row<6&&$x>=16&&$slot<$count&&$dx<8&&($lantern[$row]&(0x80>>$dx));
+      my$actual=substr($rgb,($y*$w+$x)*3,3) eq $lantern_rgb;
+      !!$on==!!$actual or die "lantern$count: incomplete/extra icon at x$x y$y";
+   }}
+}
+my(undef,undef,$dead)=image('dead',4);
+substr($dead,($origin*$w+80)*3,3) eq color(0) or die 'game-over BK not black';
+for my$dy(48..51,80..83,112..115,144..165) {for my$x(0..159) {
+   my$was_pf=substr($rgb,(($origin+$dy)*$w+$x)*3,3) eq $pf_rgb;
+   next unless$was_pf;
+   substr($dead,(($origin+$dy)*$w+$x)*3,3) eq color(4) or die 'game-over PF not dark gray';
+}}
 sub body {
    my($mode,$f)=@_;my($w,$h,$rgb)=image($mode,$f);my@ys;my$mask='';
    for my$y(60..$h-1) {for my$x(79..104) {if($courier_rgb{substr($rgb,($y*$w+$x)*3,3)}) {push@ys,$y;$mask.=pack('CC',$x,$y);}}}

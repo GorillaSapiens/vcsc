@@ -1,4 +1,5 @@
 // Behavioral CPU oracle; TIA geometry is independently checked by pixel tests.
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -37,6 +38,7 @@ class Machine {
    unsigned waiting_target=4,waiting_start=0,waiting_wave=0,waiting_delay=0;
    unsigned spawn_sides=0,cooldown_completed=0;
    unsigned terrain_jumps=0;
+   unsigned life_rewards=0;
    bool terrain_grounded=true;
    uint8_t spawn_seed=0;
    bool spawn_left=false;
@@ -48,6 +50,7 @@ class Machine {
    uint8_t val(const char*s) { return mem[addr(s)]; }
    void put(const char*s,uint8_t v) { mem[addr(s)]=v; }
    uint8_t keys() const {
+       if(mode==8) return 0xff;
        if(mode==7) {
           if(frame<32) return 0xff;
           unsigned phase=(frame-32)%52,round=(frame-32)/52;uint8_t input=0xff;
@@ -72,7 +75,7 @@ class Machine {
    }
    uint8_t fire() const {
        if(mode==7&&frame>=32&&(frame-32)%52>=44&&(frame-32)%52<48) return 0;
-      if(frame==5 || (mode==0&&((frame>=100&&frame<=110)||frame==450)) || (mode==2&&frame==104)) return 0;
+       if(frame==5 || (mode==0&&((frame>=100&&frame<=110)||frame==480)) || (mode==2&&frame==104)) return 0;
       if(mode==2 && frame>=20&&frame<100 && (frame-20)%10<3) return 0;
       if(mode==2&&frame>=109&&frame<=113) return 0;
       return 0x80;
@@ -87,9 +90,9 @@ class Machine {
       if(a==0x280) return keys();
       if(a==0x282) return mode==0&&frame==510 ? 0xfe : 0xff;
       if(a==0x3c) return fire();
-      if(a==0x37) return mode==0&&((frame>=150&&frame<=155)||frame==250||frame==350) ? 0x80 : 0;
+       if(a==0x37) return (mode==0&&((frame>=150&&frame<=155)||frame==250||frame==350||frame==450))||(mode==8&&frame==146) ? 0x80 : 0;
        if(a==0x30) return (mode==0&&frame==104)||(mode==5&&frame>=20&&frame<=500&&(frame-20)%160==0) ? 0x80 : 0;
-      if(a==0x31) return (mode==0&&frame==95)||(mode==3&&(frame==20||frame==100||frame==600)) ? 0x80 : 0;
+       if(a==0x31) return (mode==0&&frame==95)||(mode==3&&(frame==20||frame==100||frame==600))||(mode==8&&((frame>=20&&frame<=140&&frame%10==0)||frame==146)) ? 0x80 : 0;
       if(a==0x284||a==0x285) {
          auto t=timer?(clock-timer_start)/divisor:0;
          if(a==0x285) return t>loaded?0x80:0;
@@ -165,16 +168,32 @@ class Machine {
          if(!grounded&&terrain_grounded) ++terrain_jumps;
          terrain_grounded=grounded;return;
       }
-      if(mode==3) {
-         if(frame>21) {
+       if(mode==3) {
+          if(frame>21) {
+             if(val("run_lives")!=4) fail("revisited treasure awarded another life");
             if(!(mem[addr("treasure_taken")]&1)) fail("collected treasure flag was forgotten");
             if(!val("treasure_id")&&val("treasure_visible")) fail("collected treasure respawned");
             if(val("treasure_id")==1&&val("treasure_visible")) treasure_other=true;
             if(frame>550&&!val("treasure_id")&&!val("treasure_visible")) treasure_returned=true;
          }
           if((frame==102||frame==602)&&val("run_sound")==0x8b) fail("repeated treasure paid again");
-         return;
-      }
+          return;
+       }
+       if(mode==8) {
+          if(frame==9) put("run_lives",1);
+          if(frame>=19&&frame<=139&&(frame-19)%10==0) {
+             put("world_sector",(frame-19)/10);put("world_camera",0);
+          }
+          if(frame>=22&&frame<=142&&(frame-22)%10==0) {
+             ++life_rewards;unsigned expected=std::min(11u,life_rewards+1);
+             if(val("run_lives")!=expected) fail("treasure life reward/cap at eleven");
+             if(val("lives_score")!=expected) fail("lantern count differs from lives");
+          }
+          if(frame==145) {put("run_lives",1);put("run_immunity",0);put("world_sector",13);}
+          if(frame==148&&(val("run_lives")!=1||val("run_mode")!=1||!(mem[addr("treasure_taken")+1]&32)))
+             fail("simultaneous pickup/damage left inconsistent lives or game over");
+          return;
+       }
       if(mode==4) {
           if(frame==10) {put("game_object_x",80);put("enemy_x",82);put("enemy_direction",255);}
           if(frame==30&&val("enemy_x")>=78) fail("monster stopped or turned above player");
@@ -296,12 +315,15 @@ class Machine {
       if(frame==103&&!val("run_shot_active")) fail("Fire did not shoot");
       if(frame==105) { if(val("run_shot_active")) fail("M0 kill did not remove shot"); killed=true; }
       if(frame==110&&val("run_shot_active")) fail("held Fire spawned another shot");
-      if(frame==152&&val("run_lives")==2&&val("run_immunity")) damaged=true;
-      if(frame==158&&val("run_lives")!=2) fail("immunity did not suppress repeated damage");
-      if(frame==352&&(val("run_mode")!=2||val("run_lives"))) fail("game over");
-      if((frame==352||frame==512)&&mem[0x1a]) fail("music did not stop on game over/Reset");
-      if(frame==452&&(mem[0x18]!=17||mem[0x1a]!=4)) fail("music did not restart from its first note");
-      if(frame==452&&val("run_mode")==1&&val("run_lives")==3) restarted=true;
+       if(frame==98&&val("run_lives")!=4) fail("treasure did not add a life");
+       if(frame==152&&val("run_lives")==3&&val("run_immunity")) damaged=true;
+       if(frame==158&&val("run_lives")!=3) fail("immunity did not suppress repeated damage");
+       if(frame==452&&(val("run_mode")!=2||val("run_lives"))) fail("game over");
+       if(frame==452&&(mem[0x09]!=0||mem[0x08]!=4)) fail("game-over BK/PF palette");
+       if((frame==452||frame==512)&&mem[0x1a]) fail("music did not stop on game over/Reset");
+       if(frame==482&&(mem[0x18]!=17||mem[0x1a]!=4)) fail("music did not restart from its first note");
+       if(frame==482&&val("run_mode")==1&&val("run_lives")==3) restarted=true;
+       if(frame==482&&(mem[0x09]!=0x82||mem[0x08]!=0x26)) fail("restart did not restore BK/PF palette");
       if(frame==512&&!val("run_mode")&&!val("score_score")) reset=true;
       // Swept landings at every tier and a solid four-scanline underside.
       for(unsigned t=0;t<3;++t) {
@@ -328,7 +350,7 @@ public:
       cpu.Reset();cpu.SetPC(read(0xfffc)|(read(0xfffd)<<8));
    }
    void run() {
-       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5||mode==7?650:mode==6?200:530;
+       int deadline=mode==1?7200:mode==2?124:mode==3?720:mode==4?210:mode==5||mode==7?650:mode==6?200:mode==8?150:530;
        for(unsigned long i=0;i<90000000&&frame<deadline;++i) {
           // The lightweight CPU omits bus dummy reads. Reject indexed ROM
           // reads whose speculative address would hit Superchip's write port;
@@ -348,8 +370,8 @@ public:
              if((base&0xff00)!=(sum&0xff00)&&dummy>=0x1000&&dummy<0x1080)
                 fail("indexed dummy read hits Superchip write port");
           }
-         writes.clear();auto before=cycles;cpu.Run(1,cycles,mos6502::INST_COUNT);clock+=cycles-before;
-          for(auto w:writes) {
+          writes.clear();auto before=cycles;cpu.Run(1,cycles,mos6502::INST_COUNT);clock+=cycles-before;
+           for(auto w:writes) {
              if(w.first==0x2a&&!(mem[1]&2)&&clock%76==8) {
                if(val("game_aux_index")!=3||mem[0x20]||mem[0x21]||mem[0x22]) fail("dot HMOVE disturbed another object");
                if((mem[0x23]&0xf0)!=(dot_moves?0xf0:0x10)) fail("dot HMOVE is not minus/plus one pixel");
@@ -383,7 +405,8 @@ public:
        else if(mode==4) {if(monsters.size()!=8) fail("eight distinct monster designs");}
        else if(mode==5) {if(cooldown_completed!=4||spawn_sides!=3||cooldowns.size()<3) fail("random delay/side coverage");}
        else if(mode==6) {if(!forward||!backward) fail("waiting enemy camera traversal coverage");}
-       else if(mode==7) {if(terrain_jumps<8) fail("repeated terrain-jump coverage");}
+        else if(mode==7) {if(terrain_jumps<8) fail("repeated terrain-jump coverage");}
+        else if(mode==8) {if(life_rewards!=13) fail("life reward/cap coverage");}
        else if(mode==0&&(!jump||!duck||!killed||!damaged||!restarted||!reset||!m0||!m1||jump_tone<0||catch_tone<0||jump_tone==catch_tone)) fail("gameplay/audio coverage");
    }
 };
@@ -392,8 +415,8 @@ Machine*Machine::active=nullptr;
 int main(int argc,char**argv) {
    if(argc!=3&&argc!=4) return 2;
    unsigned first=argc==4?static_cast<unsigned>(std::strtoul(argv[3],nullptr,10)):0;
-   if(first>=8) return 2;
-   unsigned last=argc==4?first+1:8;
+   if(first>=9) return 2;
+   unsigned last=argc==4?first+1:9;
    for(unsigned i=first;i<last;++i) {Machine m(argv[1],argv[2],i);m.run();}
    std::puts("cinder_run CPU ok");
 }

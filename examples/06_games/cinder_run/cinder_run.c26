@@ -9,6 +9,11 @@ include "fonts/whimsey_decimal.c26"
 
 include "../../_common/cinder_run_state.c26"
 instantiate "six_glyph_component.c26" as score (mutable_color:=1)
+instantiate "heart_score_component.c26" as lives (
+   whole_only:=1, rom_bank:=3,
+   glyph_top:=0x18, glyph_row2:=0x7e, glyph_row3:=0x5a,
+   glyph_row4:=0x5a, glyph_row5:=0x42, glyph_bottom:=0x7e
+)
 instantiate "../../_common/cinder_run_pair.c26" as game_upper (offset:=0)
 instantiate "../../_common/cinder_run_pair.c26" as game_middle (offset:=6)
 instantiate "../../_common/cinder_run_pair.c26" as game_lower (offset:=12)
@@ -572,7 +577,7 @@ inline void update_physics(void) {
    if (!run_grounded) {
       physics_old_feet := run_feet;
       run_feet := run_feet + (uint8_t) run_velocity;
-      // Keep the entire courier below the sixteen-line lamp/UI strip.
+      // Keep the entire courier below the sixteen-line top margin.
       if (run_feet < 17) { run_feet := 17; run_velocity := 0; }
       physics_top := 25; physics_probe := 4; collide_ledge();
       physics_top := 41; physics_probe := 2; collide_ledge();
@@ -720,6 +725,25 @@ bank1 void update_run(void) {
              }
          }
       }
+      // Award the spark before damage: a simultaneous pickup/hit must not
+      // leave a game-over screen with a positive life count.
+      if (run_collect && treasure_visible) {
+         if (run_lives < 11) { run_lives++; }
+         asm lda.a treasure_id;
+         asm lsr;
+         asm lsr;
+         asm lsr;
+         asm tax;
+         asm lda.a treasure_id;
+         asm and #7;
+         asm tay;
+         asm lda.ay treasure_bit,y;
+         asm ora.ax treasure_taken,x;
+         asm sta.ax treasure_taken,x;
+         treasure_visible := 0;
+         score_score += 50;
+         run_sound := 0x8c;
+      }
       if (run_immunity) {
          run_immunity--;
       }
@@ -735,22 +759,6 @@ bank1 void update_run(void) {
             }
          }
       }
-      if (run_collect && treasure_visible) {
-          asm lda.a treasure_id;
-          asm lsr;
-          asm lsr;
-          asm lsr;
-          asm tax;
-          asm lda.a treasure_id;
-          asm and #7;
-          asm tay;
-          asm lda.ay treasure_bit,y;
-          asm ora.ax treasure_taken,x;
-          asm sta.ax treasure_taken,x;
-         treasure_visible := 0;
-          score_score += 50;
-          run_sound := 0x8c;
-      }
       if (!(run_frame & 15)) {
          score_score++;
       }
@@ -758,10 +766,18 @@ bank1 void update_run(void) {
 }
 
 bank2 void locate_treasure(void) {
-   treasure_id := world_sector;
-   run_spark_x := 128 - world_camera;
-   if (world_camera > 128) { treasure_id++; }
-   treasure_visible := 0;
+   asm lda #128;
+   asm sec;
+   asm sbc.z world_camera;
+   asm sta.z game_object_x+2;
+   // The ID advances only after the current sector's treasure leaves view.
+   asm ldx.z world_camera;
+   asm cpx #129;
+   asm lda.a world_sector;
+   asm adc #0;
+   asm sta.a treasure_id;
+   asm lda #0;
+   asm sta.a treasure_visible;
    asm lda.a treasure_id;
    asm and #7;
    asm tay;
@@ -775,10 +791,18 @@ bank2 void locate_treasure(void) {
    asm lda.ay treasure_taken,y;
    asm and.z game_workspace;
    asm sta.z game_workspace + 4;
-   if (run_spark_x < 156 && !physics_mask) {
-       treasure_visible := 1;
-   }
-   run_spark_y := spark_lane[treasure_id & 3];
+   asm bne.same @treasure_hidden;
+   asm lda.z game_object_x+2;
+   asm cmp #156;
+   asm bcs.same @treasure_hidden;
+   asm lda #1;
+   asm sta.a treasure_visible;
+   asm @treasure_hidden:;
+   asm lda.a treasure_id;
+   asm and #3;
+   asm tay;
+   asm lda.ay spark_lane,y;
+   asm sta.z game_object_x+3;
 }
 
 bank3 void prepare_monster(void) {
@@ -950,10 +974,6 @@ bank1 void prepare_frame(void) {
    }
    prepare_enemies();
    prepare_sprites();
-   game_lamps := 0;
-   if (run_lives) { game_lamps := 0x80; }
-   if (run_lives > 1) { game_lamps |= 0x20; }
-   if (run_lives > 2) { game_lamps |= 0x08; }
    if (run_shot_active && !(run_frame & 1)) {
       game_BALL_X := run_shot_x;
       game_ball_y := run_shot_y;
@@ -968,6 +988,7 @@ bank1 void prepare_frame(void) {
    game_vblank();
    COLUBK := 0x82;
    COLUPF := 0x26;
+   if (run_mode == 2) { COLUBK := 0; COLUPF := 0x04; }
    CTRLPF := 0x21;
 }
 
@@ -988,6 +1009,18 @@ bank1 void finish_frame(void) {
    world_request := 0;
 }
 
+bank3 void prepare_lanterns(void) {
+   lives_score := run_lives;
+   lives_color := 0x2e;
+   lives_vblank();
+}
+
+bank3 void draw_lanterns(void) {
+   asm sta WSYNC;
+   vcs_ntsc_component_handoff();
+   lives_draw();
+}
+
 bank0 void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
@@ -998,19 +1031,23 @@ bank0 void main(void) {
    while (enemy_index < 4) { prepare_monster(); enemy_index++; }
    game_init();
    score_init();
+   lives_init();
    while (1) {
-       vcs_ntsc_vsync();
-       vcs_ntsc_begin_vblank();
-       prepare_frame();
-       score_vblank();
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      prepare_frame();
+      prepare_lanterns();
+      score_vblank();
       vcs_ntsc_end_vblank();
       score_draw();
       vcs_ntsc_component_handoff();
       game_draw();
+      draw_lanterns();
       vcs_ntsc_begin_overscan();
       game_overscan();
       score_overscan();
-       finish_frame();
-       vcs_ntsc_end_overscan();
+      lives_overscan();
+      finish_frame();
+      vcs_ntsc_end_overscan();
    }
 }

@@ -391,6 +391,26 @@ health_half := 1;  // add the left half of the next heart (through 10.5)
 health_color := 0x46;
 ```
 
+For whole icons only, `whole_only:=1` removes the half-state byte and half
+renderers, uses seven RAM bytes, and keeps the same seven-line draw schedule.
+Six optional byte parameters supply a different glyph, top to bottom:
+
+```vcsc
+instantiate "heart_score_component.c26" as lanterns (
+   whole_only:=1,
+   glyph_top:=0x18, glyph_row2:=0x7e, glyph_row3:=0x5a,
+   glyph_row4:=0x5a, glyph_row5:=0x42, glyph_bottom:=0x7e
+)
+```
+
+Set `lanterns_score` and `lanterns_color` and use the usual lifecycle; there is
+no runtime `lanterns_half` byte. Custom glyphs require the whole-only profile.
+For banked whole-only instances without line markers, `rom_bank:=0..7` pins the
+glyph, renderer variants, selection tables and dispatcher to that bank. Execute
+`draw()` from the same bank and preserve its cycle-3 entry contract; bank-call
+overhead is the application's responsibility. The default `rom_bank:=255`
+retains automatic placement. Cinder Run uses this profile for its bottom lives.
+
 The default instantiation is deliberately unchanged. An optional compile-time
 profile adds segmented playfield lines above and below the heart row:
 

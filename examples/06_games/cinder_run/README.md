@@ -14,7 +14,7 @@
 A one-player, endless sidescroller for the Atari 2600. Carry your lantern through
 the volcanic ruins: climb three tiers of scrolling platforms above the road,
 leap over rolling cinders, duck low embers, shoot monsters and collect sparks.
-Three lamps in the upper-left corner show your lives; there is no mirrored copy.
+Whole lantern icons below the lowest player level show your lives, up to eleven.
 
 ## The story
 
@@ -39,9 +39,11 @@ were caught in the same stolen fire.
 
 Your lantern shelters each spark from the kiln. Once rescued, it stays rescued:
 walking away and coming back cannot make the furnace sell you the same memory
-twice. In this build, each spark awards **50 points**, not extra health or ammo.
-The three life lamps represent your three borrowed sunrises; lose them all and
-the journey ends. Restarting begins a fresh journey, with fresh memory sparks.
+twice. Each spark awards **50 points and one life**, capped at **11 lives**.
+You start with three borrowed sunrises; the lantern strip shows one complete
+lantern per remaining life, never half a lantern. Lose them all and the journey
+ends: the background turns black and the platforms dark gray. Restarting restores
+the normal colors and begins a fresh journey with three lives and fresh sparks.
 
 ### What is the weapon?
 
@@ -101,7 +103,7 @@ make play
 - **Up:** jump. Release between jumps; holding Up does not jump repeatedly.
   Jumping makes an upward pitch sweep; catching a spark makes a rising two-note
   chime in a different voice from the short square-wave gunshot and kill pulses.
-- **Left joystick fire:** start, shoot, or restart after losing all three lives.
+- **Left joystick fire:** start, shoot, or restart after losing all remaining lives.
   One shot at a time; release between shots. Hold Fire with any joystick direction
   to aim in eight directions. Neutral Fire shoots in the last facing direction.
   While Fire is held, the stick aims rather than moving, crouching, or jumping.
@@ -144,7 +146,7 @@ The four-frame running cycle alternates extended strides and passing/recovery
 poses, with counter-swinging arms and contrasting boots. Airborne and crouched
 poses are separate from the running cycle. Releasing the movement stick selects
 a standing pose, also used while aiming. A ceiling keeps the whole courier below
-the lamp strip.
+the empty top margin.
 
 Treasure sparks are centered four-scanline dots with widths **2/4/4/2 pixels**:
 the narrow rows sit one pixel inside each side of the wide rows. M1 shifts left
@@ -170,10 +172,10 @@ fallback, but the generator does not promise every overhead route is climbable.
 
 NTSC, **16K F6SC**, ordinary joystick, official 6502 opcodes only. The cartridge
 provides 128 bytes of Superchip RAM; no emulator modifications are required.
-The build uses 122 cartridge-RAM bytes and 120 RIOT-RAM bytes, including an
+The build uses 122 cartridge-RAM bytes and 126 RIOT-RAM bytes, including an
 18-byte hardware-stack allowance.
 
-The game-owned 181-line raster draws the courier and four eight-row enemies,
+The game-owned 170-line raster draws the courier and four eight-row enemies,
 an M0 shot, an M1 spark, and three independent full-width platform tiers. The visible terrain uses
 **18 bytes**: left PF0/PF1/PF2 and reflected right PF2/PF1/PF0 for each tier.
 This is three bytes more than a bit-packed 15-byte window, but needs no expanded
@@ -193,7 +195,12 @@ current band through COLUP1. Missile enables commit in horizontal
 blanking, avoiding partial scanlines as a missile approaches the left edge.
 Collision probes sample the same
 packed playfield bytes that the kernel displays. The six-glyph component supplies
-the score above gameplay in the Whimsey font. TIA collision latches drive damage,
+the score above gameplay in the Whimsey font. The heart component's whole-only
+profile uses a custom six-row lantern glyph below gameplay; its renderer and
+dispatch table stay together in bank 3. The road's lower padding is shorter,
+without moving its top or any platform/player level. Bank handoffs and the
+seven-line lantern renderer preserve the 192-line visible field and 262-line
+Stella frame period. TIA collision latches drive damage,
 kills and collection.
 Physics, enemy positioning and half the movement work run in VBLANK; terrain
 updates, the remaining movement, treasure lookup and scoring run in overscan.
@@ -224,6 +231,11 @@ respawn countdown, both entry sides independently of facing, hidden artwork
 throughout the wait, camera movement during the wait, and countdown continuity
 across the frame-counter wrap. Sound-register assertions require the treasure
 chime's separate voice and rising second note while gunfire retains its pulse.
+Thirteen distinct treasure rewards exercise every whole-life count through 11
+and saturation at the cap; revisited treasure must not award another life.
+A simultaneous pickup/hit awards the life before subtracting damage, so a fatal
+hit cannot leave a game-over screen with positive lives. Game-over and restart
+checks assert both background and playfield palettes.
 Broken kills, ceilings, inverse steps, treasure flags,
 reversed routes, uniform speeds, incorrect target selection, immediate respawns,
 facing-based entry sides, resurrected caches, treasure/gunfire sound reuse and unsafe Superchip dummy reads
@@ -245,7 +257,7 @@ sampling and swept ledge checks use bounded direct assembly comparisons to keep
 jump frames inside the VBLANK deadline without changing platform collision rules.
 
 `test/vcs_cinder_run_stella.pl` checks all 160 pixels of every platform scanline
-and intervening gap, every full-width road line, upper-left-only lamps, stationary
+and intervening gap, every full-width road line, an empty top margin, stationary
 and four distinct running poses, Up jumping,
 fixed-foot crouching, all eight monster colors on actual rendered creatures,
 four source-derived enemy silhouettes in the same frame, and visible travel in all eight aim
@@ -254,6 +266,9 @@ pixels. A real TIA treasure collection must stay absent after leaving and return
 Paired shooting/control captures prove real M0 hits on each of the four levels
 leave only the target level empty during its delay, preserve the other enemies'
 positions and colors, and eventually render a replacement on the emptied level.
+Separate captures require exact source-derived, complete lantern silhouettes at
+every life count 0..11, below the lowest level, with no extra or half icons.
+Game-over captures independently require black background and dark-gray terrain.
 P1 sweeps cover X1..128 and X121..152 on all four levels together, comparing
 reused positions to the initial P1 and requiring full eight-pixel silhouettes.
 Sweeps cover all four treasure heights, a complete X1..128 cycle, and X120..151.

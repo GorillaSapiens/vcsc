@@ -15,7 +15,6 @@ cartram uint8_t game_player1_height;
 cartram uint8_t game_ball_height;
 uint8_t game_workspace[8];
 uint8_t game_fill;
-uint8_t game_lamps;
 uint8_t game_aux_index;
 uint8_t game_color_index;
 uint8_t game_dot_width;

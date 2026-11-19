@@ -122,4 +122,22 @@ $line_ram==12 or die "line-marker heart component RAM changed: $line_ram bytes, 
 $lmt =~ /(?:BSS|DATA)\.__vcsc_object\$health_lines\b/m or die "enabled marker line-count state is missing\n";
 $lmt =~ /(?:BSS|DATA)\.__vcsc_object\$health_line_color\b/m or die "enabled marker color state is missing\n";
 
+my$whole=read_file($fixture);
+$whole=~s/as health\n/as health (whole_only:=1, glyph_top:=0x18, glyph_row2:=0x7e, glyph_row3:=0x5a, glyph_row4:=0x5a, glyph_row5:=0x42, glyph_bottom:=0x7e)\n/ or die 'whole fixture boundary';
+$whole=~s/\s*health_half := HEART_HALF;// or die 'whole fixture half boundary';
+my$whole_source=File::Spec->catfile($tmp,'whole.c26');
+open my$wf,'>',$whole_source or die$!;print{$wf}$whole;close$wf;
+my$whole_bin=File::Spec->catfile($tmp,'whole.bin');my$whole_map=File::Spec->catfile($tmp,'whole.map');
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-DHEART_SCORE=11','-Map',$whole_map,$whole_source,'-o',$whole_bin);
+$rc==0&&!$sig&&without_usage($out) eq ''&&$err eq '' or die "whole-only glyph build failed\n$out$err";
+my$wmt=read_file($whole_map);my$whole_ram=0;
+while($wmt=~/^\s+(?:BSS|DATA)\.__vcsc_object\$health_[^\s]+\s+.*?size=\$([0-9A-Fa-f]{4})/mg) {$whole_ram+=hex($1);}
+$whole_ram==7 or die "whole-only RAM changed: $whole_ram, expected 7\n";
+$wmt !~ /__vcsc_function\$health_half_renderer_|__vcsc_object\$health_half\b/ or die 'whole profile retained half state/renderers';
+$wmt=~/^\s*\$([0-9a-f]+)\s+health_heart\b/im or die 'whole glyph symbol';
+substr(read_file($whole_bin),hex($1)&4095,7) eq pack('C*',0,0x7e,0x42,0x5a,0x5a,0x7e,0x18) or die 'custom glyph rows changed';
+for my$count(0..11) {
+   $wmt=~/^\s+CODE\.__vcsc_function\$health_renderer_\Q$count\E\s+load=\$[0-9A-Fa-f]+\s+size=\$002D\s+page=hard$/m or die "whole renderer$count changed";
+}
+
 print "vcs_heart_score ok\n";

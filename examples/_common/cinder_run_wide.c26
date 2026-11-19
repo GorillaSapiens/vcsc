@@ -1,5 +1,5 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// 181-line full-width component: 3 setup + 176 terrain + 2 cleanup lines.
+// 170-line full-width component; bottom road shortened for the lantern strip.
 // Three independent six-byte ledges occupy 18 RAM bytes; road/gaps are implicit.
 require inline void TEMPLATE_vblank(void) {
    asm .callstackextra 4;
@@ -123,12 +123,11 @@ require inline void TEMPLATE_draw(void) {
    asm @prime_active:;
    asm lda.iy (game_player0_graphics),y;
    asm @prime_ready:;
-   // Lamps only occupy these sixteen top lines. Clear the reflected half
-   // independently; the terrain loop never has to carry a lamp timing path.
+   // Keep the sixteen-line top margin blank; lives use the bottom component.
    asm ldx #16;
    asm @lamp_line:;
    asm sta WSYNC;
-   asm lda.z game_lamps;
+   asm lda #0;
    asm sta PF1;
    asm ldy #6;
    asm @lamp_delay:;
@@ -139,7 +138,7 @@ require inline void TEMPLATE_draw(void) {
    asm dex;
    asm bne.same @lamp_line;
    asm lda #0;
-   asm sta.z game_lamps;
+   asm bit.z $00;
    asm ldx #16;
    asm lda #0;
    asm sta WSYNC;
@@ -170,7 +169,7 @@ require inline void TEMPLATE_draw(void) {
    asm jsr @blank;
    asm ldx #$ff;
    asm stx.z game_fill;
-   asm ldx #16;
+   asm ldx #11;
    asm sta WSYNC;
    asm jsr @blank;
    asm sta WSYNC;
@@ -184,7 +183,6 @@ require inline void TEMPLATE_draw(void) {
    asm sta ENAM1;
    asm sta ENABL;
    asm sta HMCLR;
-   asm sta WSYNC;
    asm sta WSYNC;
    asm jmp @done;
 
